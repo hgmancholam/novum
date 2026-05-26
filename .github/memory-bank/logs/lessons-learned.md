@@ -4,13 +4,42 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-26
-**Total Lessons:** 0
+**Total Lessons:** 1
 
 ---
 
 ## Recent Lessons
 
-_No lessons recorded yet._
+- **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
+
+---
+
+## L-001: BRD Template for Spec-Driven Development
+
+**Date:** 2026-05-26
+**Agent:** BSA Agent
+**Category:** Process & Workflow
+
+### What Happened
+Creating implementation specs for Novum project. Needed a BRD format that enables Copilot to implement directly from specifications without ambiguity.
+
+### Root Cause
+Standard BRD templates are too abstract for AI-assisted coding. Generic descriptions like "implement authentication" don't provide enough detail for automated implementation.
+
+### Lesson Learned
+BRDs optimized for Copilot need:
+- **Implementation Order** field for sequencing
+- **Exact file paths** in File Structure section
+- **Copy-paste ready code blocks** (SQL, Python, TypeScript)
+- **Alembic migration templates** included inline
+- **UI ASCII mockups** for layout specs
+- **Implementation Checklist** with specific file paths
+
+### Prevention
+Always use the enhanced BRD template at `.github/memory-bank/templates/brd-template.md` for all future specs.
+
+### Applied To
+- All 19 BRDs for Novum V1 implementation
 
 ---
 

@@ -1,103 +1,214 @@
-# BRD Template
+# BRD Template (Spec-Driven Development)
 
-**Document ID:** BRD-{YYYY-MM-DD}-{feature-name}
+> **Optimized for Copilot-assisted implementation**
+> Last updated: 2026-05-26
+
+---
+
+## Template Structure
+
+```markdown
+# BRD-{NN}: {Feature Name}
+
+**Document ID:** BRD-{NN}
 **Version:** 1.0
-**Status:** Draft | Review | Approved
+**Status:** Draft
 **Author:** BSA Agent
-**Date:** {date}
+**Date:** {YYYY-MM-DD}
+**Implementation Order:** {N} of {Total}
 
 ---
 
 ## 1. Executive Summary
+Brief description of what this BRD delivers and why.
 
-{Brief overview of the business need and proposed solution. 2-3 sentences maximum.}
+## 2. RF Traceability
+| RF | Requirement | Coverage |
+|----|-------------|----------|
+| RF-XX | Description | Partial/Complete |
 
----
-
-## 2. Business Context
-
-### 2.1 Problem Statement
-
-{What problem are we solving? Who is affected? What is the impact?}
-
-### 2.2 Business Objectives
-
-- {Objective 1}
-- {Objective 2}
-- {Objective 3}
-
-### 2.3 Success Metrics
-
-| Metric | Target | Current | Measurement Method |
-|--------|--------|---------|-------------------|
-| {Metric 1} | {target} | {current} | {method} |
-| {Metric 2} | {target} | {current} | {method} |
+## 3. Dependencies
+| Depends On | Required For |
+|------------|--------------|
+| BRD-XX | BRD-YY |
 
 ---
 
-## 3. Requirements
+## 4. Technical Specification
 
-### 3.1 Functional Requirements
+### 4.1 File Structure
+\`\`\`
+backend/
+  app/
+    {module}/
+      __init__.py
+      models.py
+      routes.py
+      service.py
+frontend/
+  src/
+    components/
+    pages/
+\`\`\`
 
-| ID | Requirement | Priority | RF Reference | Acceptance Criteria |
-|----|-------------|----------|--------------|---------------------|
-| FR-01 | {requirement} | High/Medium/Low | RF-XX | {criteria} |
-| FR-02 | {requirement} | High/Medium/Low | RF-XX | {criteria} |
+### 4.2 Database Schema
+\`\`\`sql
+-- Table definitions with exact column types
+CREATE TABLE {table_name} (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ...
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-### 3.2 Non-Functional Requirements
+-- Indexes
+CREATE INDEX idx_{table}_{column} ON {table}({column});
+\`\`\`
 
-| ID | Requirement | Category | Metric |
-|----|-------------|----------|--------|
-| NFR-01 | {requirement} | Performance | {metric} |
-| NFR-02 | {requirement} | Security | {metric} |
-| NFR-03 | {requirement} | Usability | {metric} |
+### 4.3 Alembic Migration
+\`\`\`python
+"""
+{description}
+
+Revision ID: {auto}
+Revises: {previous}
+Create Date: {auto}
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+def upgrade() -> None:
+    op.create_table(
+        '{table_name}',
+        sa.Column('id', postgresql.UUID(), primary_key=True),
+        ...
+    )
+
+def downgrade() -> None:
+    op.drop_table('{table_name}')
+\`\`\`
+
+### 4.4 Pydantic Models
+\`\`\`python
+from pydantic import BaseModel, ConfigDict
+from datetime import datetime
+from uuid import UUID
+
+class {Model}Base(BaseModel):
+    """Base model with common fields."""
+    model_config = ConfigDict(extra="allow")
+    
+class {Model}Create({Model}Base):
+    """Request model for creation."""
+    pass
+
+class {Model}Response({Model}Base):
+    """Response model with DB fields."""
+    id: UUID
+    created_at: datetime
+\`\`\`
+
+### 4.5 API Endpoints
+| Method | Path | Request Body | Response | Description |
+|--------|------|--------------|----------|-------------|
+| GET | `/api/{resource}` | - | `List[{Model}Response]` | List all |
+| POST | `/api/{resource}` | `{Model}Create` | `{Model}Response` | Create new |
+| GET | `/api/{resource}/{id}` | - | `{Model}Response` | Get by ID |
+
+### 4.6 React Components
+| Component | Path | Props | State | Description |
+|-----------|------|-------|-------|-------------|
+| `{Name}` | `src/components/{path}` | `{props}` | `{state}` | Description |
+
+### 4.7 UI Layout
+\`\`\`
+┌─────────────────────────────────────────────┐
+│  Header / Navigation                        │
+├──────────┬────────────────────┬─────────────┤
+│  Left    │     Center         │    Right    │
+│  Panel   │     Content        │    Panel    │
+│          │                    │             │
+└──────────┴────────────────────┴─────────────┘
+\`\`\`
 
 ---
 
-## 4. Scope
+## 5. Acceptance Criteria
 
-### 4.1 In Scope
+### AC-01: {Scenario Name}
+\`\`\`gherkin
+Given {initial context}
+  And {additional context}
+When {action taken}
+Then {expected outcome}
+  And {additional verification}
+\`\`\`
 
-- {Feature/capability 1}
-- {Feature/capability 2}
-- {Feature/capability 3}
-
-### 4.2 Out of Scope
-
-- {Explicitly excluded item 1}
-- {Explicitly excluded item 2}
-
-### 4.3 Assumptions
-
-- {Assumption 1}
-- {Assumption 2}
-
-### 4.4 Constraints
-
-- {Constraint 1}
-- {Constraint 2}
+### AC-02: {Error Scenario}
+\`\`\`gherkin
+Given {initial context}
+When {invalid action}
+Then {error handling}
+\`\`\`
 
 ---
 
-## 5. Dependencies
+## 6. Implementation Checklist
+- [ ] Database migration created — `backend/alembic/versions/{revision}.py`
+- [ ] Pydantic models — `backend/app/{module}/models.py`
+- [ ] API routes — `backend/app/{module}/routes.py`
+- [ ] Service layer — `backend/app/{module}/service.py`
+- [ ] React components — `frontend/src/components/{path}/`
+- [ ] Unit tests backend — `backend/tests/{module}/`
+- [ ] Unit tests frontend — `frontend/src/components/{path}/*.test.tsx`
+- [ ] Integration test — `backend/tests/integration/`
 
-### 5.1 Internal Dependencies
+## 7. Testing Strategy
+| Test Type | Tool | Target | Coverage |
+|-----------|------|--------|----------|
+| Unit (BE) | pytest | `backend/app/{module}/` | ≥80% |
+| Unit (FE) | Vitest | `frontend/src/components/` | ≥80% |
+| Integration | pytest | `backend/tests/integration/` | Critical paths |
+| E2E | Playwright | — | Deferred to V2 |
 
-| Dependency | Owner | Status | Impact |
-|------------|-------|--------|--------|
-| {dependency} | {owner} | {status} | {impact} |
+## 8. Environment Variables
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `VAR_NAME` | Yes/No | `value` | Purpose |
 
-### 5.2 External Dependencies
+## 9. Risks & Mitigations
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|------------|------------|
+| Risk description | High/Med/Low | High/Med/Low | How to mitigate |
 
-| Dependency | Provider | Status | Impact |
-|------------|----------|--------|--------|
-| {dependency} | {provider} | {status} | {impact} |
+## 10. Out of Scope
+- Feature X (covered in BRD-YY)
+- Feature Y (deferred to V2)
+\`\`\`
 
 ---
 
-## 6. Risks and Mitigations
+## Usage Notes
 
-| ID | Risk | Impact | Likelihood | Mitigation | Owner |
+1. **Implementation Order** — Always respect the sequence number
+2. **File paths** — Use exact paths; Copilot will create them
+3. **Code blocks** — Include complete, copy-paste ready code
+4. **Acceptance Criteria** — Use Gherkin format strictly
+5. **Checklist** — Each item maps to a specific file
+
+---
+
+## Section Applicability by BRD Type
+
+| Section | Infrastructure | Database | Backend | Frontend | Integration |
+|---------|---------------|----------|---------|----------|-------------|
+| 4.1 File Structure | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 4.2 Database Schema | — | ✓ | — | — | — |
+| 4.3 Alembic Migration | — | ✓ | — | — | — |
+| 4.4 Pydantic Models | — | — | ✓ | — | — |
+| 4.5 API Endpoints | — | — | ✓ | — | ✓ |
+| 4.6 React Components | — | — | — | ✓ | — |
+| 4.7 UI Layout | — | — | — | ✓ | — |
 |----|------|--------|------------|------------|-------|
 | R-01 | {risk} | High/Medium/Low | High/Medium/Low | {mitigation} | {owner} |
 | R-02 | {risk} | High/Medium/Low | High/Medium/Low | {mitigation} | {owner} |

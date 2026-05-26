@@ -4,7 +4,15 @@
 > Updated automatically by agents after each task.
 
 **Last Updated:** 2026-05-26
-**Updated By:** System Initialization
+**Updated By:** BSA Agent
+
+---
+
+## Templates
+
+| Template | Location | Updated | Description |
+|----------|----------|---------|-------------|
+| BRD Template (Spec-Driven) | `.github/memory-bank/templates/brd-template.md` | 2026-05-26 | Enhanced template for Copilot-assisted implementation |
 
 ---
 
@@ -12,7 +20,25 @@
 
 | ID | Title | Date | Status | Location |
 |----|-------|------|--------|----------|
-| - | No BRDs created yet | - | - | - |
+| BRD-00 | Project Setup & Folder Structure | 2026-05-26 | Draft | [BRD-00](../../../docs/implementation-phase/brds/BRD-00-project-setup.md) |
+| BRD-01 | Database Schema & Alembic Migrations | 2026-05-26 | Draft | [BRD-01](../../../docs/implementation-phase/brds/BRD-01-database-schema.md) |
+| BRD-02 | Pydantic Domain Models & Event System | 2026-05-26 | Draft | [BRD-02](../../../docs/implementation-phase/brds/BRD-02-domain-models.md) |
+| BRD-03 | FastAPI Core & API Skeleton | 2026-05-26 | Draft | [BRD-03](../../../docs/implementation-phase/brds/BRD-03-fastapi-core.md) |
+| BRD-04 | User Identity (Lightweight Auth) | 2026-05-26 | Draft | [BRD-04](../../../docs/implementation-phase/brds/BRD-04-user-identity.md) |
+| BRD-05 | LLM Client Integration | 2026-05-26 | Draft | [BRD-05](../../../docs/implementation-phase/brds/BRD-05-llm-client.md) |
+| BRD-06 | Source Plugins (Tavily + Wikipedia) | 2026-05-26 | Draft | [BRD-06](../../../docs/implementation-phase/brds/BRD-06-source-plugins.md) |
+| BRD-07 | Agent FSM & Research Loop | 2026-05-26 | Draft | [BRD-07](../../../docs/implementation-phase/brds/BRD-07-agent-fsm.md) |
+| BRD-08 | Confidence Calculation Engine | 2026-05-26 | Draft | [BRD-08](../../../docs/implementation-phase/brds/BRD-08-confidence-calculation.md) |
+| BRD-09 | Stopping Signal Policy | 2026-05-26 | Draft | [BRD-09](../../../docs/implementation-phase/brds/BRD-09-stopping-signals.md) |
+| BRD-10 | SSE Streaming & Resume | 2026-05-26 | Draft | [BRD-10](../../../docs/implementation-phase/brds/BRD-10-sse-streaming.md) |
+| BRD-11 | Frontend Setup & Layout Shell | 2026-05-26 | Draft | [BRD-11](../../../docs/implementation-phase/brds/BRD-11-frontend-layout.md) |
+| BRD-12 | History Panel (Left Sidebar) | 2026-05-26 | Draft | [BRD-12](../../../docs/implementation-phase/brds/BRD-12-history-panel.md) |
+| BRD-13 | Center Panel (Question & Answer) | 2026-05-26 | Draft | [BRD-13](../../../docs/implementation-phase/brds/BRD-13-center-panel.md) |
+| BRD-14 | Trace Panel (Right Sidebar) | 2026-05-26 | Draft | [BRD-14](../../../docs/implementation-phase/brds/BRD-14-trace-panel.md) |
+| BRD-15 | Fork & Resume from Events | 2026-05-26 | Draft | [BRD-15](../../../docs/implementation-phase/brds/BRD-15-fork-resume.md) |
+| BRD-16 | Output Format Renderers | 2026-05-26 | Draft | [BRD-16](../../../docs/implementation-phase/brds/BRD-16-output-renderers.md) |
+| BRD-17 | Testing Strategy & Calibration Eval | 2026-05-26 | Draft | [BRD-17](../../../docs/implementation-phase/brds/BRD-17-testing-strategy.md) |
+| BRD-18 | Infrastructure & Deployment | 2026-05-26 | Draft | [BRD-18](../../../docs/implementation-phase/brds/BRD-18-infrastructure.md) |
 
 ---
 
