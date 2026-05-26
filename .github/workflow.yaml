@@ -1,0 +1,276 @@
+# Agentic Workflow — Novum Development
+# This YAML defines the orchestrated development workflow for all agents.
+# Compatible with GitHub Copilot (VS Code) and Claude Code.
+
+workflow:
+  name: "Novum Agentic Development Workflow"
+  version: "1.0.0"
+  description: >
+    Orchestrated workflow for requirement analysis, implementation, 
+    code review, and quality assurance. Ensures minimum score of 9/10 
+    with maximum 5 iteration cycles.
+
+# =============================================================================
+# AGENTS
+# =============================================================================
+agents:
+  orchestrator:
+    name: "Orchestrator"
+    role: "Workflow controller and task coordinator"
+    responsibilities:
+      - Receive and parse incoming requirements
+      - Delegate tasks to appropriate agents
+      - Monitor iteration cycles (max 5)
+      - Enforce quality gates (score ≥ 9/10)
+      - Escalate to manual review when needed
+    entry_point: true
+    memory_protocol: mandatory
+
+  bsa:
+    name: "BSA (Business Systems Analyst)"
+    role: "Requirements analysis and documentation"
+    responsibilities:
+      - Analyze user requirements
+      - Generate Business Requirements Documents (BRDs)
+      - Create User Stories with acceptance criteria
+      - Sync documentation to GitHub via MCP
+    outputs:
+      - docs/implementation-phase/brds/
+      - docs/implementation-phase/user-stories/
+    memory_protocol: mandatory
+
+  coder:
+    name: "Coder"
+    role: "Implementation and test generation"
+    responsibilities:
+      - Implement code following best practices
+      - Generate unit tests (backend + frontend)
+      - Follow tech stack conventions (Python, FastAPI, React, Vite)
+      - Apply architectural patterns from docs
+    skills_required:
+      - python-best-practices
+      - react-vite-best-practices
+      - llm-development
+      - unit-test-backend
+      - unit-test-frontend
+    memory_protocol: mandatory
+
+  reviewer:
+    name: "Reviewer"
+    role: "Code quality evaluation and scoring"
+    responsibilities:
+      - Evaluate code against quality standards
+      - Assign score (1-10 scale)
+      - Provide actionable feedback
+      - Approve or request revisions
+    scoring:
+      minimum_passing_score: 9
+      criteria:
+        - code_quality: 25%
+        - test_coverage: 20%
+        - architecture_compliance: 20%
+        - documentation: 15%
+        - security: 10%
+        - performance: 10%
+    outputs:
+      - docs/implementation-phase/reviews/
+    memory_protocol: mandatory
+
+# =============================================================================
+# SKILLS
+# =============================================================================
+skills:
+  # GitHub Integration
+  github-mcp:
+    name: "GitHub MCP Integration"
+    description: "Connect to GitHub for issues, PRs, and documentation sync"
+    capabilities:
+      - Create and update issues
+      - Create pull requests
+      - Push documentation
+      - Comment on issues/PRs
+
+  # Frontend Skills
+  ux-frontend:
+    name: "User Experience & Frontend"
+    description: "UI/UX best practices, accessibility, responsive design"
+    technologies:
+      - React 19
+      - Tailwind v4
+      - shadcn/ui
+      - Motion v12
+
+  # Database Skills
+  database:
+    name: "Database Connection"
+    description: "Query database objects, review schema, execute queries"
+    capabilities:
+      - Inspect PostgreSQL schema
+      - Execute read queries
+      - Review migrations
+      - Analyze JSONB structures
+
+  # Planning Skills
+  implementation-plan:
+    name: "Implementation Planning"
+    description: "Generate detailed implementation plans from user stories"
+    outputs:
+      - Task breakdown
+      - File modifications
+      - Dependencies
+      - Testing requirements
+
+  # Testing Skills
+  unit-test-backend:
+    name: "Backend Unit Testing"
+    description: "Python/pytest testing best practices"
+    frameworks:
+      - pytest
+      - pytest-asyncio
+      - pytest-httpx
+      - pytest-postgresql
+
+  unit-test-frontend:
+    name: "Frontend Unit Testing"
+    description: "React/Vitest testing best practices"
+    frameworks:
+      - Vitest
+      - Testing Library
+      - jest-axe
+      - MSW
+
+  # Memory Protocol
+  memory-protocol:
+    name: "Memory Protocol"
+    description: "Shared memory bank for all agents"
+    mandatory: true
+    location: ".github/memory-bank/"
+    operations:
+      - read_before_task
+      - update_after_task
+
+# =============================================================================
+# WORKFLOW STATES
+# =============================================================================
+states:
+  - id: "IDLE"
+    description: "Waiting for new requirement"
+    next: "ANALYZE"
+
+  - id: "ANALYZE"
+    description: "BSA analyzing requirement"
+    agent: "bsa"
+    actions:
+      - read_memory_bank
+      - analyze_requirement
+      - generate_brd
+      - generate_user_stories
+      - sync_to_github
+      - update_memory_bank
+    next: "PLAN"
+
+  - id: "PLAN"
+    description: "Orchestrator creating implementation plan"
+    agent: "orchestrator"
+    actions:
+      - read_memory_bank
+      - create_implementation_plan
+      - update_memory_bank
+    next: "IMPLEMENT"
+
+  - id: "IMPLEMENT"
+    description: "Coder implementing solution"
+    agent: "coder"
+    actions:
+      - read_memory_bank
+      - implement_code
+      - generate_unit_tests
+      - update_memory_bank
+    next: "REVIEW"
+
+  - id: "REVIEW"
+    description: "Reviewer evaluating code"
+    agent: "reviewer"
+    actions:
+      - read_memory_bank
+      - evaluate_code
+      - assign_score
+      - generate_review_report
+      - update_memory_bank
+    next_conditions:
+      - condition: "score >= 9"
+        next: "COMPLETE"
+      - condition: "score < 9 AND iteration < 5"
+        next: "IMPLEMENT"
+      - condition: "score < 9 AND iteration >= 5"
+        next: "ESCALATE"
+
+  - id: "COMPLETE"
+    description: "Implementation approved"
+    actions:
+      - finalize_documentation
+      - update_memory_bank
+      - notify_completion
+    terminal: true
+
+  - id: "ESCALATE"
+    description: "Max iterations reached, manual review required"
+    actions:
+      - create_escalation_report
+      - notify_manual_review
+      - update_memory_bank
+    terminal: true
+
+# =============================================================================
+# ITERATION CONTROL
+# =============================================================================
+iteration:
+  max_cycles: 5
+  tracking:
+    counter_variable: "iteration_count"
+    reset_on: "new_requirement"
+
+# =============================================================================
+# MEMORY PROTOCOL
+# =============================================================================
+memory_protocol:
+  mandatory_for_all_agents: true
+  location: ".github/memory-bank/"
+  structure:
+    templates:
+      - business-rules-template.md
+      - decision-log-template.md
+    indices:
+      - knowledge-base-index.md
+    logs:
+      - lessons-learned.md
+      - decisions-history.md
+    conventions:
+      - naming-conventions.md
+    shared:
+      - project-context.md
+      - project-structure.md
+      - architecture-summary.md
+  operations:
+    before_task:
+      - read: "shared/project-context.md"
+      - read: "indices/knowledge-base-index.md"
+      - read: "logs/lessons-learned.md"
+    after_task:
+      - update: "logs/decisions-history.md"
+      - update: "logs/lessons-learned.md"
+      - update: "indices/knowledge-base-index.md"
+
+# =============================================================================
+# QUALITY GATES
+# =============================================================================
+quality_gates:
+  review_score:
+    minimum: 9
+    scale: 10
+  test_coverage:
+    backend: 80%
+    frontend: 80%
+  documentation:
+    required: true
+    format: "markdown"

@@ -17,8 +17,9 @@ Authoritative sources (read these before proposing changes):
 
 | Topic | File |
 |---|---|
-| Requirements (RF-01…RF-13) | [docs/understanding-phase/requirement-understanding.md](../docs/understanding-phase/requirement-understanding.md) |
+| Requirements (RF-01…RF-16) | [docs/understanding-phase/requirement-understanding.md](../docs/understanding-phase/requirement-understanding.md) |
 | Stopping policy | [docs/understanding-phase/stopping-signal-analysis.md](../docs/understanding-phase/stopping-signal-analysis.md) |
+| Confidence calculation | [docs/understanding-phase/confidence-calculation.md](../docs/understanding-phase/confidence-calculation.md) |
 | Data flow diagrams | [docs/understanding-phase/data-flows-and-diagrams.md](../docs/understanding-phase/data-flows-and-diagrams.md) |
 | UI prototype | [docs/understanding-phase/ui-prototype.md](../docs/understanding-phase/ui-prototype.md) |
 | Architecture | [docs/technical-phase/architecture.md](../docs/technical-phase/architecture.md) |
@@ -58,11 +59,12 @@ Docker, Redis, Postgres, vector DB, LangGraph/LangChain/LlamaIndex, Celery/RQ, W
 
 1. **Three plugin seams:** `Source`, `StoppingSignal`, `OutputRenderer`. New extensions go behind these protocols (see `backend/app/seams/`).
 2. **Three not-seams (V1):** the planner, the storage layer, and the LLM provider are **deliberately not pluggable**. Do not introduce abstractions for them.
-3. **`stop_reason` is an enum, never free text.** All 8 terminal states map to enum values (RF-02).
-4. **Events are append-only.** Resume and fork append; they never mutate or delete. No event editing.
+3. **`stop_reason` is an enum, never free text.** All 7 terminal states map to enum values (RF-02): `judge_confirmed`, `honest_unanswerable`, `honest_contradiction`, `honest_ambiguous`, `stopped_by_budget`, `user_cancelled`, `errored`.
+4. **Events are append-only.** Resume and fork append; they never mutate or delete. No event editing. ~17 event types (RF-03, RF-04, RF-11, RF-14, RF-15).
 5. **Schema evolution = `extra="allow"` + optional keys only.** Adding keys never breaks. Renaming or removing requires an explicit migration.
 6. **UI surfaces every trust guarantee.** Hide nothing from RF §6-quater (RF-13).
 7. **Type contract FE↔BE:** Pydantic → JSON Schema → `frontend/src/types/events.ts` via `scripts/export_types.py`. Never hand-edit the generated types.
+8. **Confidence formula:** `final_confidence = min(S, J)` where S = structural score, J = judge score (RF-12).
 
 ---
 
@@ -116,3 +118,94 @@ Never commit secrets. `api_key_copilot.txt` and any `.env*` files must stay giti
 - **Pending decisions** (tech-stack §4) are open: ask the user before locking them in code.
 - **Reply to the user in Spanish by default** (the project owner writes Spanish). Code stays English.
 - **No over-engineering.** Target a 4–6 h pair-session build. If a feature costs > ~100 LOC and is not in an RF, push back.
+
+---
+
+## 7. Agentic Development Architecture
+
+This project uses an orchestrated agentic workflow for development. All agents must follow the defined protocols.
+
+### 7.1 Agents
+
+| Agent | Role | File |
+|-------|------|------|
+| **Orchestrator** | Workflow controller, task delegation, quality gates | [orchestrator.agent.md](agents/orchestrator.agent.md) |
+| **BSA** | Requirements analysis, BRDs, User Stories | [bsa.agent.md](agents/bsa.agent.md) |
+| **Coder** | Implementation, unit tests, best practices | [coder.agent.md](agents/coder.agent.md) |
+| **Reviewer** | Code review, scoring (min 9/10), feedback | [reviewer.agent.md](agents/reviewer.agent.md) |
+
+### 7.2 Skills
+
+| Skill | Purpose | Location |
+|-------|---------|----------|
+| GitHub MCP | GitHub integration (issues, PRs) | `prompts/skills/github-mcp/` |
+| UX Frontend | UI/UX best practices, accessibility | `prompts/skills/ux-frontend/` |
+| Database | PostgreSQL operations, queries | `prompts/skills/database/` |
+| Implementation Plan | Task breakdown, planning | `prompts/skills/implementation-plan/` |
+| Unit Test Backend | Python/pytest testing | `prompts/skills/unit-test-backend/` |
+| Unit Test Frontend | React/Vitest testing | `prompts/skills/unit-test-frontend/` |
+| Memory Protocol | Knowledge management | `prompts/skills/memory-protocol/` |
+
+### 7.3 Workflow
+
+Formal definition: [workflow.yaml](workflow.yaml)
+Visual diagram: [workflow.md](workflow.md)
+
+```
+Requirement → BSA (BRD + Stories) → Orchestrator (Plan) → Coder (Implement + Test) 
+                                                               ↓
+                                                          Reviewer (Score)
+                                                               ↓
+                                         Score ≥ 9? → Complete
+                                         Score < 9? → Back to Coder (max 5 iterations)
+```
+
+### 7.4 Memory Protocol (MANDATORY)
+
+All agents MUST:
+
+**Before every task:**
+1. Read `.github/memory-bank/shared/project-context.md`
+2. Read `.github/memory-bank/indices/knowledge-base-index.md`
+3. Read `.github/memory-bank/logs/lessons-learned.md`
+
+**After every task:**
+1. Update `.github/memory-bank/logs/decisions-history.md`
+2. Update `.github/memory-bank/logs/lessons-learned.md` (if applicable)
+3. Update `.github/memory-bank/indices/knowledge-base-index.md` (if new artifacts)
+
+### 7.5 Memory Bank Structure
+
+```
+.github/memory-bank/
+├── templates/              # Document templates (BRD, User Story, etc.)
+├── indices/                # Knowledge base index
+├── logs/                   # Decisions history, lessons learned
+├── conventions/            # Naming conventions
+└── shared/                 # Project context, structure, architecture summary
+```
+
+### 7.6 Output Locations
+
+| Artifact Type | Location |
+|---------------|----------|
+| BRDs | `docs/implementation-phase/brds/` |
+| User Stories | `docs/implementation-phase/user-stories/` |
+| Implementation Plans | `docs/implementation-phase/implementation-plans/` |
+| Code Reviews | `docs/implementation-phase/reviews/` |
+| Test Documentation | `docs/implementation-phase/unit-tests/` |
+
+### 7.7 Quality Gates
+
+| Gate | Threshold | Action on Failure |
+|------|-----------|-------------------|
+| Review Score | ≥ 9/10 | Return to Coder with feedback |
+| Max Iterations | 5 | Escalate to manual review |
+| Test Coverage | ≥ 80% | Request additional tests |
+| Documentation | Required | Request documentation |
+
+### 7.8 Compatibility
+
+This agentic architecture works with:
+- **GitHub Copilot** (VS Code)
+- **Claude Code** (CLI/Editor)
