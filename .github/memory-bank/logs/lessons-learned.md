@@ -4,13 +4,48 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-26
-**Total Lessons:** 1
+**Total Lessons:** 2
 
 ---
 
 ## Recent Lessons
 
+- **L-002:** Unit Tests are Mandatory per F3.S3 (2026-05-26)
 - **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
+
+---
+
+## L-002: Unit Tests are Mandatory per F3.S3
+
+**Date:** 2026-05-26
+**Agent:** Orchestrator
+**Category:** Process & Workflow
+
+### What Happened
+BRD-00 implementation was marked complete without unit tests. Review CR-00-001 passed at 9.4/10 but user flagged missing tests.
+
+### Root Cause
+Workflow step F3.S3 (`generate_unit_tests`) was skipped. The Coder (Orchestrator acting as Coder) focused on file structure setup and forgot that **every BRD implementation must include unit tests**.
+
+### Lesson Learned
+**Unit tests are NOT optional.** Per `workflow.md`:
+- **F3.S3** explicitly requires: "Create unit tests (backend/frontend)"
+- **Quality Standards** mandate: "Test Coverage ≥80%"
+- Even setup/infrastructure BRDs need smoke tests to validate tooling works
+
+For BRD-00 specifically:
+- Backend: `test_health.py` — validates FastAPI health endpoint
+- Frontend: `format.test.ts`, `clipboard.test.ts` — validates utility functions
+
+### Prevention
+Before marking any implementation complete:
+1. ✅ Verify F3.S3 was executed
+2. ✅ Run `pytest` (backend) and `vitest` (frontend)
+3. ✅ Confirm tests pass before review submission
+
+### Applied To
+- BRD-00: Added missing unit tests
+- All future BRDs: F3.S3 is mandatory
 
 ---
 

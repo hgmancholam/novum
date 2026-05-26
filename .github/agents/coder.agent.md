@@ -59,12 +59,45 @@ After EVERY task:
 
 ### Tech Stack Reference (MUST READ)
 Always consult before coding:
-- `docs/technical-phase/tech-stack.md` — Technology decisions
-- `docs/technical-phase/architecture.md` — System architecture
+
+**Understanding Phase (read before implementation):**
 - `docs/understanding-phase/requirement-understanding.md` — RF-01 to RF-16
 - `docs/understanding-phase/stopping-signal-analysis.md` — Stopping policy (7 stop_reason enum values)
 - `docs/understanding-phase/confidence-calculation.md` — Confidence formula (min(S, J) for RF-12)
-- `.github/copilot-instructions.md` — Coding conventions
+- `docs/understanding-phase/ui-prototype.md` — **UI spec (MANDATORY for frontend)**
+- `docs/understanding-phase/data-flows-and-diagrams.md` — System diagrams
+
+**Technical Phase (read before implementation):**
+- `docs/technical-phase/tech-stack.md` — Technology decisions
+- `docs/technical-phase/architecture.md` — System architecture (8 rules — NEVER violate)
+- `docs/technical-phase/ai-services.md` — **AI services (MANDATORY for backend LLM/search)**
+- `docs/technical-phase/infrastructure.md` — Deployment constraints
+
+**Implementation Phase (read the relevant BRD):**
+- `docs/implementation-phase/brds/BRD-XX-*.md` — The specific BRD you are implementing
+- `docs/implementation-phase/implementation-plans/IP-XX-*.md` — The implementation plan
+- `docs/implementation-phase/user-stories/` — User stories if available
+
+**Coding Conventions:**
+- `.github/copilot-instructions.md` — Project-wide conventions
+
+> **VERIFICATION:** Before writing code, confirm you have read the BRD by quoting its acceptance criteria. Cite specific RF numbers when implementing requirements.
+
+### AI Services Compliance (MANDATORY for Backend LLM/Search)
+When implementing LLM or search integrations, you MUST follow `ai-services.md`:
+- **§1** — GitHub Models: 4 roles (classifier, planner, synthesizer, judge), model assignments
+- **§1.3** — All LLM calls go through `app/llm/client.py::call` — never call litellm directly
+- **§2** — Tavily: web search Source plugin, `search_depth="advanced"`
+- **§3** — Wikipedia: second Source plugin for heterogeneity
+- **§5** — Environment variables: `GITHUB_TOKEN`, `TAVILY_API_KEY`
+
+### UI Prototype Compliance (MANDATORY for Frontend)
+When implementing frontend components, you MUST follow `ui-prototype.md`:
+- **§1** — Design tokens (colors, typography, animations) — never hardcode hex values
+- **§3** — Panel states (L1-L7, C1-C13, T1-T5) — exact state machine
+- **§7** — Microcopy — use exact strings from the document
+- **§8** — Atomic Design — strict 5-layer architecture (atoms → molecules → organisms → templates → pages)
+- **§9** — Technical decisions (TanStack Query, localStorage keys, SSE protocol)
 
 ### Critical Constraints (DO NOT VIOLATE)
 

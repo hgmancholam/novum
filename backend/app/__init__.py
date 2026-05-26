@@ -1,0 +1,1 @@
+"""Novum backend application package."""

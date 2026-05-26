@@ -21,10 +21,25 @@ Authoritative sources (read these before proposing changes):
 | Stopping policy | [docs/understanding-phase/stopping-signal-analysis.md](../docs/understanding-phase/stopping-signal-analysis.md) |
 | Confidence calculation | [docs/understanding-phase/confidence-calculation.md](../docs/understanding-phase/confidence-calculation.md) |
 | Data flow diagrams | [docs/understanding-phase/data-flows-and-diagrams.md](../docs/understanding-phase/data-flows-and-diagrams.md) |
-| UI prototype | [docs/understanding-phase/ui-prototype.md](../docs/understanding-phase/ui-prototype.md) |
+| **UI prototype (MANDATORY for frontend)** | [docs/understanding-phase/ui-prototype.md](../docs/understanding-phase/ui-prototype.md) |
 | Architecture | [docs/technical-phase/architecture.md](../docs/technical-phase/architecture.md) |
 | Tech stack | [docs/technical-phase/tech-stack.md](../docs/technical-phase/tech-stack.md) |
+| **AI services (MANDATORY for backend LLM/search)** | [docs/technical-phase/ai-services.md](../docs/technical-phase/ai-services.md) |
 | Infrastructure | [docs/technical-phase/infrastructure.md](../docs/technical-phase/infrastructure.md) |
+
+**UI Prototype is binding for all frontend work.** It defines:
+- **§1** — Design tokens (colors, typography, animations) — never hardcode hex
+- **§3** — Panel states (L1-L7, C1-C13, T1-T5) — exact state machines
+- **§7** — Microcopy — use exact strings
+- **§8** — Atomic Design (atoms → molecules → organisms → templates → pages) — enforced by ESLint
+- **§9** — Technical decisions (TanStack Query, localStorage keys, SSE protocol)
+
+**AI Services is binding for all backend LLM/search work.** It defines:
+- **§1** — GitHub Models: 4 LLM roles (classifier, planner, synthesizer, judge) + model assignments
+- **§1.3** — All LLM calls through `app/llm/client.py::call` — never call litellm directly
+- **§2** — Tavily: web search Source plugin with `search_depth="advanced"`
+- **§3** — Wikipedia: second Source plugin for source heterogeneity (RF-04)
+- **§5** — Environment variables: `GITHUB_TOKEN`, `TAVILY_API_KEY`
 
 When the user asks you to change a decision, update the originating doc — do not silently diverge from it in code.
 

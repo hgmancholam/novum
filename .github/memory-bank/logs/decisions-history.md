@@ -4,11 +4,41 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 1
+**Total Decisions:** 2
 
 ---
 
 ## Recent Decisions
+
+## D-002: BRD-00 Implementation — Project Setup
+
+**Date:** 2026-05-26
+**Agent:** Orchestrator
+**Category:** Implementation
+**Status:** Completed
+
+### Context
+First implementation in the Novum project. Needed to establish the complete folder structure and tooling configuration for both backend (Python/FastAPI) and frontend (React/Vite).
+
+### Decision
+Implement BRD-00 as the foundation for all subsequent BRDs:
+- Backend: Python 3.12 + FastAPI + SQLAlchemy 2.0 async + Alembic
+- Frontend: React 19 + Vite + Tailwind v4 (plugin, no config)
+- Full atomic design structure for components
+
+### Consequences
+- All subsequent BRDs can build on this foundation
+- Tailwind v4 uses `@import "tailwindcss"` (not v3 directives)
+- Path aliases configured via `vite-tsconfig-paths`
+- Agent tooling updated to include full toolset for subagents
+
+### Artifacts Created
+- `backend/` complete structure (pyproject.toml, app/, alembic/, tests/)
+- `frontend/` complete structure (package.json, src/, components/, lib/)
+- `scripts/` (dev.ps1, export_types.py)
+- Implementation plan: `docs/implementation-phase/implementation-plans/IP-00-project-setup.md`
+
+---
 
 ## D-001: Spec-Driven Development with Comprehensive BRDs
 

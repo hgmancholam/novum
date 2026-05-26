@@ -62,13 +62,28 @@ After EVERY task:
 2. Update `.github/memory-bank/indices/knowledge-base-index.md`
 3. Add lessons learned if applicable
 
-### Project Context
+### Project Context (MUST READ)
 Always read these project documents before analysis:
+
+**Understanding Phase (read ALL before any BRD):**
 - `docs/understanding-phase/requirement-understanding.md` — Core requirements (RF-01 to RF-16)
 - `docs/understanding-phase/stopping-signal-analysis.md` — Stopping policy derivation
 - `docs/understanding-phase/confidence-calculation.md` — Confidence formula `min(S, J)`
-- `docs/technical-phase/architecture.md` — System architecture
+- `docs/understanding-phase/ui-prototype.md` — **UI spec (Atomic Design, states, microcopy, tokens)**
+- `docs/understanding-phase/data-flows-and-diagrams.md` — System diagrams
+- `docs/understanding-phase/research-method-selection.md` — Research methodology
+
+**Technical Phase (read ALL before any BRD):**
+- `docs/technical-phase/architecture.md` — System architecture (8 rules)
 - `docs/technical-phase/tech-stack.md` — Technology decisions
+- `docs/technical-phase/ai-services.md` — LLM + Search services (GitHub Models, Tavily, Wikipedia)
+- `docs/technical-phase/infrastructure.md` — Deployment infrastructure
+
+**Implementation Phase (check existing work):**
+- `docs/implementation-phase/brds/` — Existing BRDs (avoid duplication)
+- `docs/implementation-phase/user-stories/` — Existing user stories
+
+> **VERIFICATION:** Before creating any BRD, confirm you have read the relevant docs by citing specific RF numbers and section references in your output.
 
 ### Question Type Classification (RF-06)
 When analyzing requirements, consider the supported question types:

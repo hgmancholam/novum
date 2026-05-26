@@ -65,14 +65,51 @@ After EVERY review:
 2. Update `.github/memory-bank/logs/lessons-learned.md` with review insights
 3. Create review report in `docs/implementation-phase/reviews/`
 
-### Reference Documents
-Always consult:
-- `docs/technical-phase/tech-stack.md` — Technology standards
-- `docs/technical-phase/architecture.md` — Architectural rules (8 principles)
+### Reference Documents (MUST READ)
+Always consult during review:
+
+**Understanding Phase (verify compliance):**
 - `docs/understanding-phase/requirement-understanding.md` — RF-01 to RF-16
 - `docs/understanding-phase/stopping-signal-analysis.md` — Stopping policy (7 stop_reason values)
 - `docs/understanding-phase/confidence-calculation.md` — Confidence formula (RF-12)
-- `.github/copilot-instructions.md` — Coding conventions
+- `docs/understanding-phase/ui-prototype.md` — **UI spec (MANDATORY for frontend reviews)**
+- `docs/understanding-phase/data-flows-and-diagrams.md` — System diagrams
+
+**Technical Phase (verify compliance):**
+- `docs/technical-phase/tech-stack.md` — Technology standards
+- `docs/technical-phase/architecture.md` — Architectural rules (8 principles — score 0 if violated)
+- `docs/technical-phase/ai-services.md` — **AI services (MANDATORY for backend LLM/search reviews)**
+- `docs/technical-phase/infrastructure.md` — Deployment constraints
+
+**Implementation Phase (verify against spec):**
+- `docs/implementation-phase/brds/BRD-XX-*.md` — The BRD being reviewed
+- `docs/implementation-phase/implementation-plans/IP-XX-*.md` — The implementation plan
+- `docs/implementation-phase/reviews/` — Previous review reports
+
+**Coding Conventions:**
+- `.github/copilot-instructions.md` — Project-wide conventions
+
+> **VERIFICATION:** Every review report MUST cite:
+> 1. The BRD acceptance criteria (pass/fail each)
+> 2. RF numbers for any requirement violations
+> 3. Specific section references from ui-prototype.md or ai-services.md when applicable
+
+### AI Services Compliance Checks (MANDATORY for Backend LLM/Search)
+When reviewing LLM or search code, verify compliance with `ai-services.md`:
+- All LLM calls go through `app/llm/client.py::call` (never direct litellm)
+- Correct model assignments per role (classifier, planner, synthesizer, judge)
+- Cross-family judge mitigation (DeepSeek ↔ OpenAI)
+- Tavily uses `search_depth="advanced"`
+- Source plugins implement the `Source` protocol
+- Environment variables match §5 spec
+
+### UI Prototype Compliance Checks (MANDATORY for Frontend)
+When reviewing frontend code, verify compliance with `ui-prototype.md`:
+- **§1** — Design tokens used (no hardcoded hex values)
+- **§3** — Panel states match spec (L1-L7, C1-C13, T1-T5)
+- **§7** — Microcopy matches exact strings
+- **§8** — Atomic Design layering enforced (atoms → molecules → organisms → templates → pages)
+- **§9** — Technical decisions followed (TanStack Query, localStorage, SSE)
 
 ### Critical Compliance Checks
 When reviewing code, verify these constraints are NOT violated:
