@@ -30,8 +30,15 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = False
 
+    # CORS: comma-separated list of allowed origins (e.g. "https://novum.vercel.app,http://localhost:5173")
+    cors_origins: str = "https://novum-seven.vercel.app,http://localhost:5173"
+
     # SSE
     sse_heartbeat_seconds: int = 15
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()
