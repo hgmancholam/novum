@@ -4,16 +4,69 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-26
-**Total Lessons:** 4
+**Total Lessons:** 6
+
+> **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 
 ---
 
 ## Recent Lessons
 
+- **L-006:** `exactOptionalPropertyTypes` Requires `prop?: T | undefined` on Pass-Through Props (2026-05-26)
+- **L-005:** SQLite Fallback for PG-Typed ORM Tests via `compiles`-hooks (2026-05-26)
 - **L-004:** Disable the `pytest-postgresql` Plugin When Running DB-Free Suites Locally (2026-05-26)
 - **L-003:** Static-Only Tests for DB Migrations are Acceptable for Iteration 1 (2026-05-26)
 - **L-002:** Unit Tests are Mandatory per F3.S3 (2026-05-26)
 - **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
+
+---
+
+## L-006: `exactOptionalPropertyTypes` Requires `prop?: T | undefined` on Pass-Through Props
+
+**Date:** 2026-05-26
+**Agent:** Coder (BRD-11)
+**Category:** Frontend / TypeScript
+
+### Situation
+`tsconfig.json` enables `exactOptionalPropertyTypes`. With that flag, declaring `className?: string` means the prop may be **omitted** but cannot be **passed as `string | undefined`**. `StatusBadge` accepted an optional `className?: string` and forwarded it to `Badge`, which broke `tsc` even though tests passed.
+
+### Lesson
+For any wrapper component that forwards an optional prop coming from its own props, declare the receiving prop as `prop?: T | undefined` (explicit `undefined`). Plain `prop?: T` only works when callers always omit the prop.
+
+### Action
+Changed `BadgeProps.className` from `string` to `string | undefined`. Apply the same pattern proactively to all forwarded optional props (`label`, `aria-*`, refs) in future atoms/molecules.
+
+---
+
+## L-005: SQLite Fallback for PG-Typed ORM Tests via `compiles`-hooks
+
+**Date:** 2026-05-26
+**Agent:** Coder (BRD-03)
+**Category:** Testing / SQLAlchemy
+
+### Situation
+BRD-03 services exercise the production ORM (`Run`, `Event`) which uses PG-specific column types: `JSONB`, `UUID`, `ENUM`. Running tests against SQLite via `aiosqlite` fails at table creation because SQLite has no native equivalents.
+
+### Resolution
+Register `sqlalchemy.ext.compiler.compiles` hooks **only in the test fixture** that downgrade `JSONB → JSON`, `UUID → CHAR(36)`, `ENUM → VARCHAR` for the `sqlite` dialect. Production models stay untouched (architecture rule: storage is a not-seam).
+
+```python
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.dialects.postgresql import JSONB, UUID, ENUM
+
+@compiles(JSONB, "sqlite")
+def _jsonb_sqlite(_t, _c, **_kw): return "JSON"
+# ...
+```
+
+Combined with `StaticPool` + a session-scoped in-memory engine, the entire BRD-03 suite (108 tests) runs DB-free in <2s.
+
+### When to reuse
+- Any future BRD that touches the ORM (BRD-05+, BRD-07, BRD-15) and needs unit/integration tests without Postgres.
+- Place the hook in a shared `tests/conftest.py` fixture; do **not** import it from production code.
+
+### Caveats
+- This does not validate PG-specific behaviour (JSONB operators, ENUM constraints). Migration-level tests under `pytest-postgresql` remain the ground truth (per L-004, L-003).
 
 ---
 

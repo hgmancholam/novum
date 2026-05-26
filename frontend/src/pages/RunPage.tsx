@@ -1,33 +1,68 @@
 /**
  * RunPage — Route: /runs/:runId and /runs/:runId?fork=:eventId
- * Owns: useUser, useRun(runId), useEventStream(runId), useRunHistory
+ * Owns: useUser, useRun(runId), useEventStream(runId), useRunHistory (wired in future BRDs).
  * See ui-prototype.md §8.2 (Pages).
- *
- * Renders:
- * - AppShell with center varying per run state (C3–C11), trace shows T2/T3
  */
 
 import { useParams, useSearchParams } from "react-router-dom";
+import {
+  AppShell,
+  HistoryPanel,
+  CenterPanel,
+  TracePanel,
+} from "@/components/templates";
 
 export default function RunPage() {
   const { runId } = useParams<{ runId: string }>();
   const [searchParams] = useSearchParams();
   const forkEventId = searchParams.get("fork");
 
-  // TODO: Implement with useRun, useEventStream hooks
-  // This is a placeholder for BRD-13 (Center Panel)
   return (
-    <div className="flex h-screen items-center justify-center bg-[var(--bg-primary)]">
-      <div className="text-center">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-          Run: {runId}
-        </h1>
-        {forkEventId && (
-          <p className="mt-2 text-[var(--text-secondary)]">
-            Forking from event: {forkEventId}
-          </p>
-        )}
-      </div>
-    </div>
+    <AppShell
+      left={
+        <HistoryPanel
+          header={
+            <h2 className="text-sm font-medium text-[var(--text-primary)]">
+              History
+            </h2>
+          }
+          body={
+            <p className="px-2 text-sm text-[var(--text-secondary)]">
+              Run history will appear here.
+            </p>
+          }
+        />
+      }
+      center={
+        <CenterPanel
+          body={
+            <div className="mx-auto max-w-2xl pt-16 text-center">
+              <h1 className="text-xl font-semibold text-[var(--text-primary)]">
+                Run {runId ?? "unknown"}
+              </h1>
+              {forkEventId !== null ? (
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  Forking from event {forkEventId}.
+                </p>
+              ) : null}
+            </div>
+          }
+        />
+      }
+      right={
+        <TracePanel
+          header={
+            <h2 className="text-sm font-medium text-[var(--text-primary)]">
+              Trace
+            </h2>
+          }
+          body={
+            <p className="text-xs text-[var(--text-secondary)]">
+              The event log will appear here.
+            </p>
+          }
+        />
+      }
+    />
   );
 }

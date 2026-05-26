@@ -4,7 +4,7 @@
 > Updated automatically by agents after each task.
 
 **Last Updated:** 2026-05-26
-**Updated By:** Orchestrator Agent (post BRD-02)
+**Updated By:** Orchestrator Agent (post BRD-03)
 
 ---
 
@@ -23,6 +23,7 @@
 | IP-00 | BRD-00 Project Setup | 2026-05-26 | Completed | [IP-00](../../../docs/implementation-phase/implementation-plans/IP-00-project-setup.md) |
 | IP-01 | BRD-01 Database Schema | 2026-05-26 | Completed | [IP-01](../../../docs/implementation-phase/implementation-plans/IP-01-database-schema.md) |
 | IP-02 | BRD-02 Domain Models | 2026-05-26 | Completed | [IP-02](../../../docs/implementation-phase/implementation-plans/IP-02-domain-models.md) |
+| IP-03 | BRD-03 FastAPI Core & API Skeleton | 2026-05-26 | Completed | [IP-03](../../../docs/implementation-phase/implementation-plans/IP-03-fastapi-core.md) |
 
 ---
 
@@ -33,7 +34,7 @@
 | BRD-00 | Project Setup & Folder Structure | 2026-05-26 | Draft | [BRD-00](../../../docs/implementation-phase/brds/BRD-00-project-setup.md) |
 | BRD-01 | Database Schema & Alembic Migrations | 2026-05-26 | Implemented | [BRD-01](../../../docs/implementation-phase/brds/BRD-01-database-schema.md) |
 | BRD-02 | Pydantic Domain Models & Event System | 2026-05-26 | Implemented | [BRD-02](../../../docs/implementation-phase/brds/BRD-02-domain-models.md) |
-| BRD-03 | FastAPI Core & API Skeleton | 2026-05-26 | Draft | [BRD-03](../../../docs/implementation-phase/brds/BRD-03-fastapi-core.md) |
+| BRD-03 | FastAPI Core & API Skeleton | 2026-05-26 | Implemented | [BRD-03](../../../docs/implementation-phase/brds/BRD-03-fastapi-core.md) |
 | BRD-04 | User Identity (Lightweight Auth) | 2026-05-26 | Draft | [BRD-04](../../../docs/implementation-phase/brds/BRD-04-user-identity.md) |
 | BRD-05 | LLM Client Integration | 2026-05-26 | Draft | [BRD-05](../../../docs/implementation-phase/brds/BRD-05-llm-client.md) |
 | BRD-06 | Source Plugins (Tavily + Wikipedia) | 2026-05-26 | Draft | [BRD-06](../../../docs/implementation-phase/brds/BRD-06-source-plugins.md) |

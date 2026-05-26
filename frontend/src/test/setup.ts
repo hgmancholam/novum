@@ -4,6 +4,10 @@
  */
 
 import "@testing-library/jest-dom/vitest";
+import { expect } from "vitest";
+import { toHaveNoViolations } from "jest-axe";
+
+expect.extend(toHaveNoViolations);
 
 // Mock window.matchMedia for responsive tests
 Object.defineProperty(window, "matchMedia", {

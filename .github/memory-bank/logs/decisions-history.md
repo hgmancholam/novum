@@ -4,11 +4,95 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 5
+**Total Decisions:** 8
 
 ---
 
 ## Recent Decisions
+
+## D-008: BRD-11 Frontend Layout — IP Reconciliations Honored
+
+**Date:** 2026-05-26
+**Agent:** Orchestrator (planning) / Coder (implementation) / Reviewer (9.2/10 — APPROVED)
+**Category:** Frontend / Implementation
+**Status:** Implemented
+
+### Context
+BRD-11 and `ui-prototype.md` disagreed on routes, page folder, template names, panel widths, and theme. IP-11 §2 reconciled all of them in favor of `ui-prototype.md` (binding per `copilot-instructions.md` §2).
+
+### Decisions
+1. **Routes & pages folder kept as-is** — `/runs/:runId` + `/diff/:runA/:runB` in existing `router.tsx`; `src/pages/` (not `src/components/pages/`).
+2. **3 panel templates over single `MainLayout`** — `AppShell` orchestrates breakpoints and drawers; `HistoryPanel` / `CenterPanel` / `TracePanel` are geometry-only with header/body/(footer|outcomeBar) slots.
+3. **Widths from `ui-prototype.md` §2** — `w-[260px]` left, `w-[360px]` right desktop, `w-[320px]` right on tablet.
+4. **Dark theme via CSS custom properties only** — no hardcoded hex anywhere; `var(--bg-primary)`, `var(--accent)`, `var(--semantic-*)`, `var(--glass-*)`, `var(--text-*)`.
+5. **Responsive policy:** desktop shows all 3 panels; tablet collapses left to drawer (right stays at 320 px); mobile shows only center with both panels as overlay drawers. Drawer state lives in `useSelectionStore`.
+6. **`StopReason` imported from generated `@/types/events`** — never hand-edited (RF type-contract rule).
+7. **Test suite uses `forceBreakpoint` prop on `AppShell`** for deterministic breakpoint testing instead of mocking `matchMedia` per case.
+
+### Reviewer Follow-ups (non-blocking, before BRD-12)
+- Declare the CSS custom properties referenced everywhere in `frontend/src/index.css` (gap in IP-11 §5.2 file list).
+- Align `StatusBadge` labels with `ui-prototype.md` §7.4 canonical microcopy.
+
+### References
+- Plan: `docs/implementation-phase/implementation-plans/IP-11-frontend-layout.md`
+- Review: `docs/implementation-phase/reviews/REV-11-frontend-layout.md`
+- UT doc: `docs/implementation-phase/unit-tests/UT-11-frontend-layout.md`
+
+---
+
+## D-007: BRD-03 FastAPI Core — Tightenings Applied
+
+**Date:** 2026-05-26
+**Agent:** Orchestrator (planning) / Coder (implementation) / Reviewer (9.55/10 — APPROVED)
+**Category:** Backend API / Implementation
+**Status:** Implemented
+
+### Context
+BRD-03 §4 contained copy-paste-ready code blocks. IP-03 §5 documented three deliberate tightenings before delegating to the Coder.
+
+### Decisions
+1. **`datetime.now(UTC)` over `datetime.utcnow()`** — Python 3.12 deprecated `utcnow()`; DB column is `TIMESTAMPTZ` so a tz-aware UTC value is correct.
+2. **`Last-Event-ID` via `Header(alias="Last-Event-ID", convert_underscores=False)`** — the SSE spec sends it as a header on reconnect, not a query parameter. BRD-03 typo corrected pre-emptively to avoid rework in BRD-10.
+3. **Single canonical `get_db`** lives in `app/dependencies.py`; `app/database.py` retains only `engine` and `async_session_maker` plus a contract comment. Avoids drift between the two definitions originally present in BRD-01/BRD-03.
+4. **`/api/runs/{id}/events` returns explicit `HTTPException(501)`** instead of `raise NotImplementedError` (which would surface as 500). BRD-10 will replace it with the real SSE stream.
+5. **Tests use SQLite (`aiosqlite` + `StaticPool`) with a `compiles`-hook fallback** for PG-specific types (`JSONB`/`UUID`/`ENUM`) → keeps the test suite DB-free per L-004 without modifying production ORM types.
+6. **`GET /api/runs/{id}` intentionally unauthenticated** per RF-05 (runs are public-by-URL); locked by a named test so reviewers don't mistake it for a bug.
+
+### Outcome
+- 108/108 tests green; pyright strict clean; ruff clean.
+- All 5 ACs (AC-01 create, AC-02 list, AC-03 fork, AC-04 cancel, AC-05 resume) have named tests.
+- Review score: **9.55 / 10 — APPROVED**. Five Minor items deferred to BRD-04 / BRD-07 / BRD-15 (cross-user authz, single-writer lock on `append_event`, fork-event-belongs-to-run invariant).
+
+### Files
+- New: `app/dependencies.py`, `app/exceptions.py`, `app/routes/{__init__,health,runs,events}.py`, `app/services/{run_service,event_service}.py`
+- Modified: `app/main.py`, `app/database.py`, `app/config.py`, `app/services/__init__.py`, `app/routes/__init__.py`, `pyproject.toml`, `tests/conftest.py`
+- Tests: `tests/test_run_service.py`, `tests/test_event_service.py`, `tests/test_routes_runs.py`
+
+---
+
+## D-006: Reaffirm Mandatory Unit Tests (Backend + Frontend)
+
+**Date:** 2026-05-26
+**Agent:** Orchestrator
+**Category:** Process & Workflow
+**Status:** Active rule
+
+### Context
+User explicitly reaffirmed: *"siempre se deben hacer las unit tests, mandatorio, tanto en frontend como backend"*. Rule already existed as **L-002** in `lessons-learned.md` and as workflow step **F3.S3**, but was being tracked only in user-scoped memory instead of the project memory bank — violating the Memory Protocol (copilot-instructions.md §7.4).
+
+### Decision
+Unit tests are a **non-negotiable gate** for every BRD / User Story, in both stacks:
+- **Backend:** `pytest` (+ `pytest-asyncio`, `pytest-httpx`, `pytest-postgresql` when DB is touched). Tests live under `backend/tests/`, mirroring module structure.
+- **Frontend:** `Vitest` + Testing Library + `jest-axe` (a11y) + MSW (network mocks). Tests co-located with components (`*.test.ts(x)`).
+- **Coverage gate:** ≥ 80% (per copilot-instructions.md §7.7).
+- No implementation may advance to F4 (REVIEW) without F3.S3 executed and tests green.
+
+### Enforcement
+- Orchestrator MUST verify F3.S3 artifacts before delegating to Reviewer.
+- Reviewer MUST score down (Blocker) any submission lacking tests for new/changed logic.
+- See **L-002** for the originating incident and prevention checklist.
+
+---
 
 ## D-005: BRD-02 Domain Models — Review Approved (Orchestrator)
 

@@ -1,6 +1,11 @@
-"""Database engine and session configuration."""
+"""Database engine and session configuration.
 
-from collections.abc import AsyncGenerator
+The canonical `get_db` FastAPI dependency lives in `app.dependencies`.
+This module deliberately does not re-export it to keep a single source
+of truth (IP-03 §5).
+"""
+
+from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -17,9 +22,3 @@ async_session_maker = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
 )
-
-
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for getting database session."""
-    async with async_session_maker() as session:
-        yield session
