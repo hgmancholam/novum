@@ -1,0 +1,77 @@
+# Deploy Backend to Hetzner VM
+# Triggers on push to main branch (after PR merge)
+
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'alembic/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:  # Manual trigger
+
+env:
+  SSH_USER: novum
+  DEPLOY_PATH: /home/novum/novum-backend
+
+jobs:
+  deploy:
+    name: Deploy to Hetzner
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'DEPLOY_SCRIPT'
+            set -e
+            
+            echo "=== Navigating to project directory ==="
+            cd /home/novum/novum-backend
+            
+            echo "=== Pulling latest changes ==="
+            git fetch origin main
+            git reset --hard origin/main
+            
+            echo "=== Installing dependencies ==="
+            cd backend
+            ~/.local/bin/uv sync
+            
+            echo "=== Running database migrations ==="
+            ~/.local/bin/uv run alembic upgrade head
+            
+            echo "=== Restarting service ==="
+            sudo systemctl restart novum
+            
+            echo "=== Checking service status ==="
+            sleep 2
+            sudo systemctl is-active novum
+            
+            echo "=== Deploy complete ==="
+          DEPLOY_SCRIPT
+
+      - name: Health check
+        run: |
+          sleep 5
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://novum-prod.duckdns.org/health || echo "000")
+          if [ "$response" = "200" ]; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed with status: $response"
+            exit 1
+          fi
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
