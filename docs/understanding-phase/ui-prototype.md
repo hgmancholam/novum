@@ -114,6 +114,68 @@ All animations route through `motion/react`. Durations strictly between **100 ms
 - WCAG AA contrast on all text against its background.
 - Keyboard navigation works for: open new question form, submit form, expand/collapse event nodes, navigate history rows with arrow keys, close modals with `Esc`.
 
+### 1.9 Iconography — brand mark and icon system
+
+> **Binding rule.** Every new icon — brand or functional — MUST follow `.github/memory-bank/conventions/iconography.md`. That document is the single source of truth for icon decisions (when to add, where it lives, naming, color, size, stroke, family). This §1.9 summarizes the rules and the brand mark; the memory-bank file is the enforceable convention referenced in code review.
+
+Iconography is part of the trust contract: every glyph must map either to the brand or to a documented behavior. There is no decorative iconography in V1.
+
+#### 1.9.1 Brand mark — *"three dots resolving into a line"*
+
+The Novum mark renders the Baconian premise of `Novum Organum` visually: **three discrete observations (dots) align until they earn a single continuous conclusion (a bar)**. It is the same visual language as `RunningIndicator` (§1.6) — the user reads the same idea in the logo, in the live indicator, and in the event timeline.
+
+```
+viewBox 32×32 (monochrome, currentColor)
+●  ●  ●  ▬▬▬
+6  12 18  22..30   (cx / x · y baseline = 16)
+```
+
+- **Files:** `frontend/public/logo-mark.svg` (mark only), `frontend/public/logo.svg` (mark + DM Sans wordmark, viewBox 140×32), `frontend/public/favicon.svg` (mark on `--bg-primary` rounded square).
+- **Atom:** `Logo` (`components/atoms/Logo.tsx`) renders the mark inline so it inherits `currentColor` and respects token-based theming. Props: `size` (default 24), `withWordmark` (default false), `title` (default *"Novum"*; empty string marks it decorative).
+- **Color rule:** monochrome, always `currentColor`. **Never** colored with `--accent` — the accent is reserved for user actions, not for the brand.
+- **Placements:** favicon, `LoginModal` header (M1 / M1-deep), `MobileTopBar` center label (next to the *"Novum"* wordmark text per §7.10), and the empty-history Skeleton header at very large viewports (V2 only — not required for V1).
+- **No animated logo in V1.** A one-shot 600 ms splash animation (dots appearing sequentially, then the bar materializing) is documented as V2.
+
+#### 1.9.2 Functional icon system — Lucide React, single family
+
+All non-brand icons come from **Lucide React** (already declared in §1.1). No other icon family is allowed — no Heroicons, no Phosphor, no inline ad-hoc SVGs (except the `Logo` atom, which is the brand exception).
+
+| Rule | Value |
+|---|---|
+| Family | Lucide React, one consistent family across the entire UI |
+| Stroke width | `strokeWidth={1.5}` (matches DM Sans 400 stem weight) |
+| Allowed sizes | 14 · 16 · 20 · 24 px (no intermediate values) |
+| Color | `currentColor` driven by parent text token; never hardcoded hex |
+| Semantic color | Only on icons that already carry result semantics (`StatusIcon`, `StopReasonBadge`, `OutcomeBar`), via `--semantic-*` tokens |
+| Accent color | **Never** on icons unless the icon is the affordance of a user action |
+| Animation | None, except `RunningIndicator` (loop), `Spinner` (loop), and the V2 splash logo (one-shot) |
+| Decoration | Forbidden. If an icon does not back an event, a state, or an action documented in §3 or §7, it does not ship |
+
+The event-to-icon map is fixed in §3.3. Two notes:
+- `JudgeRuled` uses `Gavel` for now. `Scale` (balance) is a documented Baconian alternative — pick one and stick with it; do not mix across the trace.
+- Stop reasons map through `StopReasonBadge`, not through standalone icons; the badge owns the `--semantic-*` token application.
+
+#### 1.9.3 Generic `Icon` wrapper (optional convenience)
+
+A future `Icon` atom may wrap Lucide to enforce size and stroke contractually:
+
+```tsx
+<Icon name="Compass" size={20} />
+```
+
+This is **not required in V1** — direct Lucide imports (`<Compass size={20} strokeWidth={1.5} />`) are equivalent and one less indirection. When `Icon` is introduced, every Lucide call site migrates in a single pass.
+
+#### 1.9.4 Asset checklist (V1)
+
+- [x] `frontend/public/logo-mark.svg`
+- [x] `frontend/public/logo.svg`
+- [x] `frontend/public/favicon.svg` (referenced from `index.html`)
+- [x] `frontend/src/components/atoms/Logo.tsx` (+ test)
+- [ ] PNG raster fallbacks 192/512 px (deferred — PWA is V2)
+- [ ] Apple touch icon 180 px (deferred — V2)
+
+The full convention (when to add a new icon, where it lives, naming) is in `.github/memory-bank/conventions/iconography.md`.
+
 ---
 
 ## 2. Layout

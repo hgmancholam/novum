@@ -14,7 +14,9 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { Menu, PanelRight } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Logo } from "@/components/atoms";
 import { useSelectionStore } from "@/stores/selectionStore";
 
 export type Breakpoint = "mobile" | "tablet" | "desktop";
@@ -134,25 +136,13 @@ function MobileTopBar({ onOpenLeft, onOpenRight }: MobileTopBarProps) {
         aria-label="Open history"
         className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-primary)] hover:bg-[var(--glass-bg)]"
       >
-        <svg
-          className="h-5 w-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 6h16M4 12h16M4 18h16"
-          />
-        </svg>
+        <Menu className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
       </button>
       <span
         id="appshell-title"
-        className="text-base font-medium text-[var(--text-primary)]"
+        className="inline-flex items-center gap-2 text-base font-medium text-[var(--text-primary)]"
       >
+        <Logo size={20} title="" />
         Novum
       </span>
       <button
@@ -161,20 +151,7 @@ function MobileTopBar({ onOpenLeft, onOpenRight }: MobileTopBarProps) {
         aria-label="Open trace"
         className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-primary)] hover:bg-[var(--glass-bg)]"
       >
-        <svg
-          className="h-5 w-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 6h16M4 12h16M4 18h16"
-          />
-        </svg>
+        <PanelRight className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
       </button>
     </div>
   );

@@ -4,11 +4,46 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 11
+**Total Decisions:** 12
 
 ---
 
 ## Recent Decisions
+
+## D-012: BRD-05 LLM Client — Roles/Models Realigned to ai-services.md
+
+**Date:** 2026-05-26
+**Agent:** Orchestrator (IP-05) + Coder + Reviewer
+**Category:** Backend / LLM Integration
+**Status:** Implemented
+
+### Context
+BRD-05 §4 specified four LLM roles (researcher, judge, planner, critic) on OpenAI models (`gpt-4o`, `o1-mini`, `gpt-4o-mini`) hitting `models.inference.ai.azure.com`, with a `call(role, user_message, response_model, context)` signature. `docs/technical-phase/ai-services.md` §1 (binding per copilot-instructions §1) specifies four different roles (classifier, planner, synthesizer, judge) on `meta/Llama-4-Scout-17B-16E-Instruct`, `deepseek/DeepSeek-V3-0324`, `openai/gpt-5`, `deepseek/DeepSeek-V3-0324` hitting `models.github.ai/inference`, with signature `call(role, messages, response_model)`.
+
+### Decisions
+1. **ai-services.md wins.** IP-05 follows it verbatim for roles, model IDs, `api_base`, and the `call` signature. BRD-05 §4 is treated as a structural reference (file layout, retry, instructor wrapping, AC shape) and should be amended in a follow-up doc PR.
+2. **No CRITIC role in V1.** Plan-criticism becomes the planner's own self-correction loop (BRD-07 / RF-14, max 2 attempts). Dropped `CRITIC` from the enum, prompts, models, and config.
+3. **Cross-family judge (RF-15) enforced by a test.** `test_judge_is_cross_family_vs_synthesizer` asserts judge provider prefix (`deepseek/`) ≠ synthesizer's (`openai/`).
+4. **`count_tokens` is sync `def`.** BRD-05 wrote `async def`; tiktoken is sync CPU-bound — promoting it to sync prevents accidental event-loop blocking semantics.
+5. **`before_sleep_log(logger, logging.WARNING)`** uses the stdlib logging int, not the string `"warning"` (BRD-05 typo).
+6. **`models.inference.ai.azure.com` is wrong;** use `https://models.github.ai/inference`.
+7. **Dropped response models for unused roles in this BRD:** `EvidenceAnalysis`, `SearchQueryOutput`, `AnswerDraft`, `CritiqueOutput`. They belong to BRD-06 / BRD-07.
+8. **Test isolation via `AsyncMock`** on `app.llm.client.client.chat.completions.create`; no real network, no `pytest-httpx` for this BRD.
+9. **Boundary `Any`.** `instructor.from_litellm(litellm.acompletion)` is typed `Any` with a localized `# pyright: ignore`; strict typing is re-established at `LLMClient.call` via `TypeVar("T", bound=BaseModel)`. Minimum-Any posture compatible with pyright strict.
+
+### References
+- Plan: `docs/implementation-phase/implementation-plans/IP-05-llm-client.md`
+- BRD: `docs/implementation-phase/brds/BRD-05-llm-client.md`
+- Binding tech doc: `docs/technical-phase/ai-services.md` §1
+- Review: `docs/implementation-phase/reviews/CR-05-001-llm-client.md` (9.5/10, Approved)
+
+### Results
+- 169/169 backend tests pass (23 new LLM tests).
+- `ruff check` clean, `pyright --strict` clean on all changed files.
+- 6 of 7 ACs covered (AC-02 critic correctly deferred to BRD-07).
+- 3 Minors (RF-15 inline comment near JUDGE config, api_base/api_key wiring test, a `cast` survival comment) deferred as non-blocking polish.
+
+---
 
 ## D-011: BRD-12 History Panel — Presentational Organism + Page-Owned Hook
 

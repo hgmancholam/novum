@@ -4,7 +4,7 @@
 > Updated automatically by agents after each task.
 
 **Last Updated:** 2026-05-26
-**Updated By:** Orchestrator Agent (post BRD-03)
+**Updated By:** Orchestrator Agent (post BRD-05)
 
 ---
 
@@ -16,6 +16,15 @@
 
 ---
 
+## Conventions
+
+| Convention | Location | Updated | Description |
+|------------|----------|---------|-------------|
+| Naming Conventions | `.github/memory-bank/conventions/naming-conventions.md` | 2026-05-26 | File, identifier, and slug naming rules across the project |
+| Iconography | `.github/memory-bank/conventions/iconography.md` | 2026-05-26 | Brand mark + Lucide-only icon family rules. Binding from `ui-prototype.md` §1.9 |
+
+---
+
 ## Implementation Plans
 
 | ID | BRD Reference | Date | Status | Location |
@@ -24,6 +33,10 @@
 | IP-01 | BRD-01 Database Schema | 2026-05-26 | Completed | [IP-01](../../../docs/implementation-phase/implementation-plans/IP-01-database-schema.md) |
 | IP-02 | BRD-02 Domain Models | 2026-05-26 | Completed | [IP-02](../../../docs/implementation-phase/implementation-plans/IP-02-domain-models.md) |
 | IP-03 | BRD-03 FastAPI Core & API Skeleton | 2026-05-26 | Completed | [IP-03](../../../docs/implementation-phase/implementation-plans/IP-03-fastapi-core.md) |
+| IP-04 | BRD-04 User Identity | 2026-05-26 | Completed | [IP-04](../../../docs/implementation-phase/implementation-plans/IP-04-user-identity.md) |
+| IP-05 | BRD-05 LLM Client Integration | 2026-05-26 | Completed | [IP-05](../../../docs/implementation-phase/implementation-plans/IP-05-llm-client.md) |
+| IP-11 | BRD-11 Frontend Setup & Layout Shell | 2026-05-26 | Completed | [IP-11](../../../docs/implementation-phase/implementation-plans/IP-11-frontend-layout.md) |
+| IP-12 | BRD-12 History Panel | 2026-05-26 | Completed | [IP-12](../../../docs/implementation-phase/implementation-plans/IP-12-history-panel.md) |
 
 ---
 
@@ -35,8 +48,8 @@
 | BRD-01 | Database Schema & Alembic Migrations | 2026-05-26 | Implemented | [BRD-01](../../../docs/implementation-phase/brds/BRD-01-database-schema.md) |
 | BRD-02 | Pydantic Domain Models & Event System | 2026-05-26 | Implemented | [BRD-02](../../../docs/implementation-phase/brds/BRD-02-domain-models.md) |
 | BRD-03 | FastAPI Core & API Skeleton | 2026-05-26 | Implemented | [BRD-03](../../../docs/implementation-phase/brds/BRD-03-fastapi-core.md) |
-| BRD-04 | User Identity (Lightweight Auth) | 2026-05-26 | Draft | [BRD-04](../../../docs/implementation-phase/brds/BRD-04-user-identity.md) |
-| BRD-05 | LLM Client Integration | 2026-05-26 | Draft | [BRD-05](../../../docs/implementation-phase/brds/BRD-05-llm-client.md) |
+| BRD-04 | User Identity (Lightweight Auth) | 2026-05-26 | Implemented | [BRD-04](../../../docs/implementation-phase/brds/BRD-04-user-identity.md) |
+| BRD-05 | LLM Client Integration | 2026-05-26 | Implemented | [BRD-05](../../../docs/implementation-phase/brds/BRD-05-llm-client.md) |
 | BRD-06 | Source Plugins (Tavily + Wikipedia) | 2026-05-26 | Draft | [BRD-06](../../../docs/implementation-phase/brds/BRD-06-source-plugins.md) |
 | BRD-07 | Agent FSM & Research Loop | 2026-05-26 | Draft | [BRD-07](../../../docs/implementation-phase/brds/BRD-07-agent-fsm.md) |
 | BRD-08 | Confidence Calculation Engine | 2026-05-26 | Draft | [BRD-08](../../../docs/implementation-phase/brds/BRD-08-confidence-calculation.md) |
@@ -76,6 +89,7 @@
 | CR-00-001 | BRD-00 Project Setup | 1 | 9.4/10 | Approved | [CR-00-001](../../../docs/implementation-phase/reviews/CR-00-001-project-setup.md) |
 | CR-01-001 | BRD-01 Database Schema | 1 | 9.0/10 | Approved | [CR-01-001](../../../docs/implementation-phase/reviews/CR-01-001-database-schema.md) |
 | CR-02-001 | BRD-02 Domain Models | 1 | 9.6/10 | Approved | [CR-02-001](../../../docs/implementation-phase/reviews/CR-02-001-domain-models.md) |
+| CR-05-001 | BRD-05 LLM Client Integration | 1 | 9.5/10 | Approved | [CR-05-001](../../../docs/implementation-phase/reviews/CR-05-001-llm-client.md) |
 
 ---
 

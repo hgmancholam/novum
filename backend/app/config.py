@@ -17,10 +17,11 @@ class Settings(BaseSettings):
 
     # LLM
     github_token: str
-    llm_model_researcher: str = "gpt-4o"
-    llm_model_judge: str = "o1-mini"
-    llm_model_planner: str = "gpt-4o-mini"
-    llm_model_critic: str = "gpt-4o-mini"
+    llm_api_base: str = "https://models.github.ai/inference"
+    llm_model_classifier: str = "meta/Llama-4-Scout-17B-16E-Instruct"
+    llm_model_planner: str = "deepseek/DeepSeek-V3-0324"
+    llm_model_synthesizer: str = "openai/gpt-5"
+    llm_model_judge: str = "deepseek/DeepSeek-V3-0324"
 
     # Search
     tavily_api_key: str
