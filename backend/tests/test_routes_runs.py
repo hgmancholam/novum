@@ -38,12 +38,12 @@ async def test_health_via_router(client: AsyncClient) -> None:
 
 
 async def test_create_run_returns_201_and_persists(
-    client: AsyncClient, seeded_user: str
+    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
 ) -> None:
     response = await client.post(
         "/api/runs",
         json=_VALID_BODY,
-        headers={"X-Username": seeded_user},
+        headers=auth_headers,
     )
     assert response.status_code == 201
     data = response.json()
@@ -58,16 +58,16 @@ async def test_create_run_returns_201_and_persists(
 
 
 async def test_list_runs_orders_desc_by_started_at(
-    client: AsyncClient, seeded_user: str
+    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
 ) -> None:
     for _ in range(3):
         r = await client.post(
-            "/api/runs", json=_VALID_BODY, headers={"X-Username": seeded_user}
+            "/api/runs", json=_VALID_BODY, headers=auth_headers
         )
         assert r.status_code == 201
 
     response = await client.get(
-        "/api/runs", headers={"X-Username": seeded_user}
+        "/api/runs", headers=auth_headers
     )
     assert response.status_code == 200
     items = response.json()
@@ -85,9 +85,10 @@ async def test_fork_run_sets_parent_and_event(
     client: AsyncClient,
     sqlite_session: AsyncSession,
     seeded_user: str,
+    auth_headers: dict[str, str],
 ) -> None:
     create = await client.post(
-        "/api/runs", json=_VALID_BODY, headers={"X-Username": seeded_user}
+        "/api/runs", json=_VALID_BODY, headers=auth_headers
     )
     run_id = create.json()["id"]
 
@@ -104,7 +105,7 @@ async def test_fork_run_sets_parent_and_event(
     response = await client.post(
         f"/api/runs/{run_id}/fork",
         json={"event_id": event_id},
-        headers={"X-Username": seeded_user},
+        headers=auth_headers,
     )
     assert response.status_code == 201
     forked = response.json()
@@ -128,11 +129,11 @@ async def test_list_missing_username_returns_401(client: AsyncClient) -> None:
 
 
 async def test_get_run_does_not_require_username(
-    client: AsyncClient, seeded_user: str
+    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
 ) -> None:
     """RF-05: runs are public-by-URL — GET /api/runs/{id} is unauthenticated."""
     create = await client.post(
-        "/api/runs", json=_VALID_BODY, headers={"X-Username": seeded_user}
+        "/api/runs", json=_VALID_BODY, headers=auth_headers
     )
     run_id = create.json()["id"]
 
@@ -142,18 +143,18 @@ async def test_get_run_does_not_require_username(
 
 
 async def test_unknown_run_returns_404(
-    client: AsyncClient, seeded_user: str
+    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
 ) -> None:
     response = await client.get(f"/api/runs/{uuid.uuid4()}")
     assert response.status_code == 404
 
 
 async def test_cancel_unknown_run_returns_404(
-    client: AsyncClient, seeded_user: str
+    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
 ) -> None:
     response = await client.post(
         f"/api/runs/{uuid.uuid4()}/cancel",
-        headers={"X-Username": seeded_user},
+        headers=auth_headers,
     )
     assert response.status_code == 404
 
@@ -164,15 +165,15 @@ async def test_cancel_unknown_run_returns_404(
 
 
 async def test_cancel_endpoint_sets_user_cancelled(
-    client: AsyncClient, seeded_user: str
+    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
 ) -> None:
     create = await client.post(
-        "/api/runs", json=_VALID_BODY, headers={"X-Username": seeded_user}
+        "/api/runs", json=_VALID_BODY, headers=auth_headers
     )
     run_id = create.json()["id"]
 
     response = await client.post(
-        f"/api/runs/{run_id}/cancel", headers={"X-Username": seeded_user}
+        f"/api/runs/{run_id}/cancel", headers=auth_headers
     )
     assert response.status_code == 200
     data = response.json()
@@ -186,18 +187,18 @@ async def test_cancel_endpoint_sets_user_cancelled(
 
 
 async def test_resume_endpoint_clears_stop_state(
-    client: AsyncClient, seeded_user: str
+    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
 ) -> None:
     create = await client.post(
-        "/api/runs", json=_VALID_BODY, headers={"X-Username": seeded_user}
+        "/api/runs", json=_VALID_BODY, headers=auth_headers
     )
     run_id = create.json()["id"]
     await client.post(
-        f"/api/runs/{run_id}/cancel", headers={"X-Username": seeded_user}
+        f"/api/runs/{run_id}/cancel", headers=auth_headers
     )
 
     response = await client.post(
-        f"/api/runs/{run_id}/resume", headers={"X-Username": seeded_user}
+        f"/api/runs/{run_id}/resume", headers=auth_headers
     )
     assert response.status_code == 200
     data = response.json()
@@ -211,10 +212,10 @@ async def test_resume_endpoint_clears_stop_state(
 
 
 async def test_events_placeholder_returns_501(
-    client: AsyncClient, seeded_user: str
+    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
 ) -> None:
     create = await client.post(
-        "/api/runs", json=_VALID_BODY, headers={"X-Username": seeded_user}
+        "/api/runs", json=_VALID_BODY, headers=auth_headers
     )
     run_id = create.json()["id"]
 

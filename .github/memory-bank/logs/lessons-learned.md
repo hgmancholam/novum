@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-26
-**Total Lessons:** 6
+**Total Lessons:** 7
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 
@@ -12,12 +12,36 @@
 
 ## Recent Lessons
 
+- **L-007:** Upgrading a Header-Only Auth Fixture Requires Touching All Downstream Route Tests (2026-05-26)
 - **L-006:** `exactOptionalPropertyTypes` Requires `prop?: T | undefined` on Pass-Through Props (2026-05-26)
 - **L-005:** SQLite Fallback for PG-Typed ORM Tests via `compiles`-hooks (2026-05-26)
 - **L-004:** Disable the `pytest-postgresql` Plugin When Running DB-Free Suites Locally (2026-05-26)
 - **L-003:** Static-Only Tests for DB Migrations are Acceptable for Iteration 1 (2026-05-26)
 - **L-002:** Unit Tests are Mandatory per F3.S3 (2026-05-26)
 - **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
+
+---
+
+## L-007: Upgrading a Header-Only Auth Fixture Requires Touching All Downstream Route Tests
+
+**Date:** 2026-05-26
+**Agent:** Coder (BRD-04)
+**Category:** Testing / FastAPI dependencies
+
+### Situation
+BRD-03 protected routes were guarded by a placeholder `get_current_username` that only inspected `X-Username`. The shared `seeded_user` fixture inserted a `User` with a sentinel `token_hash = "x" * 64`. When BRD-04 upgraded the dependency to also require `X-Token`, every test that previously sent only `X-Username` started returning 401, even though the implementation under test was the new auth dependency.
+
+### Lesson
+When the production identity contract changes, the fixtures that simulate identity must change in lockstep. Specifically:
+- Replace the synthetic ORM insert with a real `AuthService.register(...)` call so the persisted `token_hash` matches a plain token you can hand out.
+- Expose a sibling fixture (`auth_headers`) that returns the full `{X-Username, X-Token}` dict; never let downstream tests reconstruct the header pair by hand.
+- Do a workspace-wide rewrite of `headers={"X-Username": seeded_user}` → `headers=auth_headers` in one pass; partial updates produce noisy 401 failures that look like new bugs.
+
+### Prevention
+For any future BRD that tightens an auth dependency:
+1. Update the shared fixture first.
+2. Run the full suite — every 401 is a candidate for the rewrite.
+3. Add an explicit `test_get_current_username_*` matrix (missing headers / wrong token / unknown user / valid pair) so the dependency's contract is asserted directly, not only via side effects of other tests.
 
 ---
 

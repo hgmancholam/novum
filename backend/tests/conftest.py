@@ -213,8 +213,26 @@ async def client(
 
 @pytest.fixture
 async def seeded_user(sqlite_session: AsyncSession) -> str:
-    """Insert a test user and return the username (FK target for runs)."""
-    user = User(username="testuser", token_hash="x" * 64)
-    sqlite_session.add(user)
-    await sqlite_session.commit()
-    return user.username
+    """Register a test user via AuthService and return the username.
+
+    Uses the real `AuthService.register` so the stored `token_hash` is
+    consistent with the plain token exposed by the `auth_headers`
+    fixture (BRD-04 / IP-04 §5).
+    """
+    from app.services.auth_service import AuthService
+
+    service = AuthService(sqlite_session)
+    username, token = await service.register("testuser")
+    # Stash the plain token on the session so dependent fixtures can read it.
+    sqlite_session.info["test_user_token"] = token
+    sqlite_session.info["test_user_username"] = username
+    return username
+
+
+@pytest.fixture
+async def auth_headers(seeded_user: str, sqlite_session: AsyncSession) -> dict[str, str]:
+    """Return valid `X-Username` + `X-Token` headers for the seeded user."""
+    return {
+        "X-Username": seeded_user,
+        "X-Token": str(sqlite_session.info["test_user_token"]),
+    }

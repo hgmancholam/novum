@@ -4,11 +4,42 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 9
+**Total Decisions:** 10
 
 ---
 
 ## Recent Decisions
+
+## D-010: BRD-04 User Identity — Lightweight Auth Implemented
+
+**Date:** 2026-05-26
+**Agent:** Coder (BRD-04)
+**Category:** Backend + Frontend / Auth
+**Status:** Implemented
+
+### Context
+BRD-04 / IP-04 ships RF-05 lightweight identity: username + random 64-hex token, hashed SHA-256. Upgrades the placeholder `get_current_username` to require both `X-Username` and `X-Token`, and adds `/api/auth/{register,verify}` + `/api/auth/users/{username}`. Frontend adds `lib/auth.ts`, `userStore`, and `UsernameModal` organism.
+
+### Decisions
+1. **Existing `User` ORM model reused as-is** (BRD-02). No re-declaration.
+2. **`get_current_username` extended in-place** in `app/dependencies.py`; single source of truth. Symmetric 401 messages — same error for unknown user and wrong token.
+3. **`POST /api/auth/verify` never raises 401** — returns `{valid: false}` on any failure so it cannot be used as a guard (only `get_current_username` short-circuits requests).
+4. **Username normalization (`strip().lower()`) centralized in `AuthService.register`**, not in the route.
+5. **`InvalidTokenError` raised for both "unknown user" and "wrong token"** so timing and message symmetry are preserved.
+6. **`seeded_user` fixture upgraded to register via `AuthService`** (real `token_hash`), and a new `auth_headers` fixture exposes the matching `X-Username` + `X-Token` pair. All BRD-03 route tests updated to send both headers.
+7. **Frontend tests use `vi.spyOn(globalThis, "fetch")`** (no MSW yet, per IP-04 §5.8).
+8. **Network errors in `userStore.initialize` keep the stored identity** (offline support) — explicit test added.
+
+### References
+- Plan: `docs/implementation-phase/implementation-plans/IP-04-user-identity.md`
+- BRD: `docs/implementation-phase/brds/BRD-04-user-identity.md`
+
+### Results
+- 146/146 backend tests pass (12 new auth tests + 13 token tests + 7 dependency tests).
+- 113/113 frontend tests pass (10 new `auth.ts` tests + 8 `userStore` tests).
+- `ruff` clean, `pyright` clean, `tsc` clean on changed files.
+
+---
 
 ## D-009: BRD-11 Reviewer Follow-ups — Tokens Declared + Canonical Microcopy
 
