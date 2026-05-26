@@ -62,35 +62,41 @@ Before delegating ANY task, consult these authoritative documents in `docs/`:
 
 ## Workflow Execution
 
-### Phase 1: Requirement Reception
+> **Reference IDs:** The Orchestrator manages phases F0→F1→F2→F3→F4→(F5|F6).
+> See [workflow.yaml](../workflow.yaml) and [workflow.md](../workflow.md) for complete phase/step reference.
+
+### F0 → F1: Requirement Reception to Analysis
 ```
 1. Parse the incoming requirement
 2. Identify requirement type (feature, bug, refactor)
 3. Check if related work exists in memory bank
-4. Delegate to BSA Agent for analysis
+4. Delegate to BSA Agent → triggers F1 (ANALYZE)
 ```
 
-### Phase 2: Analysis Coordination
+### F1 → F2: Analysis Complete, Start Planning
 ```
-1. Wait for BSA Agent to complete:
-   - BRD generated in docs/implementation-phase/brds/
-   - User stories in docs/implementation-phase/user-stories/
+1. Wait for BSA Agent to complete F1.S1–F1.S6:
+   - F1.S3: BRD generated in docs/implementation-phase/brds/
+   - F1.S4: User stories in docs/implementation-phase/user-stories/
 2. Verify artifacts are complete and synced
+3. Begin F2 (PLAN)
 ```
 
-### Phase 3: Implementation Planning
+### F2: Implementation Planning
 ```
-1. Read the generated user stories
-2. Create detailed implementation plan:
+Steps F2.S1–F2.S3:
+- F2.S1: Read the generated user stories
+- F2.S2: Create detailed implementation plan:
    - Task breakdown with effort estimates
    - File modifications required
    - Dependencies and order
    - Testing requirements
-3. Save plan to docs/implementation-phase/implementation-plans/
+- F2.S3: Save plan to docs/implementation-phase/implementation-plans/
 ```
 
-### Phase 4: Implementation Coordination
+### F2 → F3: Delegate Implementation
 ```
+Trigger F3 (IMPLEMENT) → Coder Agent:
 1. Assign implementation to Coder Agent
 2. Provide:
    - Implementation plan
@@ -99,27 +105,31 @@ Before delegating ANY task, consult these authoritative documents in `docs/`:
 3. Track iteration counter (starts at 1)
 ```
 
-### Phase 5: Review Coordination
+### F3 → F4: Review Coordination
 ```
-1. When Coder completes, delegate to Reviewer Agent
-2. Receive score and feedback
-3. Decision logic:
-   - Score >= 9: Proceed to completion
-   - Score < 9 AND iteration < 5: Return to Coder with feedback
-   - Score < 9 AND iteration >= 5: Escalate to manual review
+1. When Coder completes F3.S1–F3.S4, delegate to Reviewer Agent
+2. Trigger F4 (REVIEW)
+3. Receive score and feedback from F4.S3
+4. Decision logic:
+   - Score >= 9 → F5 (COMPLETE)
+   - Score < 9 AND iteration < 5 → F3 (back to Coder)
+   - Score < 9 AND iteration >= 5 → F6 (ESCALATE)
 ```
 
-### Phase 6: Completion or Escalation
+### F5: Completion
 ```
-Completion:
-1. Mark implementation as approved
-2. Update all memory bank logs
-3. Notify user of success
+Steps F5.S1–F5.S3:
+- F5.S1: Mark implementation as approved
+- F5.S2: Update all memory bank logs
+- F5.S3: Notify user of success
+```
 
-Escalation:
-1. Create escalation report
-2. Document all iteration attempts
-3. Request manual review
+### F6: Escalation
+```
+Steps F6.S1–F6.S3:
+- F6.S1: Create escalation report
+- F6.S2: Document all iteration attempts
+- F6.S3: Request manual review
 ```
 
 ## Quality Gates

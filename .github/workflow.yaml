@@ -150,75 +150,170 @@ skills:
       - update_after_task
 
 # =============================================================================
-# WORKFLOW STATES
+# WORKFLOW PHASES (F0-F6)
 # =============================================================================
-states:
-  - id: "IDLE"
-    description: "Waiting for new requirement"
-    next: "ANALYZE"
+# Reference IDs for phases and steps:
+#   Phase: F{n}     (e.g., F0, F1, F2...)
+#   Step:  F{n}.S{m} (e.g., F1.S1, F1.S2...)
+#
+# Quick Reference Table:
+# ┌────────┬──────────────┬────────────────┬──────────────────────────────────┐
+# │ Phase  │ ID           │ Agent          │ Description                      │
+# ├────────┼──────────────┼────────────────┼──────────────────────────────────┤
+# │ IDLE   │ F0           │ -              │ Waiting for new requirement      │
+# │ ANALYZE│ F1           │ BSA            │ Requirements analysis            │
+# │ PLAN   │ F2           │ Orchestrator   │ Implementation planning          │
+# │ IMPLEMENT│ F3         │ Coder          │ Code implementation              │
+# │ REVIEW │ F4           │ Reviewer       │ Quality evaluation               │
+# │ COMPLETE│ F5          │ -              │ Approved, finalize               │
+# │ ESCALATE│ F6          │ -              │ Max iterations, manual review    │
+# └────────┴──────────────┴────────────────┴──────────────────────────────────┘
+#
+# =============================================================================
 
-  - id: "ANALYZE"
+phases:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # F0: IDLE — Entry Point
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: "F0"
+    name: "IDLE"
+    description: "Waiting for new requirement"
+    next: "F1"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # F1: ANALYZE — BSA Agent
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: "F1"
+    name: "ANALYZE"
     description: "BSA analyzing requirement"
     agent: "bsa"
-    actions:
-      - read_memory_bank
-      - analyze_requirement
-      - generate_brd
-      - generate_user_stories
-      - sync_to_github
-      - update_memory_bank
-    next: "PLAN"
+    steps:
+      - id: "F1.S1"
+        action: "read_memory_bank"
+        description: "Read project context, knowledge index, and lessons learned"
+      - id: "F1.S2"
+        action: "analyze_requirement"
+        description: "Parse and classify the incoming requirement"
+      - id: "F1.S3"
+        action: "generate_brd"
+        description: "Create Business Requirements Document"
+      - id: "F1.S4"
+        action: "generate_user_stories"
+        description: "Create user stories with acceptance criteria"
+      - id: "F1.S5"
+        action: "sync_to_github"
+        description: "Sync documentation to GitHub (if MCP available)"
+      - id: "F1.S6"
+        action: "update_memory_bank"
+        description: "Update decisions history and knowledge index"
+    next: "F2"
 
-  - id: "PLAN"
+  # ─────────────────────────────────────────────────────────────────────────────
+  # F2: PLAN — Orchestrator Agent
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: "F2"
+    name: "PLAN"
     description: "Orchestrator creating implementation plan"
     agent: "orchestrator"
-    actions:
-      - read_memory_bank
-      - create_implementation_plan
-      - update_memory_bank
-    next: "IMPLEMENT"
+    steps:
+      - id: "F2.S1"
+        action: "read_memory_bank"
+        description: "Read project context and generated BRD/stories"
+      - id: "F2.S2"
+        action: "create_implementation_plan"
+        description: "Break down user stories into tasks with effort estimates"
+      - id: "F2.S3"
+        action: "update_memory_bank"
+        description: "Record planning decisions and update index"
+    next: "F3"
 
-  - id: "IMPLEMENT"
+  # ─────────────────────────────────────────────────────────────────────────────
+  # F3: IMPLEMENT — Coder Agent
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: "F3"
+    name: "IMPLEMENT"
     description: "Coder implementing solution"
     agent: "coder"
-    actions:
-      - read_memory_bank
-      - implement_code
-      - generate_unit_tests
-      - update_memory_bank
-    next: "REVIEW"
+    steps:
+      - id: "F3.S1"
+        action: "read_memory_bank"
+        description: "Read implementation plan, architecture, and conventions"
+      - id: "F3.S2"
+        action: "implement_code"
+        description: "Write production code following tech stack standards"
+      - id: "F3.S3"
+        action: "generate_unit_tests"
+        description: "Create unit tests for backend and/or frontend"
+      - id: "F3.S4"
+        action: "update_memory_bank"
+        description: "Record implementation decisions and created files"
+    next: "F4"
 
-  - id: "REVIEW"
+  # ─────────────────────────────────────────────────────────────────────────────
+  # F4: REVIEW — Reviewer Agent
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: "F4"
+    name: "REVIEW"
     description: "Reviewer evaluating code"
     agent: "reviewer"
-    actions:
-      - read_memory_bank
-      - evaluate_code
-      - assign_score
-      - generate_review_report
-      - update_memory_bank
+    steps:
+      - id: "F4.S1"
+        action: "read_memory_bank"
+        description: "Read implementation plan and acceptance criteria"
+      - id: "F4.S2"
+        action: "evaluate_code"
+        description: "Review code against quality standards"
+      - id: "F4.S3"
+        action: "assign_score"
+        description: "Calculate weighted score (1-10 scale)"
+      - id: "F4.S4"
+        action: "generate_review_report"
+        description: "Create detailed review report with feedback"
+      - id: "F4.S5"
+        action: "update_memory_bank"
+        description: "Record review decisions and lessons learned"
     next_conditions:
       - condition: "score >= 9"
-        next: "COMPLETE"
+        next: "F5"
       - condition: "score < 9 AND iteration < 5"
-        next: "IMPLEMENT"
+        next: "F3"
       - condition: "score < 9 AND iteration >= 5"
-        next: "ESCALATE"
+        next: "F6"
 
-  - id: "COMPLETE"
+  # ─────────────────────────────────────────────────────────────────────────────
+  # F5: COMPLETE — Terminal (Success)
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: "F5"
+    name: "COMPLETE"
     description: "Implementation approved"
-    actions:
-      - finalize_documentation
-      - update_memory_bank
-      - notify_completion
+    steps:
+      - id: "F5.S1"
+        action: "finalize_documentation"
+        description: "Update all relevant documentation"
+      - id: "F5.S2"
+        action: "update_memory_bank"
+        description: "Final update to decisions history"
+      - id: "F5.S3"
+        action: "notify_completion"
+        description: "Notify user of successful completion"
     terminal: true
 
-  - id: "ESCALATE"
+  # ─────────────────────────────────────────────────────────────────────────────
+  # F6: ESCALATE — Terminal (Manual Review Required)
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: "F6"
+    name: "ESCALATE"
     description: "Max iterations reached, manual review required"
-    actions:
-      - create_escalation_report
-      - notify_manual_review
-      - update_memory_bank
+    steps:
+      - id: "F6.S1"
+        action: "create_escalation_report"
+        description: "Document all iteration attempts and blockers"
+      - id: "F6.S2"
+        action: "notify_manual_review"
+        description: "Alert user that manual intervention is needed"
+      - id: "F6.S3"
+        action: "update_memory_bank"
+        description: "Record escalation in lessons learned"
     terminal: true
 
 # =============================================================================
