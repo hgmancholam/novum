@@ -4,6 +4,7 @@
  */
 
 import { API_URL } from "./constants";
+import { getAuthHeaders } from "./auth";
 
 export interface ApiError {
   code: string;
@@ -120,4 +121,76 @@ export async function listRuns(
     offset: String(offset),
   });
   return api.get<RunListItemDto[]>(`/api/runs?${qs.toString()}`, init);
+}
+
+// ---------------------------------------------------------------------------
+// Single run — BRD-13 / IP-13
+// ---------------------------------------------------------------------------
+
+export type StopReasonDto =
+  | "judge_confirmed"
+  | "honest_unanswerable"
+  | "honest_contradiction"
+  | "honest_ambiguous"
+  | "stopped_by_budget"
+  | "user_cancelled"
+  | "errored";
+
+export type QuestionTypeDto =
+  | "factual"
+  | "comparative"
+  | "definitional"
+  | "state_of_art"
+  | "causal";
+
+export type OutputFormatDto = "prose" | "structured";
+
+export interface RunResponseDto {
+  id: string;
+  owner_username: string;
+  question: string;
+  user_context: string | null;
+  question_type: QuestionTypeDto | null;
+  output_format: OutputFormatDto;
+  confidence_threshold: number;
+  started_at: string;
+  stopped_at: string | null;
+  stop_reason: StopReasonDto | null;
+  parent_run_id: string | null;
+  forked_at_event_id: string | null;
+}
+
+/** GET /api/runs/{id} — public, no auth headers. */
+export async function getRun(
+  runId: string,
+  init?: RequestInit
+): Promise<RunResponseDto> {
+  return api.get<RunResponseDto>(`/api/runs/${runId}`, init);
+}
+
+/** POST /api/runs/{id}/cancel — requires X-Username + X-Token (BRD-04). */
+export async function cancelRun(
+  runId: string,
+  init?: RequestInit
+): Promise<RunResponseDto> {
+  return api.post<RunResponseDto>(`/api/runs/${runId}/cancel`, undefined, {
+    ...init,
+    headers: { ...getAuthHeaders(), ...init?.headers },
+  });
+}
+
+/** POST /api/runs/{id}/fork — requires auth + body { event_id }. */
+export async function forkRun(
+  runId: string,
+  eventId: string,
+  init?: RequestInit
+): Promise<RunResponseDto> {
+  return api.post<RunResponseDto>(
+    `/api/runs/${runId}/fork`,
+    { event_id: eventId },
+    {
+      ...init,
+      headers: { ...getAuthHeaders(), ...init?.headers },
+    }
+  );
 }

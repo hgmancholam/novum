@@ -4,11 +4,43 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 14
+**Total Decisions:** 15
 
 ---
 
 ## Recent Decisions
+
+## D-015: BRD-13 Center Panel — V1 Scope Trimmed to Match Actual Backend
+
+**Date:** 2026-05-26
+**Agent:** Orchestrator (IP-13) + Coder + Reviewer
+**Category:** Frontend / Scope Alignment
+**Status:** Implemented (CR-13-001: 9.6/10 — Approved)
+
+### Context
+BRD-13 was authored against an ideal backend (SSE event stream, dedicated `AnswerDrafted` / `ConfidenceCalculated` events, camelCase `RunResponse` with a `status` field). The real V1 backend (BRD-03 + BRD-04) only exposes `GET /api/runs/{id}` (snake_case), `POST /{id}/cancel`, `POST /{id}/fork`; `GET /{id}/events` returns 501 and the schema has no `AnswerDrafted` event — terminal answer lives inside `StoppedEvent`.
+
+### Decisions
+1. Ship V1 covering ACs achievable today (AC-01, AC-03); defer AC-02 (live answer streaming) and AC-04 (confidence formula UI) to BRD-10. Per L-003, IP-13 is the binding contract for review.
+2. Derive `status` client-side: `stop_reason == null && stopped_at == null → "running"`, else `"stopped"`. No backend `status` field needed.
+3. Name the organism `CenterPanelView` to avoid collision with existing `templates/CenterPanel` geometry (BRD-11).
+4. Keep `useRun` data hook in `pages/CenterPanelContainer.tsx`; organisms stay pure presentational per atomic-design ESLint policy (`import/no-restricted-paths`).
+5. Ship `ActionBar` cancel-only; Fork button rendered disabled with tooltip until BRD-15.
+6. `mapRun` adapter in `frontend/src/types/run.ts` is the single source of FE↔BE shape mapping (`confidence_threshold`, `output_format` rename touches only this file).
+7. UI-prototype states C4/C5/C6/C11/C12/C13 deferred (need events stream).
+
+### Consequences
+- AC-02 + AC-04 re-open as part of BRD-10 (SSE Streaming & Resume).
+- 40 new frontend tests (8 files) across organisms, hook, container, types; 219/219 total tests pass.
+- Non-blocking follow-ups captured by Reviewer (fold into BRD-10):
+  1. `ResearchingBanner` announces "Researching…" twice (Spinner `aria-label` + visible span inside `role=status`).
+  2. `ActionBar` Fork button forwards `onClick` / `loading` while permanently `disabled` — dead props until BRD-15.
+  3. `@vitest/coverage-v8` not installed → numeric coverage not enforced (qualitative ≥ 80% met).
+
+### Related
+IP-13-center-panel.md, CR-13-001-center-panel.md, BRD-10, BRD-14, BRD-15, ui-prototype.md §3 (C1–C13), RF-02, RF-12.
+
+---
 
 ## D-014: BRD-06 Source Plugins — Tavily + Wikipedia behind `Source` seam
 

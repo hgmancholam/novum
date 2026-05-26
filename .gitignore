@@ -262,3 +262,5 @@ Thumbs.db
 # Test coverage
 coverage/
 
+
+frontend/tsconfig.tsbuildinfo
