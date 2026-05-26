@@ -4,11 +4,36 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 2
+**Total Decisions:** 3
 
 ---
 
 ## Recent Decisions
+
+## D-003: BRD-01 Database Schema — Review APPROVED (9.0/10)
+
+**Date:** 2026-05-26
+**Agent:** Reviewer
+**Category:** Review
+**Status:** Approved
+
+### Context
+Iteration 1 review of BRD-01 (PostgreSQL schema + Alembic migration + ORM models). Coder declared 7 intentional deviations from BRD §4.4 code blocks (all typing/SQLAlchemy 2.0 idiomatic improvements). 16 unit tests passed in 0.15 s.
+
+### Decision
+APPROVED at exactly 9.0/10 weighted score. Zero Blockers, zero Majors. Two Minors filed for follow-up in BRD-02:
+- Add a downgrade-ordering static test to close the AC-05 gap.
+- Tighten `Mapped[str | None]` enum columns to `Literal[...]` or `Enum` when domain models land.
+
+### Consequences
+- Proceed to BRD-02 (Pydantic domain models & event types).
+- The Coder's `text()` wrapping of every `server_default` and explicit `postgresql.UUID(as_uuid=True)` become the project standard.
+- The `pgcrypto` extension creation (added by Coder, missing from BRD §4.3) is acknowledged as a substantive correctness fix.
+
+### Artifacts Created
+- Review report: [CR-01-001-database-schema.md](../../../docs/implementation-phase/reviews/CR-01-001-database-schema.md)
+
+---
 
 ## D-002: BRD-00 Implementation — Project Setup
 

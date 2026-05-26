@@ -4,14 +4,37 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-26
-**Total Lessons:** 2
+**Total Lessons:** 3
 
 ---
 
 ## Recent Lessons
 
+- **L-003:** Static-Only Tests for DB Migrations are Acceptable for Iteration 1 (2026-05-26)
 - **L-002:** Unit Tests are Mandatory per F3.S3 (2026-05-26)
 - **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
+
+---
+
+## L-003: Static-Only Tests for DB Migrations are Acceptable for Iteration 1
+
+**Date:** 2026-05-26
+**Agent:** Reviewer
+**Category:** Testing Strategy
+
+### What Happened
+BRD-01 review (CR-01-001) considered whether to penalize the Coder for shipping migration tests that only inspect the module source instead of executing `alembic upgrade head` against a live or `pytest-postgresql` database. AC-01 and AC-05 were therefore only verified structurally.
+
+### Decision
+Static-only verification is acceptable for iteration 1 **when the BRD itself defers runtime verification to a later phase**. BRD-01 §7 explicitly marks integration testing as BRD-02 territory and `alembic upgrade head` as a manual P1 step. Penalizing the Coder here would amount to enforcing a stricter standard than the spec.
+
+### Rule of Thumb
+- If the BRD's "Testing Strategy" section defers a test type, treat its absence as Minor (advisory), never Major.
+- If the BRD requires a test type and it is missing, treat its absence as Major or Blocker.
+- Cheap source-substring tests (e.g., "does `downgrade()` mention every `drop_table` in reverse order?") are a free win and should be requested as Minors.
+
+### Prevention
+Reviewers must read the BRD's `Testing Strategy` section before scoring `Test Coverage`. Do not import the stricter standards of later BRDs retroactively.
 
 ---
 
