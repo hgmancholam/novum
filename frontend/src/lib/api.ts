@@ -83,3 +83,41 @@ export const api = {
     return handleResponse<T>(response);
   },
 };
+
+// ---------------------------------------------------------------------------
+// Typed endpoint wrappers
+// ---------------------------------------------------------------------------
+
+export interface RunListItemDto {
+  id: string;
+  question: string;
+  started_at: string;
+  stopped_at: string | null;
+  stop_reason:
+    | "judge_confirmed"
+    | "honest_unanswerable"
+    | "honest_contradiction"
+    | "honest_ambiguous"
+    | "stopped_by_budget"
+    | "user_cancelled"
+    | "errored"
+    | null;
+}
+
+export interface ListRunsParams {
+  limit?: number;
+  offset?: number;
+}
+
+export async function listRuns(
+  params: ListRunsParams = {},
+  init?: RequestInit
+): Promise<RunListItemDto[]> {
+  const limit = params.limit ?? 20;
+  const offset = params.offset ?? 0;
+  const qs = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return api.get<RunListItemDto[]>(`/api/runs?${qs.toString()}`, init);
+}

@@ -5,12 +5,8 @@
  */
 
 import { useParams, useSearchParams } from "react-router-dom";
-import {
-  AppShell,
-  HistoryPanel,
-  CenterPanel,
-  TracePanel,
-} from "@/components/templates";
+import { AppShell, CenterPanel, TracePanel } from "@/components/templates";
+import { HistoryPanelContainer } from "./HistoryPanelContainer";
 
 export default function RunPage() {
   const { runId } = useParams<{ runId: string }>();
@@ -19,20 +15,7 @@ export default function RunPage() {
 
   return (
     <AppShell
-      left={
-        <HistoryPanel
-          header={
-            <h2 className="text-sm font-medium text-[var(--text-primary)]">
-              History
-            </h2>
-          }
-          body={
-            <p className="px-2 text-sm text-[var(--text-secondary)]">
-              Run history will appear here.
-            </p>
-          }
-        />
-      }
+      left={<HistoryPanelContainer />}
       center={
         <CenterPanel
           body={

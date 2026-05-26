@@ -1,32 +1,11 @@
 /**
  * HomePage — Route: /
- * Owns: useUser, useRunHistory (wired in future BRDs).
+ * Owns: useUser, useRunHistory (via HistoryPanelContainer).
  * See ui-prototype.md §8.2 (Pages).
  */
 
-import {
-  AppShell,
-  HistoryPanel,
-  CenterPanel,
-  TracePanel,
-} from "@/components/templates";
-
-function HistoryPlaceholder() {
-  return (
-    <HistoryPanel
-      header={
-        <h2 className="text-sm font-medium text-[var(--text-primary)]">
-          History
-        </h2>
-      }
-      body={
-        <p className="px-2 text-sm text-[var(--text-secondary)]">
-          You haven&apos;t started any research yet.
-        </p>
-      }
-    />
-  );
-}
+import { AppShell, CenterPanel, TracePanel } from "@/components/templates";
+import { HistoryPanelContainer } from "./HistoryPanelContainer";
 
 function CenterPlaceholder() {
   return (
@@ -65,7 +44,7 @@ function TracePlaceholder() {
 export default function HomePage() {
   return (
     <AppShell
-      left={<HistoryPlaceholder />}
+      left={<HistoryPanelContainer />}
       center={<CenterPlaceholder />}
       right={<TracePlaceholder />}
     />

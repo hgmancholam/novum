@@ -4,11 +4,29 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 10
+**Total Decisions:** 11
 
 ---
 
 ## Recent Decisions
+
+## D-011: BRD-12 History Panel — Presentational Organism + Page-Owned Hook
+
+**Date:** 2026-05-26
+**Context:** BRD-12 example code put `useRunHistory` inside an organism `HistoryPanel`. The repo's ESLint `import/no-restricted-paths` rule forbids any component below `pages/` from importing `useRun*`. The backend (BRD-03) also exposes only `GET /api/runs?limit&offset` returning `RunListItem`, with no filters/search/cursor/DELETE.
+
+**Decision:**
+- `HistoryList`, `RunRow`, `HistoryFilters` are presentational organisms (no data fetching).
+- `useRunHistory` (TanStack `useInfiniteQuery` over offset pagination) lives in `frontend/src/hooks/` but is only imported by `pages/HistoryPanelContainer.tsx`.
+- `HistoryPanelContainer` (page-level) reuses the existing `templates/HistoryPanel` geometry shell (BRD-11) via its `header` / `body` slots.
+- Filtering by status / stop reason / search runs client-side over the loaded pages.
+- DELETE, confidence bar, fork badge: out of scope (BRD-12 §10 + missing backend support).
+
+**Status derivation:** `stop_reason == null` → `running`; `judge_confirmed` → `completed`; else → `stopped`.
+
+**Outcome:** 35 new tests (148 total, all green), typecheck clean, lint clean for new files, AC-01..AC-04 covered. See [CR-12-001](../../../docs/implementation-phase/reviews/CR-12-001-history-panel.md) and [IP-12](../../../docs/implementation-phase/implementation-plans/IP-12-history-panel.md).
+
+---
 
 ## D-010: BRD-04 User Identity — Lightweight Auth Implemented
 
