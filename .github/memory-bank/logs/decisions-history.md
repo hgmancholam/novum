@@ -4,11 +4,40 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 13
+**Total Decisions:** 14
 
 ---
 
 ## Recent Decisions
+
+## D-014: BRD-06 Source Plugins — Tavily + Wikipedia behind `Source` seam
+
+**Date:** 2026-05-26
+**Agent:** Orchestrator (IP-06) + Coder + Reviewer
+**Category:** Backend / Plugin Seams
+**Status:** Implemented (CR-06-001: 9.4/10 — Approved)
+
+### Context
+First of the three V1 plugin seams (architecture rule #1). Two concrete sources required by `ai-services.md` §2/§3: Tavily (web, advanced depth) and Wikipedia (heterogeneous corpus per RF-04). Sources must be addressable by `SourceType` enum (already in `domain/enums.py`) and must not leak into the FSM/storage/LLM layers (rule #2).
+
+### Decisions
+1. **`Source` is a `runtime_checkable` `Protocol`** in `backend/app/seams/source.py` with `source_type`, `name`, `async search(...)`, `async health_check()`. Implementations are duck-typed; `BaseSource` is a mixin offering truncation only — not an ABC.
+2. **`SourceResult` is a Pydantic-v2 model** (not a dataclass) — keeps the doors open for JSON-serialized evidence payloads in BRD-07/08.
+3. **`SourceError` carries `source_type` + cause chaining** (`raise SourceError(...) from exc`). Non-`SourceError` exceptions are wrapped; existing `SourceError`s are propagated unchanged (no double-wrapping).
+4. **Wikipedia sync client is wrapped with `anyio.to_thread.run_sync`** — the only way to keep the seam async-first without forking the lib.
+5. **`SourceRegistry` is a module-level singleton** built lazily on first import; Tavily is registered only when `settings.tavily_api_key` is set (graceful degradation in dev/test). Per-test instances created via `SourceRegistry()` for isolation.
+6. **No `tenacity` retries at the seam.** Tavily's client has its own retry; Wikipedia is best-effort. Retries (if needed) belong to the FSM's source-cascade logic in BRD-07.
+7. **Not wired to FSM/events yet.** No `EvidenceAdded`/`SourceFailed` emission here — that is BRD-07's job.
+
+### Consequences
+- Architecture rule #1 satisfied; rule #2 preserved (no imports from `app/llm/` or `app/services/`).
+- 45 unit tests cover protocol structural checks, truncation, registry isolation, conditional registration, error-wrapping symmetry, and thread-offload.
+- The FSM in BRD-07 can depend on `get_source(SourceType)` without further refactoring.
+
+### Related
+IP-06-source-plugins.md, BRD-06, CR-06-001-source-plugins.md, ai-services.md §2/§3, architecture.md rule #1.
+
+---
 
 ## D-013: Auth Wiring Closed via IP-11 iter 2 (No New BRD)
 
