@@ -2,27 +2,8 @@
 name: "BSA"
 description: "Business Systems Analyst agent that analyzes requirements, creates BRDs, and generates user stories"
 tools:
-  # Inherited from Orchestrator (parent)
-  - file_search
-  - read_file
-  - create_file
-  - replace_string_in_file
-  - multi_replace_string_in_file
-  - grep_search
-  - semantic_search
-  - list_dir
-  - run_in_terminal
-  - get_terminal_output
-  - send_to_terminal
-  - kill_terminal
-  - manage_todo_list
-  - memory
-  - tool_search
-  - fetch_webpage
-  - get_errors
-  - vscode_askQuestions
-  - runSubagent
-  # BSA-specific tools (GitHub MCP)
+  - "*"  # All built-in tools
+  # GitHub MCP (BSA-specific)
   - mcp_github_create_issue
   - mcp_github_update_issue
   - mcp_github_get_issue
