@@ -9,19 +9,31 @@ const cases: ReadonlyArray<{
   label: string;
   variant: string;
 }> = [
-  { reason: "judge_confirmed", label: "Confirmed", variant: "success" },
-  { reason: "honest_unanswerable", label: "Unanswerable", variant: "warning" },
-  { reason: "honest_contradiction", label: "Contradiction", variant: "warning" },
-  { reason: "honest_ambiguous", label: "Ambiguous", variant: "warning" },
-  { reason: "stopped_by_budget", label: "Budget reached", variant: "warning" },
+  { reason: "judge_confirmed", label: "Judge confirmed", variant: "success" },
+  {
+    reason: "honest_unanswerable",
+    label: "Honest stop — unanswerable",
+    variant: "warning",
+  },
+  {
+    reason: "honest_contradiction",
+    label: "Honest stop — contradiction",
+    variant: "warning",
+  },
+  {
+    reason: "honest_ambiguous",
+    label: "Honest stop — ambiguous",
+    variant: "warning",
+  },
+  { reason: "stopped_by_budget", label: "Stopped on budget", variant: "warning" },
   { reason: "user_cancelled", label: "Cancelled", variant: "secondary" },
-  { reason: "errored", label: "Error", variant: "error" },
+  { reason: "errored", label: "Errored", variant: "error" },
 ];
 
 describe("StatusBadge", () => {
-  it("renders Running with info variant when status=running", () => {
+  it("renders Researching… with info variant when status=running", () => {
     render(<StatusBadge status="running" />);
-    const el = screen.getByText("Running");
+    const el = screen.getByText("Researching…");
     expect(el).toHaveAttribute("data-variant", "info");
   });
 
@@ -33,6 +45,31 @@ describe("StatusBadge", () => {
       expect(el).toHaveAttribute("data-variant", variant);
     }
   );
+
+  it("appends errorReason after 'Errored —' when provided", () => {
+    render(
+      <StatusBadge
+        status="stopped"
+        stopReason="errored"
+        errorReason="provider rate_limit"
+      />
+    );
+    expect(
+      screen.getByText("Errored — provider rate_limit")
+    ).toBeInTheDocument();
+  });
+
+  it("ignores errorReason for non-errored stop reasons", () => {
+    render(
+      <StatusBadge
+        status="completed"
+        stopReason="judge_confirmed"
+        errorReason="ignored"
+      />
+    );
+    expect(screen.getByText("Judge confirmed")).toBeInTheDocument();
+    expect(screen.queryByText(/—/)).not.toBeInTheDocument();
+  });
 
   it("falls back to Unknown when completed without stop_reason", () => {
     render(<StatusBadge status="completed" />);

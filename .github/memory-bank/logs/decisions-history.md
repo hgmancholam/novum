@@ -4,11 +4,37 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 8
+**Total Decisions:** 9
 
 ---
 
 ## Recent Decisions
+
+## D-009: BRD-11 Reviewer Follow-ups — Tokens Declared + Canonical Microcopy
+
+**Date:** 2026-05-26
+**Agent:** Coder (BRD-11 follow-up)
+**Category:** Frontend / Tokens & Microcopy
+**Status:** Implemented
+
+### Context
+The Reviewer (REV-11, 9.2/10) flagged two non-blocking gaps before BRD-12:
+1. CSS custom properties referenced everywhere (`--bg-primary`, `--accent`, `--semantic-*`, `--glass-*`, `--text-*`, `--radius-*`) were never declared in `frontend/src/index.css` — runtime visual breakage not caught by JSDOM.
+2. `StatusBadge` labels diverged from the canonical microcopy in `ui-prototype.md` §7.4.
+
+### Decisions
+1. **Declared all Novum design tokens** from `ui-prototype.md` §1.3 in `frontend/src/index.css` under `:root`. The existing shadcn HSL token block is kept for `components.json` compatibility, with its conflicting `--accent` redeclaration removed so the Novum `#007AFF` is canonical.
+2. **`body` styled with `var(--bg-primary)` + `var(--text-primary)`** so the dark theme is the default render.
+3. **`StatusBadge` labels aligned with §7.4 canonical strings:** `judge_confirmed` → "Judge confirmed"; `honest_*` → "Honest stop — <variant>"; `stopped_by_budget` → "Stopped on budget"; `user_cancelled` → "Cancelled"; `errored` → "Errored". Running label updated to **"Researching…"** per §7.5.
+4. **`StatusBadge` accepts an optional `errorReason` prop** that produces "Errored — <reason>" only when `stopReason === "errored"`; otherwise it is ignored.
+5. **Test suite updated** (`StatusBadge.test.tsx`): canonical labels asserted + 2 new cases for `errorReason` behavior. 95/95 tests pass, `tsc` clean.
+
+### References
+- Tokens: `docs/understanding-phase/ui-prototype.md` §1.3
+- Microcopy: `docs/understanding-phase/ui-prototype.md` §7.4 / §7.5
+- Review that triggered this: `docs/implementation-phase/reviews/REV-11-frontend-layout.md`
+
+---
 
 ## D-008: BRD-11 Frontend Layout — IP Reconciliations Honored
 
