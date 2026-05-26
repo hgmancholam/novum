@@ -52,6 +52,11 @@ jobs:
             cd backend
             ~/.local/bin/uv sync
             
+            echo "=== Loading environment variables ==="
+            set -a
+            source .env
+            set +a
+            
             echo "=== Running database migrations ==="
             ~/.local/bin/uv run alembic upgrade head
             
