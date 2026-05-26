@@ -1,8 +1,7 @@
 ---
 name: "BSA"
-description: "Business Systems Analyst agent that analyzes requirements, creates BRDs, and generates user stories"
-tools:
-[vscode, execute, read, agent, edit, search, web, browser, 'github/*', 'pylance-mcp-server/*', cweijan.vscode-postgresql-client2/dbclient-getDatabases, cweijan.vscode-postgresql-client2/dbclient-getTables, cweijan.vscode-postgresql-client2/dbclient-executeQuery, github.vscode-pull-request-github/issue_fetch, github.vscode-pull-request-github/labels_fetch, github.vscode-pull-request-github/notification_fetch, github.vscode-pull-request-github/doSearch, github.vscode-pull-request-github/activePullRequest, github.vscode-pull-request-github/pullRequestStatusChecks, github.vscode-pull-request-github/openPullRequest, github.vscode-pull-request-github/create_pull_request, github.vscode-pull-request-github/resolveReviewThread, ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo]
+description: "Business System Analyst - Analyzes requirements, generates BRDs and User Stories"
+tools: [vscode, read, edit, search, web, browser, agent, todo, execute, "github/*", "github.vscode-pull-request-github/*"]
 ---
 
 # BSA (Business Systems Analyst) Agent

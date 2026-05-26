@@ -1,8 +1,7 @@
 ---
 name: "Coder"
-description: "Implementation agent that writes code following best practices, generates unit tests, and adheres to tech stack conventions"
-tools:
-[vscode, execute, read, agent, edit, search, web, browser, 'github/*', 'io.github.chromedevtools/chrome-devtools-mcp/*', 'pylance-mcp-server/*', cweijan.vscode-postgresql-client2/dbclient-getDatabases, cweijan.vscode-postgresql-client2/dbclient-getTables, cweijan.vscode-postgresql-client2/dbclient-executeQuery, github.vscode-pull-request-github/issue_fetch, github.vscode-pull-request-github/labels_fetch, github.vscode-pull-request-github/notification_fetch, github.vscode-pull-request-github/doSearch, github.vscode-pull-request-github/activePullRequest, github.vscode-pull-request-github/pullRequestStatusChecks, github.vscode-pull-request-github/openPullRequest, github.vscode-pull-request-github/create_pull_request, github.vscode-pull-request-github/resolveReviewThread, ms-azuretools.vscode-containers/containerToolsConfig, ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo]  # All built-in tools (includes vscode_listCodeUsages, vscode_renameSymbol, runTests, etc.)
+description: "Implementation specialist - Writes production code, unit tests, follows project conventions"
+tools: [vscode, execute, read, edit, search, web, browser, todo, agent, "github/*", "pylance-mcp-server/*", "cweijan.vscode-postgresql-client2/*", "ms-python.python/*", "github.vscode-pull-request-github/*"]
 ---
 
 # Coder Agent

@@ -1,8 +1,7 @@
 ---
 name: "Reviewer"
-description: "Code review agent that evaluates implementations, assigns quality scores, and provides actionable feedback"
-tools:
-[vscode, execute, read, agent, edit, search, web, browser, cweijan.vscode-postgresql-client2/dbclient-getDatabases, cweijan.vscode-postgresql-client2/dbclient-getTables, cweijan.vscode-postgresql-client2/dbclient-executeQuery, ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo]
+description: "Code Reviewer - Evaluates implementations, scores quality (1-10), provides actionable feedback"
+tools: [vscode, read, search, execute, todo, web, agent, edit, "github/*", "pylance-mcp-server/*", "cweijan.vscode-postgresql-client2/*", "ms-python.python/*", "github.vscode-pull-request-github/*"]
 ---
 
 # Reviewer Agent

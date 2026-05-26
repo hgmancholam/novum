@@ -1,8 +1,7 @@
 ---
 name: "Orchestrator"
 description: "Workflow controller that coordinates all agents, manages iteration cycles, and enforces quality gates"
-tools:
-[vscode, execute, read, agent, edit, search, web, browser, 'github/*', 'io.github.chromedevtools/chrome-devtools-mcp/*', 'pylance-mcp-server/*', cweijan.vscode-postgresql-client2/dbclient-getDatabases, cweijan.vscode-postgresql-client2/dbclient-getTables, cweijan.vscode-postgresql-client2/dbclient-executeQuery, github.vscode-pull-request-github/issue_fetch, github.vscode-pull-request-github/labels_fetch, github.vscode-pull-request-github/notification_fetch, github.vscode-pull-request-github/doSearch, github.vscode-pull-request-github/activePullRequest, github.vscode-pull-request-github/pullRequestStatusChecks, github.vscode-pull-request-github/openPullRequest, github.vscode-pull-request-github/create_pull_request, github.vscode-pull-request-github/resolveReviewThread, ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo]
+tools: [vscode, execute, read, agent, edit, search, web, browser, todo, "github/*", "io.github.chromedevtools/chrome-devtools-mcp/*", "pylance-mcp-server/*", "cweijan.vscode-postgresql-client2/*", "github.vscode-pull-request-github/*", "ms-python.python/*"]
 ---
 
 # Orchestrator Agent
