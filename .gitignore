@@ -149,6 +149,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -156,6 +158,13 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Secrets / API keys (never commit)
+api_key*.txt
+*api_key*
+*secret*
+*.pem
+*.key
 
 # Spyder project settings
 .spyderproject
