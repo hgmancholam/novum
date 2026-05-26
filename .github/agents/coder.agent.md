@@ -2,6 +2,7 @@
 name: "Coder"
 description: "Implementation agent that writes code following best practices, generates unit tests, and adheres to tech stack conventions"
 tools:
+  # Inherited from Orchestrator (parent)
   - file_search
   - read_file
   - create_file
@@ -11,7 +12,17 @@ tools:
   - semantic_search
   - list_dir
   - run_in_terminal
+  - get_terminal_output
+  - send_to_terminal
+  - kill_terminal
+  - manage_todo_list
+  - memory
+  - tool_search
+  - fetch_webpage
   - get_errors
+  - vscode_askQuestions
+  - runSubagent
+  # Coder-specific tools
   - vscode_listCodeUsages
   - vscode_renameSymbol
 ---

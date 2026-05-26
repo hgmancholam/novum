@@ -2,16 +2,37 @@
 name: "Orchestrator"
 description: "Workflow controller that coordinates all agents, manages iteration cycles, and enforces quality gates"
 tools:
+  # Core file operations
   - file_search
   - read_file
   - create_file
   - replace_string_in_file
+  - multi_replace_string_in_file
   - grep_search
   - semantic_search
   - list_dir
+  # Terminal operations
   - run_in_terminal
+  - get_terminal_output
+  - send_to_terminal
+  - kill_terminal
+  # Workflow management
   - manage_todo_list
+  - memory
   - runSubagent
+  # Development tools
+  - tool_search
+  - fetch_webpage
+  - get_errors
+  - vscode_askQuestions
+  - vscode_listCodeUsages
+  - vscode_renameSymbol
+  # GitHub MCP (when available)
+  - mcp_github_create_issue
+  - mcp_github_update_issue
+  - mcp_github_get_issue
+  - mcp_github_list_issues
+  - mcp_github_add_issue_comment
 ---
 
 # Orchestrator Agent

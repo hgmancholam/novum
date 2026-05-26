@@ -2,13 +2,27 @@
 name: "Reviewer"
 description: "Code review agent that evaluates implementations, assigns quality scores, and provides actionable feedback"
 tools:
+  # Inherited from Orchestrator (parent)
   - file_search
   - read_file
+  - create_file
+  - replace_string_in_file
+  - multi_replace_string_in_file
   - grep_search
   - semantic_search
   - list_dir
   - run_in_terminal
+  - get_terminal_output
+  - send_to_terminal
+  - kill_terminal
+  - manage_todo_list
+  - memory
+  - tool_search
+  - fetch_webpage
   - get_errors
+  - vscode_askQuestions
+  - runSubagent
+  # Reviewer-specific tools
   - vscode_listCodeUsages
 ---
 
