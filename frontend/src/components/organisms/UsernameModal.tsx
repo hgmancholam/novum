@@ -85,7 +85,7 @@ export function UsernameModal({ isOpen, onClose }: UsernameModalProps) {
             className="mb-2 w-full rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             minLength={3}
             maxLength={50}
-            pattern="[a-zA-Z0-9_-]+"
+            pattern="[a-zA-Z0-9_\-]+"
             required
             disabled={isLoading}
           />
