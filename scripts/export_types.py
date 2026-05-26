@@ -1,33 +1,103 @@
 #!/usr/bin/env python3
-"""
-Export Pydantic models to TypeScript types.
+"""Export Pydantic domain models to TypeScript types.
 
-Generates frontend/src/types/events.ts from backend Pydantic models.
-Run this whenever backend event models change.
+Generates ``frontend/src/types/events.ts`` from the backend domain layer
+(BRD-02). Run this whenever event models change.
 
 Usage:
     python scripts/export_types.py
 """
 
+from __future__ import annotations
+
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
-# Add backend to path
-backend_path = Path(__file__).parent.parent / "backend"
-sys.path.insert(0, str(backend_path))
+# Make ``app`` importable when running the script from the repo root.
+_BACKEND = Path(__file__).resolve().parent.parent / "backend"
+sys.path.insert(0, str(_BACKEND))
+
+from pydantic import TypeAdapter  # noqa: E402
+
+from app.domain.enums import (  # noqa: E402
+    EventType,
+    EvidencePolarity,
+    OutputFormat,
+    QuestionType,
+    SourceType,
+    StopReason,
+)
+from app.domain.events import Event  # noqa: E402
+
+_OUTPUT_PATH = (
+    Path(__file__).resolve().parent.parent / "frontend" / "src" / "types" / "events.ts"
+)
+
+
+def _render_enum(name: str, values: list[str]) -> str:
+    """Render a StrEnum as a string-literal TypeScript union."""
+    literals = "\n  | ".join(f'"{v}"' for v in values)
+    return f"export type {name} =\n  | {literals};\n"
+
+
+def _build_output() -> str:
+    """Build the contents of events.ts."""
+    enums: list[tuple[str, list[str]]] = [
+        ("StopReason", [v.value for v in StopReason]),
+        ("QuestionType", [v.value for v in QuestionType]),
+        ("OutputFormat", [v.value for v in OutputFormat]),
+        ("EvidencePolarity", [v.value for v in EvidencePolarity]),
+        ("SourceType", [v.value for v in SourceType]),
+        ("EventType", [v.value for v in EventType]),
+    ]
+
+    adapter: TypeAdapter[Event] = TypeAdapter(Event)
+    schema = adapter.json_schema(mode="serialization")
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    lines: list[str] = []
+    lines.append("// Auto-generated from Pydantic models — DO NOT EDIT")
+    lines.append("// Source: scripts/export_types.py (BRD-02)")
+    lines.append(f"// Generated: {timestamp}")
+    lines.append("")
+    lines.append("// ---------------------------------------------------------------------------")
+    lines.append("// Enums")
+    lines.append("// ---------------------------------------------------------------------------")
+    lines.append("")
+    for name, values in enums:
+        lines.append(_render_enum(name, values))
+
+    lines.append("// ---------------------------------------------------------------------------")
+    lines.append("// JSON Schema for runtime validation")
+    lines.append("// ---------------------------------------------------------------------------")
+    lines.append("")
+    lines.append(f"export const EventSchema = {json.dumps(schema, indent=2)} as const;")
+    lines.append("")
+
+    lines.append("// ---------------------------------------------------------------------------")
+    lines.append("// Event union (informational — concrete interfaces live in the JSON schema).")
+    lines.append("// Use `EventType` for narrowing and `EventSchema` for runtime validation.")
+    lines.append("// ---------------------------------------------------------------------------")
+    lines.append("//")
+    lines.append("// Event =")
+    for i, event_type in enumerate(EventType):
+        sep = "//   |" if i > 0 else "//    "
+        lines.append(f"{sep} {event_type.value}Event")
+    lines.append("//   ;")
+    lines.append("")
+
+    return "\n".join(lines)
 
 
 def main() -> None:
-    """Export Pydantic models to TypeScript."""
-    output_path = Path(__file__).parent.parent / "frontend" / "src" / "types" / "events.ts"
-
-    # TODO: Import actual models when they exist (BRD-02)
-    # from app.models.events import RunEvent, StopReason, etc.
-    # schema = model.model_json_schema()
-
-    print(f"Type export placeholder - output would go to: {output_path}")
-    print("Run after BRD-02 (Domain Models) is implemented.")
+    """Write the TypeScript types file."""
+    output = _build_output()
+    _OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _OUTPUT_PATH.write_text(output, encoding="utf-8")
+    print(f"Wrote {_OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

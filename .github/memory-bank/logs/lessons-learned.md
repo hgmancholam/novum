@@ -4,15 +4,44 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-26
-**Total Lessons:** 3
+**Total Lessons:** 4
 
 ---
 
 ## Recent Lessons
 
+- **L-004:** Disable the `pytest-postgresql` Plugin When Running DB-Free Suites Locally (2026-05-26)
 - **L-003:** Static-Only Tests for DB Migrations are Acceptable for Iteration 1 (2026-05-26)
 - **L-002:** Unit Tests are Mandatory per F3.S3 (2026-05-26)
 - **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
+
+---
+
+## L-004: Disable the `pytest-postgresql` Plugin When Running DB-Free Suites Locally
+
+**Date:** 2026-05-26
+**Agent:** Coder
+**Category:** Testing
+
+### What Happened
+While verifying BRD-02 (pure-Python domain tests, no DB touched), the entire pytest collection aborted with `ImportError: no pq wrapper available` originating from `pytest_postgresql.plugin`. The plugin transitively imports `psycopg`, which the local venv has installed without `psycopg_binary` and without a system libpq DLL on PATH.
+
+### Root Cause
+`pytest-postgresql` is auto-loaded via the `pytest11` entry point. It runs at *collection* time, before any test code, so unrelated test files (e.g. domain unit tests) cannot opt out individually.
+
+### Lesson Learned
+For test runs that do not need PostgreSQL, pass `-p no:postgresql` to pytest:
+```
+pytest -q -p no:postgresql
+```
+This disables only the postgres plugin and leaves `pytest-asyncio`, `pytest-httpx`, etc., intact.
+
+### Prevention
+- Use `-p no:postgresql` in CI jobs and local commands that target DB-free suites.
+- Long-term fix (not in BRD-02 scope): install `psycopg[binary]` in the dev group, or pin `psycopg-binary>=3.x` explicitly so the plugin's transitive dependency resolves on Windows.
+
+### Applied To
+- BRD-02 verification commands.
 
 ---
 

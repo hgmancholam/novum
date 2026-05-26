@@ -4,11 +4,79 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 3
+**Total Decisions:** 5
 
 ---
 
 ## Recent Decisions
+
+## D-005: BRD-02 Domain Models — Review Approved (Orchestrator)
+
+**Date:** 2026-05-26
+**Agent:** Orchestrator
+**Phase:** F5 (COMPLETE)
+
+CR-02-001 scored 9.6/10 on iteration 1 — above the 9.0 quality gate, no Blockers or Majors. Implementation accepted. Knowledge-base index updated: BRD-02 marked Implemented, all 6 BRD-02 artifacts (`domain/enums.py`, `domain/events.py`, `domain/run.py`, `domain/confidence.py`, `scripts/export_types.py`, `frontend/src/types/events.ts`) flipped to ✅. IP-02 logged. CR-02-001 added to reviews table. Three Minors deferred (Event-union line wrapping, registry-sync comment, exporter integration test) — to be addressed opportunistically in a future BRD; not blocking BRD-03.
+
+**Next:** BRD-03 (FastAPI Core & API Skeleton) is unblocked.
+
+---
+
+## D-004: BRD-02 Domain Models — Implementation Complete
+
+**Date:** 2026-05-26
+**Agent:** Coder
+**Category:** Implementation
+**Status:** Ready for Review
+
+### Context
+Implemented the Pydantic v2 domain layer per BRD-02 §4 and IP-02: enums, 19 event types as a discriminated union, run DTOs, confidence DTOs, and the Pydantic→TypeScript exporter that overwrites `frontend/src/types/events.ts`.
+
+### Decision
+Files created/modified verbatim from BRD-02 §4 except for the deviations listed below.
+
+### Files Created
+- `backend/app/domain/__init__.py` — public API re-exports
+- `backend/app/domain/enums.py` — `StopReason` (7), `QuestionType` (5), `OutputFormat` (2), `EventType` (19), `EvidencePolarity`, `SourceType`
+- `backend/app/domain/events.py` — `BaseEvent` + 19 events + nested DTOs + `Event` discriminated union + `EVENT_TYPE_MAP` + `FORKABLE_EVENTS`
+- `backend/app/domain/run.py` — `RunCreate`, `RunResponse`, `RunListItem`, `RunForkRequest`
+- `backend/app/domain/confidence.py` — `StructuralConfidence` (with weighted `score` property) + `ConfidenceResult`
+- `backend/tests/test_domain_enums.py` — 11 tests; cross-checks values + counts against the BRD-01 migration
+- `backend/tests/test_domain_events.py` — 26 tests; covers AC-01..AC-05 + `EVENT_TYPE_MAP` coverage
+- `backend/tests/test_domain_models.py` — 14 tests; `RunCreate` validation, weighted formula, `ConfidenceResult` shape
+
+### Files Modified
+- `scripts/export_types.py` — replaced placeholder; writes `frontend/src/types/events.ts` with header + 6 enum unions + `EventSchema` JSON Schema (`as const`) + commented `Event` union listing
+- `frontend/src/types/events.ts` — regenerated from Pydantic; TypeScript strict-clean (no `any`)
+
+### Deviations from BRD-02
+1. **Typing modernization (forced by ruff `UP` rules):** `Optional[X]` → `X | None`, `Union[A, B]` → `A | B`. Identical semantics; required to pass `ruff check`.
+2. **`export_types.py` writes a file instead of printing to stdout** — as tightened by IP-02 §5. Avoids shell-redirection problems on Windows and lets CI diff the committed artifact.
+3. **Generated `events.ts` emits enums + JSON Schema only**, not concrete Pydantic-derived TS interfaces. The `Event` union is included as a comment listing the 19 event class names. Keeps the file TS strict-clean; concrete interfaces are deferred (frontend can validate at runtime via `EventSchema`).
+4. **Exporter also exports `EvidencePolarity` and `SourceType`** in addition to the four enums named in the BRD §4.6 example. They are part of the public domain API.
+
+### Verification
+- `ruff check app/domain tests/test_domain_*.py` → clean
+- `python -m pyright app/domain` → 0 errors, 0 warnings (strict mode)
+- `pytest tests/test_domain_enums.py tests/test_domain_events.py tests/test_domain_models.py -q` → **55 passed**
+- `python scripts/export_types.py` → wrote `frontend/src/types/events.ts` (contains `EventType` union with 19 string literals)
+- Full backend suite: `pytest -q -p no:postgresql` → **74 passed** (no regressions). The `-p no:postgresql` flag works around a pre-existing local environment issue: `psycopg` lacks a libpq wrapper in this venv (unrelated to this BRD).
+
+### Acceptance Criteria Coverage
+| AC | Test |
+|----|------|
+| AC-01 | `test_domain_events.py::test_stopped_event_serializes_all_fields` |
+| AC-02 | `test_domain_events.py::test_type_adapter_parses_each_event_type` (parametrized over all 19) |
+| AC-03 | `test_domain_events.py::test_extra_fields_preserved_in_model_extra` |
+| AC-04 | `test_domain_events.py::test_event_type_enum_has_19_values` + generated `events.ts` contains the 19-value `EventType` union |
+| AC-05 | `test_domain_events.py::test_forkable_events_exact_membership` |
+
+### Consequences
+- BRD-07 (FSM) can now consume `Event`, `EVENT_TYPE_MAP`, `FORKABLE_EVENTS`.
+- BRD-15 (Fork/Resume) can rely on `FORKABLE_EVENTS` as the canonical set.
+- Frontend can import `StopReason`, `QuestionType`, `EventType`, etc., directly from `src/types/events.ts`.
+
+---
 
 ## D-003: BRD-01 Database Schema — Review APPROVED (9.0/10)
 

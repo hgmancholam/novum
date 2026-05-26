@@ -4,7 +4,7 @@
 > Updated automatically by agents after each task.
 
 **Last Updated:** 2026-05-26
-**Updated By:** Orchestrator Agent (post BRD-01)
+**Updated By:** Orchestrator Agent (post BRD-02)
 
 ---
 
@@ -22,6 +22,7 @@
 |----|---------------|------|--------|----------|
 | IP-00 | BRD-00 Project Setup | 2026-05-26 | Completed | [IP-00](../../../docs/implementation-phase/implementation-plans/IP-00-project-setup.md) |
 | IP-01 | BRD-01 Database Schema | 2026-05-26 | Completed | [IP-01](../../../docs/implementation-phase/implementation-plans/IP-01-database-schema.md) |
+| IP-02 | BRD-02 Domain Models | 2026-05-26 | Completed | [IP-02](../../../docs/implementation-phase/implementation-plans/IP-02-domain-models.md) |
 
 ---
 
@@ -31,7 +32,7 @@
 |----|-------|------|--------|----------|
 | BRD-00 | Project Setup & Folder Structure | 2026-05-26 | Draft | [BRD-00](../../../docs/implementation-phase/brds/BRD-00-project-setup.md) |
 | BRD-01 | Database Schema & Alembic Migrations | 2026-05-26 | Implemented | [BRD-01](../../../docs/implementation-phase/brds/BRD-01-database-schema.md) |
-| BRD-02 | Pydantic Domain Models & Event System | 2026-05-26 | Draft | [BRD-02](../../../docs/implementation-phase/brds/BRD-02-domain-models.md) |
+| BRD-02 | Pydantic Domain Models & Event System | 2026-05-26 | Implemented | [BRD-02](../../../docs/implementation-phase/brds/BRD-02-domain-models.md) |
 | BRD-03 | FastAPI Core & API Skeleton | 2026-05-26 | Draft | [BRD-03](../../../docs/implementation-phase/brds/BRD-03-fastapi-core.md) |
 | BRD-04 | User Identity (Lightweight Auth) | 2026-05-26 | Draft | [BRD-04](../../../docs/implementation-phase/brds/BRD-04-user-identity.md) |
 | BRD-05 | LLM Client Integration | 2026-05-26 | Draft | [BRD-05](../../../docs/implementation-phase/brds/BRD-05-llm-client.md) |
@@ -73,6 +74,7 @@
 |----|---------------|-----------|-------|--------|----------|
 | CR-00-001 | BRD-00 Project Setup | 1 | 9.4/10 | Approved | [CR-00-001](../../../docs/implementation-phase/reviews/CR-00-001-project-setup.md) |
 | CR-01-001 | BRD-01 Database Schema | 1 | 9.0/10 | Approved | [CR-01-001](../../../docs/implementation-phase/reviews/CR-01-001-database-schema.md) |
+| CR-02-001 | BRD-02 Domain Models | 1 | 9.6/10 | Approved | [CR-02-001](../../../docs/implementation-phase/reviews/CR-02-001-domain-models.md) |
 
 ---
 
@@ -88,7 +90,12 @@
 | API Client | Frontend | `frontend/src/lib/api.ts` | HTTP client wrapper | ✅ Created |
 | SSE Client | Frontend | `frontend/src/lib/sse.ts` | EventSource wrapper | ✅ Created |
 | Event Types | Frontend | `frontend/src/types/events.ts` | TypeScript types (placeholder) | ✅ Created |
-| Event Models | Backend | `backend/app/models/events.py` | Event-sourcing models | ⏳ BRD-02 |
+| Domain Enums | Backend | `backend/app/domain/enums.py` | StopReason, QuestionType, OutputFormat, EventType, EvidencePolarity, SourceType | ✅ BRD-02 |
+| Event Models | Backend | `backend/app/domain/events.py` | 19 Pydantic event classes + discriminated union + `EVENT_TYPE_MAP` + `FORKABLE_EVENTS` | ✅ BRD-02 |
+| Run DTOs | Backend | `backend/app/domain/run.py` | `RunCreate`, `RunResponse`, `RunListItem`, `RunForkRequest` | ✅ BRD-02 |
+| Confidence DTOs | Backend | `backend/app/domain/confidence.py` | `StructuralConfidence` (weighted score), `ConfidenceResult` | ✅ BRD-02 |
+| Type Exporter | Scripts | `scripts/export_types.py` | Pydantic → TypeScript generator | ✅ BRD-02 |
+| Event Types (TS) | Frontend | `frontend/src/types/events.ts` | Auto-generated enums + JSON schema | ✅ BRD-02 |
 | ORM Models | Backend | `backend/app/models/{base,user,run,event}.py` | SQLAlchemy 2.0 async ORM | ✅ BRD-01 |
 | Initial Migration | Backend | `backend/alembic/versions/001_initial_schema.py` | users + runs + events + enums | ✅ BRD-01 |
 
