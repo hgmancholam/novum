@@ -120,7 +120,11 @@ export async function listRuns(
     limit: String(limit),
     offset: String(offset),
   });
-  return api.get<RunListItemDto[]>(`/api/runs?${qs.toString()}`, init);
+  return api.get<RunListItemDto[]>(`/api/runs?${qs.toString()}`, {
+    ...init,
+    // eslint-disable-next-line @typescript-eslint/no-misused-spread
+    headers: { ...getAuthHeaders(), ...init?.headers },
+  });
 }
 
 // ---------------------------------------------------------------------------

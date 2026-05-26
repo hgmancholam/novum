@@ -4,11 +4,46 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 15
+**Total Decisions:** 16
 
 ---
 
 ## Recent Decisions
+
+## D-016: BRD-07 Agent FSM — IP-07 Binding Overrides Resolve Spec Drift
+
+**Date:** 2026-05-26
+**Agent:** Orchestrator (IP-07 planning)
+**Category:** Backend / Agent FSM
+**Status:** Plan Ready for Coder
+
+### Context
+BRD-07 §4 ships code samples that conflict with the shipped LLM client (BRD-05) and source registry (BRD-06): it references a non-existent `LLMRole.CRITIC`, a non-existent `CritiqueOutput` model, a wrong `llm.call` signature (`user_message=` vs `messages=`), a heuristic question-type detector that bypasses RF-06's mandated classifier, and a judge-budget branch that silently emits `JUDGE_CONFIRMED` after max attempts — breaking RF-01's honest-stop guarantee.
+
+### Decisions (binding for the Coder)
+1. **Reuse `LLMRole.PLANNER` for critique** (no new enum value); avoid bleeding BRD-05 work into BRD-07.
+2. **Add `CritiqueOutput` to `app/llm/models.py`** as the only additive change to BRD-05 surface.
+3. **Wrap every `llm.call` user message in `messages=[{"role": "user", "content": ...}]`**; the real client auto-prepends the system prompt.
+4. **Replace `_detect_question_type` heuristic with `LLMRole.CLASSIFIER`**; buckets 6/7/8 emit `HONEST_UNANSWERABLE` and stop before PLANNING.
+5. **Judge max attempts maps to `STOPPED_BY_BUDGET`**, never silent `JUDGE_CONFIRMED`. Last draft kept on `RunState.draft_answer` but `StoppedEvent.answer_prose = None`.
+6. **`RunState` typing modernised:** `X | None`, `list[str]` instead of `set[str]` (JSON-safe), `datetime.now(UTC)` instead of `utcnow`, typed `contradictions: list[ContradictionDetectedEvent]`, typed `draft_sections: list[AnswerSection] | None`.
+7. **`EvidenceItem.event_id` is the UUID of the matching `EvidenceAddedEvent`** (orchestrator generates the UUID at emit time). Enables `ClaimCoveredEvent.evidence_ids` without re-querying the log.
+8. **Search budget unit = round (`_handle_searching` call), not individual tool call**, cap of 5 claims fan-out per round.
+9. **Defer confidence math to BRD-08:** `structural_confidence = state.coverage_ratio()` placeholder; `final_confidence = min(S, J)`.
+10. **RF-15 disconfirmation pass:** when judge rejects + `|S - J| > 0.3`, emit `ConfidenceMismatchEvent` and re-open the top-2 claim IDs returned by an LLM-mapping helper.
+11. **No persistence / SSE / worker registry in this BRD** — orchestrator emits events through an async callback; BRD-10 wires it to the DB.
+
+### Consequences
+- BRD-07 §4 code samples are reference scaffolding, not the binding spec. The reviewer scores against IP-07 §3 overrides and §8 acceptance mapping.
+- Two new ACs added beyond BRD-07 §5 (AC-06 RF-06 honest stop, AC-07 no silent judge approve, AC-08 RF-15 disconfirmation, AC-09 evidence-id consistency).
+- Coverage gate raised to ≥ 90 % on `app/agent/` (vs project default 80 %) because the FSM is critical-path and end-to-end tested with mocked LLM + sources.
+
+### References
+- Plan: [IP-07](../../../docs/implementation-phase/implementation-plans/IP-07-agent-fsm.md)
+- BRD: [BRD-07](../../../docs/implementation-phase/brds/BRD-07-agent-fsm.md)
+- Dependencies: BRD-02 (events), BRD-05 (LLM), BRD-06 (sources)
+
+---
 
 ## D-015: BRD-13 Center Panel — V1 Scope Trimmed to Match Actual Backend
 

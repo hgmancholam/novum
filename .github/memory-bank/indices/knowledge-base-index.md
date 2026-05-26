@@ -36,6 +36,7 @@
 | IP-04 | BRD-04 User Identity | 2026-05-26 | Completed | [IP-04](../../../docs/implementation-phase/implementation-plans/IP-04-user-identity.md) |
 | IP-05 | BRD-05 LLM Client Integration | 2026-05-26 | Completed | [IP-05](../../../docs/implementation-phase/implementation-plans/IP-05-llm-client.md) |
 | IP-06 | BRD-06 Source Plugins (Tavily + Wikipedia) | 2026-05-26 | Completed | [IP-06](../../../docs/implementation-phase/implementation-plans/IP-06-source-plugins.md) |
+| IP-07 | BRD-07 Agent FSM & Research Loop | 2026-05-26 | Ready for Coder | [IP-07](../../../docs/implementation-phase/implementation-plans/IP-07-agent-fsm.md) |
 | IP-11 | BRD-11 Frontend Setup & Layout Shell | 2026-05-26 | Completed | [IP-11](../../../docs/implementation-phase/implementation-plans/IP-11-frontend-layout.md) |
 | IP-11-iter2 | BRD-11 / BRD-04 Auth Wiring | 2026-05-26 | Completed | [IP-11 iter 2](../../../docs/implementation-phase/implementation-plans/IP-11-frontend-layout-iter2.md) |
 | IP-12 | BRD-12 History Panel | 2026-05-26 | Completed | [IP-12](../../../docs/implementation-phase/implementation-plans/IP-12-history-panel.md) |
