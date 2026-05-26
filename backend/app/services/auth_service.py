@@ -14,14 +14,6 @@ from app.auth.token import generate_token, hash_token, verify_token
 from app.models import User
 
 
-class UsernameExistsError(Exception):
-    """Raised when registering a username that is already taken."""
-
-    def __init__(self, username: str) -> None:
-        self.username = username
-        super().__init__(f"Username '{username}' already exists")
-
-
 class InvalidTokenError(Exception):
     """Raised when verification fails (unknown user OR wrong token).
 
@@ -37,11 +29,14 @@ class AuthService:
         self.db = db
 
     async def register(self, username: str) -> tuple[str, str]:
-        """Create a new user and return `(username, plain_token)`.
+        """Create or re-token a user and return `(username, plain_token)`.
 
-        The plain token is returned exactly once; only its hash is
-        persisted. Username is normalized (`strip().lower()`) here so
-        all callers share the same validation rules.
+        If the username does not exist it is created. If it already
+        exists a new token is generated and the stored hash is replaced
+        (token-regeneration / re-login flow). The plain token is
+        returned exactly once; only its hash is persisted.
+        Username is normalized (`strip().lower()`) here so all callers
+        share the same validation rules.
         """
         username = username.strip().lower()
         if len(username) < 3 or len(username) > 50:
@@ -51,13 +46,12 @@ class AuthService:
                 "Username may only contain letters, numbers, underscores, and hyphens"
             )
 
+        token = generate_token()
         existing = await self._get_user_by_username(username)
         if existing is not None:
-            raise UsernameExistsError(username)
-
-        token = generate_token()
-        user = User(username=username, token_hash=hash_token(token))
-        self.db.add(user)
+            existing.token_hash = hash_token(token)
+        else:
+            self.db.add(User(username=username, token_hash=hash_token(token)))
         await self.db.commit()
 
         return username, token

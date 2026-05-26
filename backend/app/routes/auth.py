@@ -19,7 +19,6 @@ from app.dependencies import DbSession
 from app.services.auth_service import (
     AuthService,
     InvalidTokenError,
-    UsernameExistsError,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -61,18 +60,13 @@ class UserResponse(BaseModel):
 @router.post(
     "/register",
     response_model=RegisterResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
 )
 async def register(data: RegisterRequest, db: DbSession) -> RegisterResponse:
-    """Create a new user identity. Token is returned exactly once."""
+    """Create or re-token a user identity. Token is returned exactly once."""
     service = AuthService(db)
     try:
         username, token = await service.register(data.username)
-    except UsernameExistsError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Username already exists",
-        ) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

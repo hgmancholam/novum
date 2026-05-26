@@ -14,7 +14,7 @@ pytestmark = pytest.mark.asyncio
 
 async def test_register_success(client: AsyncClient) -> None:
     response = await client.post("/api/auth/register", json={"username": "alice"})
-    assert response.status_code == 201
+    assert response.status_code == 200
     body = response.json()
     assert body["username"] == "alice"
     assert isinstance(body["token"], str)
@@ -25,16 +25,17 @@ async def test_register_normalizes_username(client: AsyncClient) -> None:
     response = await client.post(
         "/api/auth/register", json={"username": "  Bob  "}
     )
-    assert response.status_code == 201
+    assert response.status_code == 200
     assert response.json()["username"] == "bob"
 
 
-async def test_register_duplicate_returns_409(client: AsyncClient) -> None:
+async def test_register_duplicate_returns_new_token(client: AsyncClient) -> None:
     first = await client.post("/api/auth/register", json={"username": "carol"})
-    assert first.status_code == 201
+    assert first.status_code == 200
     dup = await client.post("/api/auth/register", json={"username": "carol"})
-    assert dup.status_code == 409
-    assert dup.json()["detail"] == "Username already exists"
+    assert dup.status_code == 200
+    assert dup.json()["username"] == "carol"
+    assert dup.json()["token"] != first.json()["token"]
 
 
 async def test_register_invalid_chars_returns_400(client: AsyncClient) -> None:

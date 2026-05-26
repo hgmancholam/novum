@@ -9,7 +9,6 @@ from app.auth.token import hash_token
 from app.services.auth_service import (
     AuthService,
     InvalidTokenError,
-    UsernameExistsError,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -67,22 +66,31 @@ async def test_register_accepts_underscores_and_hyphens(
     assert username == "user_name-01"
 
 
-async def test_register_duplicate_raises_username_exists(
+async def test_register_duplicate_returns_new_token(
     sqlite_session: AsyncSession,
 ) -> None:
+    """Re-registering an existing username issues a new token (upsert)."""
     service = AuthService(sqlite_session)
-    await service.register("bob")
-    with pytest.raises(UsernameExistsError):
-        await service.register("bob")
+    _, first_token = await service.register("bob")
+    _, second_token = await service.register("bob")
+
+    assert first_token != second_token
+    # New token validates; old one is now invalid
+    assert await service.verify("bob", second_token) is True
+    with pytest.raises(InvalidTokenError):
+        await service.verify("bob", first_token)
 
 
 async def test_register_duplicate_is_case_insensitive(
     sqlite_session: AsyncSession,
 ) -> None:
+    """Upsert is case-insensitive: 'carol' and 'CAROL' are the same user."""
     service = AuthService(sqlite_session)
-    await service.register("carol")
-    with pytest.raises(UsernameExistsError):
-        await service.register("CAROL")
+    _, first_token = await service.register("carol")
+    _, second_token = await service.register("CAROL")
+
+    assert first_token != second_token
+    assert await service.verify("carol", second_token) is True
 
 
 async def test_verify_returns_true_for_valid_pair(
