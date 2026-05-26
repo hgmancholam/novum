@@ -1,5 +1,6 @@
 # Deploy Backend to Hetzner VM
 # Triggers on push to main branch (after PR merge)
+# Last updated: 2026-05-26
 
 name: Deploy Backend
 
