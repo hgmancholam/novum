@@ -3,6 +3,8 @@ import { act, render, screen, fireEvent } from "@testing-library/react";
 import { axe } from "jest-axe";
 import { AppShell } from "./AppShell";
 import { useSelectionStore } from "@/stores/selectionStore";
+import { useUserStore } from "@/stores/userStore";
+import { useLoginModal } from "@/hooks/useLoginModal";
 
 function resetStore(): void {
   useSelectionStore.setState({
@@ -11,6 +13,12 @@ function resetStore(): void {
     leftPanelOpen: false,
     rightPanelOpen: false,
   });
+  useUserStore.setState({
+    user: null,
+    isVerifying: false,
+    isAuthenticated: false,
+  });
+  useLoginModal.setState({ isOpen: false });
 }
 
 const slots = {
@@ -31,21 +39,30 @@ describe("AppShell", () => {
     expect(screen.getByTestId("slot-right")).toBeInTheDocument();
     expect(screen.getByTestId("app-shell-left")).toBeInTheDocument();
     expect(screen.getByTestId("app-shell-right")).toBeInTheDocument();
-    expect(screen.queryByTestId("mobile-top-bar")).not.toBeInTheDocument();
+    // TopBar renders on every breakpoint (iter 2) — hamburger/PanelRight
+    // toggles are hidden on desktop.
+    expect(screen.getByTestId("top-bar")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Open history")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Open trace")).not.toBeInTheDocument();
   });
 
-  it("hides left panel and shows mobile top bar on tablet", () => {
+  it("hides left panel and shows top bar on tablet", () => {
     render(<AppShell forceBreakpoint="tablet" {...slots} />);
     expect(screen.queryByTestId("app-shell-left")).not.toBeInTheDocument();
     expect(screen.getByTestId("app-shell-right")).toBeInTheDocument();
-    expect(screen.getByTestId("mobile-top-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("top-bar")).toBeInTheDocument();
+    expect(screen.getByLabelText("Open history")).toBeInTheDocument();
+    // Right panel is inline on tablet, so PanelRight toggle is hidden.
+    expect(screen.queryByLabelText("Open trace")).not.toBeInTheDocument();
   });
 
   it("hides both side panels on mobile", () => {
     render(<AppShell forceBreakpoint="mobile" {...slots} />);
     expect(screen.queryByTestId("app-shell-left")).not.toBeInTheDocument();
     expect(screen.queryByTestId("app-shell-right")).not.toBeInTheDocument();
-    expect(screen.getByTestId("mobile-top-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("top-bar")).toBeInTheDocument();
+    expect(screen.getByLabelText("Open history")).toBeInTheDocument();
+    expect(screen.getByLabelText("Open trace")).toBeInTheDocument();
   });
 
   it("opens the left drawer when store flag is true (tablet)", () => {
@@ -108,5 +125,66 @@ describe("AppShell", () => {
       <AppShell forceBreakpoint="desktop" {...slots} />
     );
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  describe("IdentitySlot wiring (iter 2)", () => {
+    it("shows the Spinner while isVerifying on desktop", () => {
+      useUserStore.setState({
+        user: null,
+        isVerifying: true,
+        isAuthenticated: false,
+      });
+      render(<AppShell forceBreakpoint="desktop" {...slots} />);
+      const slot = screen.getByTestId("identity-slot");
+      expect(slot).toHaveAttribute("data-state", "verifying");
+      expect(slot.querySelector('[role="status"]')).not.toBeNull();
+    });
+
+    it("shows Sign in when unauthenticated and not verifying", () => {
+      render(<AppShell forceBreakpoint="desktop" {...slots} />);
+      expect(
+        screen.getByRole("button", { name: "Sign in" })
+      ).toBeInTheDocument();
+    });
+
+    it("opens the login modal signal when Sign in is clicked", () => {
+      render(<AppShell forceBreakpoint="desktop" {...slots} />);
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      expect(useLoginModal.getState().isOpen).toBe(true);
+    });
+
+    it("shows username pill and Logout when authenticated", () => {
+      useUserStore.setState({
+        user: { username: "alice", token: "tok" },
+        isVerifying: false,
+        isAuthenticated: true,
+      });
+      render(<AppShell forceBreakpoint="desktop" {...slots} />);
+      expect(screen.getByText("alice")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Logout" })
+      ).toBeInTheDocument();
+    });
+
+    it("clears the store when Logout is clicked", () => {
+      useUserStore.setState({
+        user: { username: "alice", token: "tok" },
+        isVerifying: false,
+        isAuthenticated: true,
+      });
+      render(<AppShell forceBreakpoint="desktop" {...slots} />);
+      fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+      expect(useUserStore.getState().isAuthenticated).toBe(false);
+      expect(useUserStore.getState().user).toBeNull();
+    });
+
+    it("renders the IdentitySlot on tablet and mobile too", () => {
+      const { rerender } = render(
+        <AppShell forceBreakpoint="tablet" {...slots} />
+      );
+      expect(screen.getByTestId("identity-slot")).toBeInTheDocument();
+      rerender(<AppShell forceBreakpoint="mobile" {...slots} />);
+      expect(screen.getByTestId("identity-slot")).toBeInTheDocument();
+    });
   });
 });

@@ -51,6 +51,10 @@ Minimalist, refined, generous whitespace, clear typographic hierarchy, soft micr
   --semantic-warning: #ff9f0a;  /* honest_*, stopped_by_budget */
   --semantic-danger:  #ff453a;  /* errored */
   --semantic-neutral: #8e8e93;  /* user_cancelled */
+  --semantic-error:   #ff453a;  /* inline form errors (alias of danger) */
+
+  /* overlays */
+  --overlay-scrim: rgba(0, 0, 0, 0.5);  /* modal backdrop scrim */
 
   --radius-sm: 8px;
   --radius-md: 14px;
@@ -213,6 +217,7 @@ Three fixed panels at desktop width, **responsively collapsing** at narrower vie
 | `mobile` | < 768 px | Single-panel: only Center is visible. History and Trace each open as full-height `Sheet` drawers from left and right (shadcn `Sheet`). A persistent top-bar exposes both toggles. |
 
 - Layout decision is owned by `useViewport()` hook + `AppShell`. Components below the shell are **viewport-agnostic** — they render the same regardless of breakpoint. Only `AppShell` rearranges them.
+- **TopBar identity slot.** The `AppShell` TopBar renders on every breakpoint and includes an `IdentitySlot` molecule (anchored to the top-right). It surfaces a verifying spinner, a `Sign in` button when anonymous, or the username pill + `Logout` button when authenticated. Wired in IP-11 iter 2.
 - Detailed responsive strategy (touch targets, animation, drawer behavior, table scrolling) is specified in §9.16.
 
 ---

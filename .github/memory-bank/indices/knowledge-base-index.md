@@ -4,7 +4,7 @@
 > Updated automatically by agents after each task.
 
 **Last Updated:** 2026-05-26
-**Updated By:** Orchestrator Agent (post BRD-05)
+**Updated By:** Orchestrator Agent (post IP-11 iter 2 / CR-11-002)
 
 ---
 
@@ -36,6 +36,7 @@
 | IP-04 | BRD-04 User Identity | 2026-05-26 | Completed | [IP-04](../../../docs/implementation-phase/implementation-plans/IP-04-user-identity.md) |
 | IP-05 | BRD-05 LLM Client Integration | 2026-05-26 | Completed | [IP-05](../../../docs/implementation-phase/implementation-plans/IP-05-llm-client.md) |
 | IP-11 | BRD-11 Frontend Setup & Layout Shell | 2026-05-26 | Completed | [IP-11](../../../docs/implementation-phase/implementation-plans/IP-11-frontend-layout.md) |
+| IP-11-iter2 | BRD-11 / BRD-04 Auth Wiring | 2026-05-26 | Completed | [IP-11 iter 2](../../../docs/implementation-phase/implementation-plans/IP-11-frontend-layout-iter2.md) |
 | IP-12 | BRD-12 History Panel | 2026-05-26 | Completed | [IP-12](../../../docs/implementation-phase/implementation-plans/IP-12-history-panel.md) |
 
 ---
@@ -90,6 +91,15 @@
 | CR-01-001 | BRD-01 Database Schema | 1 | 9.0/10 | Approved | [CR-01-001](../../../docs/implementation-phase/reviews/CR-01-001-database-schema.md) |
 | CR-02-001 | BRD-02 Domain Models | 1 | 9.6/10 | Approved | [CR-02-001](../../../docs/implementation-phase/reviews/CR-02-001-domain-models.md) |
 | CR-05-001 | BRD-05 LLM Client Integration | 1 | 9.5/10 | Approved | [CR-05-001](../../../docs/implementation-phase/reviews/CR-05-001-llm-client.md) |
+| CR-11-002 | BRD-11 / BRD-04 Auth Wiring (iter 2) | 1 | 9.6/10 | Approved | [CR-11-002](../../../docs/implementation-phase/reviews/CR-11-002-auth-wiring.md) |
+
+---
+
+## Unit Test Inventories
+
+| ID | Plan Reference | Date | Location |
+|----|----------------|------|----------|
+| UT-11-iter2 | IP-11 iter 2 — Auth Wiring | 2026-05-26 | [UT-11 iter 2](../../../docs/implementation-phase/unit-tests/UT-11-frontend-layout-iter2.md) |
 
 ---
 

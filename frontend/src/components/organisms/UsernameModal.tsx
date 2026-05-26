@@ -1,12 +1,13 @@
 /**
  * UsernameModal organism (BRD-04 §4.9).
  *
- * Lets the user create an identity. On success the modal closes; on
- * failure the error message from the backend is shown inline.
+ * Token-only styling per ui-prototype.md §1.3 (no hardcoded color classes).
+ * Uses the `Button` atom for actions.
  */
 
-import { useState, type FormEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
 
+import { Button } from "@/components/atoms";
 import { useUserStore } from "@/stores/userStore";
 
 export interface UsernameModalProps {
@@ -19,12 +20,13 @@ export function UsernameModal({ isOpen, onClose }: UsernameModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const register = useUserStore((state) => state.register);
+  const isAuthenticated = useUserStore((state) => state.isAuthenticated);
 
   if (!isOpen) {
     return null;
   }
 
-  const handleSubmit = async (e: FormEvent) => {
+  const submit = async (e: SyntheticEvent): Promise<void> => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
@@ -38,18 +40,33 @@ export function UsernameModal({ isOpen, onClose }: UsernameModalProps) {
     }
   };
 
+  const handleSubmit = (e: SyntheticEvent): void => {
+    void submit(e);
+  };
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="username-modal-title"
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      aria-describedby="username-modal-description"
+      data-testid="username-modal"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-scrim)]"
     >
-      <div className="bg-white dark:bg-neutral-900 rounded-lg p-6 w-full max-w-md">
-        <h2 id="username-modal-title" className="text-xl font-semibold mb-4">
+      <div
+        data-testid="username-modal-surface"
+        className="w-full max-w-md rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--bg-secondary)] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+      >
+        <h2
+          id="username-modal-title"
+          className="mb-2 text-xl font-semibold text-[var(--text-primary)]"
+        >
           Choose a Username
         </h2>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+        <p
+          id="username-modal-description"
+          className="mb-4 text-sm text-[var(--text-secondary)]"
+        >
           Your username is your identity. No email or password required.
         </p>
 
@@ -61,9 +78,11 @@ export function UsernameModal({ isOpen, onClose }: UsernameModalProps) {
             id="username-input"
             type="text"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => {
+              setUsername(e.target.value);
+            }}
             placeholder="Enter username (3-50 chars)"
-            className="w-full px-3 py-2 border rounded-md mb-2 dark:bg-neutral-800 dark:border-neutral-700"
+            className="mb-2 w-full rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             minLength={3}
             maxLength={50}
             pattern="[a-zA-Z0-9_-]+"
@@ -72,27 +91,37 @@ export function UsernameModal({ isOpen, onClose }: UsernameModalProps) {
           />
 
           {error !== null && (
-            <p role="alert" className="text-red-500 text-sm mb-2">
+            <p
+              role="alert"
+              className="mb-2 text-sm text-[var(--semantic-error)]"
+            >
               {error}
             </p>
           )}
 
-          <div className="flex gap-2 mt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              disabled={isLoading}
-            >
-              Cancel
-            </button>
-            <button
+          <div className="mt-4 flex gap-2">
+            {isAuthenticated ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                onClick={onClose}
+                disabled={isLoading}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            ) : null}
+            <Button
               type="submit"
-              className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
-              disabled={isLoading || username.trim().length < 3}
+              variant="primary"
+              size="md"
+              loading={isLoading}
+              disabled={username.trim().length < 3}
+              className="flex-1"
             >
               {isLoading ? "Creating..." : "Create Identity"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

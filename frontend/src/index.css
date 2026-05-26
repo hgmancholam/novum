@@ -28,6 +28,10 @@
   --semantic-warning: #ff9f0a;
   --semantic-danger:  #ff453a;
   --semantic-neutral: #8e8e93;
+  --semantic-error:   #ff453a;
+
+  /* Overlays */
+  --overlay-scrim: rgba(0, 0, 0, 0.5);
 
   /* Radii */
   --radius-sm: 8px;

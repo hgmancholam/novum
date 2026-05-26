@@ -4,11 +4,23 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 12
+**Total Decisions:** 13
 
 ---
 
 ## Recent Decisions
+
+## D-013: Auth Wiring Closed via IP-11 iter 2 (No New BRD)
+
+**Date:** 2026-05-26
+**Status:** Accepted
+**Context:** IP-04 iter 1 shipped `UsernameModal` + `userStore` but explicitly deferred mounting them. IP-11 iter 1 shipped the layout shell but explicitly deferred the modal/`useUser` wiring. Net effect on deployed app: no login path exists in the UI.
+**Decision:** Close the auth wiring gap via an iteration 2 of IP-11 rather than authoring a new BRD. Shell ownership (TopBar, global overlays, boot wiring) belongs to BRD-11; the wiring is purely UI plumbing — no new requirements.
+**Rationale:** The gap is the seam between BRD-04 §4.9 ("ready to be mounted later") and IP-11 iter 1 §3. A new BRD would duplicate existing requirements. Iter 2 plan covers `<AppBoot>` initialize, global `UsernameModalContainer`, unified TopBar with `IdentitySlot`, token-only modal re-skin, and logout/re-open flow.
+**Consequences:** IP-11 iter 2 is the binding plan; `userStore.ts` stays untouched; modal styling moves from hardcoded Tailwind colors to design tokens (adds `--overlay-scrim` to `:root`).
+**Related:** IP-11-frontend-layout-iter2.md, BRD-11, BRD-04 §4.8/§4.9, ui-prototype.md §1.3 / §2 / §3.2
+
+---
 
 ## D-012: BRD-05 LLM Client — Roles/Models Realigned to ai-services.md
 

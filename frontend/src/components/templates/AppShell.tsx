@@ -17,6 +17,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Menu, PanelRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Logo } from "@/components/atoms";
+import { IdentitySlot } from "@/components/molecules";
 import { useSelectionStore } from "@/stores/selectionStore";
 
 export type Breakpoint = "mobile" | "tablet" | "desktop";
@@ -119,40 +120,56 @@ function Drawer({ side, open, onClose, children, labelledBy }: DrawerProps) {
   );
 }
 
-interface MobileTopBarProps {
+interface TopBarProps {
+  showLeftToggle: boolean;
+  showRightToggle: boolean;
   onOpenLeft: () => void;
   onOpenRight: () => void;
 }
 
-function MobileTopBar({ onOpenLeft, onOpenRight }: MobileTopBarProps) {
+function TopBar({
+  showLeftToggle,
+  showRightToggle,
+  onOpenLeft,
+  onOpenRight,
+}: TopBarProps) {
   return (
     <div
-      data-testid="mobile-top-bar"
+      data-testid="top-bar"
       className="flex h-12 items-center justify-between border-b border-[var(--glass-border)] bg-[var(--bg-secondary)] px-3"
     >
-      <button
-        type="button"
-        onClick={onOpenLeft}
-        aria-label="Open history"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-primary)] hover:bg-[var(--glass-bg)]"
-      >
-        <Menu className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
-      </button>
-      <span
-        id="appshell-title"
-        className="inline-flex items-center gap-2 text-base font-medium text-[var(--text-primary)]"
-      >
-        <Logo size={20} title="" />
-        Novum
-      </span>
-      <button
-        type="button"
-        onClick={onOpenRight}
-        aria-label="Open trace"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-primary)] hover:bg-[var(--glass-bg)]"
-      >
-        <PanelRight className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
-      </button>
+      <div className="flex items-center gap-2">
+        {showLeftToggle ? (
+          <button
+            type="button"
+            onClick={onOpenLeft}
+            aria-label="Open history"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-primary)] hover:bg-[var(--glass-bg)]"
+          >
+            <Menu className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
+          </button>
+        ) : null}
+        <span
+          id="appshell-title"
+          className="inline-flex items-center gap-2 text-base font-medium text-[var(--text-primary)]"
+        >
+          <Logo size={20} title="" />
+          Novum
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <IdentitySlot />
+        {showRightToggle ? (
+          <button
+            type="button"
+            onClick={onOpenRight}
+            aria-label="Open trace"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-primary)] hover:bg-[var(--glass-bg)]"
+          >
+            <PanelRight className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -167,7 +184,6 @@ export function AppShell({ left, center, right, forceBreakpoint }: AppShellProps
 
   const showLeftAsDrawer = breakpoint !== "desktop";
   const showRightAsDrawer = breakpoint === "mobile";
-  const showTopBar = breakpoint !== "desktop";
 
   return (
     <div
@@ -189,9 +205,12 @@ export function AppShell({ left, center, right, forceBreakpoint }: AppShellProps
         data-testid="app-shell-main"
         className="flex h-full min-w-0 flex-1 flex-col"
       >
-        {showTopBar ? (
-          <MobileTopBar onOpenLeft={openLeftPanel} onOpenRight={openRightPanel} />
-        ) : null}
+        <TopBar
+          showLeftToggle={showLeftAsDrawer}
+          showRightToggle={showRightAsDrawer}
+          onOpenLeft={openLeftPanel}
+          onOpenRight={openRightPanel}
+        />
         <div className="flex-1 overflow-hidden">{center}</div>
       </main>
 
