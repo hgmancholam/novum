@@ -14,6 +14,7 @@ import {
   storeIdentity,
   type UserIdentity,
 } from "@/lib/auth";
+import { API_URL } from "@/lib/constants";
 
 interface UserState {
   user: UserIdentity | null;
@@ -38,7 +39,7 @@ export const useUserStore = create<UserState>((set) => ({
     }
 
     try {
-      const response = await fetch("/api/auth/verify", {
+      const response = await fetch(`${API_URL}/api/auth/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(stored),
@@ -59,7 +60,7 @@ export const useUserStore = create<UserState>((set) => ({
   },
 
   register: async (username: string) => {
-    const response = await fetch("/api/auth/register", {
+    const response = await fetch(`${API_URL}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username }),

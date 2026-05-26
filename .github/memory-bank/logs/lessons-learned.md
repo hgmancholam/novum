@@ -4,14 +4,16 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-26
-**Total Lessons:** 7
+**Total Lessons:** 8
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
+> **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
 
 ---
 
 ## Recent Lessons
 
+- **L-008:** Always Prefix Backend API Calls with `API_URL` — MANDATORY RULE (2026-05-26)
 - **L-007:** Upgrading a Header-Only Auth Fixture Requires Touching All Downstream Route Tests (2026-05-26)
 - **L-006:** `exactOptionalPropertyTypes` Requires `prop?: T | undefined` on Pass-Through Props (2026-05-26)
 - **L-005:** SQLite Fallback for PG-Typed ORM Tests via `compiles`-hooks (2026-05-26)
@@ -19,6 +21,44 @@
 - **L-003:** Static-Only Tests for DB Migrations are Acceptable for Iteration 1 (2026-05-26)
 - **L-002:** Unit Tests are Mandatory per F3.S3 (2026-05-26)
 - **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
+
+---
+
+## L-008: Always Prefix Backend API Calls with `API_URL` — MANDATORY RULE
+
+**Date:** 2026-05-26
+**Agent:** All agents
+**Category:** Frontend / Deployment
+
+### Situation
+`userStore.ts` called `fetch("/api/auth/register")` and `fetch("/api/auth/verify")` with a relative URL. In production (Vercel), these requests hit `https://novum-seven.vercel.app/api/...` instead of the real backend at `https://novum-prod.duckdns.org/api/...`, returning 404 or 405 errors. Other call sites (e.g. `lib/api.ts`, `lib/sse.ts`) correctly prefixed with `API_URL` and worked fine.
+
+### Root Cause
+The store was implemented before `lib/api.ts` was established, so it used raw `fetch` with a relative path. Relative paths work in development (Vite's dev proxy) but break in production where frontend and backend are on different origins.
+
+### Lesson — NON-NEGOTIABLE RULE
+**Every HTTP or SSE call to the backend MUST be prefixed with `API_URL` from `@/lib/constants`.**
+
+```typescript
+// ✅ CORRECT
+import { API_URL } from "@/lib/constants";
+fetch(`${API_URL}/api/auth/register`, { ... });
+
+// ❌ WRONG — breaks in production (Vercel ≠ backend host)
+fetch("/api/auth/register", { ... });
+```
+
+### Enforcement
+1. Prefer `lib/api.ts` methods (`api.get`, `api.post`, etc.) — they already include `API_URL`.
+2. If raw `fetch` is unavoidable (e.g. Zustand stores before `api.ts` existed), import `API_URL` explicitly and prefix the path.
+3. SSE connections use `lib/sse.ts::createSSEConnection()` — it already prefixes with `API_URL`.
+4. **Never use relative paths like `/api/...` for backend calls in any frontend file.**
+
+### Prevention
+- Code review checklist: search for `fetch("/"` or `fetch('/` in `frontend/src/` — any match is a bug candidate.
+- ESLint rule (future): `no-restricted-syntax` on raw `fetch` calls without `API_URL`.
+
+---
 
 ---
 
