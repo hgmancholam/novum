@@ -6,3 +6,5 @@ export { Spinner } from "./Spinner";
 export type { SpinnerProps, SpinnerSize } from "./Spinner";
 export { Logo } from "./Logo";
 export type { LogoProps } from "./Logo";
+export { OutcomeBar } from "./OutcomeBar";
+export type { OutcomeBarProps, OutcomeVariant } from "./OutcomeBar";

@@ -14,6 +14,19 @@ Checklist-driven audit of a User Story against the INVEST criteria, Gherkin acce
 - UI prototype (`docs/understanding-phase/ui-prototype.md`) — when story has UI impact.
 - Any prior audit report for the same story (`docs/implementation-phase/audits/AUDIT-US-*.md`).
 
+## Scope Discipline (MANDATORY)
+
+- Audit ONLY the acceptance criteria declared by `US-XX` and the BRD sections it explicitly links to.
+- Do NOT flag missing behavior that belongs to a sibling User Story or to a later iteration.
+- `RFs_in_scope` = RFs cited by the story + RFs cited by the parent BRD for the slice this story owns.
+- Anything outside this set is OUT OF SCOPE — informational at most, never a Required Change.
+
+## In-Place Revision Rule (MANDATORY)
+
+- All Required Changes MUST be phrased as in-place edits to the existing User Story file (e.g. "In `US-XX-...md`, add an acceptance criterion covering …").
+- The BSA must apply changes to the **same** `US-XX-<slug>.md` across every audit iteration. No `-v2`, no new date, no new slug.
+- If a revised User Story appears under a different filename, treat it as a process violation and report it under §4 of the audit report.
+
 ## Checklist
 
 ### 1. Requirements Coverage (30%)

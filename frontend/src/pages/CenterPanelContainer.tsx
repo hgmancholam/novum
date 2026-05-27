@@ -4,6 +4,10 @@
  * Mounts `useRun` and renders the geometry `templates/CenterPanel` with
  * `ActionBar` in the header slot and `CenterPanelView` in the body.
  *
+ * Iter 2 adds:
+ *   - 404 handling → `NotFoundCard` (C13)
+ *   - Resume wiring (RF-11)
+ *
  * Per `eslint.config.js`, only `pages/` may import `useRun*`.
  */
 
@@ -13,6 +17,7 @@ import { Spinner } from "@/components/atoms";
 import {
   ActionBar,
   CenterPanelView,
+  NotFoundCard,
   StopReasonCard,
 } from "@/components/organisms";
 import { CenterPanel } from "@/components/templates";
@@ -25,10 +30,18 @@ export function CenterPanelContainer() {
     status,
     isLoading,
     isError,
+    isNotFound,
     error,
     cancel,
     isCancelling,
+    resume,
+    isResuming,
+    resumeError,
   } = useRun(runId);
+
+  if (isNotFound) {
+    return <CenterPanel body={<NotFoundCard runId={runId} />} />;
+  }
 
   // C1 — initial loading
   if (isLoading || run === undefined || status === undefined) {
@@ -65,11 +78,27 @@ export function CenterPanelContainer() {
       header={
         <ActionBar
           status={status}
+          stopReason={run.stopReason}
           onCancel={cancel}
           isCancelling={isCancelling}
+          onResume={resume}
+          isResuming={isResuming}
         />
       }
-      body={<CenterPanelView run={run} status={status} />}
+      body={
+        <div className="flex flex-col gap-2">
+          <CenterPanelView run={run} status={status} />
+          {resumeError !== null ? (
+            <p
+              role="alert"
+              data-testid="resume-error"
+              className="mx-auto w-full max-w-3xl text-sm text-[var(--semantic-danger)]"
+            >
+              Could not resume: {resumeError.message}
+            </p>
+          ) : null}
+        </div>
+      }
     />
   );
 }

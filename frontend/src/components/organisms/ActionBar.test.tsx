@@ -68,4 +68,39 @@ describe("ActionBar", () => {
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
+
+  it("does not render the Resume button while the run is running", () => {
+    setup({ status: "running", stopReason: null });
+    expect(screen.queryByTestId("resume-button")).not.toBeInTheDocument();
+  });
+
+  it("renders the Resume button on errored/user_cancelled and forwards clicks", () => {
+    const onResume = vi.fn();
+    render(
+      <ActionBar
+        status="stopped"
+        stopReason="errored"
+        onCancel={vi.fn()}
+        isCancelling={false}
+        onResume={onResume}
+      />
+    );
+    const btn = screen.getByTestId("resume-button");
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(onResume).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT render Resume on judge_confirmed or honest_* stops", () => {
+    render(
+      <ActionBar
+        status="stopped"
+        stopReason="judge_confirmed"
+        onCancel={vi.fn()}
+        isCancelling={false}
+        onResume={vi.fn()}
+      />
+    );
+    expect(screen.queryByTestId("resume-button")).not.toBeInTheDocument();
+  });
 });

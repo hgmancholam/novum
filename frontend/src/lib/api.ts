@@ -183,6 +183,39 @@ export async function cancelRun(
   });
 }
 
+/** POST /api/runs/{id}/resume — requires auth (RF-11). */
+export async function resumeRun(
+  runId: string,
+  init?: RequestInit
+): Promise<RunResponseDto> {
+  return api.post<RunResponseDto>(`/api/runs/${runId}/resume`, undefined, {
+    ...init,
+    headers: { ...getAuthHeaders(), ...init?.headers },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Create run — BRD-13 iter 2 (POST /api/runs)
+// ---------------------------------------------------------------------------
+
+export interface RunCreatePayload {
+  question: string;
+  user_context?: string | null;
+  output_format?: OutputFormatDto;
+  confidence_threshold?: number;
+}
+
+/** POST /api/runs — requires X-Username + X-Token (BRD-04). */
+export async function createRun(
+  payload: RunCreatePayload,
+  init?: RequestInit
+): Promise<RunResponseDto> {
+  return api.post<RunResponseDto>("/api/runs", payload, {
+    ...init,
+    headers: { ...getAuthHeaders(), ...init?.headers },
+  });
+}
+
 /** POST /api/runs/{id}/fork — requires auth + body { event_id }. */
 export async function forkRun(
   runId: string,

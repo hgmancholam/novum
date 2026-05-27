@@ -1,25 +1,17 @@
 /**
  * HomePage — Route: /
- * Owns: useUser, useRunHistory (via HistoryPanelContainer).
+ * Owns: useUser, useRunHistory (via HistoryPanelContainer), useCreateRun (via NewRunContainer).
  * See ui-prototype.md §8.2 (Pages).
  */
 
 import { AppShell, CenterPanel, TracePanel } from "@/components/templates";
 import { HistoryPanelContainer } from "./HistoryPanelContainer";
+import { NewRunContainer } from "./NewRunContainer";
 
-function CenterPlaceholder() {
+function CenterStart() {
   return (
     <CenterPanel
-      body={
-        <div className="mx-auto max-w-2xl pt-16 text-center">
-          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">
-            Novum
-          </h1>
-          <p className="mt-2 text-base text-[var(--text-secondary)]">
-            Research agent that earns its conclusions.
-          </p>
-        </div>
-      }
+      body={<NewRunContainer />}
     />
   );
 }
@@ -45,7 +37,7 @@ export default function HomePage() {
   return (
     <AppShell
       left={<HistoryPanelContainer />}
-      center={<CenterPlaceholder />}
+      center={<CenterStart />}
       right={<TracePlaceholder />}
     />
   );

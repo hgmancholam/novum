@@ -98,6 +98,7 @@
 | CR-06-001 | BRD-06 Source Plugins (Tavily + Wikipedia) | 1 | 9.4/10 | Approved | [CR-06-001](../../../docs/implementation-phase/reviews/CR-06-001-source-plugins.md) |
 | CR-11-002 | BRD-11 / BRD-04 Auth Wiring (iter 2) | 1 | 9.6/10 | Approved | [CR-11-002](../../../docs/implementation-phase/reviews/CR-11-002-auth-wiring.md) |
 | CR-13-001 | BRD-13 Center Panel | 1 | 9.6/10 | Approved | [CR-13-001](../../../docs/implementation-phase/reviews/CR-13-001-center-panel.md) |
+| CR-13-002 | BRD-13 Center Panel (iter 2) | 1 | 8.88/10 | Returned to Coder | [CR-13-002](../../../docs/implementation-phase/reviews/CR-13-002-center-panel-iter2.md) |
 | CR-07-001 | BRD-07 Agent FSM & Research Loop | 1 | 9.4/10 | Approved | [CR-07-001](../../../docs/implementation-phase/reviews/CR-07-001-agent-fsm.md) |
 
 ---

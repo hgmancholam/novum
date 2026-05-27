@@ -6,14 +6,18 @@
  */
 
 import { Spinner } from "@/components/atoms";
+import { ElapsedClock } from "@/components/molecules";
 import { cn } from "@/lib/cn";
 
 export interface ResearchingBannerProps {
+  /** ISO timestamp the run started — when provided, renders an elapsed clock. */
+  startedAt?: string | undefined;
   className?: string | undefined;
   label?: string;
 }
 
 export function ResearchingBanner({
+  startedAt,
   className,
   label = "Researching\u2026",
 }: ResearchingBannerProps) {
@@ -30,7 +34,8 @@ export function ResearchingBanner({
       )}
     >
       <Spinner size="sm" label={label} />
-      <span>{label}</span>
+      <span className="flex-1">{label}</span>
+      {startedAt !== undefined ? <ElapsedClock startedAt={startedAt} /> : null}
     </div>
   );
 }

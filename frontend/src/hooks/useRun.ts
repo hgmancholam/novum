@@ -15,7 +15,14 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 
-import { cancelRun, forkRun, getRun, type RunResponseDto } from "@/lib/api";
+import {
+  cancelRun,
+  forkRun,
+  getRun,
+  resumeRun,
+  type RunResponseDto,
+} from "@/lib/api";
+import { ApiClientError } from "@/lib/api";
 import { mapRun, type Run, type RunStatus, deriveStatus } from "@/types/run";
 
 export interface UseRunResult {
@@ -23,11 +30,17 @@ export interface UseRunResult {
   status: RunStatus | undefined;
   isLoading: boolean;
   isError: boolean;
+  /** True when the backend responded with 404 — used by `CenterPanelContainer` for C13. */
+  isNotFound: boolean;
   error: Error | null;
 
   cancel: () => void;
   isCancelling: boolean;
   cancelError: Error | null;
+
+  resume: () => void;
+  isResuming: boolean;
+  resumeError: Error | null;
 
   fork: (eventId: string) => void;
   isForking: boolean;
@@ -78,6 +91,16 @@ export function useRun(runId: string | undefined, options: UseRunOptions = {}): 
     onSuccess: invalidate,
   });
 
+  const resumeMutation = useMutation<RunResponseDto, Error, void>({
+    mutationFn: () => {
+      if (runId === undefined) {
+        throw new Error("runId is required");
+      }
+      return resumeRun(runId);
+    },
+    onSuccess: invalidate,
+  });
+
   const forkMutation = useMutation<RunResponseDto, Error, string>({
     mutationFn: (eventId: string) => {
       if (runId === undefined) {
@@ -101,6 +124,8 @@ export function useRun(runId: string | undefined, options: UseRunOptions = {}): 
     status,
     isLoading: query.isLoading,
     isError: query.isError,
+    isNotFound:
+      query.error instanceof ApiClientError && query.error.status === 404,
     error: query.error ?? null,
 
     cancel: () => {
@@ -108,6 +133,12 @@ export function useRun(runId: string | undefined, options: UseRunOptions = {}): 
     },
     isCancelling: cancelMutation.isPending,
     cancelError: cancelMutation.error ?? null,
+
+    resume: () => {
+      resumeMutation.mutate();
+    },
+    isResuming: resumeMutation.isPending,
+    resumeError: resumeMutation.error ?? null,
 
     fork: (eventId: string) => {
       forkMutation.mutate(eventId);

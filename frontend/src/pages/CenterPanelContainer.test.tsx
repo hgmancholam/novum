@@ -64,7 +64,7 @@ afterEach(() => {
 });
 
 describe("CenterPanelContainer", () => {
-  it("shows the loading spinner while fetching (C1)", async () => {
+  it("shows the loading spinner while fetching (C1)", () => {
     fetchMock.mockImplementation(
       () =>
         new Promise<Response>(() => {
@@ -105,9 +105,20 @@ describe("CenterPanelContainer", () => {
     });
   });
 
-  it("renders the error card when the run cannot be loaded", async () => {
+  it("renders the NotFoundCard for a 404 (C13)", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ code: "NOT_FOUND", message: "missing" }, 404)
+    );
+    renderWithRouter(<CenterPanelContainer />);
+    await waitFor(() => {
+      expect(screen.getByTestId("not-found-card")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("stop-reason-card")).not.toBeInTheDocument();
+  });
+
+  it("renders the error card on other errors (5xx)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ code: "INTERNAL", message: "boom" }, 500)
     );
     renderWithRouter(<CenterPanelContainer />);
     await waitFor(() => {

@@ -92,6 +92,18 @@ Steps F2.S1–F2.S5:
 - F2.S5: Save approved plan to docs/implementation-phase/implementation-plans/ and update memory bank
 ```
 
+### In-Place Revision Rule (MANDATORY)
+
+During **F2.S4 — apply_audit_feedback**, the Orchestrator MUST modify the **existing** Implementation Plan file in place. Do NOT create a new plan file for the revised version.
+
+- Same path, same filename across all audit iterations: `docs/implementation-phase/implementation-plans/PLAN-US-XX-<slug>.md`.
+- Use file-edit tools (string replacement / patch), not file-create tools.
+- Never add suffixes like `-v2`, `-revised`, or a new date to the filename.
+- The only versioned artifact per iteration is the audit report (`AUDIT-PLAN-US-XX-{iter}-{date}.md`), which is owned by the Auditor.
+- After the revision, re-submit the SAME plan file to the Auditor for the next audit iteration.
+
+The same rule applies if the Orchestrator ever needs to re-trigger BSA for an F1 revision: the BRD / User Story files are modified in place by BSA.
+
 ### F2 → F3: Delegate Implementation
 ```
 Trigger F3 (IMPLEMENT) → Coder Agent:

@@ -26,6 +26,18 @@ You are the **BSA Agent**, responsible for understanding requirements and creati
 
 > **Audit sub-loop:** After F1.S4, the Auditor agent inspects the artifacts (skill `audit-brd` + `audit-user-story`) and emits a score 0-10. If `score ≥ 9`, jump to F1.S7. If `score < 9` and `audit_iter_F1 < 3`, execute F1.S6 (apply feedback) and re-run F1.S3 / F1.S4. After 3 failed iterations → F6 ESCALATE.
 
+### In-Place Revision Rule (MANDATORY)
+
+During **F1.S6 — apply_audit_feedback**, the BSA MUST modify the **existing** BRD / User Story files in place. Do NOT create new files for revised versions.
+
+- Same path, same filename across all audit iterations:
+  - BRD → keep `docs/implementation-phase/brds/BRD-XX-<slug>.md`
+  - User Story → keep `docs/implementation-phase/user-stories/US-XX-<slug>.md`
+- Use file-edit tools (string replacement / patch), not file-create tools.
+- Never add suffixes like `-v2`, `-revised`, or a new date to the filename.
+- The only versioned artifact per iteration is the audit report (`AUDIT-*-{iter}-{date}.md`), which is owned by the Auditor.
+- After the revision, re-submit the SAME files to the Auditor for the next audit iteration.
+
 ## Mandatory Protocols
 
 ### Memory Protocol (MANDATORY)

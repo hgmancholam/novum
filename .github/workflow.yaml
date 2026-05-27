@@ -261,7 +261,7 @@ phases:
       - id: "F1.S6"
         action: "apply_audit_feedback"
         agent: "bsa"
-        description: "Conditional. Triggered if audit_score < 9 AND audit_iter_F1 < 3. Loops back to F1.S3 / F1.S4 with feedback."
+        description: "Conditional. Triggered if audit_score < 9 AND audit_iter_F1 < 3. Loops back to F1.S3 / F1.S4 with feedback. MUST modify the existing BRD / User Story files in place — same path, same filename. No new files per iteration."
         conditional: true
       - id: "F1.S7"
         action: "sync_to_github"
@@ -310,7 +310,7 @@ phases:
       - id: "F2.S4"
         action: "apply_audit_feedback"
         agent: "orchestrator"
-        description: "Conditional. Triggered if audit_score < 9 AND audit_iter_F2 < 3. Loops back to F2.S2 with feedback."
+        description: "Conditional. Triggered if audit_score < 9 AND audit_iter_F2 < 3. Loops back to F2.S2 with feedback. MUST modify the existing Implementation Plan file in place — same path, same filename. No new files per iteration."
         conditional: true
       - id: "F2.S5"
         action: "update_memory_bank"

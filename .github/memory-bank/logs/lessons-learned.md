@@ -3,8 +3,8 @@
 > Repository of lessons learned during the Novum development.
 > All agents must consult this before starting tasks and update after completing them.
 
-**Last Updated:** 2026-05-27
-**Total Lessons:** 10
+**Last Updated:** 2026-05-26
+**Total Lessons:** 11
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,7 @@
 
 ## Recent Lessons
 
+- **L-011:** Drive Interval-Backed Components from a Prop in Tests, not from Fake Timers (2026-05-26)
 - **L-010:** Cancellation Tests in Single-Task Async FSMs Need a Yielding Emit Hook (2026-05-27)
 - **L-009:** Vitest Fake Timers — `advanceTimersByTime` Already Moves `Date.now()`; Do Not Call `setSystemTime` Again (2026-05-27)
 - **L-008:** Always Prefix Backend API Calls with `API_URL` — MANDATORY RULE (2026-05-26)
@@ -25,6 +26,38 @@
 - **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
 
 ---
+
+## L-011: Drive Interval-Backed Components from a Prop in Tests, not from Fake Timers
+
+**Date:** 2026-05-26
+**Agent:** Coder (BRD-13 iter 2 — CR-13-002 fixes)
+**Category:** Frontend / Testing / Vitest
+
+### Situation
+`ElapsedClock` has an internal `setInterval` that reads `Date.now()` each second. The iter-2 spec validated the tick by combining `vi.setSystemTime(t0)` + `vi.advanceTimersByTime(3_000)`. In isolation the test asserted `"3s"`; in the full suite it received `"6s"` — exactly the L-009 double-advance pitfall.
+
+### Lesson
+When a component already exposes an injectable clock prop (`now?: Date`), tests should drive elapsed time through that prop with `render` + `rerender`, and use fake timers only for the orthogonal "the interval is wired" assertion (and even then, prefer `vi.advanceTimersByTime` alone — never with `vi.setSystemTime`). Asserting *that the text changed* is safer than asserting a specific tick value when fake-timer state may be shared across the suite.
+
+### Pattern
+```tsx
+// Stable: prop-driven elapsed
+const { rerender } = render(<ElapsedClock startedAt={t0} now={new Date(t0)} />);
+expect(screen.getByTestId("elapsed-clock")).toHaveTextContent("0s");
+rerender(<ElapsedClock startedAt={t0} now={new Date(t0Plus3s)} />);
+expect(screen.getByTestId("elapsed-clock")).toHaveTextContent("3s");
+
+// Interval-existence only — no setSystemTime
+vi.useFakeTimers();
+render(<ElapsedClock startedAt={isoNowMinus1s} />);
+const before = screen.getByTestId("elapsed-clock").textContent;
+act(() => { vi.advanceTimersByTime(2_000); });
+expect(screen.getByTestId("elapsed-clock").textContent).not.toBe(before);
+vi.useRealTimers();
+```
+
+### Why it Matters
+Reinforces L-009 with a concrete pattern: any component that already accepts a "now" prop should be tested through that seam in the assertion path, leaving the timer machinery for the existence check only.
 
 ## L-010: Cancellation Tests in Single-Task Async FSMs Need a Yielding Emit Hook
 

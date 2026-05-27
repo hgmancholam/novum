@@ -18,6 +18,20 @@ Checklist-driven audit of an Implementation Plan against the parent User Story, 
 - Architecture (`docs/technical-phase/architecture.md`) — 8 rules.
 - Any prior audit report for the same plan (`docs/implementation-phase/audits/AUDIT-PLAN-*.md`).
 
+## Scope Discipline (MANDATORY)
+
+- A plan implements **one** User Story. Audit ONLY tasks needed to satisfy `US-XX`.
+- Do NOT demand tasks that belong to other User Stories, other BRDs, or later iterations.
+- `RFs_in_scope` = RFs explicitly cited by the parent User Story.
+- Tasks the plan defers to a future iteration (and labels as such) are NOT gaps.
+- Cross-cutting concerns already owned by another BRD (auth, infra, logging, etc.) must not be re-demanded here.
+
+## In-Place Revision Rule (MANDATORY)
+
+- All Required Changes MUST be phrased as in-place edits to the existing plan file (e.g. "In `PLAN-US-XX-...md`, add a task that …" or "Modify Task 1.3 in `PLAN-US-XX-...md` to handle …").
+- The Orchestrator must apply changes to the **same** `PLAN-US-XX-<slug>.md` across every audit iteration. No `-v2`, no new date, no new slug.
+- If a revised plan appears under a different filename, treat it as a process violation and report it under §4 of the audit report; do not score the new file.
+
 ## Checklist
 
 ### 1. Requirements Coverage (30%)
@@ -85,16 +99,21 @@ A markdown report saved to `docs/implementation-phase/audits/AUDIT-PLAN-US-XX-{i
 
 ```
 1. Load plan, parent US, parent BRD, RFs, diagrams.
-2. Build set RFs_required = union(parent_US.affected_RFs).
-3. Build set RFs_covered = union(plan.tasks[*].cited_RFs).
-4. coverage_gap = RFs_required - RFs_covered → reduce Requirements Coverage.
-5. For each task t:
+2. Read parent_US.scope and parent_US.out_of_scope sections.
+3. Build RFs_in_scope = parent_US.cited_RFs ONLY.
+   Build criteria_in_scope = parent_US.acceptance_criteria ONLY.
+4. Build set RFs_covered = union(plan.tasks[*].cited_RFs).
+5. coverage_gap = (RFs_in_scope - RFs_covered)   # NEVER include RFs outside RFs_in_scope.
+   If RFs outside RFs_in_scope are missing → IGNORE (out of scope, not a finding).
+6. For each task t:
      - assert t.has_next_step_for_each_outcome → else blind-path finding.
      - assert t.error_handling defined for each external call → else finding.
      - assert t.cancellation_handled if t.is_long_running → else finding.
      - assert t.budget_check if t.is_loop → else finding.
      - assert t.tests defined → else acceptance-criteria deduction.
-6. For each acceptance criterion ac in parent_US:
+7. For each acceptance criterion ac in criteria_in_scope:
      - assert ∃ task t such that ac ∈ t.satisfies → else acceptance-criteria deduction.
-7. Score each criterion, sum weighted, emit verdict and report.
+   For criteria NOT in criteria_in_scope: do nothing (out of scope).
+8. Self-check every finding: drop any finding whose RF / criterion is outside scope.
+9. Score each criterion, sum weighted, emit verdict and report.
 ```

@@ -3,12 +3,67 @@
 > Chronological log of all decisions made during the Novum development.
 > Each decision follows the decision record template.
 
-**Last Updated:** 2026-05-27
-**Total Decisions:** 19
+**Last Updated:** 2026-05-26
+**Total Decisions:** 21
 
 ---
 
 ## Recent Decisions
+
+## D-021: BRD-13 Iter 2 — CR-13-002 Fixes Applied
+
+**Date:** 2026-05-26
+**Phase:** F3 (IMPLEMENT — fix-only pass)
+**Author:** Coder Agent
+**Iteration:** 2/5 (against CR-13-002)
+**Predecessor:** D-020
+
+**Scope.** Surface-level remediation pass against CR-13-002 (score 8.88 / 10). No architectural changes. Four fixes:
+
+1. **M-1 — `ElapsedClock` test stability (L-009).** Rewrote the spec to drive elapsed via the existing `now?: Date` prop (`render` + `rerender`) instead of combining `vi.setSystemTime` with `vi.advanceTimersByTime`. The remaining interval-driven test uses only `vi.advanceTimersByTime` and asserts that the rendered text *changes* — not its exact value — to avoid shared-fake-timer brittleness across the suite.
+2. **M-2 — 5 new ESLint errors cleared.** `pages/NewRunContainer.tsx`: `void navigate(...)` + sync `onSubmit` wrapper around the async `handleSubmit`. `pages/NewRunContainer.test.tsx`: removed `async` from the no-await test handler and replaced `chip!` with an explicit guard. `pages/CenterPanelContainer.test.tsx`: removed `async` from the loading-spinner test handler.
+3. **S-1 — `QuestionForm` microcopy aligned with §7.2.** Context label *"Background context (optional)"* added; placeholder corrected to *"Anything Novum should know up front. Not treated as evidence."*; format legend → *"Answer format"*; structured option → *"Structured (recommended)"*; threshold preset → *"Custom…"*; threshold legend now carries the *"Higher threshold = the agent searches longer and may honest-stop more often."* tooltip; submit-disabled tooltip *"Type a question to start."* added.
+4. **S-2 — `TrustSummary` line 1 per §7.7.** Added a `buildSummaryLine(run)` helper that renders the 7 enum-specific summary strings (✓ / ⚠ / ⊘) with `—` placeholders for the deferred confidence metric, preserving RF-13 honesty. The existing `<dl>` rows remain below for BRD-10 to populate.
+
+**Collateral cleanup.** Fixed a pre-existing `noUncheckedIndexedAccess` tsc error in `SuggestionChips.test.tsx` (`DEFAULT_SUGGESTIONS[0]` returning `string | undefined`) so `npx tsc --noEmit` exits 0.
+
+**Validation.**
+- `npx tsc --noEmit` → 0 errors.
+- `npx eslint src/pages src/components/organisms/QuestionForm.tsx ...` → 5 new errors from CR-13-002 cleared. The remaining 4 errors in `QuestionForm.tsx` (FormEvent deprecated + 3 template-literal numerics) are pre-existing in iter 2 and **not in CR-13-002 scope**.
+- `npx vitest run` → **39 test files / 274 tests, all green** (one extra test vs the 273 baseline because the L-009-flaky case was split into two stable cases).
+
+**Files changed.**
+- `frontend/src/components/molecules/ElapsedClock.test.tsx`
+- `frontend/src/components/molecules/SuggestionChips.test.tsx`
+- `frontend/src/components/organisms/QuestionForm.tsx`
+- `frontend/src/components/organisms/TrustSummary.tsx`
+- `frontend/src/pages/NewRunContainer.tsx`
+- `frontend/src/pages/NewRunContainer.test.tsx`
+- `frontend/src/pages/CenterPanelContainer.test.tsx`
+
+**Next.** Re-submit for Reviewer Agent as CR-13-003.
+
+---
+
+## D-020: BRD-13 Center Panel — Iter 2 Review CR-13-002 Returned to Coder
+
+**Date:** 2026-05-27
+**Phase:** F4 (REVIEW)
+**Author:** Reviewer Agent
+**Score:** 8.88 / 10 (below 9.0 approval threshold)
+**Verdict:** Returned to Coder (iteration 1/5)
+
+**Context.** Iter 2 closed the 6 UX blind spots (Home QuestionForm, OutcomeBar, MetaRow/RunHeader, Resume affordance, NotFoundCard, TypeDisclosure+SuggestionChips, TrustSummary placeholders) per D-018. Architectural compliance is exemplary (atomic-design, RF-11, RF-13 honored). Three classes of issues block approval:
+
+1. **Flaky test (L-009 fake-timer pitfall).** `ElapsedClock > ticks every second while not frozen` passes in isolation but fails in the full suite (received "6s" vs expected "3s"). CI will be unstable.
+2. **5 new ESLint errors** in `pages/NewRunContainer.tsx`, `pages/NewRunContainer.test.tsx`, `pages/CenterPanelContainer.test.tsx` (`no-floating-promises`, `no-misused-promises`, `require-await`, `no-non-null-assertion`).
+3. **Microcopy drift from ui-prototype.md §7.2** in `QuestionForm` (7 strings) and **§7.7 line 1 shape** in `TrustSummary`.
+
+**Report:** [CR-13-002-center-panel-iter2.md](../../../docs/implementation-phase/reviews/CR-13-002-center-panel-iter2.md)
+
+**Next.** Coder addresses M-1 + M-2 + S-1 + S-2; expected re-submit as CR-13-003.
+
+---
 
 ## D-019: BRD-07 Agent FSM — Workflow Closed (Approved)
 

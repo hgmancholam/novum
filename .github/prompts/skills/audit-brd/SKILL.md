@@ -13,6 +13,20 @@ Checklist-driven audit of a Business Requirements Document (BRD) against the pro
 - The full RF catalogue in `docs/understanding-phase/requirement-understanding.md`.
 - Any prior audit report for the same BRD (`docs/implementation-phase/audits/AUDIT-BRD-*.md`).
 
+## Scope Discipline (MANDATORY)
+
+- Audit ONLY what `BRD-XX` declares it covers.
+- Read the BRD's **Scope**, **Out of Scope** and **Future Work** sections FIRST and treat them as binding boundaries.
+- Do NOT flag as missing any feature owned by another BRD or deferred to a future iteration.
+- Build `RFs_in_scope` from the RFs the BRD explicitly cites. Coverage is measured ONLY against this set.
+- Informational observations about adjacent BRDs may go in §6 Positive Highlights / informational notes — never as Required Changes.
+
+## In-Place Revision Rule (MANDATORY)
+
+- All Required Changes MUST be phrased as in-place edits to the existing BRD file (e.g. "In section 3.2 of `BRD-XX-...md`, modify …").
+- The BSA must apply changes to the **same** `BRD-XX-<slug>.md` across every audit iteration. No `-v2`, no new date, no new slug.
+- If a revised BRD appears under a different filename, treat it as a process violation and report it under §4 of the audit report; do not score the new file.
+
 ## Checklist
 
 ### 1. Requirements Coverage (30%)
