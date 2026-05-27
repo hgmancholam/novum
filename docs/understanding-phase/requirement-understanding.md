@@ -4,6 +4,26 @@
 
 ---
 
+## Amendment 2026-05-27 — "always answer" refactor (ratified)
+
+This document was written before the product constraint *"the agent must always produce a usable response; pure `honest_unanswerable` is not an acceptable terminal"* was ratified. The full rationale and work-package plan live in [research-method-refactor-proposal.md](research-method-refactor-proposal.md). The contract changes below **supersede** the original text wherever they conflict.
+
+| Affected RF | Old contract | New contract (in force) |
+|---|---|---|
+| **RF-01·E** | Honest stop is a first-class terminal outcome class. | Honest stop is **not** a terminal outcome. The conditions that previously produced it (ambiguity, contradiction, sparsity, out-of-scope type) now drive **`AnswerKind`** selection inside a single `judge_confirmed` terminal. |
+| **RF-02** | 7-value `stop_reason` enum. | **4-value** enum: `judge_confirmed`, `stopped_by_budget`, `user_cancelled`, `errored`. The three `honest_*` values are removed. |
+| **RF-04** | Honest stop when contradictions cannot be resolved. | Contradictions render as `AnswerKind=weighted` with candidate answers ranked by support strength. |
+| **RF-06** | Types 6/7/8 (predictive / opinion / personal-private) emit `honest_unanswerable` immediately. | Types 6/7/8 route to `scenario`, `tradeoff`, and `ethical_redirect` AnswerKinds respectively. **No short-circuit.** The full pipeline runs and a calibrated answer is produced. |
+| **RF-12** | `final_confidence = min(S, J)`; threshold gates the positive terminal. | Formula unchanged, **but `S` is multiplied by a per-`AnswerKind` ceiling** before entering the `min`. Failing the threshold **lowers confidence on the answer**, not refuses it. See [confidence-calculation.md](confidence-calculation.md) amendment. |
+| **RF-13** | UI surfaces "trust guarantees" including honest-stop screens. | UI surfaces an **`AnswerKind` badge + per-section confidence + alternatives panel**. **No rejection screens.** |
+| **RF-17 (new)** | — | Every terminal positive run produces an answer with a declared `AnswerKind` and per-kind-bounded confidence. The six kinds are: `direct`, `weighted`, `scenario`, `tradeoff`, `ethical_redirect`, `best_effort`. |
+| **RF-18 (new)** | — | Saturation signal `C` is computed from **in-process** embedding novelty (no pgvector, no DB-side vectors) and emitted as `SaturationDetected`. |
+| **RF-19 (new)** | — | The judge LLM role runs on a **different provider** than planner/synthesizer (default: Anthropic Claude Haiku). On provider unavailability, the system degrades gracefully to GitHub Models and emits a `JudgeProviderDegraded` event. See [ai-services.md](../technical-phase/ai-services.md) §1.7. |
+
+**Read-the-doc rule:** wherever the body below mentions `honest_unanswerable`, `honest_contradiction`, `honest_ambiguous`, or any "rejection screen" / "refuses" behavior tied to RF-06, the **amendment above wins**. The original text is preserved for historical context and to make the diff explicit.
+
+---
+
 ## 1. The challenge, in one sentence
 
 Build a research agent that, given a question, produces a **sourced answer** and — just as importantly — **decides on its own when it has gathered enough evidence to stop**.

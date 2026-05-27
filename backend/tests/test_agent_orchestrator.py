@@ -220,7 +220,9 @@ async def test_run_happy_path(llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatc
     assert types[-1] == "StoppedEvent"
     stopped = events[-1]
     assert isinstance(stopped, StoppedEvent)
-    assert stopped.answer_prose == "answer"
+    # BRD-16: answer_prose is now the rendered output (prose renderer appends sources)
+    assert stopped.answer_prose is not None
+    assert stopped.answer_prose.startswith("answer")
 
 
 async def test_rf06_unanswerable_stops_before_planning(

@@ -4,6 +4,39 @@
 >
 > **Scope:** all services that either run a model or feed evidence to a model. Pure-storage and pure-infrastructure services live in `infrastructure.md`.
 
+## Amendment 2026-05-27 — second LLM provider for the judge (RF-19)
+
+Ratified on 2026-05-27 alongside the "always answer" refactor ([research-method-refactor-proposal.md](research-method-refactor-proposal.md) — WP-5). Single change to this catalog: a **second LLM provider** is added for the judge role only.
+
+| # | Service | Role | Type | Cost (V1) | Card? |
+|---|---|---|---|---|---|
+| 4 | **Anthropic Claude Haiku** | **Judge** LLM (default). Replaces GitHub Models for the `LLMRole.JUDGE` only. | LLM provider | Pay-as-you-go (~$0.001/run at Haiku pricing) | Yes |
+
+**Routing.** `app/llm/client.py::call` reads two new env vars on the `judge` role:
+
+- `JUDGE_PROVIDER` — `anthropic` (default) | `github` (fallback)
+- `JUDGE_MODEL` — `claude-haiku-...` (default for anthropic) | `deepseek/DeepSeek-V3-0324` (when forced to github)
+
+Planner, synthesizer, and classifier continue to route through GitHub Models unchanged (§1.2 table below).
+
+**Graceful degradation.** If the Anthropic call fails for any reason (missing key, 5xx, rate limit after one retry):
+
+1. The agent emits a new `JudgeProviderDegraded(reason, attempted_provider, fallback_provider)` event.
+2. The judge call is retried once on the GitHub-Models judge model.
+3. The UI surfaces a small warning on the confidence badge: *"verifier ran on the same family as the synthesizer on this run."*
+
+**Why a second provider.** The R6 mitigation (judge sycophancy) the original §1.2 relied on was *cross-family-inside-one-provider* (DeepSeek judge vs OpenAI synthesizer). That is weaker than *cross-provider-and-cross-family*. Anthropic Haiku is the cheapest option that achieves both at once.
+
+**Cost impact.** Anthropic does not have a meaningful free tier comparable to GitHub Models, so this is the first non-zero line item in V1. Budget: a Claude Haiku judge call is ~500 input tokens + 200 output tokens ≈ $0.0003 per invocation. With 1–3 judge calls per run, real-world cost is **< $0.001 per run**. Practical V1 ceiling: **$5/month** even with 50 runs/day. Acceptable.
+
+**Why not OpenRouter or Groq.** OpenRouter routes through other providers and breaks the cross-provider guarantee. Groq's free tier is wide but its model catalog drifts; Anthropic Haiku is stable, well-priced, and SDK-supported in `litellm` without configuration tricks.
+
+**Env var addition.** `ANTHROPIC_API_KEY` must be exported on the VM and on dev machines. Missing key is **non-fatal** (degradation path above).
+
+**Read-the-doc rule:** wherever §1.2 below assigns the judge role to `deepseek/DeepSeek-V3-0324`, the amendment above wins. DeepSeek-V3 remains the **fallback** judge model when `JUDGE_PROVIDER=github`.
+
+---
+
 ---
 
 ## 0. At a glance

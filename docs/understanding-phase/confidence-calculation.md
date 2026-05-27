@@ -2,6 +2,46 @@
 
 > The exact method by which Novum computes the `final_confidence` value that gates `judge_confirmed` against the user-set `confidence_threshold` (RF-12).
 
+## Amendment 2026-05-27 — `AnswerKind` ceiling + `C_kind_appropriateness`
+
+Ratified on 2026-05-27 alongside the "always answer" refactor ([research-method-refactor-proposal.md](research-method-refactor-proposal.md)). Two changes to the formula in this document; everything else (the four `C_*` components, the disconfirmation/independence extensions, the mismatch flag) stays as written.
+
+**Change 1 — per-`AnswerKind` ceiling on `S`.** Before entering the `min(S, J)`, the structural score is multiplied by a `kind_ceiling` factor that reflects the epistemic ceiling of the chosen answer shape:
+
+```
+S_effective = S_raw · kind_ceiling[AnswerKind]
+final_confidence = min(S_effective, J)
+```
+
+| AnswerKind | `kind_ceiling` | Rationale |
+|---|---:|---|
+| `direct`            | 1.00 | High-coverage, agreement, no contradictions — the historical happy path. |
+| `weighted`          | 0.80 | Multiple supported answers; even with great structure, the answer is plural by nature. |
+| `scenario`          | 0.55 | Predictive / future-state; no source can fact-check tomorrow. |
+| `tradeoff`          | 0.50 | Subjective / opinion; the "right answer" is a function of the reader's priorities. |
+| `best_effort`       | 0.45 | Ambiguity or sparse coverage; we are committing to a primary interpretation. |
+| `ethical_redirect`  | n/a  | No claim is being made; the response is a refusal + alternatives. Confidence is not displayed. |
+
+The trace's `JudgeRuled.payload.structural` block surfaces **both** `S_raw` and `S_effective` plus the `kind_ceiling` and the chosen `AnswerKind`, so the rule is auditable.
+
+**Change 2 — new component `C_kind_appropriateness` (weight 0.10).** Re-balances the four structural components so the judge can penalize a wrong-shape answer (e.g., `direct` chosen on a 3-way contradiction):
+
+| Component | Old weight | New weight |
+|---|---:|---:|
+| `C_coverage`            | 0.35 | 0.35 |
+| `C_agreement`           | 0.30 | 0.30 |
+| `C_diversity`           | 0.20 | 0.20 |
+| `C_no_conflict`         | 0.15 | **0.05** |
+| `C_kind_appropriateness`| —    | **0.10** |
+
+`C_no_conflict` drops from 0.15 → 0.05 because its job (residual-contradiction penalty) is largely subsumed by `C_kind_appropriateness`: a residual contradiction now manifests as a `weighted` or `best_effort` kind with its own ceiling, not as a deduction inside `C_no_conflict`. It remains as a defense-in-depth term.
+
+`C_kind_appropriateness` is **judge-reported** in `[0, 1]`: the judge prompt now asks *"does the chosen `AnswerKind` match the actual evidence shape?"* and returns a score plus a one-line reason. Computation is therefore **free of new infra** — it is one extra field in the existing judge response model.
+
+**Read-the-doc rule:** the formula stated in §2 (`0.35·C_coverage + 0.30·C_agreement + 0.20·C_diversity + 0.15·C_no_conflict`) is **superseded** by the weights in the table above. References to `final_confidence = min(S, J)` elsewhere in the doc should be read as `min(S_effective, J)` where `S_effective = S_raw · kind_ceiling[AnswerKind]`.
+
+---
+
 This document is the **authoritative reference** for how confidence is calculated, what each input means operationally, how it is persisted in the trace, and how it can be defended in the pair session.
 
 > **Methodological lineage.** The structural score `S` is a computable analogue of **GRADE** (BMJ, 2004–) — the four `C_*` components map to GRADE's independent quality dimensions (risk of bias / inconsistency / indirectness / imprecision / publication bias), and `final_confidence = min(S, J)` mirrors GRADE's separation of *certainty rating* from the recommendation itself. The disconfirmation pass that feeds `C_agreement` (RF-15) operationalises **Heuer's ACH** rule that disconfirming evidence must be sought, not just accepted when stumbled upon. Full rationale and rejected alternatives in [research-method-selection.md](research-method-selection.md).

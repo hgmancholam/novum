@@ -32,3 +32,5 @@ export { TraceTimeline } from "./TraceTimeline";
 export type { TraceTimelineProps, TraceTimelineEvent } from "./TraceTimeline";
 export { ForkModal } from "./ForkModal";
 export type { ForkModalProps, ForkModalEvent } from "./ForkModal";
+export { StructuredAnswer } from "./StructuredAnswer";
+export type { StructuredAnswerProps } from "./StructuredAnswer";

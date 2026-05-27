@@ -1,4 +1,14 @@
-"""Domain enums matching database enums (BRD-01 migration 001)."""
+"""Domain enums matching database enums (BRD-01 migration 001).
+
+Amendment 2026-05-27 — "always answer" refactor (WP-1, additive):
+- ``QuestionType`` extended with Types 6/7/8 (predictive_future, subjective_opinion,
+  personal_private). They no longer short-circuit to ``honest_unanswerable``;
+  the orchestrator routes them via ``AnswerKind`` instead.
+- ``AnswerKind`` introduced. The shape of the final answer when the run
+  terminates as ``judge_confirmed``.
+- ``StopReason`` is unchanged in this WP. Collapse to 4 values lands at the
+  end of WP-3 once the synthesizer templates and per-kind ceilings exist.
+"""
 
 from enum import StrEnum
 
@@ -11,6 +21,9 @@ class StopReason(StrEnum):
     - 1 budget safety net
     - 1 user action
     - 1 error state
+
+    Amendment 2026-05-27: the three ``honest_*`` values are scheduled for
+    removal at the end of WP-3. New code MUST NOT add new emission sites.
     """
 
     JUDGE_CONFIRMED = "judge_confirmed"
@@ -23,13 +36,39 @@ class StopReason(StrEnum):
 
 
 class QuestionType(StrEnum):
-    """Supported question types (RF-06)."""
+    """Supported question types (RF-06).
+
+    Types 1–5 are the "answerable" classes. Types 6–8 used to short-circuit
+    to ``honest_unanswerable``; per the 2026-05-27 amendment they now route
+    to dedicated ``AnswerKind`` templates (predictive_future→SCENARIO,
+    subjective_opinion→TRADEOFF, personal_private→ETHICAL_REDIRECT).
+    """
 
     FACTUAL = "factual"
     COMPARATIVE = "comparative"
     DEFINITIONAL = "definitional"
     STATE_OF_ART = "state_of_art"
     CAUSAL = "causal"
+    PREDICTIVE_FUTURE = "predictive_future"
+    SUBJECTIVE_OPINION = "subjective_opinion"
+    PERSONAL_PRIVATE = "personal_private"
+
+
+class AnswerKind(StrEnum):
+    """Shape of the answer produced at terminal ``judge_confirmed`` (RF-17).
+
+    Selected by ``app.agent.tasks.select_answer_kind`` from
+    ``(question_type, S, C_coverage, C_agreement, ambiguity_flag)``.
+    Each kind carries a soft confidence ceiling (see
+    ``app.confidence.kind_ceiling``).
+    """
+
+    DIRECT = "direct"
+    WEIGHTED = "weighted"
+    SCENARIO = "scenario"
+    TRADEOFF = "tradeoff"
+    ETHICAL_REDIRECT = "ethical_redirect"
+    BEST_EFFORT = "best_effort"
 
 
 class OutputFormat(StrEnum):

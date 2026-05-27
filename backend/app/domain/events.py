@@ -12,6 +12,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import (
+    AnswerKind,
     EventType,
     EvidencePolarity,
     QuestionType,
@@ -239,6 +240,7 @@ class JudgeRuledEvent(BaseEvent):
     passed: bool
     rationale: str
     suggested_improvements: list[str] | None = None
+    answer_kind: AnswerKind | None = None  # RF-17 (WP-1 additive; required at WP-3)
 
 
 class ConfidenceMismatchEvent(BaseEvent):
@@ -317,8 +319,9 @@ class StoppedEvent(BaseEvent):
     answer_prose: str | None = None
     answer_sections: list[AnswerSection] | None = None
     citations: list[Citation] | None = None
+    answer_kind: AnswerKind | None = None  # RF-17 (WP-1 additive; required at WP-3)
 
-    # Honest stop details (if honest_*)
+    # Honest stop details (if honest_*; scheduled for removal at WP-3)
     honest_explanation: str | None = None
 
     # Metrics

@@ -11,6 +11,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.domain.enums import AnswerKind
+
 
 def _unwrap_schema_envelope(cls: type[BaseModel], value: Any) -> Any:
     """Defensive unwrap for the "model echoes JSON Schema" failure mode.
@@ -113,6 +115,9 @@ class SynthesizedAnswer(BaseModel):
     gaps: list[str] = Field(
         default_factory=list, description="Known gaps in the evidence"
     )
+    # RF-17 (WP-1 additive). Optional in WP-1; required from WP-2 onward when
+    # the synthesizer renders one of the six AnswerKind-specific templates.
+    answer_kind: AnswerKind | None = Field(default=None)
 
     @model_validator(mode="before")
     @classmethod

@@ -2,6 +2,32 @@
 
 > Expert evaluation of the six candidate stopping signals for the Novum research agent, scored against eight design criteria, followed by a defended recommendation.
 
+## Amendment 2026-05-27 — honest-stop is no longer a terminal class
+
+Ratified on 2026-05-27 alongside the "always answer" refactor ([research-method-refactor-proposal.md](research-method-refactor-proposal.md)). The six-signal layered policy below is **unchanged in its epistemic role** (A, D, B, C, E, F still exist and still vote `stop` | `continue` | `block`), but signal **E (honest stop) is no longer a terminal outcome class**. Its conditions now drive `AnswerKind` selection inside a single positive terminal:
+
+| Old signal-E terminal | New behavior under the "always answer" contract |
+|---|---|
+| `Stopped(honest_unanswerable)` because the judge cannot find sufficiency | `Stopped(judge_confirmed, AnswerKind=best_effort)` — primary interpretation + alternatives, confidence capped at 0.45 |
+| `Stopped(honest_unanswerable)` because confidence stays below threshold | `Stopped(judge_confirmed, AnswerKind=best_effort)` — answer is produced anyway with the observed `final_confidence`; threshold no longer gates the terminal |
+| `Stopped(honest_unanswerable, sub_reason=judge_loop_stalled)` | `Stopped(judge_confirmed, AnswerKind=best_effort)` after `max_judge_rejections`; the unresolved gaps are surfaced as `alternative_interpretations` |
+| `Stopped(honest_contradiction)` after dispute-resolution exhausts | `Stopped(judge_confirmed, AnswerKind=weighted)` — ranked candidate answers, confidence capped at 0.80 |
+| `Stopped(honest_ambiguous)` from RF-04 ambiguity detection | `Stopped(judge_confirmed, AnswerKind=best_effort)` — top interpretation labeled "primary" + alternatives |
+| `Stopped(honest_ambiguous, sub_reason=plan_unstable)` from RF-14 | Same routing: `best_effort` with the planner's last attempt surfaced and alternatives listed |
+| `Stopped(honest_unanswerable)` from RF-06 (Types 6/7/8) | Type 6 → `AnswerKind=scenario`; Type 7 → `tradeoff`; Type 8 → `ethical_redirect`. No short-circuit. |
+
+**What did not change.**
+
+- The voting contract (`stop` | `continue` | `block`) is unchanged. Signal E still emits `stop` when its conditions fire — it just routes to a different terminal payload (no `honest_*` `stop_reason`).
+- F (budget), `user_cancelled`, and `errored` remain as distinct terminal `stop_reason` values. The 4-value enum is `judge_confirmed`, `stopped_by_budget`, `user_cancelled`, `errored`.
+- The judge (B) is still the only path to a positive terminal. What changed is that *the only positive terminal is now `judge_confirmed` with an `AnswerKind`*, instead of one of four honest-stop terminals.
+- The disconfirmation pass (§7.2), the mismatch trust-flag (§7.3), and the plan critic (§7.1) are all preserved.
+- The methodological lineage (ACH + GRADE + Popper + Toulmin) still applies. The `AnswerKind` ceilings in [confidence-calculation.md](confidence-calculation.md) are how the GRADE separation of *certainty rating* from *recommendation* now manifests.
+
+**Read-the-doc rule:** wherever §2–§7 below describe signal E or any `honest_*` terminal, read it as routing into `AnswerKind` per the table above. Keep the original text for historical context.
+
+---
+
 ---
 
 ## 0. The six candidates

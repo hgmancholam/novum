@@ -116,6 +116,16 @@ export function CenterPanelContainer() {
   const showPostResumeNotice =
     resumeStepIndex !== null && !agentEmittedAfterResume;
 
+  // BRD-16: extract answer content from the terminal Stopped event
+  const answerProse = useMemo<string | null>(() => {
+    for (const e of events) {
+      if (e.type === "Stopped" && typeof e.answer_prose === "string") {
+        return e.answer_prose;
+      }
+    }
+    return null;
+  }, [events]);
+
   useEffect(() => {
     if (forkedRun === undefined) {
       return;
@@ -200,6 +210,7 @@ export function CenterPanelContainer() {
               suppressResearchingBanner={showPostResumeNotice}
               latestEvent={events.at(-1)}
               eventCount={events.length}
+              answerProse={answerProse}
             />
             {resumeError !== null ? (
               <p

@@ -23,6 +23,7 @@ import {
 } from "./ResearchingBanner";
 import { RunHeader } from "./RunHeader";
 import { StopReasonCard } from "./StopReasonCard";
+import { StructuredAnswer } from "./StructuredAnswer";
 import { TrustSummary } from "./TrustSummary";
 
 export interface CenterPanelViewProps {
@@ -35,6 +36,8 @@ export interface CenterPanelViewProps {
   latestEvent?: ResearchingBannerLatestEvent | undefined;
   /** Total events received so far — drives the banner meta line. */
   eventCount?: number | undefined;
+  /** Final answer content (BRD-16) — extracted from Stopped event. */
+  answerProse?: string | null | undefined;
   className?: string | undefined;
 }
 
@@ -44,6 +47,7 @@ export function CenterPanelView({
   suppressResearchingBanner = false,
   latestEvent,
   eventCount,
+  answerProse,
   className,
 }: CenterPanelViewProps) {
   const isTerminal = status === "stopped" && run.stopReason !== null;
@@ -75,6 +79,13 @@ export function CenterPanelView({
           />
         ) : isTerminal && run.stopReason !== null ? (
           <div className="flex flex-col gap-3">
+            {run.stopReason === "judge_confirmed" && answerProse !== null && answerProse !== undefined ? (
+              <StructuredAnswer
+                content={answerProse}
+                outputFormat={run.outputFormat}
+                data-testid="run-answer"
+              />
+            ) : null}
             <TrustSummary run={run} />
             <StopReasonCard reason={run.stopReason} />
           </div>

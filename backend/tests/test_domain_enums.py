@@ -2,9 +2,14 @@
 
 Cross-checks enum values and counts against the BRD-01 migration
 (``backend/alembic/versions/001_initial_schema.py``).
+
+Amendment 2026-05-27: ``QuestionType`` extended to 8 values (Types 6/7/8 no
+longer short-circuit); ``AnswerKind`` introduced (RF-17). ``StopReason``
+still 7 — collapse to 4 lands at end of WP-3.
 """
 
 from app.domain.enums import (
+    AnswerKind,
     EventType,
     EvidencePolarity,
     OutputFormat,
@@ -31,13 +36,38 @@ def test_stop_reason_values() -> None:
     assert {v.value for v in StopReason} == expected
 
 
-def test_question_type_has_exactly_5_values() -> None:
-    assert len(QuestionType) == 5
+def test_question_type_has_exactly_8_values() -> None:
+    assert len(QuestionType) == 8
 
 
 def test_question_type_values() -> None:
-    expected = {"factual", "comparative", "definitional", "state_of_art", "causal"}
+    expected = {
+        "factual",
+        "comparative",
+        "definitional",
+        "state_of_art",
+        "causal",
+        "predictive_future",
+        "subjective_opinion",
+        "personal_private",
+    }
     assert {v.value for v in QuestionType} == expected
+
+
+def test_answer_kind_has_exactly_6_values() -> None:
+    assert len(AnswerKind) == 6
+
+
+def test_answer_kind_values() -> None:
+    expected = {
+        "direct",
+        "weighted",
+        "scenario",
+        "tradeoff",
+        "ethical_redirect",
+        "best_effort",
+    }
+    assert {v.value for v in AnswerKind} == expected
 
 
 def test_output_format_has_exactly_2_values() -> None:

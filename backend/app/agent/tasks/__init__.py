@@ -12,8 +12,13 @@ from app.agent.tasks.draft import (
 from app.agent.tasks.normalize import normalize_question
 from app.agent.tasks.plan import create_plan, critique_plan, revise_plan
 from app.agent.tasks.search import execute_search_round
+from app.agent.tasks.select_answer_kind import (
+    AnswerKindInputs,
+    select_answer_kind,
+)
 
 __all__ = (
+    "AnswerKindInputs",
     "analyze_evidence",
     "classify_question",
     "create_plan",
@@ -24,4 +29,5 @@ __all__ = (
     "map_issues_to_claims",
     "normalize_question",
     "revise_plan",
+    "select_answer_kind",
 )
