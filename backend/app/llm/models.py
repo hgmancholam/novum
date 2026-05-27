@@ -133,7 +133,9 @@ class SynthesizedAnswer(BaseModel):
     """Final answer produced by the synthesizer."""
 
     prose: str = Field(..., description="Natural-language answer")
-    key_points: list[str] = Field(..., description="Main points covered")
+    # Optional: synthesizer prompts for non-DIRECT kinds may omit key_points
+    # in favour of the kind-specific payload (scenarios/candidates/...).
+    key_points: list[str] = Field(default_factory=list, description="Main points covered")
     citations: list[str] = Field(
         default_factory=list, description="URLs of cited evidence"
     )

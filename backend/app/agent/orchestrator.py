@@ -342,12 +342,18 @@ class AgentOrchestrator:
         if self.state.current_state not in (AgentState.STOPPED, AgentState.ERRORED):
             target = AgentState.ERRORED if reason == StopReason.ERRORED else AgentState.STOPPED
             self.state.transition_to(target)
-        answer = self.state.draft_answer if reason == StopReason.JUDGE_CONFIRMED else None
+        # WP-3 (IP-21) Always-Answer: surface the latest draft whenever one
+        # exists, even when the run hits the budget without judge confirmation.
+        surfaces_draft = reason in (
+            StopReason.JUDGE_CONFIRMED,
+            StopReason.STOPPED_BY_BUDGET,
+        )
+        answer = self.state.draft_answer if surfaces_draft else None
         answer_structured: str | None = None
-        answer_kind = self.state.selected_answer_kind if reason == StopReason.JUDGE_CONFIRMED else None
+        answer_kind = self.state.selected_answer_kind if surfaces_draft else None
 
         # BRD-16: render BOTH formats at stop time for client-side switching
-        if reason == StopReason.JUDGE_CONFIRMED and answer:
+        if surfaces_draft and answer:
             from app.output import renderer_registry
             from app.seams.output import RenderContext
 
@@ -373,7 +379,7 @@ class AgentOrchestrator:
             struct_renderer = renderer_registry.get("structured") or renderer_registry.get_default()
             answer_structured = struct_renderer.render(render_ctx).content
 
-        if reason == StopReason.JUDGE_CONFIRMED:
+        if surfaces_draft and answer:
             self.state.final_answer = answer
 
         # WP-3 G2: Build StopRationale for every terminal (optional for non-judge terminals).
