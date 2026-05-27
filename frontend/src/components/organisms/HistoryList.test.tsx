@@ -8,6 +8,7 @@ import type { RunSummary } from "@/types/history";
 const sampleRuns: RunSummary[] = [
   {
     id: "r1",
+    username: "alice",
     question: "Capital of France?",
     status: "completed",
     stopReason: "judge_confirmed",
@@ -16,6 +17,7 @@ const sampleRuns: RunSummary[] = [
   },
   {
     id: "r2",
+    username: "bob",
     question: "Population of Tokyo?",
     status: "running",
     stopReason: null,
@@ -24,6 +26,7 @@ const sampleRuns: RunSummary[] = [
   },
   {
     id: "r3",
+    username: "alice",
     question: "Tallest mountain?",
     status: "stopped",
     stopReason: "honest_unanswerable",

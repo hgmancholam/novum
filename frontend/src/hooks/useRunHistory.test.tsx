@@ -29,6 +29,7 @@ afterEach(() => {
 function dto(id: string, stop: RunListItemDto["stop_reason"] = null): RunListItemDto {
   return {
     id,
+    username: "testuser",
     question: `Q ${id}`,
     started_at: "2026-05-26T00:00:00Z",
     stopped_at: stop === null ? null : "2026-05-26T00:01:00Z",
