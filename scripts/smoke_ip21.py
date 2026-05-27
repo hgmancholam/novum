@@ -51,7 +51,7 @@ async def _retry(coro_factory, attempts: int = 3, delay: float = 3.0):
     raise last_exc  # type: ignore[misc]
 
 
-async def stream_run(client: httpx.AsyncClient, run_id: str, headers: dict[str, str], timeout: float = 600.0) -> dict[str, Any]:
+async def stream_run(client: httpx.AsyncClient, run_id: str, headers: dict[str, str], timeout: float = 1500.0) -> dict[str, Any]:
     """Open SSE stream and return the Stopped event payload (or {} on timeout)."""
     url = f"{BASE}/api/runs/{run_id}/events"
     started = time.time()
