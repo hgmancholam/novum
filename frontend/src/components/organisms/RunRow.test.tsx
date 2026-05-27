@@ -16,13 +16,15 @@ const baseRun: RunSummary = {
 };
 
 describe("RunRow", () => {
-  it("renders truncated question, username, status, and relative time", () => {
+  it("renders truncated question, username, status dot, and relative time", () => {
     render(<RunRow run={baseRun} isSelected={false} onSelect={() => {}} />);
     expect(
       screen.getByText("What is the population of Tokyo in 2024?")
     ).toBeInTheDocument();
     expect(screen.getByText("hgmancholam")).toBeInTheDocument();
-    expect(screen.getByText("Judge confirmed")).toBeInTheDocument();
+    const dot = screen.getByTestId("status-dot");
+    expect(dot).toHaveAttribute("aria-label", "Judge confirmed");
+    expect(dot).toHaveAttribute("data-tone", "success");
     expect(screen.getByText(/m ago|just now/)).toBeInTheDocument();
   });
 
@@ -59,7 +61,9 @@ describe("RunRow", () => {
       stoppedAt: null,
     };
     render(<RunRow run={runningRun} isSelected={false} onSelect={() => {}} />);
-    expect(screen.getByText("Researching…")).toBeInTheDocument();
+    const dot = screen.getByTestId("status-dot");
+    expect(dot).toHaveAttribute("aria-label", "Researching…");
+    expect(dot).toHaveAttribute("data-tone", "info");
   });
 
   it("has no a11y violations", async () => {

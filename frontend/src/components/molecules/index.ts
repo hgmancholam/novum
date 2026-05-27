@@ -2,6 +2,8 @@ export { ConfidenceBar } from "./ConfidenceBar";
 export type { ConfidenceBarProps } from "./ConfidenceBar";
 export { StatusBadge } from "./StatusBadge";
 export type { StatusBadgeProps, RunStatus } from "./StatusBadge";
+export { StatusDot } from "./StatusDot";
+export type { StatusDotProps } from "./StatusDot";
 export { IdentitySlot } from "./IdentitySlot";
 export { ElapsedClock, formatElapsed } from "./ElapsedClock";
 export type { ElapsedClockProps } from "./ElapsedClock";
