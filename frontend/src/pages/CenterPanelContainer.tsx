@@ -116,7 +116,7 @@ export function CenterPanelContainer() {
   const showPostResumeNotice =
     resumeStepIndex !== null && !agentEmittedAfterResume;
 
-  // BRD-16: extract answer content from the terminal Stopped event
+  // BRD-16: extract both rendered formats from the terminal Stopped event
   const answerProse = useMemo<string | null>(() => {
     for (const e of events) {
       if (e.type === "Stopped" && typeof e.answer_prose === "string") {
@@ -125,6 +125,21 @@ export function CenterPanelContainer() {
     }
     return null;
   }, [events]);
+
+  const answerStructured = useMemo<string | null>(() => {
+    for (const e of events) {
+      const structured = e["answer_structured"];
+      if (e.type === "Stopped" && typeof structured === "string") {
+        return structured;
+      }
+    }
+    return null;
+  }, [events]);
+
+  // Client-side view format — defaults to run's stored format; toggleable post-answer
+  const [viewFormat, setViewFormat] = useState<string>(
+    run?.outputFormat ?? "prose"
+  );
 
   useEffect(() => {
     if (forkedRun === undefined) {
@@ -211,6 +226,9 @@ export function CenterPanelContainer() {
               latestEvent={events.at(-1)}
               eventCount={events.length}
               answerProse={answerProse}
+              answerStructured={answerStructured}
+              viewFormat={viewFormat}
+              onViewFormatChange={setViewFormat}
             />
             {resumeError !== null ? (
               <p

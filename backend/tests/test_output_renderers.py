@@ -51,7 +51,7 @@ class TestProseRenderer:
             ],
         )
         out = renderer.render(ctx)
-        assert "### Sources" in out.content
+        assert "### 📚 Sources" in out.content
         assert "Example" in out.content
         assert "https://example.com" in out.content
 

@@ -2,9 +2,15 @@
  * StructuredAnswer organism — renders the final answer markdown (BRD-16 §4.10, RF-10).
  *
  * Accepts pre-rendered markdown content (prose or structured) from the
- * backend renderer and displays it using ReactMarkdown.
+ * backend renderer and displays it using ReactMarkdown with:
+ * - Mermaid diagram blocks rendered as styled code (syntax-highlighted)
+ * - Markdown tables rendered natively
+ * - Standard prose rendering for all other content
  */
 import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/cn";
 import type { OutputFormat } from "@/types/events";
@@ -20,6 +26,56 @@ export interface StructuredAnswerProps {
       }
     | undefined;
   className?: string | undefined;
+}
+
+/** Custom code-block renderer: mermaid → blue-accented fence; others → syntax highlighted. */
+function CodeBlock({
+  className,
+  children,
+}: {
+  className?: string | undefined;
+  children?: React.ReactNode | undefined;
+}) {
+  const language = /language-(\w+)/.exec(className ?? "")?.[1] ?? "";
+  const code = String(children ?? "").trim();
+
+  if (language === "mermaid") {
+    return (
+      <div
+        data-testid="mermaid-block"
+        className="my-3 overflow-x-auto rounded-lg border border-[var(--accent-primary)] bg-[var(--bg-primary)] p-4"
+      >
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--accent-primary)]">
+          Diagram
+        </p>
+        <SyntaxHighlighter
+          language="yaml"
+          style={oneDark}
+          customStyle={{ margin: 0, borderRadius: "0.375rem", fontSize: "0.8rem" }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
+    );
+  }
+
+  if (language) {
+    return (
+      <SyntaxHighlighter
+        language={language}
+        style={oneDark}
+        customStyle={{ borderRadius: "0.375rem", fontSize: "0.8rem" }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    );
+  }
+
+  return (
+    <code className="rounded bg-[var(--bg-tertiary)] px-1.5 py-0.5 font-mono text-sm text-[var(--text-primary)]">
+      {children}
+    </code>
+  );
 }
 
 export function StructuredAnswer({
@@ -67,9 +123,20 @@ export function StructuredAnswer({
           prose-headings:text-[var(--text-primary)]
           prose-p:text-[var(--text-primary)]
           prose-li:text-[var(--text-primary)]
-          prose-a:text-[var(--accent-primary)]"
+          prose-a:text-[var(--accent-primary)]
+          prose-table:text-[var(--text-primary)]
+          prose-th:text-[var(--text-primary)]
+          prose-td:text-[var(--text-primary)]"
       >
-        <ReactMarkdown>{content}</ReactMarkdown>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            code: CodeBlock as any,
+          }}
+        >
+          {content}
+        </ReactMarkdown>
       </div>
     </section>
   );

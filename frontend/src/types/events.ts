@@ -2040,6 +2040,18 @@ export const EventSchema = {
           "default": null,
           "title": "Answer Prose"
         },
+        "answer_structured": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer Structured"
+        },
         "answer_sections": {
           "anyOf": [
             {

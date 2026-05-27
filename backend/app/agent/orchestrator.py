@@ -314,19 +314,20 @@ class AgentOrchestrator:
             target = AgentState.ERRORED if reason == StopReason.ERRORED else AgentState.STOPPED
             self.state.transition_to(target)
         answer = self.state.draft_answer if reason == StopReason.JUDGE_CONFIRMED else None
-        
-        # BRD-16: render the answer through the selected output format
+        answer_structured: str | None = None
+
+        # BRD-16: render BOTH formats at stop time for client-side switching
         if reason == StopReason.JUDGE_CONFIRMED and answer:
             from app.output import renderer_registry
             from app.seams.output import RenderContext
-            
+
             seen: set[str] = set()
             sources: list[dict] = []
             for ev in self.state.evidence:
                 if ev.source_url not in seen:
                     seen.add(ev.source_url)
                     sources.append({"url": ev.source_url, "title": ev.source_title, "domain": ""})
-            
+
             render_ctx = RenderContext(
                 question=self.state.question,
                 answer_content=answer,
@@ -334,16 +335,21 @@ class AgentOrchestrator:
                 confidence=self.state.last_judge_confidence or 0.0,
                 stop_reason=reason.value,
             )
-            renderer = renderer_registry.get(self.state.output_format) or renderer_registry.get_default()
-            rendered = renderer.render(render_ctx)
-            answer = rendered.content
-        
+            # Always render prose as the canonical answer_prose
+            prose_renderer = renderer_registry.get("prose") or renderer_registry.get_default()
+            answer = prose_renderer.render(render_ctx).content
+
+            # Always render structured for instant client-side format switching
+            struct_renderer = renderer_registry.get("structured") or renderer_registry.get_default()
+            answer_structured = struct_renderer.render(render_ctx).content
+
         if reason == StopReason.JUDGE_CONFIRMED:
             self.state.final_answer = answer
         await self.emit(
             StoppedEvent(
                 stop_reason=reason,
                 answer_prose=answer,
+                answer_structured=answer_structured,
                 total_tokens=self.state.total_tokens,
             )
         )

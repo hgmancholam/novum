@@ -20,11 +20,13 @@ class ProseRenderer:
         content = context.answer_content
 
         if context.sources:
-            content += "\n\n---\n\n### Sources\n"
+            content += "\n\n---\n\n### 📚 Sources\n\n"
+            content += "| # | Source |\n|---|--------|\n"
             for i, source in enumerate(context.sources, 1):
                 title = source.get("title", "Untitled")
                 url = source.get("url", "")
-                content += f"{i}. [{title}]({url})\n"
+                cell = f"[{title}]({url})" if url else title
+                content += f"| {i} | {cell} |\n"
 
         return RenderedOutput(
             format="prose",

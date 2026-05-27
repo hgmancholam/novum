@@ -13,6 +13,7 @@
  */
 
 import { OutcomeBar, GlassSurface } from "@/components/atoms";
+import { FormatSelector } from "@/components/molecules";
 import { cn } from "@/lib/cn";
 import type { Run, RunStatus } from "@/types/run";
 
@@ -36,8 +37,14 @@ export interface CenterPanelViewProps {
   latestEvent?: ResearchingBannerLatestEvent | undefined;
   /** Total events received so far — drives the banner meta line. */
   eventCount?: number | undefined;
-  /** Final answer content (BRD-16) — extracted from Stopped event. */
+  /** Final answer — prose-rendered (BRD-16). */
   answerProse?: string | null | undefined;
+  /** Final answer — structured-rendered (BRD-16 enhancement). */
+  answerStructured?: string | null | undefined;
+  /** Currently active view format for client-side switching. */
+  viewFormat?: string | undefined;
+  /** Called when the user clicks a different format button. */
+  onViewFormatChange?: ((format: string) => void) | undefined;
   className?: string | undefined;
 }
 
@@ -48,9 +55,29 @@ export function CenterPanelView({
   latestEvent,
   eventCount,
   answerProse,
+  answerStructured,
+  viewFormat,
+  onViewFormatChange,
   className,
 }: CenterPanelViewProps) {
   const isTerminal = status === "stopped" && run.stopReason !== null;
+  const hasAnswer =
+    isTerminal &&
+    run.stopReason === "judge_confirmed" &&
+    (answerProse !== null && answerProse !== undefined);
+
+  // Determine which content to show based on viewFormat
+  const activeContent: string | null =
+    viewFormat === "structured" && answerStructured
+      ? answerStructured
+      : (answerProse ?? null);
+
+  // Show format switcher only when both renderings are available
+  const showFormatSelector =
+    hasAnswer &&
+    answerStructured !== null &&
+    answerStructured !== undefined &&
+    onViewFormatChange !== undefined;
 
   return (
     <GlassSurface
@@ -79,12 +106,29 @@ export function CenterPanelView({
           />
         ) : isTerminal && run.stopReason !== null ? (
           <div className="flex flex-col gap-3">
-            {run.stopReason === "judge_confirmed" && answerProse !== null && answerProse !== undefined ? (
-              <StructuredAnswer
-                content={answerProse}
-                outputFormat={run.outputFormat}
-                data-testid="run-answer"
-              />
+            {hasAnswer && activeContent !== null ? (
+              <>
+                {showFormatSelector ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-[var(--text-muted)]">
+                      Format
+                    </span>
+                    <FormatSelector
+                      value={viewFormat ?? "prose"}
+                      onChange={onViewFormatChange!}
+                    />
+                  </div>
+                ) : null}
+                <StructuredAnswer
+                  content={activeContent}
+                  outputFormat={
+                    (viewFormat ?? run.outputFormat ?? "prose") as
+                      | "prose"
+                      | "structured"
+                  }
+                  data-testid="run-answer"
+                />
+              </>
             ) : null}
             <TrustSummary run={run} />
             <StopReasonCard reason={run.stopReason} />

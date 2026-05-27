@@ -317,6 +317,7 @@ class StoppedEvent(BaseEvent):
 
     # Answer (if judge_confirmed)
     answer_prose: str | None = None
+    answer_structured: str | None = None  # pre-rendered structured format (BRD-16 enhancement)
     answer_sections: list[AnswerSection] | None = None
     citations: list[Citation] | None = None
     answer_kind: AnswerKind | None = None  # RF-17 (WP-1 additive; required at WP-3)

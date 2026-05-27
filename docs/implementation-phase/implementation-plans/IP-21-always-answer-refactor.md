@@ -4,7 +4,7 @@
 **Source proposal:** [`docs/understanding-phase/research-method-refactor-proposal.md`](../../understanding-phase/research-method-refactor-proposal.md) (ratified 2026-05-27)
 **Amended RFs:** RF-01·E, RF-02, RF-06 (overrides) + RF-17, RF-18, RF-19 (new)
 **Created:** 2026-05-27
-**Status:** Ready for Coder (autonomous execution) — gaps closed 2026-05-27
+**Status:** Ready for Coder (autonomous execution) — gaps closed 2026-05-27 — 3 post-audit holes closed (Fixes A/B/C)
 **Implementation order:** Single multi-phase plan; supersedes any future IP-* for the same surfaces
 
 ---
@@ -57,13 +57,15 @@ Edits already in main that this plan must **finish, not redo**:
 ### 0.5 Phase order (non-negotiable)
 
 ```
-WP-0  Reconciliation (make repo green)
-WP-1  Additive prelude (AnswerKind resolver + tests)         ← finishes here
-WP-2  Six synthesizer templates + draft.py routing
-WP-3  Per-kind ceilings + StopReason collapse + migration
-WP-4  Saturation signal + in-memory embeddings
-WP-5  Independent verifier (Anthropic Claude Haiku)
-WP-6  Cross-run question memory (in-memory only)
+WP-0    Reconciliation (make repo green)
+WP-1    Additive prelude (AnswerKind resolver + tests)         ← finishes here
+WP-2    Six synthesizer templates + draft.py routing
+          └─ WP-2.0  Classifier prompt extension (8 QuestionType values)
+WP-2.5  Contradiction detector audit & contract
+WP-3    Per-kind ceilings + StopReason collapse + migration   (depends on WP-2.5)
+WP-4    Saturation signal + in-memory embeddings
+WP-5    Independent verifier (Anthropic Claude Haiku)
+WP-6    Cross-run question memory (in-memory only)
 ```
 
 Each WP ends with a hard gate: `pytest -q` + `pyright --strict` + `ruff check` + frontend `vitest run --reporter=basic` must all pass before opening the next WP.
@@ -98,11 +100,11 @@ This matrix is the authoritative smoke-test contract derived from `docs/q-for-te
 | 3 | What is the best programming language? | `COMPARATIVE` + `AmbiguityDetected` | `BEST_EFFORT` | `S=0.60, cov=0.8, agr=0.5, amb=True` | empty-comparative detector (G9) |
 | 4 | Is intermittent fasting healthy? | `FACTUAL` or `CAUSAL` | `WEIGHTED` | `S=0.65, cov=1.0, agr=0.45, amb=False` | mandatory `contradictions` field (G10) |
 | 5 | Long-term risks of AI-generated code | `PREDICTIVE_FUTURE` | `SCENARIO` | `S=0.60, cov=0.7, agr=0.6, amb=False` (QuestionType priority wins) | probability bands, drivers |
-| 6 | EDA vs synchronous microservices at scale | `SUBJECTIVE_OPINION` (high subjectivity) | `TRADEOFF` | `S=0.70, cov=1.0, agr=0.55, amb=False` (QuestionType priority wins) | criteria matrix |
+| 6 | EDA vs synchronous microservices at scale | `COMPARATIVE` (architecture tradeoff) | `WEIGHTED` | `S=0.70, cov=1.0, agr=0.55, amb=False` — routes via `cov_complete AND agr<0.6 → WEIGHTED` (WP-0 resolver) | Architecture tradeoff between two named alternatives — `WEIGHTED` candidates with criteria-weighted scores is defensible. |
 | 7 | Best long-term memory approach for AI agents | `STATE_OF_ART` | `WEIGHTED` if converges; `BEST_EFFORT` if saturated | `S=0.55, cov=0.6, agr=0.55, amb=False` | real saturation signal (G1), high budget (G11) |
 | 8 | Could AI replace mid-level engineers in 10y? | `PREDICTIVE_FUTURE` | `SCENARIO` | `S=0.50, cov=0.7, agr=0.4, amb=False` (QuestionType priority wins) | multi-scenario + expert contradictions surfaced |
 
-> **Resolver-input footnote (binding for `test_resolver_acceptance.py`, G13).** Numbers are calibrated against the resolver thresholds (`_DIRECT_MIN_S=0.75`, `_DIRECT_MIN_COVERAGE=1.0`, `_DIRECT_MIN_AGREEMENT=0.6`, `_WEIGHTED_AGREEMENT_CEILING=0.6`, `_BEST_EFFORT_COVERAGE_FLOOR=0.5`) so each row deterministically routes to its expected kind. They represent realistic post-search scores, not the LLM judge's optimism. Rows 5, 6, 8 carry `QuestionType` values (`PREDICTIVE_FUTURE`, `SUBJECTIVE_OPINION`) that win at the resolver's priority stage before any S/cov/agr/amb branch is reached — the numeric columns are kept for symmetry and to document the underlying evidence quality.
+> **Resolver-input footnote (binding for `test_resolver_acceptance.py`, G13).** Numbers are calibrated against the resolver thresholds (`_DIRECT_MIN_S=0.75`, `_DIRECT_MIN_COVERAGE=1.0`, `_DIRECT_MIN_AGREEMENT=0.6`, `_WEIGHTED_AGREEMENT_CEILING=0.6`, `_BEST_EFFORT_COVERAGE_FLOOR=0.5`) so each row deterministically routes to its expected kind. They represent realistic post-search scores, not the LLM judge's optimism. Rows 5 and 8 carry `QuestionType = PREDICTIVE_FUTURE`, which wins at the resolver's priority stage before any S/cov/agr/amb branch is reached — the numeric columns are kept for symmetry and to document the underlying evidence quality. Row 6 (post-audit fix C, 2026-05-27) is classified as `COMPARATIVE` and routes through the numeric branch: `coverage=1.0` is complete AND `agreement=0.55 < 0.6` → `WEIGHTED`. The 0.55 agreement reflects the realistic spread between EDA-favouring and microservices-favouring expert sources at scale; nudging it ±0.05 keeps the same routing.
 
 Three layers of enforcement (built across the WPs):
 - **Static (CI)**: `backend/tests/test_resolver_acceptance.py` (G13) builds representative `AnswerKindInputs` per row and asserts the resolver output. Runs on every commit, independent of LLM availability.
@@ -256,6 +258,43 @@ Make the synthesizer LLM produce one of six structured payload shapes driven by 
 - Derive `ambiguity_flag` from the run's events instead of leaving it dangling (G3).
 - Make `classify.py` / `plan.py` emit `AmbiguityDetectedEvent` for empty comparatives ("best X", "should I") that lack stated criteria (G9).
 - When any `ContradictionDetectedEvent` exists in the run, force the synthesizer to populate the new `contradictions` field; reject the output otherwise (G10).
+
+### WP-2.0 — Classifier prompt extension (post-audit Fix A, 2026-05-27)
+
+**Run this BEFORE the synthesizer-template subtasks.** It unblocks matrix rows 5 (Q5 — long-term AI risks), 6 (Q6 — EDA vs microservices, now `COMPARATIVE`), and 8 (Q8 — AI replacing engineers, plus Q7 "best programming language" subjectivity, plus the personal-private guardrail).
+
+**Goal.** Extend the classifier system prompt so the LLM can emit all 8 `QuestionType` values instead of only the original 5. WP-1 added `PREDICTIVE_FUTURE`, `SUBJECTIVE_OPINION`, `PERSONAL_PRIVATE` to the Python enum, but the LLM prompt was never updated — in production the classifier would never emit Types 6/7/8 and Q5/Q6/Q8 would silently misroute.
+
+**Files.** Discovery rule for the Coder:
+- If `backend/app/llm/prompts/classifier.py` exists, **that** is the canonical prompt module — modify there.
+- Otherwise the system prompt lives inline in `backend/app/agent/tasks/classify.py` — modify the prompt string there.
+- Grep target: `grep -rn "QuestionType\|classifier" backend/app/llm/prompts backend/app/agent/tasks/classify.py`. Pick whichever file already holds the system-prompt string.
+
+**Required content of the new prompt section.** Add (English only) a markdown bullet list with one line per `QuestionType`, in the exact form below — examples are binding for the new types so the LLM has anchor points the classifier tests can rely on:
+
+- `factual` — single verifiable fact. Example: "What is the capital of Japan?"
+- `comparative` — explicit comparison of named alternatives, including "Should X use A or B?" style architecture decisions. Example: "Is PostgreSQL or MongoDB better for a small SaaS?", "Should a high-scale AI platform use event-driven architecture or synchronous microservices?"
+- `definitional` — asks what a concept means. Example: "What is event sourcing?"
+- `state_of_art` — asks the current best/leading approach for a technical problem. Example: "What is the most promising approach for long-term memory in AI agents?"
+- `causal` — asks why or how-caused. Example: "Why did the 2008 crisis happen?"
+- `predictive_future` — asks about future risks/trends/long-term outcomes with explicit time horizon or "long-term" wording. Example: "What are the long-term risks of AI-generated code in enterprise systems?", "Could AI systems replace mid-level software engineers within the next 10 years?"
+- `subjective_opinion` — asks for a personal "best" with NO objective criteria. Distinguish from `comparative` (which names alternatives). Example: "What is the best programming language?"
+- `personal_private` — solicits private/medical/financial advice about the user's own life. Example: "Should I quit my job?"
+
+**Output contract.** The LLM must return exactly one of these 8 strings (lowercase, snake_case): `factual | comparative | definitional | state_of_art | causal | predictive_future | subjective_opinion | personal_private`.
+
+**Validation.** Extend the existing pydantic model that wraps the classifier output (likely a `Literal[QuestionType, ...]` or a model with a `question_type: QuestionType` field). The Coder MUST verify the model already accepts the 3 new values; if it was hard-coded to the original 5 (e.g. inline `Literal["factual", "comparative", "definitional", "state_of_art", "causal"]`), widen it to the full enum.
+
+**Cross-check with Fix C.** The `comparative` example wording above quotes Q6 verbatim. Q6 routes to `COMPARATIVE → WEIGHTED` per the updated §0.8 row 6. If you change one, change the other.
+
+**Acceptance criterion (Fix A).**
+- New test `backend/tests/test_classify_emits_new_types.py` OR extension of `backend/tests/test_agent_tasks_classify.py` with one parametrised row per new `QuestionType`:
+  - `PREDICTIVE_FUTURE` → "What are the long-term risks of AI-generated code in enterprise systems?"
+  - `PREDICTIVE_FUTURE` → "Could AI systems replace mid-level software engineers within the next 10 years?"
+  - `SUBJECTIVE_OPINION` → "What is the best programming language?"
+  - `PERSONAL_PRIVATE` → "Should I quit my job?"
+  - `COMPARATIVE` → "Should a high-scale AI platform use event-driven architecture or synchronous microservices?" (Q6 — cross-checks Fix C)
+- Each row asserts the classifier returns the expected type (mock the LLM call with the canned response matching the expected enum value to keep the test deterministic).
 
 ### Files
 
@@ -420,8 +459,71 @@ If the function returns a non-empty list, emit `AmbiguityDetectedEvent(dimension
 ### Acceptance
 - All draft + classify tests green; no orchestrator changes required (HONEST_* paths still exist).
 - Coverage on `prompts/synthesizer.py` ≥ 90 %.
-- Matrix rows 3, 4, 5, 6, 8 of §0.8 pass at the **resolver level** (i.e. given mocked inputs they return the expected kind).
+- Matrix rows 3, 4, 5, 6, 8 of §0.8 pass at the **resolver level** (i.e. given mocked inputs they return the expected kind). Row 6 is now `COMPARATIVE → WEIGHTED` per Fix C — the parametrised assertion MUST reflect this.
+- [ ] Classifier prompt enumerates all 8 `QuestionType` values; new types reachable in tests (WP-2.0 / Fix A).
 - Memory: log `D-WP-2 done`.
+
+---
+
+## WP-2.5 — Contradiction detector audit & contract (post-audit Fix B, 2026-05-27) (≈ 1.5 h)
+
+**Depends on:** WP-2. **Blocks:** WP-3.
+
+### Objective
+Guarantee that `ContradictionDetectedEvent` reliably fires whenever evidence pieces disagree, so that G10's mandatory `contradictions` enforcement on `SynthesizedAnswer` (WP-2) actually triggers in production for Q4 (intermittent fasting) and Q8 (AI replacing engineers). Without this WP, G10 is a dead branch: the validator demands a non-empty list only `when state.has_event(EventType.CONTRADICTION_DETECTED)`, and that predicate is never true if the analyzer never emits the event.
+
+### Audit step (mandatory, before writing code)
+
+The Coder MUST open `backend/app/agent/tasks/analyze.py` and the matching `backend/tests/test_agent_tasks_analyze.py`, then record findings inline in this WP section as a literal checklist:
+
+- [ ] Identify the current trigger for `ContradictionDetectedEvent` emission (which LLM field, threshold, or heuristic).
+- [ ] Confirm it operates on pairs of evidence chunks bound to the same claim / sub-question (not on the question as a whole).
+- [ ] Confirm at least one polarity / disagreement signal is used — either an LLM-judged `supports` vs `contradicts` label, or a numeric disagreement above a configurable threshold.
+
+If all three boxes are checked from the existing code, jump straight to the regression test (last bullet of the Tests block). Otherwise implement the contract below.
+
+### Required contract (implement if the audit reveals it is missing)
+
+1. **Stance annotation on evidence chunks.** The analyzer LLM call MUST annotate each evidence chunk with a `stance ∈ {supports, contradicts, neutral}` relative to a working hypothesis. The working hypothesis is the planner-emitted claim / sub-question the chunk was retrieved for.
+2. **Trigger.** `ContradictionDetectedEvent` MUST be emitted when the same claim has ≥ 1 chunk with `stance == supports` AND ≥ 1 chunk with `stance == contradicts`, evaluated either within the current round OR across rounds `1..r` (cumulative is preferred so cross-round contradictions are caught).
+3. **Event payload** (extending the existing `ContradictionDetectedEvent` shape, additive only — `extra="allow"` per architecture rule 5):
+   ```python
+   {
+       "claim": str,                              # the planner sub-claim / sub-question
+       "supporting_chunk_ids": list[str],         # evidence ids with stance=supports
+       "contradicting_chunk_ids": list[str],      # evidence ids with stance=contradicts
+       "round": int,                              # round at which the disagreement was first observed
+   }
+   ```
+   Any pre-existing field on the event stays untouched; new fields are optional (`X | None = None`) to keep replay of historical events safe.
+4. **No new event type.** Reuse `ContradictionDetectedEvent`. Do NOT add a new `EventType` member.
+
+### Files
+
+| File | Action |
+|---|---|
+| `backend/app/agent/tasks/analyze.py` | Audit; if contract missing, add `stance` annotation in the analyzer LLM structured output + emit `ContradictionDetectedEvent` with the new payload. |
+| `backend/app/domain/events.py` | Extend `ContradictionDetectedEvent` with optional `claim`, `supporting_chunk_ids`, `contradicting_chunk_ids`, `round` (all `X \| None = None`). |
+| `backend/tests/test_agent_tasks_analyze.py` | Add positive + negative tests (see below). Keep all existing tests passing. |
+| `backend/tests/test_analyze_emits_contradiction_event.py` | OPTIONAL — only create if the existing test file is too crowded; otherwise extend in place per project convention. |
+
+### Tests
+
+- **Positive (required).** Two synthetic evidence chunks for the same claim with opposite stances (`supports` + `contradicts`) → assert exactly one `ContradictionDetectedEvent` is appended with the new payload fields populated and `round` set correctly.
+- **Negative (required).** Two `supports` chunks for the same claim → assert NO `ContradictionDetectedEvent` is emitted.
+- **Cross-round (required when cumulative trigger is implemented).** `supports` in round 1, `contradicts` in round 2 for the same claim → event fires in round 2.
+- **Audit-only path** (if the existing analyzer already satisfies the three audit boxes): add one **regression** test that constructs the legacy disagreement input shape and asserts the event still fires — lock in current behaviour.
+
+### Done checklist
+- [ ] Audit checklist above filled in (each box explicitly ticked or annotated "missing → implemented in this WP").
+- [ ] `app/agent/tasks/analyze.py` emits `ContradictionDetectedEvent` per the contract above (or already did, per audit).
+- [ ] Stance annotation present in the analyzer LLM structured output schema.
+- [ ] Positive + negative tests pass; cross-round test passes if cumulative trigger is used.
+- [ ] `pyright --strict` + `ruff check` + `pytest -q` all green.
+- [ ] Memory: log `D-WP-2.5 done`; add a lesson if the analyzer needed rewiring.
+
+### Acceptance
+- Matrix row 4 (intermittent fasting) and row 8 (AI replacing engineers) reliably surface a `ContradictionDetectedEvent` in their golden traces — which in turn forces `SynthesizedAnswer.contradictions` to be non-empty via the WP-2 validator (G10).
 
 ---
 
@@ -457,7 +559,7 @@ This is the **destructive** WP. Do every step in order; do not split.
 | `backend/alembic/versions/001_initial_schema.py` | **do not edit**; new migration handles diff |
 | `backend/tests/test_domain_enums.py` | `len(StopReason) == 4`, update expected set |
 | `backend/tests/test_agent_orchestrator.py` | rewrite the 4 HONEST_* paths to assert new routing; add early-stop test (G8); add `StopRationale` populated assertion (G2) |
-| `backend/tests/test_resolver_acceptance.py` (new) | one parametrised test per row of §0.8 matrix (G13) |
+| `backend/tests/test_resolver_acceptance.py` (new) | one parametrised test per row of §0.8 matrix (G13). Row 6 (Q6: EDA vs microservices) MUST expect `AnswerKind.WEIGHTED` with `QuestionType.COMPARATIVE` and inputs `S=0.70, cov=1.0, agr=0.55, amb=False` per Fix C (2026-05-27). Row 3 stays `BEST_EFFORT`; rows 5 and 8 stay `SCENARIO`. |
 | `backend/tests/test_migrations.py` | extend to verify migration 002 + `legacy_stop_reason` backfill (M2) |
 | `backend/tests/test_routes_runs.py` | extend fork test to cover new `StopRationale` field and new events (G7) |
 | `scripts/export_types.py` | run, commit the regenerated `frontend/src/types/events.ts` |
@@ -798,6 +900,18 @@ The **UI prototype** (`docs/understanding-phase/ui-prototype.md`) is binding: us
 
 ---
 
+## Changelog 2026-05-27 (post-audit fixes A/B/C)
+
+Three specification holes closed in place; no source code touched. All edits land in this same IP-21 file.
+
+- **Fix A (HIGH) — Classifier prompt enumerates all 8 `QuestionType` values.** Added sub-task **WP-2.0** at the top of WP-2 (before "### Files"). The Coder must extend whichever file holds the classifier system prompt (canonical: `backend/app/llm/prompts/classifier.py`; fallback: inline string in `backend/app/agent/tasks/classify.py`) with the 8 typed bullets (one per `QuestionType`), each carrying an anchor example. New parametrised test (`test_classify_emits_new_types.py` or extension of `test_agent_tasks_classify.py`) covers the three previously-unreachable types plus a Q6 cross-check row. Added a Done-checklist line to WP-2.
+- **Fix B (MEDIUM) — Contradiction detector audit & contract.** New work-package **WP-2.5** inserted between WP-2 and WP-3, added to the phase order in §0.5, and made a hard dependency of WP-3. The Coder first audits `analyze.py` against three explicit checks (trigger source, claim-bound pairing, polarity signal); if any are missing, implements a `stance ∈ {supports, contradicts, neutral}` annotation on each evidence chunk and emits `ContradictionDetectedEvent` whenever the same claim has both `supports` and `contradicts` chunks within or across rounds. Payload extended (additively, optional fields only) with `claim`, `supporting_chunk_ids`, `contradicting_chunk_ids`, `round`. Positive + negative tests are mandatory.
+- **Fix C (MEDIUM) — Row 6 of §0.8 reverted to `COMPARATIVE → WEIGHTED`.** Row 6 (Q6: EDA vs synchronous microservices) was `SUBJECTIVE_OPINION → TRADEOFF`; reverted to `COMPARATIVE (architecture tradeoff) → WEIGHTED` with resolver inputs `S=0.70, cov=1.0, agr=0.55, amb=False` (routes via `cov_complete AND agr<0.6 → WEIGHTED` per WP-0 resolver). The Resolver-input footnote was updated: rows previously listed as priority-routed ("5, 6, 8") become "5 and 8" — row 6 now routes through the numeric branch, and the 0.55 agreement is justified inline. WP-3's `test_resolver_acceptance.py` row description spells out the new expectation; the `WEIGHTED` template in Annex A picks up a Q6 binding note plus a required `weighted_q6.json` fixture.
+
+Status header bumped to: *"gaps closed 2026-05-27 — 3 post-audit holes closed (Fixes A/B/C)"*. No content outside these three fixes was rephrased or removed.
+
+---
+
 ## Annex A — Synthesizer prompt bodies (binding)
 
 These are the system-prompt templates the Coder MUST implement in `backend/app/llm/prompts/synthesizer.py`. **English only** (these are SYSTEM prompts; the runtime reply switches language via the trailing instruction). The shared system block is concatenated with exactly one per-kind block; together they form the system message. The user message carries `{question}` + `{evidence_block}`.
@@ -866,6 +980,8 @@ Example:
 
 Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `weighted`.
 ```
+
+> **Q6 binding (Fix C, 2026-05-27).** The `WEIGHTED` template is the template Q6 ("Should a high-scale AI platform use event-driven architecture or synchronous microservices?") routes to, since Fix C reverted row 6 of §0.8 from `SUBJECTIVE_OPINION → TRADEOFF` back to `COMPARATIVE → WEIGHTED`. The Coder MUST keep at least one synthesizer fixture (`backend/tests/fixtures/synthesizer/weighted_q6.json`) anchored to this question so the WP-2 per-kind tests cover the post-audit routing.
 
 ### Per-kind block — `SCENARIO`
 
