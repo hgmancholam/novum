@@ -6,13 +6,14 @@ All events have:
 """
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import (
     AnswerKind,
+    ComplexityHint,
     EventType,
     EvidencePolarity,
     QuestionType,
@@ -63,6 +64,19 @@ class QuestionNormalizedEvent(BaseEvent):
     was_corrected: bool
     language: str
 
+class QuestionClassifiedEvent(BaseEvent):
+    """Question classified with type and complexity hint (BRD-22).
+
+    Emitted after normalization and classifier LLM call. Optional fields
+    (``complexity_hint``, ``heuristic_signals``) are additive per RF-03;
+    pre-BRD-22 events lack them and replay tolerates absence.
+    """
+
+    type: Literal[EventType.QUESTION_CLASSIFIED] = EventType.QUESTION_CLASSIFIED
+    question_type: QuestionType
+    classifier_confidence: float
+    complexity_hint: ComplexityHint | None = None
+    heuristic_signals: dict[str, Any] | None = None
 
 class SubClaim(BaseModel):
     """A sub-claim in the research plan."""
@@ -80,6 +94,9 @@ class PlanCreatedEvent(BaseEvent):
     type: Literal[EventType.PLAN_CREATED] = EventType.PLAN_CREATED
     sub_claims: list[SubClaim]
     rationale: str
+    complexity_hint: ComplexityHint | None = None  # BRD-22 (mirrored from classifier)
+    expected_experts: list[str] | None = None  # BRD-22 (planner-emitted)
+    preferred_sources: list[str] | None = None  # BRD-22 (e.g. ["wikipedia"] for trivial-factual)
 
 
 class PlanCritiquedEvent(BaseEvent):
@@ -100,6 +117,7 @@ class PlanRevisedEvent(BaseEvent):
     new_sub_claims: list[SubClaim]
     revision_rationale: str
     attempt_number: int  # 1 or 2 (max 2 per RF-14)
+    complexity_hint: ComplexityHint | None = None  # BRD-22 (replay tolerates absence)
 
 
 # =============================================================================
@@ -233,6 +251,24 @@ class UserContextChallengedEvent(BaseEvent):
     user_context_claim: str
     contradicting_evidence: str
     source_url: str
+
+
+class PriorRunHintReplayedEvent(BaseEvent):
+    """Instant-answer cache replay (BRD-22).
+
+    Emitted when the orchestrator short-circuits a new run by reusing a
+    prior high-confidence result. The new run skips classify/plan/search
+    and emits synthetic ``JudgeRuledEvent`` + ``StoppedEvent`` carrying
+    the prior answer payload.
+    """
+
+    type: Literal[EventType.PRIOR_RUN_HINT_REPLAYED] = EventType.PRIOR_RUN_HINT_REPLAYED
+    source_run_id: UUID
+    source_final_confidence: float
+    source_stop_reason: StopReason
+    source_answer_kind: AnswerKind | None = None
+    normalised_question: str
+    prior_completed_at: datetime
 
 
 # =============================================================================
@@ -405,7 +441,7 @@ class StoppedEvent(BaseEvent):
 
 
 Event = Annotated[
-    QuestionAskedEvent | QuestionNormalizedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
+    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
     Field(discriminator="type"),
 ]
 
@@ -414,6 +450,7 @@ Event = Annotated[
 EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
     EventType.QUESTION_ASKED: QuestionAskedEvent,
     EventType.QUESTION_NORMALIZED: QuestionNormalizedEvent,
+    EventType.QUESTION_CLASSIFIED: QuestionClassifiedEvent,
     EventType.PLAN_CREATED: PlanCreatedEvent,
     EventType.PLAN_CRITIQUED: PlanCritiquedEvent,
     EventType.PLAN_REVISED: PlanRevisedEvent,
@@ -426,6 +463,7 @@ EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
     EventType.CONTRADICTION_DETECTED: ContradictionDetectedEvent,
     EventType.CONTRADICTION_RESOLVED: ContradictionResolvedEvent,
     EventType.USER_CONTEXT_CHALLENGED: UserContextChallengedEvent,
+    EventType.PRIOR_RUN_HINT_REPLAYED: PriorRunHintReplayedEvent,
     EventType.JUDGE_RULED: JudgeRuledEvent,
     EventType.CONFIDENCE_MISMATCH: ConfidenceMismatchEvent,
     EventType.SATURATION_DETECTED: SaturationDetectedEvent,

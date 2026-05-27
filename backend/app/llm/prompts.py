@@ -34,7 +34,11 @@ Rules:
 - Only use personal_private when the question requires the user's private data to answer.
 - Language: questions may arrive in Spanish, English, or any other language. Classify by intent, not by spelling.
 
-Output a JSON object matching the QuestionClassification schema with fields `question_type` (string, one of the 8 values above in lowercase snake_case), `rationale` (short string), and `answerable` (bool, always true)."""
+Output a JSON object matching the QuestionClassification schema with fields:
+- `question_type` (string, one of the 8 values above in lowercase snake_case)
+- `rationale` (short string)
+- `answerable` (bool, always true)
+- `confidence` (float, 0.0 to 1.0): your confidence in the classification (0.8-1.0 for clear cases, 0.5-0.79 for ambiguous, <0.5 for very unclear)"""
 
 
 PLANNER_SYSTEM_PROMPT = """You are a research planning assistant. Your job is to decompose questions into verifiable sub-claims.
@@ -54,7 +58,19 @@ WP-6: If you receive planning hints from similar prior runs, you MAY borrow
 relevant sub-claims if they apply to the current question. You MUST NOT
 borrow conclusions or final answers from those runs.
 
-Output format: JSON matching the PlanOutput schema."""
+Expected expert types (BRD-22): Declare which domain experts' sources should be most trusted for this question. Select up to 3 from the vocabulary below. Choose expert types whose specialized knowledge directly matches the question's domain:
+
+Vocabulary: encyclopedia, geographer, nutritionist, medical_researcher, database_engineer, saas_architect, software_engineer, academic_researcher, industry_analyst, legal_scholar, economist, historian
+
+Examples:
+- "What is the capital of Japan?" → ["encyclopedia", "geographer"]
+- "Is intermittent fasting safe for women over 40?" → ["nutritionist", "medical_researcher"]
+- "PostgreSQL vs MongoDB for a small SaaS team" → ["database_engineer"]
+- "What are the long-term societal risks of AI-generated code?" → ["software_engineer", "academic_researcher", "industry_analyst"]
+
+If no expert type matches, or the question is broadly cross-domain, omit the field or return an empty list.
+
+Output format: JSON matching the PlanOutput schema with optional `expected_experts` field (list of strings from the vocabulary above, max 3)."""
 
 
 SYNTHESIZER_SYSTEM_PROMPT = """You are a research agent producing the final answer from gathered evidence.

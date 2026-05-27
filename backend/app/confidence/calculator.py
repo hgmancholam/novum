@@ -47,7 +47,11 @@ class ConfidenceCalculator:
         Returns:
             ConfidenceResult with ceiling applied to structural score
         """
-        structural = calculate_structural_confidence(state, kind_appropriateness)
+        structural = calculate_structural_confidence(
+            state,
+            kind_appropriateness,
+            expected_experts=state.expected_experts or None,
+        )
         s_raw = structural.score
         s_effective = (
             apply_ceiling(s_raw, answer_kind)
@@ -65,7 +69,10 @@ class ConfidenceCalculator:
 
     def check_sufficient(self, state: RunState) -> bool:
         """Per-component sufficiency check (BRD-09 territory, not wired)."""
-        structural = calculate_structural_confidence(state)
+        structural = calculate_structural_confidence(
+            state,
+            expected_experts=state.expected_experts or None,
+        )
         return (
             structural.coverage >= 0.6
             and structural.agreement >= 0.5

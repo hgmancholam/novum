@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from app.agent.experts import match as expert_match
 from app.domain.confidence import StructuralConfidence
 
 if TYPE_CHECKING:
@@ -25,7 +26,10 @@ def calculate_coverage(state: RunState) -> float:
     return len(state.covered_claims) / len(state.sub_claims)
 
 
-def calculate_agreement(evidence: list[EvidenceItem]) -> float:
+def calculate_agreement(
+    evidence: list[EvidenceItem],
+    expected_experts: list[str] | None = None,
+) -> float:
     """C_agreement: confidence-weighted ratio of non-contradicting evidence.
 
     V1 polarity is not yet classified per snippet (search.py emits all
@@ -37,15 +41,33 @@ def calculate_agreement(evidence: list[EvidenceItem]) -> float:
     Formula: ``(supports + neutral) / (supports + neutral + contradicts)``
     weighted by per-item confidence. Returns 0.0 only when the body is
     empty or fully contradicting.
+
+    Args:
+        evidence: List of evidence items
+        expected_experts: Expert labels for credibility boost (US-22-3).
+                         Applies 1.1× multiplier to aligning evidence from
+                         matching sources, clamped per-row to [0, 1].
+                         Contradicting evidence never receives multiplier.
+
+    Returns:
+        Agreement score in [0.0, 1.0]
     """
     if not evidence:
         return 0.0
+    
+    # Apply expert multiplier to aligning evidence only (supports + neutral),
+    # clamped per-row to avoid exceeding 1.0
     aligning_weight = sum(
-        e.confidence for e in evidence if e.polarity in ("supports", "neutral")
+        min(e.confidence * expert_match(e.source_url, expected_experts), 1.0)
+        for e in evidence
+        if e.polarity in ("supports", "neutral")
     )
+    
+    # Contradicting evidence never receives multiplier
     contradicting_weight = sum(
         e.confidence for e in evidence if e.polarity == "contradicts"
     )
+    
     denom = aligning_weight + contradicting_weight
     if denom == 0.0:
         return 0.0
@@ -81,6 +103,7 @@ def calculate_no_conflict(state: RunState) -> float:
 def calculate_structural_confidence(
     state: RunState,
     kind_appropriateness: float = 1.0,
+    expected_experts: list[str] | None = None,
 ) -> StructuralConfidence:
     """Compose the five S components into a ``StructuralConfidence``.
 
@@ -88,13 +111,15 @@ def calculate_structural_confidence(
         state: Current run state
         kind_appropriateness: Judge-scored 0..1 "does AnswerKind fit the question?"
                               (WP-3 G5). Defaults to 1.0 when not yet judged.
+        expected_experts: Expert labels for credibility boost (US-22-3).
+                         Passed through to calculate_agreement.
 
     Returns:
         StructuralConfidence with all components populated
     """
     return StructuralConfidence(
         coverage=calculate_coverage(state),
-        agreement=calculate_agreement(state.evidence),
+        agreement=calculate_agreement(state.evidence, expected_experts=expected_experts),
         diversity=calculate_diversity(state.evidence),
         no_conflict=calculate_no_conflict(state),
         kind_appropriateness=kind_appropriateness,

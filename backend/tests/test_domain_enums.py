@@ -9,6 +9,7 @@ longer short-circuit); ``AnswerKind`` introduced (RF-17).
 
 from app.domain.enums import (
     AnswerKind,
+    ComplexityHint,
     EventType,
     EvidencePolarity,
     OutputFormat,
@@ -76,14 +77,16 @@ def test_output_format_values() -> None:
     assert {v.value for v in OutputFormat} == {"prose", "structured"}
 
 
-def test_event_type_has_exactly_22_values() -> None:
-    assert len(EventType) == 22
+def test_event_type_has_exactly_24_values() -> None:
+    """BRD-22: Added QuestionClassified and PriorRunHintReplayed (24 total)."""
+    assert len(EventType) == 24
 
 
 def test_event_type_values() -> None:
     expected = {
         "QuestionAsked",
         "QuestionNormalized",
+        "QuestionClassified",
         "PlanCreated",
         "PlanCritiqued",
         "PlanRevised",
@@ -96,6 +99,7 @@ def test_event_type_values() -> None:
         "ContradictionDetected",
         "ContradictionResolved",
         "UserContextChallenged",
+        "PriorRunHintReplayed",
         "JudgeRuled",
         "ConfidenceMismatch",
         "AgentErrored",
@@ -121,3 +125,14 @@ def test_enums_are_string_subclass() -> None:
     assert StopReason.JUDGE_CONFIRMED == "judge_confirmed"
     assert EventType.STOPPED == "Stopped"
     assert QuestionType.FACTUAL == "factual"
+
+
+def test_complexity_hint_has_exactly_3_values() -> None:
+    """BRD-22: ComplexityHint enum."""
+    assert len(ComplexityHint) == 3
+
+
+def test_complexity_hint_values() -> None:
+    """BRD-22: trivial, standard, deep."""
+    expected = {"trivial", "standard", "deep"}
+    assert {v.value for v in ComplexityHint} == expected

@@ -106,13 +106,41 @@ def _fold_events(state: RunState, events: list[dict[str, Any]]) -> None:
             case EventType.QUESTION_ASKED.value:
                 # Initial event; nothing to fold (state.question is the input).
                 pass
+            case EventType.QUESTION_CLASSIFIED.value:
+                # BRD-22 Task 4.9: Fold complexity_hint from classifier
+                complexity_hint_str = ev.get("complexity_hint")
+                if complexity_hint_str:
+                    from app.domain.enums import ComplexityHint
+                    state.complexity_hint = ComplexityHint(complexity_hint_str)
+                else:
+                    # Replay tolerates missing field (pre-BRD-22 traces)
+                    from app.domain.enums import ComplexityHint
+                    state.complexity_hint = ComplexityHint.STANDARD
             case EventType.PLAN_CREATED.value:
                 state.sub_claims = [
                     SubClaim.model_validate(c) for c in ev.get("sub_claims", [])
                 ]
+                # BRD-22 Task 4.9: Fold new optional fields
+                complexity_hint_str = ev.get("complexity_hint")
+                if complexity_hint_str:
+                    from app.domain.enums import ComplexityHint
+                    state.complexity_hint = ComplexityHint(complexity_hint_str)
+                state.expected_experts = ev.get("expected_experts") or []
+                state.preferred_sources = ev.get("preferred_sources") or []
+
+                # BRD-22 Task 4.9: Recompute critique_passes_target from budget table
+                from app.agent.tasks.plan import _claim_budget
+                from app.domain.enums import ComplexityHint
+                _min, _max, _sources, critique_passes = _claim_budget(
+                    state.question_type,
+                    state.complexity_hint or ComplexityHint.STANDARD,
+                )
+                state.critique_passes_target = critique_passes
+
                 _apply_state(state, AgentState.CRITIQUING)
             case EventType.PLAN_CRITIQUED.value:
-                pass
+                # BRD-22 Task 4.9: Recompute critique_passes_completed
+                state.critique_passes_completed += 1
             case EventType.PLAN_REVISED.value:
                 state.sub_claims = [
                     SubClaim.model_validate(c) for c in ev.get("new_sub_claims", [])
@@ -144,10 +172,25 @@ def _fold_events(state: RunState, events: list[dict[str, Any]]) -> None:
                 state.contradictions.append(
                     ContradictionDetectedEvent.model_validate(ev)
                 )
+            case EventType.PRIOR_RUN_HINT_REPLAYED.value:
+                # BRD-22 Phase 6: Extract replay metadata for audit
+                source_run_id = ev.get("source_run_id")
+                source_final_confidence = ev.get("source_final_confidence")
+                if source_run_id is not None:
+                    state.metadata["replay_source_run_id"] = source_run_id
+                if source_final_confidence is not None:
+                    state.metadata["replay_source_final_confidence"] = source_final_confidence
+                # No state mutation — the subsequent synthetic JudgeRuledEvent and
+                # StoppedEvent carry the real state changes
             case EventType.JUDGE_RULED.value:
                 state.last_judge_confidence = ev.get("judge_confidence")
                 state.last_structural_confidence = ev.get("structural_confidence")
                 state.judge_attempts += 1
+                # BRD-22 Phase 6: Fold answer_kind and final_confidence from synthetic judge events
+                answer_kind_str = ev.get("answer_kind")
+                if answer_kind_str:
+                    from app.domain.enums import AnswerKind
+                    state.selected_answer_kind = AnswerKind(answer_kind_str)
             case EventType.STOPPED.value:
                 step_index = ev.get("step_index")
                 if isinstance(step_index, int) and step_index in skip_stopped:
@@ -155,6 +198,22 @@ def _fold_events(state: RunState, events: list[dict[str, Any]]) -> None:
                 stop_reason = ev.get("stop_reason")
                 if stop_reason is not None:
                     state.stop_reason = StopReason(stop_reason)
+                # BRD-22 Phase 6: Fold answer fields from StoppedEvent (including cache replays)
+                answer_kind_str = ev.get("answer_kind")
+                if answer_kind_str:
+                    from app.domain.enums import AnswerKind
+                    state.selected_answer_kind = AnswerKind(answer_kind_str)
+                answer_prose = ev.get("answer_prose")
+                if answer_prose:
+                    state.final_answer = answer_prose
+                answer_structured = ev.get("answer_structured")
+                if answer_structured:
+                    state.draft_answer = answer_structured
+                # Also fold stop_rationale if present
+                stop_rationale = ev.get("stop_rationale")
+                if stop_rationale:
+                    # Store in metadata for inspection if needed
+                    state.metadata["stop_rationale"] = stop_rationale
                 _apply_state(state, AgentState.STOPPED)
             case (
                 EventType.RESUMED_AFTER_ERROR.value
@@ -302,6 +361,7 @@ class AgentRunner:
                 user_context=run.user_context,
                 confidence_threshold=run.confidence_threshold,
                 output_format=run.output_format,
+                owner_username=run.owner_username,
             )
             _fold_events(state, prior_events)
 

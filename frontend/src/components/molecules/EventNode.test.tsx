@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { axe } from "jest-axe";
 
 import { EventNode, type TraceEventInput } from "./EventNode";
+import { useSelectionStore } from "@/stores/selectionStore";
 
 function makeEvent(overrides: Partial<TraceEventInput> = {}): TraceEventInput {
   return {
@@ -17,6 +18,10 @@ function makeEvent(overrides: Partial<TraceEventInput> = {}): TraceEventInput {
 }
 
 describe("EventNode", () => {
+  beforeEach(() => {
+    useSelectionStore.setState({ selectedRunId: null });
+  });
+  
   it("renders compact by default (no payload viewer)", () => {
     render(
       <EventNode event={makeEvent()} expanded={false} onToggle={() => {}} />
@@ -99,6 +104,67 @@ describe("EventNode", () => {
         <EventNode event={makeEvent()} expanded={true} onToggle={() => {}} />
       </ol>
     );
-    expect(await axe(container)).toHaveNoViolations();
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+
+  describe("PriorRunHintReplayed special rendering (IP-22)", () => {
+    it("renders with Recycle icon and formatted label", () => {
+      const priorEvent: TraceEventInput = {
+        key: "id:replay",
+        type: "PriorRunHintReplayed",
+        payload: {
+          source_run_id: "run-456",
+          source_final_confidence: 0.93,
+          prior_completed_at: new Date(
+            Date.now() - 2 * 60 * 60 * 1000
+          ).toISOString(),
+        },
+      };
+      render(
+        <EventNode event={priorEvent} expanded={false} onToggle={() => {}} />
+      );
+      const node = screen.getByTestId("event-node");
+      expect(node).toHaveTextContent("Prior result reused");
+      expect(node).toHaveTextContent("Same question answered");
+      expect(node).toHaveTextContent("confidence 0.93");
+    });
+
+    it("navigates to source_run_id on click", () => {
+      const priorEvent: TraceEventInput = {
+        key: "id:replay",
+        type: "PriorRunHintReplayed",
+        payload: {
+          source_run_id: "run-789",
+          source_final_confidence: 0.88,
+          prior_completed_at: new Date().toISOString(),
+        },
+      };
+      render(
+        <EventNode event={priorEvent} expanded={false} onToggle={() => {}} />
+      );
+      const btn = within(screen.getByTestId("event-node")).getByRole("link");
+      fireEvent.click(btn);
+      expect(useSelectionStore.getState().selectedRunId).toBe("run-789");
+    });
+
+    it("has role=link and proper aria-label", () => {
+      const priorEvent: TraceEventInput = {
+        key: "id:replay",
+        type: "PriorRunHintReplayed",
+        payload: {
+          source_run_id: "run-999",
+          source_final_confidence: 0.85,
+          prior_completed_at: new Date().toISOString(),
+        },
+      };
+      render(
+        <EventNode event={priorEvent} expanded={false} onToggle={() => {}} />
+      );
+      const btn = within(screen.getByTestId("event-node")).getByRole("link");
+      expect(btn).toHaveAttribute("aria-label");
+      expect(btn.getAttribute("aria-label")).toMatch(/Same question answered/);
+      expect(btn.getAttribute("aria-label")).toMatch(/confidence 0.85/);
+    });
   });
 });

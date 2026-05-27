@@ -42,7 +42,7 @@ async def test_all_8_question_types_map_correctly(
 ) -> None:
     """WP-2.0: All 8 question types are answerable and map string to enum."""
     mock_create.return_value = _classification(question_type_str)
-    mapped, verdict = await classify.classify_question("q?")
+    mapped, verdict, complexity_hint, heuristic_signals = await classify.classify_question("q?")
     assert mapped == expected
     assert verdict.question_type == question_type_str
 

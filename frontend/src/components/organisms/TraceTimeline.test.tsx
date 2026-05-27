@@ -230,4 +230,28 @@ describe("TraceTimeline", () => {
     );
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  it("renders PriorRunHintReplayed event correctly (IP-22)", () => {
+    render(
+      <TraceTimeline
+        events={[
+          evt("QuestionAsked", { id: "q1" }),
+          evt("PriorRunHintReplayed", {
+            id: "replay1",
+            source_run_id: "run-456",
+            source_final_confidence: 0.92,
+            prior_completed_at: new Date().toISOString(),
+          }),
+        ]}
+        isComplete={false}
+      />
+    );
+    const nodes = screen.getAllByTestId("event-node");
+    const replayNode = nodes.find(
+      (n) => n.getAttribute("data-event-type") === "PriorRunHintReplayed"
+    );
+    expect(replayNode).toBeDefined();
+    expect(replayNode).toHaveTextContent("Prior result reused");
+    expect(replayNode).toHaveTextContent("confidence 0.92");
+  });
 });

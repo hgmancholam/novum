@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-27T15:33:12.754338+00:00
+// Generated: 2026-05-27T21:37:38.249909+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -38,6 +38,7 @@ export type SourceType =
 export type EventType =
   | "QuestionAsked"
   | "QuestionNormalized"
+  | "QuestionClassified"
   | "PlanCreated"
   | "PlanCritiqued"
   | "PlanRevised"
@@ -50,6 +51,7 @@ export type EventType =
   | "ContradictionDetected"
   | "ContradictionResolved"
   | "UserContextChallenged"
+  | "PriorRunHintReplayed"
   | "JudgeRuled"
   | "ConfidenceMismatch"
   | "SaturationDetected"
@@ -624,6 +626,16 @@ export const EventSchema = {
       ],
       "title": "ClaimUncoverableEvent",
       "type": "object"
+    },
+    "ComplexityHint": {
+      "description": "Question complexity classification for planning budget (BRD-22).\n\n- ``trivial``: short factual/definitional queries (\u22648 words) \u2192 1 claim, 1 source, no critique\n- ``standard``: typical questions \u2192 current default budget\n- ``deep``: research-heavy questions (\u226516 words or STATE_OF_ART) \u2192 extra critique pass",
+      "enum": [
+        "trivial",
+        "standard",
+        "deep"
+      ],
+      "title": "ComplexityHint",
+      "type": "string"
     },
     "ConfidenceMismatchEvent": {
       "additionalProperties": true,
@@ -1666,6 +1678,47 @@ export const EventSchema = {
         "rationale": {
           "title": "Rationale",
           "type": "string"
+        },
+        "complexity_hint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComplexityHint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "expected_experts": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Experts"
+        },
+        "preferred_sources": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Preferred Sources"
         }
       },
       "required": [
@@ -1887,6 +1940,123 @@ export const EventSchema = {
       "title": "PlanRevisedEvent",
       "type": "object"
     },
+    "PriorRunHintReplayedEvent": {
+      "additionalProperties": true,
+      "description": "Instant-answer cache replay (BRD-22).\n\nEmitted when the orchestrator short-circuits a new run by reusing a\nprior high-confidence result. The new run skips classify/plan/search\nand emits synthetic ``JudgeRuledEvent`` + ``StoppedEvent`` carrying\nthe prior answer payload.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "PriorRunHintReplayed",
+          "default": "PriorRunHintReplayed",
+          "title": "Type",
+          "type": "string"
+        },
+        "source_run_id": {
+          "format": "uuid",
+          "title": "Source Run Id",
+          "type": "string"
+        },
+        "source_final_confidence": {
+          "title": "Source Final Confidence",
+          "type": "number"
+        },
+        "source_stop_reason": {
+          "$ref": "#/$defs/StopReason"
+        },
+        "source_answer_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnswerKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "normalised_question": {
+          "title": "Normalised Question",
+          "type": "string"
+        },
+        "prior_completed_at": {
+          "format": "date-time",
+          "title": "Prior Completed At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_run_id",
+        "source_final_confidence",
+        "source_stop_reason",
+        "normalised_question",
+        "prior_completed_at"
+      ],
+      "title": "PriorRunHintReplayedEvent",
+      "type": "object"
+    },
     "QuestionAskedEvent": {
       "additionalProperties": true,
       "description": "Initial question submitted by user.",
@@ -1993,6 +2163,119 @@ export const EventSchema = {
         "question"
       ],
       "title": "QuestionAskedEvent",
+      "type": "object"
+    },
+    "QuestionClassifiedEvent": {
+      "additionalProperties": true,
+      "description": "Question classified with type and complexity hint (BRD-22).\n\nEmitted after normalization and classifier LLM call. Optional fields\n(``complexity_hint``, ``heuristic_signals``) are additive per RF-03;\npre-BRD-22 events lack them and replay tolerates absence.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "QuestionClassified",
+          "default": "QuestionClassified",
+          "title": "Type",
+          "type": "string"
+        },
+        "question_type": {
+          "$ref": "#/$defs/QuestionType"
+        },
+        "classifier_confidence": {
+          "title": "Classifier Confidence",
+          "type": "number"
+        },
+        "complexity_hint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComplexityHint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heuristic_signals": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heuristic Signals"
+        }
+      },
+      "required": [
+        "question_type",
+        "classifier_confidence"
+      ],
+      "title": "QuestionClassifiedEvent",
       "type": "object"
     },
     "QuestionNormalizedEvent": {
@@ -3077,7 +3360,9 @@ export const EventSchema = {
       "PlanCreated": "#/$defs/PlanCreatedEvent",
       "PlanCritiqued": "#/$defs/PlanCritiquedEvent",
       "PlanRevised": "#/$defs/PlanRevisedEvent",
+      "PriorRunHintReplayed": "#/$defs/PriorRunHintReplayedEvent",
       "QuestionAsked": "#/$defs/QuestionAskedEvent",
+      "QuestionClassified": "#/$defs/QuestionClassifiedEvent",
       "QuestionNormalized": "#/$defs/QuestionNormalizedEvent",
       "ResumedAfterCancel": "#/$defs/ResumedAfterCancelEvent",
       "ResumedAfterError": "#/$defs/ResumedAfterErrorEvent",
@@ -3095,6 +3380,9 @@ export const EventSchema = {
     },
     {
       "$ref": "#/$defs/QuestionNormalizedEvent"
+    },
+    {
+      "$ref": "#/$defs/QuestionClassifiedEvent"
     },
     {
       "$ref": "#/$defs/PlanCreatedEvent"
@@ -3133,6 +3421,9 @@ export const EventSchema = {
       "$ref": "#/$defs/UserContextChallengedEvent"
     },
     {
+      "$ref": "#/$defs/PriorRunHintReplayedEvent"
+    },
+    {
       "$ref": "#/$defs/JudgeRuledEvent"
     },
     {
@@ -3167,6 +3458,7 @@ export const EventSchema = {
 // Event =
 //     QuestionAskedEvent
 //   | QuestionNormalizedEvent
+//   | QuestionClassifiedEvent
 //   | PlanCreatedEvent
 //   | PlanCritiquedEvent
 //   | PlanRevisedEvent
@@ -3179,6 +3471,7 @@ export const EventSchema = {
 //   | ContradictionDetectedEvent
 //   | ContradictionResolvedEvent
 //   | UserContextChallengedEvent
+//   | PriorRunHintReplayedEvent
 //   | JudgeRuledEvent
 //   | ConfidenceMismatchEvent
 //   | SaturationDetectedEvent

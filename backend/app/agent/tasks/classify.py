@@ -1,6 +1,7 @@
-"""RF-06 question classifier wrapper.
+"""RF-06 question classifier wrapper + BRD-22 complexity heuristic.
 
-Calls ``LLMRole.CLASSIFIER`` and returns the ``QuestionType`` enum value.
+Calls ``LLMRole.CLASSIFIER`` and returns the ``QuestionType`` enum value
+plus a ``ComplexityHint`` derived from deterministic heuristics.
 All 8 types are now answerable (WP-2.0 amendment) — no more
 ``honest_unanswerable`` emission from the classifier.
 
@@ -11,9 +12,12 @@ plausible evaluation dimensions.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
-from app.domain.enums import QuestionType
+from app.agent.complexity import derive_complexity_hint
+from app.domain.enums import ComplexityHint, QuestionType
 from app.domain.events import AmbiguityDetectedEvent
 from app.llm import LLMRole, QuestionClassification, llm
 
@@ -35,12 +39,22 @@ class AmbiguityDimensions(BaseModel):
 
 async def classify_question(
     question: str,
-) -> tuple[QuestionType, QuestionClassification]:
-    """Classify ``question`` and return ``(mapped_type, raw_verdict)``.
+) -> tuple[QuestionType, QuestionClassification, ComplexityHint, dict[str, Any]]:
+    """Classify ``question`` and derive complexity hint (BRD-22).
+
+    Returns:
+        (question_type, verdict, complexity_hint, heuristic_signals) where:
+        - question_type: QuestionType enum
+        - verdict: raw LLM classification output
+        - complexity_hint: ComplexityHint enum (trivial/standard/deep)
+        - heuristic_signals: dict with word_count, entity_count, single_entity, confidence_floor_met
 
     WP-2.0: all 8 types are answerable. The LLM returns one of the 8
     lowercase snake_case strings; we convert it to the ``QuestionType``
     enum. If the string doesn't match, raise ``ValueError``.
+
+    BRD-22: after classification, derive complexity hint using deterministic
+    heuristic over question length, type, classifier confidence, and entity count.
     """
     verdict = await llm.call(
         role=LLMRole.CLASSIFIER,
@@ -53,7 +67,17 @@ async def classify_question(
         raise ValueError(
             f"Classifier returned unrecognized question_type: {verdict.question_type!r}"
         ) from exc
-    return question_type, verdict
+
+    # BRD-22: derive complexity hint
+    # Use verdict.confidence or default to 1.0 for back-compat (Task 3.3)
+    classifier_confidence = verdict.confidence if verdict.confidence is not None else 1.0
+    complexity_hint, heuristic_signals = derive_complexity_hint(
+        question=question,
+        question_type=question_type,
+        classifier_confidence=classifier_confidence,
+    )
+
+    return question_type, verdict, complexity_hint, heuristic_signals
 
 
 async def detect_empty_comparative(

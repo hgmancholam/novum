@@ -76,12 +76,26 @@ class OutputFormat(StrEnum):
     STRUCTURED = "structured"
 
 
+class ComplexityHint(StrEnum):
+    """Question complexity classification for planning budget (BRD-22).
+
+    - ``trivial``: short factual/definitional queries (≤8 words) → 1 claim, 1 source, no critique
+    - ``standard``: typical questions → current default budget
+    - ``deep``: research-heavy questions (≥16 words or STATE_OF_ART) → extra critique pass
+    """
+
+    TRIVIAL = "trivial"
+    STANDARD = "standard"
+    DEEP = "deep"
+
+
 class EventType(StrEnum):
-    """All event types (20) for the event log."""
+    """All event types (22) for the event log."""
 
     # Question & Planning
     QUESTION_ASKED = "QuestionAsked"
     QUESTION_NORMALIZED = "QuestionNormalized"
+    QUESTION_CLASSIFIED = "QuestionClassified"
     PLAN_CREATED = "PlanCreated"
     PLAN_CRITIQUED = "PlanCritiqued"
     PLAN_REVISED = "PlanRevised"
@@ -98,6 +112,7 @@ class EventType(StrEnum):
     CONTRADICTION_DETECTED = "ContradictionDetected"
     CONTRADICTION_RESOLVED = "ContradictionResolved"
     USER_CONTEXT_CHALLENGED = "UserContextChallenged"
+    PRIOR_RUN_HINT_REPLAYED = "PriorRunHintReplayed"
 
     # Judge & Confidence
     JUDGE_RULED = "JudgeRuled"

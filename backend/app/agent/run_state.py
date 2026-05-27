@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.agent.states import AgentState, can_transition
-from app.domain.enums import AnswerKind, EventType, QuestionType, StopReason
+from app.domain.enums import AnswerKind, ComplexityHint, EventType, QuestionType, StopReason
 from app.domain.events import (
     AnswerSection,
     BaseEvent,
@@ -49,8 +49,21 @@ class RunState(BaseModel):
     confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
     output_format: str = "prose"
 
+    # BRD-22 Phase 6: Instant cache requires owner to scope cache keys
+    owner_username: str | None = None
+
+    # BRD-22 Phase 6: Transient metadata for replay source tracking
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
     # Set by a future ambiguity-detection task; read by HonestStopSignal (BRD-09).
     has_ambiguity: bool = False
+
+    # BRD-22: Complexity-aware planning
+    complexity_hint: ComplexityHint | None = None
+    critique_passes_target: int = 1  # Recomputed during fold (never persisted)
+    critique_passes_completed: int = 0  # Recomputed during fold (never persisted)
+    expected_experts: list[str] = Field(default_factory=list)
+    preferred_sources: list[str] = Field(default_factory=list)
 
     current_state: AgentState = AgentState.INIT
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

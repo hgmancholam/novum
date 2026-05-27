@@ -584,3 +584,108 @@ async def test_supervised_run_rehydrates_to_searching_after_resume(
     # Evidence and claims were folded back in.
     assert len(state.evidence) == 1
     assert len(state.sub_claims) == 1
+
+
+# ---------------------------------------------------------------------------
+# BRD-22: Complexity features integration (TC-07, TC-08)
+# ---------------------------------------------------------------------------
+
+
+async def test_wikipedia_first_in_preferred_sources(
+    patched_runner: AgentRunner,
+    seeded_run: UUID,
+    sqlite_session_maker: async_sessionmaker[object],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TC-07: trivial+FACTUAL sets preferred_sources=["wikipedia"]."""
+    from app.domain.enums import ComplexityHint
+    from app.services.event_service import EventService
+
+    async with sqlite_session_maker() as s:
+        svc = EventService(s)
+        await svc.append_event(
+            seeded_run, QuestionAskedEvent(question="Capital of Japan?")
+        )
+        await svc.append_event(
+            seeded_run,
+            PlanCreatedEvent(
+                sub_claims=[SubClaim(id="c1", text="x")],
+                rationale="r",
+                complexity_hint=ComplexityHint.TRIVIAL,
+                preferred_sources=["wikipedia"],
+            ),
+        )
+
+    captured: dict[str, RunState] = {}
+
+    async def script(orch: FakeOrchestrator) -> None:
+        captured["state"] = orch.state
+        await orch._emit(StoppedEvent(stop_reason=StopReason.JUDGE_CONFIRMED))
+
+    monkeypatch.setattr(
+        runner_module, "AgentOrchestrator", _make_fake_factory(script)
+    )
+
+    await patched_runner.start(seeded_run)
+    async with asyncio.timeout(2.0):
+        await patched_runner.await_terminal(seeded_run, timeout=2.0)
+
+    assert "state" in captured
+    state = captured["state"]
+    assert state.preferred_sources == ["wikipedia"]
+
+
+async def test_trivial_path_latency_under_5s(
+    patched_runner: AgentRunner,
+    seeded_run: UUID,
+    sqlite_session_maker: async_sessionmaker[object],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TC-08: Mocked trivial path (no LLM calls, no critique) completes quickly."""
+    from app.domain.enums import ComplexityHint
+    from app.services.event_service import EventService
+    import time
+
+    # Seed trivial path: QuestionAsked → PlanCreated (no critique)
+    async with sqlite_session_maker() as s:
+        svc = EventService(s)
+        await svc.append_event(
+            seeded_run, QuestionAskedEvent(question="Tokyo?")
+        )
+
+    async def script(orch: FakeOrchestrator) -> None:
+        # Trivial path emits PlanCreated with critique_passes_target=0
+        await orch._emit(
+            PlanCreatedEvent(
+                sub_claims=[SubClaim(id="c1", text="x")],
+                rationale="r",
+                complexity_hint=ComplexityHint.TRIVIAL,
+                preferred_sources=["wikipedia"],
+            )
+        )
+        # Skip critique, go straight to terminal
+        await orch._emit(StoppedEvent(stop_reason=StopReason.JUDGE_CONFIRMED))
+
+    monkeypatch.setattr(
+        runner_module, "AgentOrchestrator", _make_fake_factory(script)
+    )
+
+    start = time.time()
+    await patched_runner.start(seeded_run)
+    async with asyncio.timeout(5.0):
+        await patched_runner.await_terminal(seeded_run, timeout=5.0)
+    elapsed = time.time() - start
+
+    # Assert latency under 5s (mocked, no real LLM or search)
+    assert elapsed < 5.0
+
+    # Verify no PlanCritiquedEvent was emitted
+    async with sqlite_session_maker() as s:
+        from sqlalchemy import select as sa_select
+        events = (
+            await s.execute(
+                sa_select(Event).where(Event.run_id == seeded_run).order_by(Event.step_index)
+            )
+        ).scalars().all()
+    types = [e.type for e in events]
+    assert EventType.PLAN_CRITIQUED.value not in types

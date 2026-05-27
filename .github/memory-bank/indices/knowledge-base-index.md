@@ -89,7 +89,17 @@
 
 | ID | User Story | Date | Status | Location |
 |----|------------|------|--------|----------|
+| IP-22 | US-22-1, US-22-2, US-22-3, US-22-4 (BRD-22) | 2026-05-27 | F2 approved (iter 2: 9.6/10 ✅) → Ready for F3 | [IP-22](../../../docs/implementation-phase/implementation-plans/IP-22-complexity-aware-planning-and-experts.md) |
 | PLAN-US-20 | US-20-A + US-20-B (BRD-20) | 2026-05-28 | Implemented | [PLAN-US-20](../../../docs/implementation-phase/implementation-plans/PLAN-US-20-delete-run-and-pagination.md) |
+
+---
+
+## Audit Reports
+
+| ID | Plan Reference | Iteration | Score | Status | Location |
+|----|----------------|-----------|-------|--------|----------|
+| AUDIT-IP-22 | IP-22 (BRD-22) | 1 | 8.2/10 | Needs Revision | [AUDIT-IP-22](../../../docs/implementation-phase/audits/AUDIT-IP-22-complexity-aware-planning-and-experts.md) |
+| AUDIT-IP-22 | IP-22 (BRD-22) | 2 | 9.6/10 | ✅ Approved | [AUDIT-IP-22](../../../docs/implementation-phase/audits/AUDIT-IP-22-complexity-aware-planning-and-experts.md) |
 
 ---
 

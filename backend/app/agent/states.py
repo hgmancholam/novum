@@ -22,7 +22,7 @@ class AgentState(StrEnum):
 
 TRANSITIONS: dict[AgentState, set[AgentState]] = {
     AgentState.INIT: {AgentState.PLANNING, AgentState.STOPPED, AgentState.ERRORED},
-    AgentState.PLANNING: {AgentState.CRITIQUING, AgentState.STOPPED, AgentState.ERRORED},
+    AgentState.PLANNING: {AgentState.CRITIQUING, AgentState.SEARCHING, AgentState.STOPPED, AgentState.ERRORED},
     AgentState.CRITIQUING: {
         AgentState.SEARCHING,
         AgentState.REVISING,

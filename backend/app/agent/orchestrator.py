@@ -38,6 +38,7 @@ from app.domain.events import (
     BaseEvent,
     ConfidenceMismatchEvent,
     QuestionAskedEvent,
+    QuestionClassifiedEvent,
     StoppedEvent,
     StopRationale,
 )
@@ -78,6 +79,27 @@ class AgentOrchestrator:
         # FSM (typically SEARCHING), so we skip straight into the loop.
         is_fresh = self.state.current_state == AgentState.INIT
         if is_fresh:
+            # BRD-22 Phase 6: Try instant cache replay BEFORE emitting QuestionAskedEvent
+            from app.agent.instant_cache import try_replay
+
+            cached = try_replay(self.state.owner_username, self.state.question)
+            if cached is not None:
+                # Cache hit — emit canonical opener, then replay events and stop
+                await self.emit(
+                    QuestionAskedEvent(
+                        question=self.state.question,
+                        user_context=self.state.user_context,
+                        detected_question_type=None,
+                    )
+                )
+                self.state.total_tokens += count_tokens(self.state.question)
+                # Cancel observed between QuestionAsked emit and replay wins over replay
+                if self._cancelled:
+                    await self._stop(StopReason.USER_CANCELLED)
+                    return StopReason.USER_CANCELLED
+                return await self._stop_from_cache(cached)
+
+            # Cache miss — proceed with normal flow
             await self.emit(
                 QuestionAskedEvent(
                     question=self.state.question,
@@ -126,20 +148,47 @@ class AgentOrchestrator:
         return self.state.stop_reason or StopReason.ERRORED
 
     async def _detect_question_type(self) -> bool:
-        """Classify question type (WP-1 always returns a type, no short-circuit).
+        """Classify question type + derive complexity hint (BRD-22).
+
+        Returns:
+            True (always continues; WP-1 removed the short-circuit path).
+
+        Emits:
+            QuestionClassifiedEvent with question_type, classifier_confidence,
+            complexity_hint, and heuristic_signals.
 
         WP-2 G9: also runs the empty-comparative detector and emits
         ``AmbiguityDetectedEvent`` for underspecified comparatives so that
         ``draft.py`` derives ``ambiguity_flag=True`` and the resolver routes
         the run to ``BEST_EFFORT`` per §0.8 row 3.
+
+        BRD-22 (Task 3.4): captures complexity_hint from classifier and emits it
+        in QuestionClassifiedEvent. The complexity_hint and expected_experts will
+        be stored in RunState later in Task 4.6/4.7 when the planner uses them.
         """
-        mapped, _ = await classify_question(self.state.question)
+        # BRD-22: classify_question now returns 4-tuple
+        mapped, verdict, complexity_hint, heuristic_signals = await classify_question(
+            self.state.question
+        )
         if mapped is None:
             # Defensive: classifier should never return None post-WP-1.
             # If it does, default to FACTUAL and let resolver pick the right kind.
             from app.domain.enums import QuestionType
             mapped = QuestionType.FACTUAL
+
         self.state.question_type = mapped
+        # BRD-22 Task 3.4: Store complexity_hint in RunState for planner
+        self.state.complexity_hint = complexity_hint
+
+        # Emit QuestionClassifiedEvent with BRD-22 fields
+        await self.emit(
+            QuestionClassifiedEvent(
+                question_type=mapped,
+                classifier_confidence=verdict.confidence or 1.0,
+                complexity_hint=complexity_hint,
+                heuristic_signals=heuristic_signals,
+            )
+        )
 
         try:
             ambiguity_event = await detect_empty_comparative(
@@ -178,17 +227,51 @@ class AgentOrchestrator:
             self.state.question = event.normalized_question
 
     async def _handle_planning(self) -> None:
+        """Create initial plan (BRD-22: with complexity_hint + experts)."""
         event = await create_plan(
             self.state.question,
             question_type=self.state.question_type,
+            complexity_hint=self.state.complexity_hint,
         )
         self.state.sub_claims = list(event.sub_claims)
+
+        # BRD-22 Task 4.7: Store expected_experts and preferred_sources
+        self.state.expected_experts = list(event.expected_experts or [])
+        self.state.preferred_sources = list(event.preferred_sources or [])
+
+        # BRD-22 Task 4.7: Compute critique_passes_target from budget table
+        from app.agent.tasks.plan import _claim_budget
+        from app.domain.enums import ComplexityHint
+
+        _min, _max, _sources_per_claim, critique_passes = _claim_budget(
+            self.state.question_type,
+            self.state.complexity_hint or ComplexityHint.STANDARD,
+        )
+        self.state.critique_passes_target = critique_passes
+
         await self.emit(event)
-        self.state.transition_to(AgentState.CRITIQUING)
+
+        # BRD-22 Task 4.7: Skip CRITIQUING when target == 0 (trivial path)
+        if self.state.critique_passes_target == 0:
+            self.state.transition_to(AgentState.SEARCHING)
+        else:
+            self.state.transition_to(AgentState.CRITIQUING)
 
     async def _handle_critiquing(self) -> None:
+        """Critique plan (BRD-22 Task 4.8: forced extra pass for deep)."""
+        # BRD-22 Task 4.8: Increment counter at top
+        self.state.critique_passes_completed += 1
+
         critique = await critique_plan(self.state.question, self.state.sub_claims)
         await self.emit(critique)
+
+        # BRD-22 Task 4.8: Force REVISING when critique_passes_completed < target
+        if self.state.critique_passes_completed < self.state.critique_passes_target:
+            # Mandatory extra pass for deep — ignore acceptable verdict
+            self.state.transition_to(AgentState.REVISING)
+            return
+
+        # Normal branching when target met
         if critique.acceptable:
             self.state.transition_to(AgentState.SEARCHING)
             return
@@ -198,6 +281,7 @@ class AgentOrchestrator:
         self.state.transition_to(AgentState.REVISING)
 
     async def _handle_revising(self) -> None:
+        """Revise plan after critique rejection (BRD-22: pass complexity_hint)."""
         self.state.plan_revision_count += 1
         revised = await revise_plan(
             self.state.question,
@@ -205,6 +289,7 @@ class AgentOrchestrator:
             attempt_number=self.state.plan_revision_count,
             critique_issues=None,
             question_type=self.state.question_type,
+            complexity_hint=self.state.complexity_hint,
         )
         await self.emit(revised)
         self.state.sub_claims = list(revised.new_sub_claims)
@@ -278,7 +363,10 @@ class AgentOrchestrator:
         self.state.last_judge_confidence = judge_event.judge_confidence
         self.state.last_structural_confidence = judge_event.structural_confidence
         self.state.last_coverage = calculate_coverage(self.state)
-        self.state.last_agreement = calculate_agreement(self.state.evidence)
+        self.state.last_agreement = calculate_agreement(
+            self.state.evidence,
+            expected_experts=self.state.expected_experts or None,
+        )
         self.state.judge_attempts += 1
 
         # WP-3 G8: Early-stop for trivial-fact questions (matrix row 1).
@@ -463,6 +551,37 @@ class AgentOrchestrator:
                 total_tokens=self.state.total_tokens,
             )
         )
+
+        # BRD-22 Phase 6: Record to instant cache when JUDGE_CONFIRMED with judge_confidence
+        if (
+            reason == StopReason.JUDGE_CONFIRMED
+            and self.state.last_judge_confidence is not None
+            and self.state.owner_username
+            and not getattr(self, "_from_cache_replay", False)
+        ):
+            from datetime import UTC, datetime
+
+            from app.agent.instant_cache import CachedRun, record_run
+
+            cached_payload = CachedRun(
+                run_id=self.state.run_id,
+                final_confidence=self.state.last_judge_confidence,
+                judge_confidence=self.state.last_judge_confidence,
+                structural_confidence=self.state.last_structural_confidence,
+                stop_reason=reason,
+                answer_kind=answer_kind,
+                answer_prose=answer,
+                answer_structured=answer_structured,
+                answer_structured_data=answer_structured_data,
+                citations=None,  # TODO: extract from evidence or state if available
+                completed_at=datetime.now(UTC),
+            )
+            record_run(
+                self.state.owner_username,
+                self.state.question,
+                cached_payload,
+            )
+
         logger.info(
             "agent_run_complete",
             run_id=str(self.state.run_id),
@@ -470,3 +589,92 @@ class AgentOrchestrator:
             iterations=self.state.iteration_count,
         )
         return reason
+
+    async def _stop_from_cache(self, cached: Any) -> StopReason:
+        """Replay a cached answer by emitting synthetic events.
+
+        BRD-22 Phase 6: Emit PriorRunHintReplayedEvent, synthetic JudgeRuledEvent,
+        and StoppedEvent with triggering_signal="instant_cache". Sets internal
+        flag to prevent re-caching the replayed run.
+
+        Args:
+            cached: CachedRun instance from instant_cache.try_replay.
+
+        Returns:
+            StopReason.JUDGE_CONFIRMED.
+        """
+        from datetime import UTC, datetime
+
+        from app.agent.instant_cache import CachedRun, normalise_question
+        from app.domain.events import JudgeRuledEvent, PriorRunHintReplayedEvent
+
+        # Type guard
+        if not isinstance(cached, CachedRun):
+            raise TypeError(f"Expected CachedRun, got {type(cached)}")
+
+        # Set flag to prevent re-caching this replayed run
+        self._from_cache_replay = True
+
+        # Emit PriorRunHintReplayedEvent
+        await self.emit(
+            PriorRunHintReplayedEvent(
+                source_run_id=cached.run_id,
+                source_final_confidence=cached.final_confidence,
+                source_stop_reason=cached.stop_reason,
+                source_answer_kind=cached.answer_kind,
+                normalised_question=normalise_question(self.state.question),
+                prior_completed_at=cached.completed_at,
+            )
+        )
+
+        # Emit synthetic JudgeRuledEvent carrying prior confidence and answer fields
+        await self.emit(
+            JudgeRuledEvent(
+                judge_model="replayed",
+                judge_confidence=cached.judge_confidence or cached.final_confidence,
+                structural_confidence=cached.structural_confidence or cached.final_confidence,
+                final_confidence=cached.final_confidence,
+                threshold=self.state.confidence_threshold,
+                passed=True,
+                rationale="Replayed from instant cache",
+                answer_kind=cached.answer_kind,
+            )
+        )
+
+        # Update state for terminal fields
+        self.state.last_judge_confidence = cached.judge_confidence or cached.final_confidence
+        self.state.last_structural_confidence = cached.structural_confidence or cached.final_confidence
+        self.state.selected_answer_kind = cached.answer_kind
+        self.state.final_answer = cached.answer_prose
+
+        # Build StoppedEvent with triggering_signal="instant_cache"
+        stop_rationale = StopRationale(
+            reason=StopReason.JUDGE_CONFIRMED,
+            triggering_signal="instant_cache",
+            summary=f"Replayed from cache with confidence {cached.final_confidence:.2f}",
+            confidence=cached.final_confidence,
+        )
+
+        self.state.stop_reason = StopReason.JUDGE_CONFIRMED
+        self.state.transition_to(AgentState.STOPPED)
+
+        await self.emit(
+            StoppedEvent(
+                stop_reason=StopReason.JUDGE_CONFIRMED,
+                answer_prose=cached.answer_prose,
+                answer_structured=cached.answer_structured,
+                answer_structured_data=cached.answer_structured_data,
+                answer_kind=cached.answer_kind,
+                stop_rationale=stop_rationale,
+                total_tokens=self.state.total_tokens,
+            )
+        )
+
+        logger.info(
+            "agent_run_cache_replay",
+            run_id=str(self.state.run_id),
+            source_run_id=str(cached.run_id),
+            final_confidence=cached.final_confidence,
+        )
+
+        return StopReason.JUDGE_CONFIRMED

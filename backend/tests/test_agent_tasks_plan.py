@@ -99,4 +99,4 @@ async def test_create_plan_scales_claim_budget_by_question_type(
 
 
 def test_claim_budget_defaults_to_middle_range_when_unknown() -> None:
-    assert plan._claim_budget(None) == (3, 5)
+    assert plan._claim_budget(None, None) == (3, 5, 2, 1)

@@ -3,8 +3,8 @@
 > Repository of lessons learned during the Novum development.
 > All agents must consult this before starting tasks and update after completing them.
 
-**Last Updated:** 2026-05-26
-**Total Lessons:** 14
+**Last Updated:** 2026-05-27
+**Total Lessons:** 17
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,8 +13,79 @@
 
 ## Recent Lessons
 
+## L-017 — Subagent edits over large blocks can land in the wrong scope; re-read after every Coder edit
+**Date:** 2026-05-27 (origin: IP-22 Phase 4/5 — Coder injected the `PriorRunHintReplayed` rendering branch inside `formatRelativeTime()` instead of `EventNode`, producing dead JSX and breaking the entire `EventNode.test.tsx` transform).
+
+**Rule:** After invoking the Coder subagent on any file with > ~50 LOC affected, the Orchestrator (or the developer reviewing the change) MUST `read_file` the modified region and verify scope/syntax before running tests. Subagent self-reports are intent, not verification.
+
+**Symptoms to watch for**
+- `Transform failed` / `Expected "}" but found ";"` in vitest — usually a stray `})` or missing closing tag.
+- 0 tests collected in a previously working file.
+- Logic that "should run" silently never executes (cold dead branches).
+
+**Mitigation**
+- Prefer many small `replace_string_in_file` edits over one big block rewrite.
+- After Coder finishes a phase, run the phase's affected test files in isolation BEFORE the full suite — failures localize faster.
+
+## L-016 — Trivial-path tests need to budget for skip-critique semantics
+**Date:** 2026-05-27 (origin: IP-22 — 33 orchestrator tests failed after introducing `critique_passes_target=0` for TRIVIAL/FACTUAL paths because pre-BRD-22 tests assumed PLANNING→CRITIQUING→REVISING always ran).
+
+**Rule:** When a state machine adds a skip-edge (e.g. PLANNING→SEARCHING when `target==0`), audit and update existing tests that hard-code intermediate states.
+
+**Specific gotchas**
+- Tests using a default short question (e.g. "What is the capital of France?") now hit the trivial path; lengthen the question (≥ 9 words) to keep the legacy STANDARD/DEEP flow.
+- LLM stub queues sized for "always critique" exhaust early in the new flow — add a couple of extra synth/judge pairs as safety margin.
+- The state machine's allowed-transitions table is now part of the test contract; add the new edge BEFORE the implementation lands or every related test breaks at once.
+
+---
+
+## Pre-existing lessons
+
+- **L-015:** Every New RunState Field Needs an Explicit Folding Strategy (2026-05-27)
 - **L-014:** A Working FSM + a Working SSE Stream Do Not Imply a Working Product — the Runtime Bridge is its Own BRD (2026-05-26)
 - **L-013:** `...init` Spread in `fetch()` Options Must Come Before `headers`/`body` (2026-05-26)
+
+---
+
+## L-015: Every New RunState Field Needs an Explicit Folding Strategy
+
+**Date:** 2026-05-27
+**Agent:** Auditor (AUDIT-IP-22 iter 1)
+**Category:** Backend / Agent FSM / RF-03
+
+### Situation
+IP-22 added two new fields to `RunState`: `critique_passes_target: int = 1` and `critique_passes_completed: int = 0`. The plan stated these would be used by the orchestrator during the `CRITIQUING` state to enforce per-complexity critique budgets, but did NOT specify how they would be reconstructed during event replay (resume/fork).
+
+The Auditor identified this as a **major blind-path finding**: when replaying a run that stopped mid-critiquing, `_fold_events` could not reconstruct `critique_passes_completed` from the event log alone because the counter was incremented in-memory but never emitted in an event. The replayed state would default to `0`, causing the orchestrator to potentially re-run critiques that had already completed.
+
+### Root Cause
+The plan violated RF-03's **replay determinism** contract. Every state transition that affects orchestrator control flow must either:
+1. Be stored in an event (so `_fold_events` can fold it), OR
+2. Be deterministically recomputable from existing events, OR
+3. Be stored in a field on an existing event (e.g. new optional field on `PlanCreatedEvent`).
+
+The plan chose (3) for `complexity_hint` and `expected_experts` (correctly), but did NOT choose any of the three for `critique_passes_target` or `critique_passes_completed`.
+
+### Fix
+The Auditor recommended: **Recompute during fold.** Recompute `critique_passes_target` from the budget table using `(state.question_type, state.complexity_hint)` (deterministic). Compute `critique_passes_completed` as `len([e for e in events if e.type == EventType.PLAN_CRITIQUED])`.
+
+### Prevention Rule
+When any task in an Implementation Plan adds a field to `RunState`:
+- [ ] The task MUST include a sentence stating: *"Update `_fold_events` to fold this field by [recomputing from X / reading from event Y / defaulting to Z when missing]."*
+- [ ] If the field affects FSM control flow (branches, loop counters, budget gates), the folding strategy MUST be deterministic — no silent defaults that silently change behavior on replay.
+- [ ] The Auditor MUST flag any new `RunState` field without an explicit folding strategy as a **major blind-path finding**.
+
+### Pattern in the wild
+This is the THIRD occurrence of this pattern in the project:
+1. **IP-07** (Agent FSM) — `RunState.question_type`, `RunState.sub_claims`, `RunState.evidence` all had explicit folding in the original `_fold_events`.
+2. **IP-15** (Fork & Resume) — `RunState.parent_run_id`, `RunState.forked_from_event_id` added with explicit folding strategy.
+3. **IP-22** (this finding) — `RunState.critique_passes_target`, `RunState.critique_passes_completed` added WITHOUT folding strategy → audit finding.
+
+Each time the pattern appears, it blocks approval at F2. The rule above should make this the LAST time.
+
+---
+
+## L-013: `...init` Spread in `fetch()` Options Must Come Before `headers`/`body`
 - **L-012:** Float-Boundary Tests for Strict-`>` Thresholds Must Use Exact IEEE-754 Values (2026-05-26)
 - **L-011:** Drive Interval-Backed Components from a Prop in Tests, not from Fake Timers (2026-05-26)
 - **L-010:** Cancellation Tests in Single-Task Async FSMs Need a Yielding Emit Hook (2026-05-27)

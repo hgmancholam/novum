@@ -63,6 +63,16 @@ class Settings(BaseSettings):
     # WP-6: Cross-run question memory
     prior_run_index_cap: int = 256  # LRU cap on in-memory question index
 
+    # BRD-22: Complexity-aware planning thresholds
+    complexity_max_trivial_words: int = 8
+    complexity_min_trivial_confidence: float = 0.80
+    complexity_min_deep_words: int = 16
+    complexity_max_deep_confidence: float = 0.55
+
+    # BRD-22: Instant-answer cache
+    instant_cache_min_confidence: float = 0.85
+    instant_cache_max_size: int = 256
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000

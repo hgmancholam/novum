@@ -48,11 +48,15 @@ class QuestionClassification(BaseModel):
     string in lowercase snake_case: factual, comparative, definitional,
     state_of_art, causal, predictive_future, subjective_opinion,
     personal_private).
+    
+    ``confidence`` (BRD-22 additive) is the classifier's self-reported
+    confidence 0..1, used as input to the complexity heuristic.
     """
 
     question_type: str
     rationale: str
     answerable: bool
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
     @model_validator(mode="before")
     @classmethod
@@ -96,6 +100,11 @@ class PlanOutput(BaseModel):
     sub_claims: list[SubClaimOutput] = Field(..., min_length=1, max_length=10)
     overall_rationale: str = Field(
         ..., description="How these claims answer the question"
+    )
+    expected_experts: list[str] | None = Field(
+        default=None,
+        max_length=6,
+        description="Expert types whose sources should be prioritized (BRD-22)",
     )
 
     @model_validator(mode="before")

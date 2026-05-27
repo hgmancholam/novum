@@ -2,14 +2,22 @@
  * PlanPreview molecule — T1b narrative shown when a run has just started
  * but no `PlanCreated` has arrived yet. Microcopy is verbatim from
  * ui-prototype.md §7.
+ *
+ * IP-22: optionally displays complexity hint and expected experts when
+ * PlanCreatedEvent data is available (BRD-22, RF-13).
  */
 
 import { Compass } from "lucide-react";
 
 import { cn } from "@/lib/cn";
+import { ComplexityBadge } from "@/components/molecules/ComplexityBadge";
+import { ExpectedExpertsList } from "@/components/molecules/ExpectedExpertsList";
+import type { ComplexityHint } from "@/types/events";
 
 export interface PlanPreviewProps {
   className?: string | undefined;
+  complexityHint?: ComplexityHint | null | undefined;
+  expectedExperts?: string[] | null | undefined;
 }
 
 export const PLAN_PREVIEW_STEPS: readonly string[] = [
@@ -21,7 +29,11 @@ export const PLAN_PREVIEW_STEPS: readonly string[] = [
   "Answer — or honest-stop if it cannot.",
 ];
 
-export function PlanPreview({ className }: PlanPreviewProps) {
+export function PlanPreview({
+  className,
+  complexityHint,
+  expectedExperts,
+}: PlanPreviewProps) {
   return (
     <section
       data-testid="plan-preview"
@@ -40,6 +52,22 @@ export function PlanPreview({ className }: PlanPreviewProps) {
         />
         <span className="text-xs font-medium">Novum will:</span>
       </header>
+      
+      {complexityHint !== undefined &&
+      complexityHint !== null ? (
+        <div className="mt-2">
+          <ComplexityBadge hint={complexityHint} />
+        </div>
+      ) : null}
+      
+      {expectedExperts !== undefined &&
+      expectedExperts !== null &&
+      expectedExperts.length > 0 ? (
+        <div className="mt-2">
+          <ExpectedExpertsList experts={expectedExperts} />
+        </div>
+      ) : null}
+      
       <ol className="mt-2 ml-5 list-decimal space-y-1 text-xs text-[var(--text-secondary)]">
         {PLAN_PREVIEW_STEPS.map((step) => (
           <li key={step}>{step}</li>

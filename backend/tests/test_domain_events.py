@@ -37,7 +37,9 @@ from app.domain.events import (
     PlanCreatedEvent,
     PlanCritiquedEvent,
     PlanRevisedEvent,
+    PriorRunHintReplayedEvent,
     QuestionAskedEvent,
+    QuestionClassifiedEvent,
     QuestionNormalizedEvent,
     ResumedAfterCancelEvent,
     ResumedAfterErrorEvent,
@@ -103,6 +105,13 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
                 "normalized_question": "¿qué es una paloma?",
                 "was_corrected": True,
                 "language": "es",
+            }
+        case EventType.QUESTION_CLASSIFIED:
+            extra = {
+                "question_type": QuestionType.FACTUAL.value,
+                "classifier_confidence": 0.90,
+                "complexity_hint": "trivial",
+                "heuristic_signals": {"word_count": 5},
             }
         case EventType.PLAN_CREATED:
             extra = {
@@ -180,6 +189,14 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
                 "resolution": "r",
                 "rationale": "why",
             }
+        case EventType.PRIOR_RUN_HINT_REPLAYED:
+            extra = {
+                "source_run_id": str(uuid4()),
+                "source_final_confidence": 0.90,
+                "source_stop_reason": StopReason.JUDGE_CONFIRMED.value,
+                "normalised_question": "capital of japan",
+                "prior_completed_at": "2026-05-27T12:00:00Z",
+            }
         case EventType.USER_CONTEXT_CHALLENGED:
             extra = {
                 "user_context_claim": "c",
@@ -228,6 +245,11 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
                 "fallback_provider": "github",
                 "error_class": "AuthenticationError",
             }
+        case EventType.QUESTION_CLASSIFIED:
+            extra = {
+                "question_type": "factual",
+                "classifier_confidence": 0.92,
+            }
     base.update(extra)
     return base
 
@@ -235,6 +257,7 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
 _EXPECTED_CLASS: dict[EventType, type] = {
     EventType.QUESTION_ASKED: QuestionAskedEvent,
     EventType.QUESTION_NORMALIZED: QuestionNormalizedEvent,
+    EventType.QUESTION_CLASSIFIED: QuestionClassifiedEvent,
     EventType.PLAN_CREATED: PlanCreatedEvent,
     EventType.PLAN_CRITIQUED: PlanCritiquedEvent,
     EventType.PLAN_REVISED: PlanRevisedEvent,
@@ -247,6 +270,7 @@ _EXPECTED_CLASS: dict[EventType, type] = {
     EventType.CONTRADICTION_DETECTED: ContradictionDetectedEvent,
     EventType.CONTRADICTION_RESOLVED: ContradictionResolvedEvent,
     EventType.USER_CONTEXT_CHALLENGED: UserContextChallengedEvent,
+    EventType.PRIOR_RUN_HINT_REPLAYED: PriorRunHintReplayedEvent,
     EventType.JUDGE_RULED: JudgeRuledEvent,
     EventType.CONFIDENCE_MISMATCH: ConfidenceMismatchEvent,
     EventType.AGENT_ERRORED: AgentErroredEvent,
@@ -294,8 +318,8 @@ def test_extra_fields_preserved_in_model_extra() -> None:
 
 
 def test_event_type_enum_has_22_values() -> None:
-    """AC-04 (WP-4/5): there are exactly 22 event types."""
-    assert len(EventType) == 22
+    """AC-04 (WP-4/5 + BRD-22): there are exactly 24 event types."""
+    assert len(EventType) == 24
 
 
 def test_forkable_events_exact_membership() -> None:
@@ -312,12 +336,12 @@ def test_forkable_events_exact_membership() -> None:
 def test_event_type_map_covers_every_event_type() -> None:
     """Every ``EventType`` value must map to a concrete class."""
     assert set(EVENT_TYPE_MAP.keys()) == {v.value for v in EventType}
-    assert len(EVENT_TYPE_MAP) == 22
+    assert len(EVENT_TYPE_MAP) == 24
 
 
 def test_event_type_map_values_are_unique_classes() -> None:
     classes = list(EVENT_TYPE_MAP.values())
-    assert len(set(classes)) == len(classes) == 22
+    assert len(set(classes)) == len(classes) == 24
 
 
 # ---------------------------------------------------------------------------

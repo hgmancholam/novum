@@ -22,6 +22,31 @@ describe("PlanPreview", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders complexity badge when complexityHint is provided", () => {
+    render(<PlanPreview complexityHint="deep" />);
+    expect(screen.getByText("Deep investigation")).toBeInTheDocument();
+  });
+
+  it("renders expected experts list when provided", () => {
+    render(
+      <PlanPreview
+        complexityHint="standard"
+        expectedExperts={["academic", "medical_researcher"]}
+      />
+    );
+    expect(screen.getByText("Looking for sources from:")).toBeInTheDocument();
+    expect(screen.getByText("Academic")).toBeInTheDocument();
+    expect(screen.getByText("Medical Researcher")).toBeInTheDocument();
+  });
+
+  it("does not render badges when fields are null/undefined", () => {
+    render(<PlanPreview complexityHint={null} expectedExperts={null} />);
+    expect(screen.queryByText("Quick lookup")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Looking for sources from:")
+    ).not.toBeInTheDocument();
+  });
+
   it("has no accessibility violations", async () => {
     const { container } = render(<PlanPreview />);
     expect(await axe(container)).toHaveNoViolations();

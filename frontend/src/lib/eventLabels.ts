@@ -19,6 +19,7 @@ import type { EventType } from "@/types/events";
 export const EVENT_LABELS: Record<EventType, string> = {
   QuestionAsked: "Question",
   QuestionNormalized: "Normalized question",
+  QuestionClassified: "Question classified",
   PlanCreated: "Plan",
   PlanCritiqued: "Plan critique",
   PlanRevised: "Plan revision",
@@ -31,6 +32,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   ContradictionDetected: "Contradiction",
   ContradictionResolved: "Contradiction resolved",
   UserContextChallenged: "Context challenged",
+  PriorRunHintReplayed: "Prior result reused",
   JudgeRuled: "Judge ruling",
   ConfidenceMismatch: "Confidence mismatch",
   AgentErrored: "Agent error",
@@ -44,6 +46,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
 export const EVENT_ACTIVITIES: Record<EventType, string> = {
   QuestionAsked: "Reading your question",
   QuestionNormalized: "Understanding the question",
+  QuestionClassified: "Classifying the question",
   PlanCreated: "Drafting a plan",
   PlanCritiqued: "Reviewing the plan",
   PlanRevised: "Refining the plan",
@@ -56,6 +59,7 @@ export const EVENT_ACTIVITIES: Record<EventType, string> = {
   ContradictionDetected: "Spotting a contradiction",
   ContradictionResolved: "Reconciling sources",
   UserContextChallenged: "Asking for context",
+  PriorRunHintReplayed: "Retrieving cached answer",
   JudgeRuled: "Judging the answer",
   ConfidenceMismatch: "Reviewing confidence",
   AgentErrored: "Recovering from an error",
