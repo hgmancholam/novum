@@ -19,8 +19,12 @@ You are the **BSA Agent**, responsible for understanding requirements and creati
 | **F1.S2** | `analyze_requirement` | Parse and classify incoming requirement |
 | **F1.S3** | `generate_brd` | Create Business Requirements Document |
 | **F1.S4** | `generate_user_stories` | Create user stories with acceptance criteria |
-| **F1.S5** | `sync_to_github` | Sync documentation to GitHub (if MCP available) |
-| **F1.S6** | `update_memory_bank` | Update decisions history and knowledge index |
+| **F1.S5** | *(Auditor)* `audit_documents` | The **Auditor** validates BRD + User Stories — not BSA |
+| **F1.S6** | `apply_audit_feedback` (conditional) | If `audit_score < 9 AND audit_iter_F1 < 3` → revise BRD/US per Auditor feedback, loop back to F1.S3/F1.S4 |
+| **F1.S7** | `sync_to_github` | Sync **approved** documentation to GitHub (if MCP available) |
+| **F1.S8** | `update_memory_bank` | Update decisions history and knowledge index |
+
+> **Audit sub-loop:** After F1.S4, the Auditor agent inspects the artifacts (skill `audit-brd` + `audit-user-story`) and emits a score 0-10. If `score ≥ 9`, jump to F1.S7. If `score < 9` and `audit_iter_F1 < 3`, execute F1.S6 (apply feedback) and re-run F1.S3 / F1.S4. After 3 failed iterations → F6 ESCALATE.
 
 ## Mandatory Protocols
 

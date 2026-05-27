@@ -146,6 +146,7 @@ This project uses an orchestrated agentic workflow for development. All agents m
 |-------|------|------|
 | **Orchestrator** | Workflow controller, task delegation, quality gates | [orchestrator.agent.md](agents/orchestrator.agent.md) |
 | **BSA** | Requirements analysis, BRDs, User Stories | [bsa.agent.md](agents/bsa.agent.md) |
+| **Auditor** | Document quality audit (BRDs, US, Plans) inside F1/F2 sub-loops | [auditor.agent.md](agents/auditor.agent.md) |
 | **Coder** | Implementation, unit tests, best practices | [coder.agent.md](agents/coder.agent.md) |
 | **Reviewer** | Code review, scoring (min 9/10), feedback | [reviewer.agent.md](agents/reviewer.agent.md) |
 
@@ -157,6 +158,9 @@ This project uses an orchestrated agentic workflow for development. All agents m
 | UX Frontend | UI/UX best practices, accessibility | `prompts/skills/ux-frontend/` |
 | Database | PostgreSQL operations, queries | `prompts/skills/database/` |
 | Implementation Plan | Task breakdown, planning | `prompts/skills/implementation-plan/` |
+| Audit BRD | Checklist audit of BRDs (F1 sub-loop) | `prompts/skills/audit-brd/` |
+| Audit User Story | INVEST + Gherkin audit (F1 sub-loop) | `prompts/skills/audit-user-story/` |
+| Audit Implementation Plan | Blind-path detection (F2 sub-loop) | `prompts/skills/audit-implementation-plan/` |
 | Unit Test Backend | Python/pytest testing | `prompts/skills/unit-test-backend/` |
 | Unit Test Frontend | React/Vitest testing | `prompts/skills/unit-test-frontend/` |
 | Memory Protocol | Knowledge management | `prompts/skills/memory-protocol/` |
@@ -167,12 +171,12 @@ Formal definition: [workflow.yaml](workflow.yaml)
 Visual diagram: [workflow.md](workflow.md)
 
 ```
-Requirement → BSA (BRD + Stories) → Orchestrator (Plan) → Coder (Implement + Test) 
-                                                               ↓
-                                                          Reviewer (Score)
-                                                               ↓
-                                         Score ≥ 9? → Complete
-                                         Score < 9? → Back to Coder (max 5 iterations)
+Requirement → BSA (BRD + Stories) → Auditor (F1 sub-loop, max 3) → Orchestrator (Plan) → Auditor (F2 sub-loop, max 3) → Coder (Implement + Test)
+                                                                                                                          ↓
+                                                                                                                     Reviewer (Score)
+                                                                                                                          ↓
+                                                                                                Score ≥ 9? → Complete
+                                                                                                Score < 9? → Back to Coder (max 5 iterations)
 ```
 
 ### 7.4 Memory Protocol (MANDATORY)
@@ -207,6 +211,7 @@ All agents MUST:
 | BRDs | `docs/implementation-phase/brds/` |
 | User Stories | `docs/implementation-phase/user-stories/` |
 | Implementation Plans | `docs/implementation-phase/implementation-plans/` |
+| Audit Reports (F1+F2) | `docs/implementation-phase/audits/` |
 | Code Reviews | `docs/implementation-phase/reviews/` |
 | Test Documentation | `docs/implementation-phase/unit-tests/` |
 
@@ -214,8 +219,11 @@ All agents MUST:
 
 | Gate | Threshold | Action on Failure |
 |------|-----------|-------------------|
-| Review Score | ≥ 9/10 | Return to Coder with feedback |
-| Max Iterations | 5 | Escalate to manual review |
+| Document Audit Score (F1 — BRD/US) | ≥ 9/10 | Return to BSA with feedback (max 3 per phase) |
+| Document Audit Score (F2 — Plan) | ≥ 9/10 | Return to Orchestrator with feedback (max 3 per phase) |
+| Code Review Score (F4) | ≥ 9/10 | Return to Coder with feedback |
+| Max Audit Iterations (per phase) | 3 | Escalate to manual review (F6) |
+| Max Review Iterations (F3↔F4) | 5 | Escalate to manual review (F6) |
 | Test Coverage | ≥ 80% | Request additional tests |
 | Documentation | Required | Request documentation |
 

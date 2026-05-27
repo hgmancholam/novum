@@ -11,12 +11,14 @@
 | ID | Phase | Agent | Description |
 |----|-------|-------|-------------|
 | **F0** | IDLE | — | Waiting for new requirement |
-| **F1** | ANALYZE | BSA | Requirements analysis and documentation |
-| **F2** | PLAN | Orchestrator | Implementation planning |
+| **F1** | ANALYZE | BSA + **Auditor** | Requirements analysis + document audit (sub-loop) |
+| **F2** | PLAN | Orchestrator + **Auditor** | Implementation planning + plan audit (sub-loop) |
 | **F3** | IMPLEMENT | Coder | Code implementation and testing |
 | **F4** | REVIEW | Reviewer | Quality evaluation and scoring |
 | **F5** | COMPLETE | — | Approved, finalize documentation |
 | **F6** | ESCALATE | — | Max iterations reached, manual review |
+
+> **Internal audit sub-loops:** Inside **F1** the Auditor validates the BRD + User Stories (max 3 attempts via `audit_iter_F1`). Inside **F2** the Auditor validates the Implementation Plan (max 3 attempts via `audit_iter_F2`). These are NOT new phases — they iterate inside their host phase until `audit_score ≥ 9` or the per-phase cap is reached (then escalates to F6). The F3↔F4 review loop (Reviewer, max 5) is independent.
 
 ### 1.2 All Steps by Phase
 
@@ -26,11 +28,15 @@
 | **F1.S2** | ANALYZE | `analyze_requirement` | Parse and classify incoming requirement |
 | **F1.S3** | ANALYZE | `generate_brd` | Create Business Requirements Document |
 | **F1.S4** | ANALYZE | `generate_user_stories` | Create user stories with acceptance criteria |
-| **F1.S5** | ANALYZE | `sync_to_github` | Sync documentation to GitHub (if MCP available) |
-| **F1.S6** | ANALYZE | `update_memory_bank` | Update decisions history and knowledge index |
+| **F1.S5** | ANALYZE | `audit_documents` (Auditor) | Audit BRD + User Stories; emit score 0-10 |
+| **F1.S6** | ANALYZE | `apply_audit_feedback` (conditional) | If score<9 & audit_iter_F1<3 → loop back to F1.S3/F1.S4 |
+| **F1.S7** | ANALYZE | `sync_to_github` | Sync approved documentation to GitHub (if MCP available) |
+| **F1.S8** | ANALYZE | `update_memory_bank` | Update decisions history and knowledge index |
 | **F2.S1** | PLAN | `read_memory_bank` | Read project context and generated BRD/stories |
 | **F2.S2** | PLAN | `create_implementation_plan` | Break down user stories into tasks |
-| **F2.S3** | PLAN | `update_memory_bank` | Record planning decisions |
+| **F2.S3** | PLAN | `audit_plan` (Auditor) | Audit the Implementation Plan; emit score 0-10 |
+| **F2.S4** | PLAN | `apply_audit_feedback` (conditional) | If score<9 & audit_iter_F2<3 → loop back to F2.S2 |
+| **F2.S5** | PLAN | `update_memory_bank` | Record planning decisions |
 | **F3.S1** | IMPLEMENT | `read_memory_bank` | Read implementation plan, architecture, conventions |
 | **F3.S2** | IMPLEMENT | `implement_code` | Write production code following standards |
 | **F3.S3** | IMPLEMENT | `generate_unit_tests` | Create unit tests (backend/frontend) |
@@ -55,8 +61,9 @@
 |-------|------|-----------------|
 | **Orchestrator** | Workflow controller | Implementation plans, task coordination |
 | **BSA** | Requirements analyst | BRDs, User Stories |
+| **Auditor** | Document quality auditor | Audit reports (F1 + F2 sub-loops) |
 | **Coder** | Implementation | Code, Unit Tests |
-| **Reviewer** | Quality assurance | Review reports, Scores |
+| **Reviewer** | Code quality assurance | Review reports, Scores |
 
 ---
 
@@ -68,25 +75,41 @@ flowchart TD
         A[/"📥 Receive Requirement"/]
     end
 
-    subgraph F1["F1: ANALYZE 📋"]
+    subgraph F1["F1: ANALYZE 📋 (with audit sub-loop, max 3)"]
         B["🔍 BSA Agent"]
         B1["F1.S1: Read Memory Bank"]
         B2["F1.S2: Analyze Requirement"]
         B3["F1.S3: Generate BRD"]
         B4["F1.S4: Create User Stories"]
-        B5["F1.S5: Sync to GitHub"]
-        B6["F1.S6: Update Memory Bank"]
-        
-        B --> B1 --> B2 --> B3 --> B4 --> B5 --> B6
+        BA["F1.S5: 🔎 Auditor — audit_documents"]
+        BG{{"audit_score ≥ 9?"}}
+        BI{{"audit_iter_F1 < 3?"}}
+        BF["F1.S6: Apply Audit Feedback (BSA)"]
+        B5["F1.S7: Sync to GitHub"]
+        B6["F1.S8: Update Memory Bank"]
+
+        B --> B1 --> B2 --> B3 --> B4 --> BA --> BG
+        BG -->|"✅ Yes"| B5 --> B6
+        BG -->|"❌ No"| BI
+        BI -->|"✅ Yes"| BF --> B3
+        BI -->|"❌ No"| ESC1["→ F6 ESCALATE"]
     end
 
-    subgraph F2["F2: PLAN 📝"]
+    subgraph F2["F2: PLAN 📝 (with audit sub-loop, max 3)"]
         C["🎯 Orchestrator"]
         C1["F2.S1: Read Memory Bank"]
         C2["F2.S2: Create Implementation Plan"]
-        C3["F2.S3: Update Memory Bank"]
-        
-        C --> C1 --> C2 --> C3
+        CA["F2.S3: 🔎 Auditor — audit_plan"]
+        CG{{"audit_score ≥ 9?"}}
+        CI{{"audit_iter_F2 < 3?"}}
+        CF["F2.S4: Apply Audit Feedback (Orchestrator)"]
+        C3["F2.S5: Update Memory Bank"]
+
+        C --> C1 --> C2 --> CA --> CG
+        CG -->|"✅ Yes"| C3
+        CG -->|"❌ No"| CI
+        CI -->|"✅ Yes"| CF --> C2
+        CI -->|"❌ No"| ESC2["→ F6 ESCALATE"]
     end
 
     subgraph F3["F3: IMPLEMENT 💻"]
@@ -143,6 +166,9 @@ flowchart TD
     H --> I
     J --> K
 
+    ESC1 -.->|"escalate"| J
+    ESC2 -.->|"escalate"| J
+
     style F0 fill:#e1f5fe,stroke:#01579b
     style F1 fill:#fff3e0,stroke:#e65100
     style F2 fill:#f3e5f5,stroke:#4a148c
@@ -161,29 +187,55 @@ sequenceDiagram
     participant U as User
     participant O as Orchestrator
     participant B as BSA Agent
+    participant A as Auditor Agent
     participant C as Coder Agent
     participant R as Reviewer Agent
     participant M as Memory Bank
     participant G as GitHub
 
     U->>O: Submit Requirement
-    
+
     rect rgb(255, 243, 224)
-        Note over O,B: F1: ANALYZE Phase
+        Note over O,A: F1: ANALYZE Phase (BSA + Auditor sub-loop, max 3)
         O->>B: Delegate Analysis
         B->>M: F1.S1: Read Context
         B->>B: F1.S2-S3: Analyze & Generate BRD
         B->>B: F1.S4: Create User Stories
-        B->>G: F1.S5: Sync Documentation
-        B->>M: F1.S6: Update Memory
+        loop audit_iter_F1 ≤ 3
+            B->>A: F1.S5: Request Audit (BRD + US)
+            A->>M: Read context + prior audits
+            A->>A: Apply skills audit-brd / audit-user-story
+            A->>B: F1.S5 result: audit_score (0-10) + feedback
+            alt audit_score ≥ 9
+                Note over A,B: ✅ documents approved, exit loop
+            else audit_score < 9 AND audit_iter_F1 < 3
+                B->>B: F1.S6: Apply feedback → regenerate BRD/US
+            else audit_score < 9 AND audit_iter_F1 ≥ 3
+                A->>O: ⚠️ Escalate (→ F6)
+            end
+        end
+        B->>G: F1.S7: Sync Documentation
+        B->>M: F1.S8: Update Memory
         B->>O: Analysis Complete
     end
 
     rect rgb(243, 229, 245)
-        Note over O: F2: PLAN Phase
+        Note over O,A: F2: PLAN Phase (Orchestrator + Auditor sub-loop, max 3)
         O->>M: F2.S1: Read Context
-        O->>O: F2.S2: Create Implementation Plan
-        O->>M: F2.S3: Update Memory
+        loop audit_iter_F2 ≤ 3
+            O->>O: F2.S2: Create Implementation Plan
+            O->>A: F2.S3: Request Audit (Plan)
+            A->>A: Apply skill audit-implementation-plan
+            A->>O: F2.S3 result: audit_score (0-10) + feedback
+            alt audit_score ≥ 9
+                Note over A,O: ✅ plan approved, exit loop
+            else audit_score < 9 AND audit_iter_F2 < 3
+                O->>O: F2.S4: Apply feedback → revise plan
+            else audit_score < 9 AND audit_iter_F2 ≥ 3
+                A->>O: ⚠️ Escalate (→ F6)
+            end
+        end
+        O->>M: F2.S5: Update Memory
     end
 
     loop Max 5 Iterations
@@ -236,12 +288,14 @@ flowchart LR
     subgraph AGENTS["🤖 Agents"]
         O["Orchestrator"]
         B["BSA"]
+        AU["Auditor"]
         CD["Coder"]
         R["Reviewer"]
     end
 
     O <-->|"read/write"| MB
     B <-->|"read/write"| MB
+    AU <-->|"read/write"| MB
     CD <-->|"read/write"| MB
     R <-->|"read/write"| MB
 
@@ -274,6 +328,18 @@ mindmap
       Task Breakdown
       Dependencies
       Effort Estimation
+    Audit BRD
+      RF Coverage
+      Acceptance Criteria
+      Traceability
+    Audit User Story
+      INVEST
+      Gherkin Completeness
+      Edge Cases
+    Audit Implementation Plan
+      Blind-Path Detection
+      RF ↔ Task Mapping
+      Path Completeness
     Unit Test Backend
       pytest
       pytest-asyncio
@@ -331,6 +397,7 @@ flowchart TD
         BRD["📁 brds/"]
         US["📁 user-stories/"]
         IP["📁 implementation-plans/"]
+        AUD["📁 audits/"]
         REV["📁 reviews/"]
         UT["📁 unit-tests/"]
     end
@@ -339,6 +406,7 @@ flowchart TD
         B["BSA (F1)"] --> BRD
         B --> US
         O["Orchestrator (F2)"] --> IP
+        A["Auditor (F1+F2 sub-loops)"] --> AUD
         R["Reviewer (F4)"] --> REV
         C["Coder (F3)"] --> UT
     end
@@ -353,24 +421,49 @@ flowchart TD
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
-    
+
     IDLE --> ANALYZE: New Requirement
-    
-    ANALYZE --> PLAN: BRD & Stories Ready
-    
-    PLAN --> IMPLEMENT: Plan Created
-    
+
+    state ANALYZE {
+        [*] --> BSA_Produces
+        BSA_Produces --> AuditorChecks
+        AuditorChecks --> BSA_Produces: score<9 & audit_iter_F1<3
+        AuditorChecks --> [*]: score ≥ 9
+        AuditorChecks --> ESCALATE_F1: score<9 & audit_iter_F1≥3
+    }
+
+    ANALYZE --> PLAN: BRD & Stories approved
+    ANALYZE --> ESCALATE: audit_iter_F1 exhausted
+
+    state PLAN {
+        [*] --> OrchestratorProduces
+        OrchestratorProduces --> AuditorChecksPlan
+        AuditorChecksPlan --> OrchestratorProduces: score<9 & audit_iter_F2<3
+        AuditorChecksPlan --> [*]: score ≥ 9
+        AuditorChecksPlan --> ESCALATE_F2: score<9 & audit_iter_F2≥3
+    }
+
+    PLAN --> IMPLEMENT: Plan approved
+    PLAN --> ESCALATE: audit_iter_F2 exhausted
+
     IMPLEMENT --> REVIEW: Code & Tests Ready
-    
+
     REVIEW --> COMPLETE: Score ≥ 9
     REVIEW --> IMPLEMENT: Score < 9 & iter < 5
     REVIEW --> ESCALATE: Score < 9 & iter ≥ 5
-    
+
     COMPLETE --> [*]
     ESCALATE --> [*]
-    
+
     note right of REVIEW
+        Code review loop
         Max 5 iterations
+        Minimum score: 9/10
+    end note
+
+    note left of ANALYZE
+        Internal audit sub-loop
+        Max 3 iterations
         Minimum score: 9/10
     end note
 ```
@@ -394,6 +487,8 @@ stateDiagram-v2
 
 ### Quality Standards
 
-- **Minimum Score**: 9/10
-- **Max Iterations**: 5
+- **Minimum Score (code review F4)**: 9/10
+- **Max Iterations (code review F3↔F4)**: 5
+- **Minimum Score (document audit F1/F2)**: 9/10
+- **Max Iterations (document audit per phase)**: 3
 - **Test Coverage**: ≥80% (backend and frontend)

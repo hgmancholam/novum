@@ -76,6 +76,31 @@ agents:
       - docs/implementation-phase/reviews/
     memory_protocol: mandatory
 
+  auditor:
+    name: "Auditor"
+    role: "Document quality auditor — validates BRDs, User Stories and Implementation Plans"
+    responsibilities:
+      - Audit BRDs and User Stories against RF-01..RF-16 (inside F1 sub-loop)
+      - Audit Implementation Plans against parent US/BRD and RFs (inside F2 sub-loop)
+      - Detect blind paths (missing transitions, unhandled errors, no user feedback)
+      - Assign score (0-10 scale)
+      - Return actionable feedback to producing agent on score < 9
+    scoring:
+      minimum_passing_score: 9
+      criteria:
+        - requirements_coverage: 30%
+        - acceptance_criteria_completeness: 20%
+        - blind_path_absence: 25%
+        - traceability: 15%
+        - consistency_with_authoritative_docs: 10%
+    skills_required:
+      - audit-brd
+      - audit-user-story
+      - audit-implementation-plan
+    outputs:
+      - docs/implementation-phase/audits/
+    memory_protocol: mandatory
+
 # =============================================================================
 # SKILLS
 # =============================================================================
@@ -139,6 +164,22 @@ skills:
       - jest-axe
       - MSW
 
+  # Document Audit Skills (used by Auditor)
+  audit-brd:
+    name: "BRD Audit"
+    description: "Checklist-driven audit of Business Requirements Documents"
+    location: ".github/prompts/skills/audit-brd/"
+
+  audit-user-story:
+    name: "User Story Audit"
+    description: "INVEST + Gherkin checklist audit of User Stories"
+    location: ".github/prompts/skills/audit-user-story/"
+
+  audit-implementation-plan:
+    name: "Implementation Plan Audit"
+    description: "Blind-path detection and RF coverage audit of Implementation Plans"
+    location: ".github/prompts/skills/audit-implementation-plan/"
+
   # Memory Protocol
   memory-protocol:
     name: "Memory Protocol"
@@ -161,13 +202,20 @@ skills:
 # │ Phase  │ ID           │ Agent          │ Description                      │
 # ├────────┼──────────────┼────────────────┼──────────────────────────────────┤
 # │ IDLE   │ F0           │ -              │ Waiting for new requirement      │
-# │ ANALYZE│ F1           │ BSA            │ Requirements analysis            │
-# │ PLAN   │ F2           │ Orchestrator   │ Implementation planning          │
+# │ ANALYZE│ F1           │ BSA + Auditor  │ Requirements analysis + audit    │
+# │ PLAN   │ F2           │ Orch + Auditor │ Implementation planning + audit  │
 # │ IMPLEMENT│ F3         │ Coder          │ Code implementation              │
 # │ REVIEW │ F4           │ Reviewer       │ Quality evaluation               │
 # │ COMPLETE│ F5          │ -              │ Approved, finalize               │
 # │ ESCALATE│ F6          │ -              │ Max iterations, manual review    │
 # └────────┴──────────────┴────────────────┴──────────────────────────────────┘
+#
+# NOTE on internal audit sub-loops:
+#   - F1 has an internal audit sub-loop (Auditor) with audit_iter_F1 (max 3).
+#   - F2 has an internal audit sub-loop (Auditor) with audit_iter_F2 (max 3).
+#   - These are NOT new phases — they iterate inside F1 / F2 until the audit
+#     score is ≥ 9 or the per-phase cap is reached (then escalates to F6).
+#   - The F3↔F4 review iteration (Reviewer, max 5) is independent.
 #
 # =============================================================================
 
@@ -181,50 +229,105 @@ phases:
     next: "F1"
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # F1: ANALYZE — BSA Agent
+  # F1: ANALYZE — BSA Agent + Auditor Agent (internal audit sub-loop)
   # ─────────────────────────────────────────────────────────────────────────────
   - id: "F1"
     name: "ANALYZE"
-    description: "BSA analyzing requirement"
-    agent: "bsa"
+    description: "BSA analyzing requirement, Auditor validating documents"
+    agents:
+      primary: "bsa"
+      auditor: "auditor"
     steps:
       - id: "F1.S1"
         action: "read_memory_bank"
+        agent: "bsa"
         description: "Read project context, knowledge index, and lessons learned"
       - id: "F1.S2"
         action: "analyze_requirement"
+        agent: "bsa"
         description: "Parse and classify the incoming requirement"
       - id: "F1.S3"
         action: "generate_brd"
+        agent: "bsa"
         description: "Create Business Requirements Document"
       - id: "F1.S4"
         action: "generate_user_stories"
+        agent: "bsa"
         description: "Create user stories with acceptance criteria"
       - id: "F1.S5"
-        action: "sync_to_github"
-        description: "Sync documentation to GitHub (if MCP available)"
+        action: "audit_documents"
+        agent: "auditor"
+        description: "Auditor validates BRD + User Stories. Skills: audit-brd, audit-user-story."
       - id: "F1.S6"
+        action: "apply_audit_feedback"
+        agent: "bsa"
+        description: "Conditional. Triggered if audit_score < 9 AND audit_iter_F1 < 3. Loops back to F1.S3 / F1.S4 with feedback."
+        conditional: true
+      - id: "F1.S7"
+        action: "sync_to_github"
+        agent: "bsa"
+        description: "Sync approved documentation to GitHub (if MCP available)"
+      - id: "F1.S8"
         action: "update_memory_bank"
+        agent: "bsa"
         description: "Update decisions history and knowledge index"
+    internal_audit_loop:
+      counter: "audit_iter_F1"
+      max_iterations: 3
+      minimum_passing_score: 9
+      transitions:
+        - condition: "audit_score >= 9"
+          next_step: "F1.S7"
+        - condition: "audit_score < 9 AND audit_iter_F1 < 3"
+          next_step: "F1.S6"
+          increment: "audit_iter_F1"
+        - condition: "audit_score < 9 AND audit_iter_F1 >= 3"
+          next_phase: "F6"
     next: "F2"
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # F2: PLAN — Orchestrator Agent
+  # F2: PLAN — Orchestrator Agent + Auditor Agent (internal audit sub-loop)
   # ─────────────────────────────────────────────────────────────────────────────
   - id: "F2"
     name: "PLAN"
-    description: "Orchestrator creating implementation plan"
-    agent: "orchestrator"
+    description: "Orchestrator creating implementation plan, Auditor validating it"
+    agents:
+      primary: "orchestrator"
+      auditor: "auditor"
     steps:
       - id: "F2.S1"
         action: "read_memory_bank"
+        agent: "orchestrator"
         description: "Read project context and generated BRD/stories"
       - id: "F2.S2"
         action: "create_implementation_plan"
+        agent: "orchestrator"
         description: "Break down user stories into tasks with effort estimates"
       - id: "F2.S3"
+        action: "audit_plan"
+        agent: "auditor"
+        description: "Auditor validates the Implementation Plan. Skill: audit-implementation-plan."
+      - id: "F2.S4"
+        action: "apply_audit_feedback"
+        agent: "orchestrator"
+        description: "Conditional. Triggered if audit_score < 9 AND audit_iter_F2 < 3. Loops back to F2.S2 with feedback."
+        conditional: true
+      - id: "F2.S5"
         action: "update_memory_bank"
+        agent: "orchestrator"
         description: "Record planning decisions and update index"
+    internal_audit_loop:
+      counter: "audit_iter_F2"
+      max_iterations: 3
+      minimum_passing_score: 9
+      transitions:
+        - condition: "audit_score >= 9"
+          next_step: "F2.S5"
+        - condition: "audit_score < 9 AND audit_iter_F2 < 3"
+          next_step: "F2.S4"
+          increment: "audit_iter_F2"
+        - condition: "audit_score < 9 AND audit_iter_F2 >= 3"
+          next_phase: "F6"
     next: "F3"
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -320,10 +423,21 @@ phases:
 # ITERATION CONTROL
 # =============================================================================
 iteration:
+  # F3 <-> F4 code review loop (Reviewer)
   max_cycles: 5
   tracking:
     counter_variable: "iteration_count"
     reset_on: "new_requirement"
+
+# Internal audit sub-loops (Auditor) — independent from the code review loop.
+audit_iteration:
+  max_cycles_per_phase: 3
+  tracking:
+    counters:
+      - "audit_iter_F1"  # F1 ANALYZE — BRD + User Stories audit
+      - "audit_iter_F2"  # F2 PLAN — Implementation Plan audit
+    reset_on: "new_requirement"
+  on_max_reached: "F6"  # Escalate to manual review
 
 # =============================================================================
 # MEMORY PROTOCOL
@@ -363,6 +477,12 @@ quality_gates:
   review_score:
     minimum: 9
     scale: 10
+  audit_score:
+    minimum: 9
+    scale: 10
+    applies_to:
+      - "F1: BRD + User Stories"
+      - "F2: Implementation Plan"
   test_coverage:
     backend: 80%
     frontend: 80%

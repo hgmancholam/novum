@@ -65,23 +65,31 @@ Before delegating ANY task, consult these authoritative documents in `docs/`:
 
 ### F1 → F2: Analysis Complete, Start Planning
 ```
-1. Wait for BSA Agent to complete F1.S1–F1.S6:
+1. Wait for BSA Agent to complete F1.S1–F1.S8 with audit_score ≥ 9:
    - F1.S3: BRD generated in docs/implementation-phase/brds/
    - F1.S4: User stories in docs/implementation-phase/user-stories/
-2. Verify artifacts are complete and synced
+   - F1.S5: Auditor approved (audit_score ≥ 9, otherwise sub-loop continues)
+2. Verify artifacts are complete and synced (F1.S7)
 3. Begin F2 (PLAN)
 ```
 
-### F2: Implementation Planning
+### F2: Implementation Planning (with Auditor sub-loop)
 ```
-Steps F2.S1–F2.S3:
+Steps F2.S1–F2.S5:
 - F2.S1: Read the generated user stories
 - F2.S2: Create detailed implementation plan:
    - Task breakdown with effort estimates
    - File modifications required
    - Dependencies and order
    - Testing requirements
-- F2.S3: Save plan to docs/implementation-phase/implementation-plans/
+   - RF coverage matrix per task
+- F2.S3: Hand off plan to Auditor agent (skill: audit-implementation-plan)
+   - Auditor scores 0-10 with focus on blind-path absence
+   - If audit_score ≥ 9 → jump to F2.S5
+   - If audit_score < 9 AND audit_iter_F2 < 3 → execute F2.S4 then loop to F2.S2
+   - If audit_iter_F2 ≥ 3 → escalate to F6
+- F2.S4: Apply Auditor feedback and revise the plan (conditional)
+- F2.S5: Save approved plan to docs/implementation-phase/implementation-plans/ and update memory bank
 ```
 
 ### F2 → F3: Delegate Implementation
@@ -126,8 +134,10 @@ Steps F6.S1–F6.S3:
 
 | Gate | Threshold | Action if Failed |
 |------|-----------|------------------|
-| Review Score | ≥ 9/10 | Return to Coder |
-| Max Iterations | 5 | Escalate |
+| Document Audit Score (F1) | ≥ 9/10 | Return to BSA; max 3 audit iterations then F6 |
+| Document Audit Score (F2) | ≥ 9/10 | Revise plan; max 3 audit iterations then F6 |
+| Code Review Score (F4) | ≥ 9/10 | Return to Coder |
+| Max Code Review Iterations | 5 | Escalate (F6) |
 | Test Coverage | ≥ 80% | Request more tests |
 | Documentation | Required | Request docs |
 
@@ -139,7 +149,13 @@ Use `runSubagent` to delegate work:
 # Delegate to BSA
 runSubagent(agentName="BSA", prompt="Analyze requirement: {requirement}")
 
-# Delegate to Coder  
+# Delegate to Auditor (F1 sub-loop: audit BRD + User Stories)
+runSubagent(agentName="Auditor", prompt="Audit BRD-XX and US-XX (phase F1, iteration N)")
+
+# Delegate to Auditor (F2 sub-loop: audit Implementation Plan)
+runSubagent(agentName="Auditor", prompt="Audit PLAN-US-XX (phase F2, iteration N)")
+
+# Delegate to Coder
 runSubagent(agentName="Coder", prompt="Implement user story: {story_id}")
 
 # Delegate to Reviewer
@@ -156,11 +172,13 @@ runSubagent(agentName="Reviewer", prompt="Review implementation for: {story_id}"
 
 ## Iteration Tracking
 
-Maintain iteration count per user story:
+Maintain iteration counters per user story:
 ```yaml
 iteration_tracking:
   US-001:
-    count: 2
+    audit_iter_F1: 1        # BRD + User Story audit (max 3)
+    audit_iter_F2: 0        # Implementation Plan audit (max 3)
+    code_review_count: 2    # F3 ↔ F4 review loop (max 5)
     scores: [7, 8]
     status: in_progress
 ```

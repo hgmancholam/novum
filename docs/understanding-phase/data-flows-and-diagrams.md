@@ -1096,7 +1096,188 @@ digraph AgenticArchitecture {
 
 ---
 
+## 9. Agentic-development meta-workflow · audit sub-loops
 
+> Scope: this section diagrams the **development** workflow (how artifacts are produced and validated by Copilot agents), **not** the runtime research workflow of §1–§8. It documents the Auditor agent's internal sub-loops inside `F1: ANALYZE` and `F2: PLAN`, and the blind-path detection rules every diagram must satisfy.
+>
+> Path-completeness invariant still applies: every non-terminal node must have an outgoing edge for every reachable outcome, and every iteration cap must lead to an explicit terminal (approved / escalated).
+>
+> Authoritative source: [`.github/workflow.yaml`](../../.github/workflow.yaml) and [`.github/workflow.md`](../../.github/workflow.md).
+
+### 9.1 BRD + User Story audit sub-loop (inside F1 · ANALYZE)
+
+```dot
+digraph AuditF1 {
+  rankdir=TB;
+  node [shape=box, style="rounded,filled", fillcolor="#eef2ff", fontname="Inter", fontsize=10];
+  edge [fontname="Inter", fontsize=9];
+
+  start [shape=circle, label="", width=0.2, style=filled, fillcolor=black];
+
+  a01 [label="F1.S1 · BSA reads memory bank\n+ authoritative docs", fillcolor="#fde68a"];
+  a02 [label="F1.S2 · BSA classifies requirement", fillcolor="#fde68a"];
+  a03 [label="F1.S3 · BSA generates BRD\n(docs/implementation-phase/brds/)", fillcolor="#fde68a"];
+  a04 [label="F1.S4 · BSA generates User Stories\n(docs/implementation-phase/user-stories/)", fillcolor="#fde68a"];
+
+  a05 [label="F1.S5 · Auditor audits artifacts\nskills: audit-brd + audit-user-story\n→ audit_score ∈ [0,10]", fillcolor="#fde68a"];
+  a05r[label="Save AUDIT-BRD/US report\n(docs/implementation-phase/audits/)", fillcolor="#fef3c7"];
+
+  d_score [shape=diamond, label="audit_score ≥ 9 ?", fillcolor="#fff3cd"];
+  d_iter  [shape=diamond, label="audit_iter_F1 < 3 ?", fillcolor="#fff3cd"];
+
+  a06 [label="F1.S6 · BSA applies feedback\nincrement audit_iter_F1\n→ regenerate BRD / US", fillcolor="#dbeafe"];
+
+  a07 [label="F1.S7 · Sync to GitHub (MCP)", fillcolor="#fde68a"];
+  a08 [label="F1.S8 · Update memory bank", fillcolor="#fde68a"];
+
+  ok  [shape=doublecircle, label="\u2192 F2\nPLAN", fillcolor="#d1fae5"];
+  esc [shape=doublecircle, label="\u2192 F6\nESCALATE", fillcolor="#fee2e2"];
+
+  start -> a01 -> a02 -> a03 -> a04 -> a05 -> a05r -> d_score;
+
+  d_score -> a07 [label="yes (approved)"];
+  d_score -> d_iter [label="no"];
+
+  d_iter -> a06 [label="yes (retry)"];
+  d_iter -> esc [label="no (cap reached)"];
+
+  a06 -> a03 [label="loop back\n(BRD)", color="#B45309"];
+  a06 -> a04 [label="loop back\n(US)",  color="#B45309"];
+
+  a07 -> a08 -> ok;
+}
+```
+
+**Path-coverage check (§9.1)**
+- `a05` (audit) terminates either with a stored report (`a05r`) or with an audit error (`a05e`), checked at `d_audit_ok`.
+- `a05e` (Auditor itself failed after retry) routes directly to `esc` (F6) — no infinite retry on the auditor.
+- `d_score` covers both outcomes: `yes → a07` (publish + memory + F2) and `no → d_iter`.
+- `d_iter` covers both outcomes: `yes → a06` (apply feedback + loop back to `a03`/`a04`) and `no → esc` (F6).
+- `a06` loops back to **both** producers (`a03` BRD, `a04` US) — the Auditor may flag either artifact, so both edges exist.
+- Two terminals are reachable: `ok` (success) and `esc` (escalation), with three distinct entry points to `esc` (audit error, score-cap, audit-error cap).
+- `audit_iter_F1` is incremented in `a06`; the cap (3) is enforced in `d_iter` before re-entering the loop.
+
+---
+
+### 9.2 Implementation Plan audit sub-loop (inside F2 · PLAN)
+
+```dot
+digraph AuditF2 {
+  rankdir=TB;
+  node [shape=box, style="rounded,filled", fillcolor="#eef2ff", fontname="Inter", fontsize=10];
+  edge [fontname="Inter", fontsize=9];
+
+  start [shape=circle, label="", width=0.2, style=filled, fillcolor=black];
+
+  p01 [label="F2.S1 · Orchestrator reads memory\n+ approved BRD/US from F1", fillcolor="#fde68a"];
+  p02 [label="F2.S2 · Orchestrator creates plan\n(docs/implementation-phase/\nimplementation-plans/)", fillcolor="#fde68a"];
+
+  p03 [label="F2.S3 · Auditor audits plan\nskill: audit-implementation-plan\n→ audit_score ∈ [0,10]", fillcolor="#fde68a"];
+  p03r[label="Save AUDIT-PLAN report\n(docs/implementation-phase/audits/)", fillcolor="#fef3c7"];
+  p03e[label="Auditor itself errored\n(LLM / IO failure after 1 retry)", fillcolor="#fee2e2"];
+
+  d_audit_ok [shape=diamond, label="Auditor completed ?", fillcolor="#fff3cd"];
+  d_score [shape=diamond, label="audit_score ≥ 9 ?", fillcolor="#fff3cd"];
+  d_iter  [shape=diamond, label="audit_iter_F2 < 3 ?", fillcolor="#fff3cd"];
+
+  p04 [label="F2.S4 · Orchestrator applies feedback\nincrement audit_iter_F2\n→ revise plan", fillcolor="#dbeafe"];
+  p05 [label="F2.S5 · Update memory bank", fillcolor="#fde68a"];
+
+  ok  [shape=doublecircle, label="\u2192 F3\nIMPLEMENT", fillcolor="#d1fae5"];
+  esc [shape=doublecircle, label="\u2192 F6\nESCALATE", fillcolor="#fee2e2"];
+
+  start -> p01 -> p02 -> p03 -> d_audit_ok;
+
+  d_audit_ok -> p03r [label="yes"];
+  d_audit_ok -> p03e [label="no (error)"];
+  p03e -> esc [label="escalate"];
+
+  p03r -> d_score;
+
+  d_score -> p05 [label="yes (approved)"];
+  d_score -> d_iter [label="no"];
+
+  d_iter -> p04 [label="yes (retry)"];
+  d_iter -> esc [label="no (cap reached)"];
+
+  p04 -> p02 [label="loop back", color="#B45309"];
+
+  p05 -> ok;
+}
+```
+
+**Path-coverage check (§9.2)**
+- `p03` (audit) terminates either with a stored report (`p03r`) or with an audit error (`p03e`), checked at `d_audit_ok`.
+- `p03e` (Auditor itself failed after retry) routes directly to `esc` (F6).
+- `d_score` covers both outcomes: `yes → p05` (memory + F3) and `no → d_iter`.
+- `d_iter` covers both outcomes: `yes → p04 → p02` (revise plan and re-audit) and `no → esc` (F6).
+- Two terminals are reachable: `ok` (success) and `esc` (escalation), with two distinct entry points to `esc` (audit error and score-cap).
+- `audit_iter_F2` is incremented in `p04`; the cap (3) is enforced in `d_iter`.
+
+---
+
+### 9.3 Auditor's blind-path detection checklist (applied to runtime diagrams §1–§8)
+
+The Auditor uses this checklist to validate that **any** artifact (BRD, User Story, or Plan) preserves the invariants of the runtime diagrams. Each finding maps to a deduction in the **Blind-Path Absence** score (25% weight) of the Auditor.
+
+```dot
+digraph BlindPathChecklist {
+  rankdir=LR;
+  node [shape=box, style="rounded,filled", fontname="Inter", fontsize=10];
+  edge [fontname="Inter", fontsize=9];
+
+  art [label="Artifact under audit\n(BRD | US | Plan)", shape=box, fillcolor="#fde68a"];
+
+  subgraph cluster_checks {
+    label="Blind-path invariants (each must hold)";
+    style="rounded,filled"; fillcolor="#F5F5F7"; fontsize=11;
+    c1 [label="C1 · Path completeness\nevery non-terminal node has\nan outgoing edge per outcome", fillcolor="#bbf7d0"];
+    c2 [label="C2 · Error handling\nevery external call has\nretry / recovery / terminal", fillcolor="#bbf7d0"];
+    c3 [label="C3 · User feedback continuity\nUI never frozen — every long\nstep emits an event UI listens to", fillcolor="#bbf7d0"];
+    c4 [label="C4 · Terminal reachability\nevery flow reaches one of the\n7 stop_reason values (RF-02)", fillcolor="#bbf7d0"];
+    c5 [label="C5 · Cancellation honored\nlong-running steps listen for\nuser_cancelled (RF-08)", fillcolor="#bbf7d0"];
+    c6 [label="C6 · Resume coverage\nevery error/cancel terminal\nhas a defined resume path (RF-08)", fillcolor="#bbf7d0"];
+    c7 [label="C7 · Budget cap\nevery loop has a check that\ncan emit stopped_by_budget (RF-01·F)", fillcolor="#bbf7d0"];
+    c8 [label="C8 · Schema evolution\nnew event fields use extra=\"allow\"\nor optional (arch rule §5)", fillcolor="#bbf7d0"];
+  }
+
+  d_all [shape=diamond, label="All 8 invariants hold ?", fillcolor="#fff3cd"];
+
+  pass [shape=doublecircle, label="Blind-Path Absence\nfull score (10/10)", fillcolor="#d1fae5"];
+  fail [shape=doublecircle, label="Deduct per finding\n(2–4 points each)\n→ score < 9 → loop", fillcolor="#fee2e2"];
+
+  art -> c1; art -> c2; art -> c3; art -> c4;
+  art -> c5; art -> c6; art -> c7; art -> c8;
+  c1 -> d_all; c2 -> d_all; c3 -> d_all; c4 -> d_all;
+  c5 -> d_all; c6 -> d_all; c7 -> d_all; c8 -> d_all;
+  d_all -> pass [label="yes"];
+  d_all -> fail [label="no"];
+}
+```
+
+**Path-coverage check (§9.3)**
+- Every invariant (C1…C8) has an incoming edge from `art` and an outgoing edge to `d_all` — no orphan checks.
+- `d_all` has two outcomes (`yes → pass`, `no → fail`) — both terminal.
+- `fail` feeds back into the host phase's iteration counter (F1 or F2) — the loop already handled in §9.1 / §9.2.
+
+---
+
+### 9.4 Cross-section invariants
+
+The Auditor cross-checks artifacts against existing diagrams in this document:
+
+| Artifact claim | Diagram to verify | Invariant |
+|---|---|---|
+| New event type | §1, §6, §8 (`log` node) | Listed in `events` table writers; `extra="allow"` preserved |
+| New `stop_reason` | §1, §2, §3 | Must be one of the 7 enum values (RF-02) — no new ones |
+| New phase / FSM state | §2 (Agent state machine) | Every transition into the state has a matching transition out |
+| New UI state | §3 (UI state machine) | Belongs to L1-L7 / C1-C13 / T1-T5 sets (`ui-prototype.md` §3) |
+| New plugin | §5 (Plugin seams) | Implements one of the 3 protocols (`Source`, `StoppingSignal`, `OutputRenderer`) |
+| New schema field | §6 (ERD) | Added as nullable / `JSONB` optional — no destructive migration |
+
+Any failure on this table is a **major** blind-path finding and caps **Consistency w/ docs** at 5/10 in the Auditor scoring.
+
+---
 
 ### Color tokens
 
