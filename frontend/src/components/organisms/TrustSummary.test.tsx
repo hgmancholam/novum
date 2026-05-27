@@ -32,8 +32,27 @@ describe("TrustSummary", () => {
 
   it("renders em-dash placeholders for event-derived metrics", () => {
     render(<TrustSummary run={makeRun()} />);
-    // confidence / iterations / sources are pending (event log)
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    // confidence + sources are pending (event log) — Iterations row removed
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("shows live confidence metrics when judgeConfidence is provided", () => {
+    const metrics = {
+      finalConfidence: 0.85,
+      structuralConfidence: 0.9,
+      judgeConfidence: 0.85,
+      passed: true,
+    };
+    render(<TrustSummary run={makeRun({ stopReason: "judge_confirmed" })} judgeConfidence={metrics} />);
+    expect(screen.getByText("85%")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: /Confidence 85%/i })).toBeInTheDocument();
+    // No pending placeholder for confidence
+    expect(screen.queryAllByText("—").length).toBeLessThan(2);
+  });
+
+  it("shows source count when provided", () => {
+    render(<TrustSummary run={makeRun()} sourceCount={7} />);
+    expect(screen.getByText("7 sources")).toBeInTheDocument();
   });
 
   it("has no accessibility violations", async () => {

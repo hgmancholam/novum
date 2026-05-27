@@ -185,3 +185,29 @@ async def test_call_success_path_for_each_role(
     assert result is instance
     assert mock_create.call_args.kwargs["model"] == ROLE_CONFIGS[role].model
     assert mock_create.call_args.kwargs["response_model"] is response_model
+
+
+@pytest.mark.asyncio
+async def test_call_rotates_github_tokens(
+    mock_create: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each call advances `_next_token()` so successive requests use
+    different GitHub PATs (independent rate-limit buckets)."""
+    from itertools import cycle
+
+    monkeypatch.setattr(client_module, "_TOKEN_POOL", ("tok-a", "tok-b", "tok-c"))
+    monkeypatch.setattr(client_module, "_TOKEN_ROTATION", cycle(("tok-a", "tok-b", "tok-c")))
+
+    mock_create.return_value = QuestionClassification(
+        question_type="factual", rationale="r", answerable=True
+    )
+
+    for _ in range(4):
+        await client_module.llm.call(
+            LLMRole.CLASSIFIER,
+            [{"role": "user", "content": "q"}],
+            QuestionClassification,
+        )
+
+    tokens = [c.kwargs["api_key"] for c in mock_create.call_args_list]
+    assert tokens == ["tok-a", "tok-b", "tok-c", "tok-a"]

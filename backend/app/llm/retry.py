@@ -48,7 +48,10 @@ def create_retry_decorator(max_attempts: int = 5) -> Callable[..., Any]:
     """Build a tenacity retry decorator with exponential backoff.
 
     Default of 5 attempts with 1->60 s exponential backoff is sized for
-    GitHub Models' 60 s per-minute quota window.
+    GitHub Models' 60 s per-minute quota window. Each retry advances
+    both ``_next_model(role)`` and ``_next_token()`` inside
+    :meth:`LLMClient.call`, so a transient rate-limit on one bucket
+    flips to a different (token, model) combination on the next try.
     """
     return retry(
         retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),

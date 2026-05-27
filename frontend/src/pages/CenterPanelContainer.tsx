@@ -136,10 +136,49 @@ export function CenterPanelContainer() {
     for (const e of events) {
       const structured = e["answer_structured"];
       if (e.type === "Stopped" && typeof structured === "string") {
-        return structured;
+        // Strip Confidence + Sources sections appended by StructuredRenderer
+        // (they are shown via TrustSummary and SourcesCard respectively).
+        const separator = "\n\n---\n\n### 📊 Confidence\n\n";
+        const cutIdx = structured.indexOf(separator);
+        return cutIdx === -1 ? structured : structured.slice(0, cutIdx);
       }
     }
     return null;
+  }, [events]);
+
+  /**
+   * Confidence metrics from the last JudgeRuled event (RF-12).
+   * final_confidence = min(structural, judge).
+   */
+  const judgeConfidence = useMemo<{
+    finalConfidence: number;
+    structuralConfidence: number;
+    judgeConfidence: number;
+    passed: boolean;
+  } | null>(() => {
+    let latest: {
+      finalConfidence: number;
+      structuralConfidence: number;
+      judgeConfidence: number;
+      passed: boolean;
+    } | null = null;
+    for (const e of events) {
+      if (
+        e.type === "JudgeRuled" &&
+        typeof e.final_confidence === "number" &&
+        typeof e.structural_confidence === "number" &&
+        typeof e.judge_confidence === "number" &&
+        typeof e.passed === "boolean"
+      ) {
+        latest = {
+          finalConfidence: e.final_confidence,
+          structuralConfidence: e.structural_confidence,
+          judgeConfidence: e.judge_confidence,
+          passed: e.passed,
+        };
+      }
+    }
+    return latest;
   }, [events]);
 
   /**
@@ -268,12 +307,13 @@ export function CenterPanelContainer() {
               viewFormat={viewFormat}
               onViewFormatChange={setViewFormat}
               sources={sources}
+              judgeConfidence={judgeConfidence}
             />
             {resumeError !== null ? (
               <p
                 role="alert"
                 data-testid="resume-error"
-                className="mx-auto w-full max-w-3xl text-sm text-[var(--semantic-danger)]"
+                className="mx-auto w-full max-w-3xl text-sm text-(--semantic-danger)"
               >
                 Could not resume: {resumeError.message}
               </p>

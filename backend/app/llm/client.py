@@ -66,6 +66,21 @@ _MODEL_ROTATION: dict[LLMRole, Any] = {
 }
 
 
+# Round-robin pool of GitHub PATs. Each PAT has an independent rate-limit
+# bucket on GitHub Models, so rotating per call gives N x effective RPM.
+# Parsed from ``settings.github_tokens`` (CSV); falls back to the single
+# ``settings.github_token`` when unset.
+_TOKEN_POOL: tuple[str, ...] = tuple(
+    t.strip() for t in settings.github_tokens.split(",") if t.strip()
+) or (settings.github_token,)
+_TOKEN_ROTATION = cycle(_TOKEN_POOL)
+
+
+def _next_token() -> str:
+    """Return the next GitHub PAT from the rotation pool."""
+    return cast("str", next(_TOKEN_ROTATION))
+
+
 # WP-5: Track if we've already degraded the judge provider in this run
 # (process-level flag to avoid spamming events on repeated judge calls)
 _judge_degraded = False
@@ -137,13 +152,14 @@ class LLMClient:
 
         # Attempt 2: GitHub Models fallback (or primary if judge_provider=="github")
         model = _next_model(LLMRole.JUDGE)  # Use configured judge model (deepseek)
+        token = _next_token()
         logger.info("llm_judge_github_attempt", model=model, fallback=degraded_event is not None)
 
         result = await client.chat.completions.create(
             model=model,
             custom_llm_provider="openai",
             api_base=settings.llm_api_base,
-            api_key=settings.github_token,
+            api_key=token,
             messages=messages,
             temperature=config.temperature,
             max_tokens=max_tok,
@@ -227,6 +243,7 @@ class LLMClient:
 
         # Standard path for non-judge roles
         model = _next_model(role)
+        token = _next_token()
 
         result = await client.chat.completions.create(
             model=model,
@@ -237,7 +254,7 @@ class LLMClient:
             # endpoint with a different catalog — do not use it.
             custom_llm_provider="openai",
             api_base=settings.llm_api_base,
-            api_key=settings.github_token,
+            api_key=token,
             messages=messages,
             temperature=config.temperature,
             max_tokens=max_tokens if max_tokens is not None else config.max_tokens,

@@ -91,10 +91,7 @@ async def main() -> None:
         print(f"Registered: {USER}")
 
         results = []
-        for idx, (tag, question) in enumerate(QUESTIONS):
-            # Pace requests to avoid GitHub Models burst rate limits.
-            if idx > 0:
-                await asyncio.sleep(75)
+        for tag, question in QUESTIONS:
             print(f"\n=== {tag}: {question[:60]}... ===", flush=True)
             t0 = time.time()
 

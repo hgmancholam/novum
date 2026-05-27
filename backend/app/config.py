@@ -18,6 +18,10 @@ class Settings(BaseSettings):
 
     # LLM
     github_token: str
+    # Optional comma-separated pool of GitHub PATs for per-call round-robin
+    # rotation. Each PAT has its own rate-limit bucket, so N tokens give
+    # N x effective RPM. When empty, falls back to ``github_token``.
+    github_tokens: str = ""
     llm_api_base: str = "https://models.github.ai/inference"
     llm_model_classifier: str = "meta/Llama-4-Scout-17B-16E-Instruct"
     llm_model_planner: str = "deepseek/DeepSeek-V3-0324"

@@ -26,7 +26,7 @@ import { RunHeader } from "./RunHeader";
 import { SourcesCard, type SourceEntry } from "./SourcesCard";
 import { StopReasonCard } from "./StopReasonCard";
 import { StructuredAnswer } from "./StructuredAnswer";
-import { TrustSummary } from "./TrustSummary";
+import { TrustSummary, type JudgeConfidenceMetrics } from "./TrustSummary";
 
 export interface CenterPanelViewProps {
   run: Run;
@@ -48,6 +48,8 @@ export interface CenterPanelViewProps {
   onViewFormatChange?: ((format: string) => void) | undefined;
   /** Evidence sources collected during the run (from EvidenceAdded events). */
   sources?: readonly SourceEntry[] | undefined;
+  /** Confidence metrics from the JudgeRuled event (RF-12). */
+  judgeConfidence?: JudgeConfidenceMetrics | null | undefined;
   className?: string | undefined;
 }
 
@@ -62,6 +64,7 @@ export function CenterPanelView({
   viewFormat,
   onViewFormatChange,
   sources,
+  judgeConfidence,
   className,
 }: CenterPanelViewProps) {
   const isTerminal = status === "stopped" && run.stopReason !== null;
@@ -114,7 +117,7 @@ export function CenterPanelView({
               <>
                 {showFormatSelector ? (
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-[var(--text-muted)]">
+                    <span className="text-xs font-medium text-(--text-muted)">
                       Format
                     </span>
                     <FormatSelector
@@ -137,7 +140,11 @@ export function CenterPanelView({
                 ) : null}
               </>
             ) : null}
-            <TrustSummary run={run} />
+            <TrustSummary
+              run={run}
+              judgeConfidence={judgeConfidence}
+              sourceCount={sources?.length}
+            />
             <StopReasonCard reason={run.stopReason} />
           </div>
         ) : null}
