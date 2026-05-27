@@ -1382,3 +1382,61 @@ When adding a new decision, use this format:
 - Audit checklist: all three boxes were missing → implemented full contract.
 - No new event type added (reused CONTRADICTION_DETECTED per WP-2.5 requirement).
 
+
+## D-WP-3: IP-21 WP-3 — StopReason collapse 7->4, kind-aware confidence, early-stop G8, FE alignment
+
+**Date:** 2026-05-27
+**Phase:** F3 — IMPLEMENT (Coder, IP-21 WP-3)
+**Commit:** 6ec6f39
+**Artifacts:** backend/app/domain/enums.py (StopReason 7->4), alembic/versions/002_*.py, backend/app/agent/orchestrator.py (StopRationale, early-stop), backend/app/confidence/* (kind-aware structural), backend/tests/test_resolver_acceptance.py (G13), frontend/src/types/events.ts (regenerated)
+
+**Decision:**
+1. Collapsed StopReason enum from 7 to 4 values (judge_confirmed, stopped_by_budget, user_cancelled, errored). honest_* paths removed in code and FE; legacy events remain replayable via extra='allow'.
+2. Alembic migration 002 normalises any historical honest_* stop_reason rows (in-place rewrite to stopped_by_budget for ancestral consistency).
+3. StopRationale added: structured rationale block attached to StoppedEvent (which signal fired, judge verdict, confidence breakdown). Surfaced in FE per RF-13.
+4. Early-stop (G8): orchestrator short-circuits round 1 when QuestionType=FACTUAL AND S>=0.95 AND coverage==1.0 AND agreement>=0.9 — matches matrix row 1 (capital of Japan).
+5. Kind-aware structural confidence: final_confidence = min(S_effective, J) where S_effective = S_raw * kind_ceiling[AnswerKind]. Ceilings per docs/understanding-phase/confidence-calculation.md amendment.
+6. G13 resolver acceptance: backend/tests/test_resolver_acceptance.py parametrises all 8 matrix rows; gates every commit independently of LLM availability.
+
+**Rationale:** The 7 honest_* values were redundant under always-answer: BEST_EFFORT + ceiling + StopRationale carry the same trust signal without inventing reasons for the run to refuse to answer.
+
+**Consequences:**
+- FE no longer renders honest_* labels (cleaner UX).
+- final_confidence values shift downward for low-ceiling kinds (BEST_EFFORT cap 0.6, SCENARIO cap 0.7); this is intentional and surfaced in trace.
+- Test suite: 33 regressions from WP-2 driven to zero in stabilisation pass (9ef6800).
+
+## D-WP-4-5-6: IP-21 WP-4/5/6 — Saturation novelty signal, judge extension, question memory
+
+**Date:** 2026-05-27
+**Phase:** F3 — IMPLEMENT (Coder, IP-21 WP-4 + WP-5 + WP-6)
+**Commits:** f27abd4, afc0009, c47f322
+**Artifacts:** backend/app/stopping/saturation.py, backend/app/llm/embeddings.py, backend/app/agent/tasks/judge.py (extended verdict), backend/app/agent/question_index.py (in-memory), backend/app/domain/events.py (SaturationDetectedEvent, JudgeProviderDegradedEvent, PriorRunHintEvent), frontend/src/components/molecules/SignalChip (labels/visuals)
+
+**Decision:**
+1. WP-4 saturation: novelty score per round = 1 - max cos(new_chunk_embedding, prior_chunk_embeddings). When mean novelty across last K=3 rounds < SATURATION_NOVELTY_THRESHOLD (0.15), emit SaturationDetectedEvent and signal stop. Embeddings via OpenAI text-embedding-3-small through litellm (M1 final, IP-21 §0.9). In-memory only (RF-05).
+2. WP-5 judge extension: JudgeVerdict gains coherence_score, contradictions list, missing_evidence list. Anthropic Claude Haiku used as independent verifier when ANTHROPIC_API_KEY present; fallback to GitHub Models o1-mini emits JudgeProviderDegradedEvent (RF-13 trust surface).
+3. WP-6 question memory: QuestionIndex (in-memory module-singleton) stores normalised question -> (run_id, summary, key_points). On classify, embedding lookup against the index returns top-K prior runs above similarity threshold; emits PriorRunHintEvent. Capped at prior_run_index_cap entries (lowercase settings attr; c47f322 fixed prod crash where SCREAMING_CASE was used).
+4. EventType count bumped from 17 to 22 across tests + FE labels.
+
+**Rationale:** Saturation closes the budget loop with a signal that 'more rounds will not add information', not just 'we ran out of rounds'. Independent verifier (Haiku) breaks the self-judging loop for high-stakes verdicts. Question memory enables the spec's same-session-twice determinism (RF-08) plus cross-run learning without persisting to DB.
+
+**Consequences:**
+- Hetzner VPS: no local ML wheels; all embeddings remote via litellm.
+- RF-05 preserved (single-server, in-process); index lost on restart by design.
+- JudgeProviderDegradedEvent surfaces in FE trace when Haiku is unreachable.
+
+## D-WP-POST: IP-21 post-landing hardening (smoke-driven fixes)
+
+**Date:** 2026-05-27
+**Phase:** F3 — IMPLEMENT (Coder, IP-21 acceptance smoke loop)
+**Commits:** 955b5d2, b767234, f461d9f, cf1bc8b, bddb050, 840f9b3, 63c8670, 38f681b, 7b70418, 8b48650, e497e85
+**Artifacts:** See per-commit messages and audits/IP-21-status-audit.md §2
+
+**Decision (summary):** Each smoke run against novum.duckdns.org surfaced a specific bug that violated the §0.8 binding matrix. Fixes applied in order: (a) lowercase settings normalisation + Pydantic wrapper for synthesizer response_model (prod crash on saturation eval); (b) surface draft on STOPPED_BY_BUDGET so always-answer holds when budget exhausts; (c) reorder resolver so detect_empty_comparative + ambiguity precede QuestionType priority (matrix row 3); (d) SourcesCard FE organism for RF-13 evidence surfacing; (e) N-PAT rotation per call to multiply rate-limit budget (GITHUB_TOKENS env list); (f) typed StructuredAnswerData payload with native FE block rendering; (g) intra-call token fallback on RateLimitError; (h) synthesizer payload coercion + ValidationError retry; (i) smoke SSE timeout 600s -> 1500s for Q2/Q3.
+
+**Rationale:** The plan binds the smoke matrix as the acceptance contract. Each fix traces to a specific failing row or a hidden trust-surface gap, not to scope creep.
+
+**Consequences:**
+- GITHUB_TOKENS (comma-separated) is the new canonical env; GITHUB_TOKEN remains as a single-token fallback.
+- answer_structured_data is the new primary payload for the FE; legacy answer_structured markdown remains as fallback (additive, schema-safe).
+- Smoke runs on Q2/Q3 may take up to ~18 min — this is expected and within max_rounds=20 budget.
