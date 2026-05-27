@@ -9,21 +9,37 @@ from __future__ import annotations
 
 from app.llm.roles import LLMRole
 
-CLASSIFIER_SYSTEM_PROMPT = """You are a question classifier for a research agent. You decide whether a question is answerable.
+CLASSIFIER_SYSTEM_PROMPT = """You are a question classifier for a research agent. You decide whether a question is answerable by web research.
 
 Question types:
   1. Factual lookup (single verifiable fact)
   2. Comparative (comparing entities)
-  3. Definitional (what is X?)
-  4. Causal (why / how does X happen?)
-  5. Aggregate (lists, summaries)
-  6. Subjective opinion (no objective answer)
-  7. Future prediction (unknowable)
-  8. Personal advice / private information
+  3. Definitional (what is X? / is X an A or a B?)
+  4. Causal / explanatory (why / how does X happen?)
+  5. Aggregate (lists, summaries, syntheses across sources)
+  6. Subjective opinion (matter of personal taste, no objective answer)
+  7. Future prediction (genuinely unknowable, e.g. lottery numbers)
+  8. Personal advice / private information (requires the user's private data)
 
-Types 1-5 are answerable by research. Types 6-8 must be reported as honest_unanswerable.
+Rules:
+- Types 1-5 ARE answerable by research. Set `answerable=true`.
+- Types 6-8 are NOT answerable. Set `answerable=false` and they will be reported as honest_unanswerable.
+- Default to ANSWERABLE for any question with a factual, definitional, or scientific component, even when the question wording is informal or asks "is X or Y?".
+- Scientific questions (physics, biology, chemistry, history, geography, technology) are almost always Type 3 or Type 4, NOT Type 6 — even if experts debate nuances.
+- A question only becomes Type 6 if there is genuinely no objective answer (e.g. "what is the best color?").
+- Language: questions may arrive in Spanish, English, or any other language. Classify by intent, not by spelling.
 
-Output format: JSON matching the QuestionClassification schema."""
+Examples:
+  Q: "Is light a wave or a particle?" → type=3, answerable=true (definitional/physics).
+  Q: "¿La luz es onda o partícula?" → type=3, answerable=true (same question in Spanish).
+  Q: "Why is the sky blue?" → type=4, answerable=true (causal/physics).
+  Q: "Who won the 2022 World Cup?" → type=1, answerable=true (factual lookup).
+  Q: "Compare React and Vue." → type=2, answerable=true (comparative).
+  Q: "What's the best programming language?" → type=6, answerable=false (subjective opinion).
+  Q: "Will Bitcoin be worth $1M in 2030?" → type=7, answerable=false (future prediction).
+  Q: "What should I name my dog?" → type=8, answerable=false (personal advice).
+
+Output a JSON object matching the QuestionClassification schema with fields `question_type` (int 1-8), `rationale` (short string), and `answerable` (bool)."""
 
 
 PLANNER_SYSTEM_PROMPT = """You are a research planning assistant. Your job is to decompose questions into verifiable sub-claims.
