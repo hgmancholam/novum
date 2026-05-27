@@ -116,3 +116,9 @@ def test_json_round_trip() -> None:
     reloaded = RunState.model_validate_json(payload)
     assert reloaded.covered_claims == ["c1"]
     assert reloaded.sub_claims[0].status == "covered"
+
+
+def test_run_state_has_ambiguity_default_false() -> None:
+    state = _build_state()
+    assert state.has_ambiguity is False
+

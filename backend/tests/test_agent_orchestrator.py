@@ -134,13 +134,35 @@ def _state(**overrides: Any) -> RunState:
 
 def _make_orchestrator(
     state: RunState,
+    *,
+    support: bool = False,
+    stopping_policy: object = None,
 ) -> tuple[AgentOrchestrator, list[BaseEvent]]:
+    """Construct an orchestrator wired to a collecting emit callback.
+
+    When ``support=True``, every ``EvidenceAddedEvent`` that flows through
+    the emit hook causes the matching ``EvidenceItem`` in ``state`` to be
+    re-tagged with ``polarity="supports"``. V1 search tasks tag all
+    evidence as ``NEUTRAL`` (BRD-07); the new ``JudgeSignal`` (BRD-09)
+    requires ``agreement >= 0.7`` before approving, which is unreachable
+    with neutral-only evidence. Production polarity assignment is
+    deferred to a future BRD; this hook is the test-side stand-in.
+    """
     collected: list[BaseEvent] = []
 
     async def emit(ev: BaseEvent) -> None:
         collected.append(ev)
+        if support and isinstance(ev, EvidenceAddedEvent):
+            for item in state.evidence:
+                if item.event_id == ev.id:
+                    item.polarity = "supports"
 
-    return AgentOrchestrator(state, emit), collected
+    if stopping_policy is None:
+        return AgentOrchestrator(state, emit), collected
+    return (
+        AgentOrchestrator(state, emit, stopping_policy=stopping_policy),  # type: ignore[arg-type]
+        collected,
+    )
 
 
 def _plan(*ids: str) -> PlanOutput:
@@ -182,7 +204,7 @@ async def test_run_happy_path(llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatc
     _install_registry(monkeypatch, {SourceType.TAVILY: tavily})
 
     state = _state()
-    orch, events = _make_orchestrator(state)
+    orch, events = _make_orchestrator(state, support=True)
     reason = await orch.run()
 
     assert reason == StopReason.JUDGE_CONFIRMED
@@ -247,7 +269,7 @@ async def test_rf14_max_revisions_then_proceed(
     _install_registry(monkeypatch, {SourceType.TAVILY: tavily})
 
     state = _state()
-    orch, events = _make_orchestrator(state)
+    orch, events = _make_orchestrator(state, support=True)
     reason = await orch.run()
 
     assert reason == StopReason.JUDGE_CONFIRMED
@@ -269,11 +291,15 @@ async def test_budget_exhausted_no_coverage(
     empty = _FakeSource(SourceType.TAVILY, results=[])
     _install_registry(monkeypatch, {SourceType.TAVILY: empty})
 
+    # With BRD-09, HonestStopSignal (priority 10) fires before BudgetSignal
+    # (priority 20) once all claims are marked uncoverable. The fixture
+    # exhausts max_searches=2 and analyze marks both claims uncoverable
+    # at search_count>=2, so the policy emits HONEST_UNANSWERABLE.
     state = _state(max_searches=2)
     orch, events = _make_orchestrator(state)
     reason = await orch.run()
 
-    assert reason == StopReason.STOPPED_BY_BUDGET
+    assert reason == StopReason.HONEST_UNANSWERABLE
     stopped = events[-1]
     assert isinstance(stopped, StoppedEvent)
     assert stopped.answer_prose is None
@@ -365,7 +391,7 @@ async def test_rf15_disconfirmation_emits_confidence_mismatch(
     _install_registry(monkeypatch, {SourceType.TAVILY: tavily})
 
     state = _state(max_searches=10, max_judge_attempts=3)
-    orch, events = _make_orchestrator(state)
+    orch, events = _make_orchestrator(state, support=True)
     reason = await orch.run()
 
     assert reason == StopReason.JUDGE_CONFIRMED
@@ -423,7 +449,7 @@ async def test_evidence_ids_in_claim_covered_match_in_memory(
     _install_registry(monkeypatch, {SourceType.TAVILY: tavily})
 
     state = _state()
-    orch, events = _make_orchestrator(state)
+    orch, events = _make_orchestrator(state, support=True)
     await orch.run()
 
     evidence_events = [e for e in events if isinstance(e, EvidenceAddedEvent)]
@@ -479,7 +505,7 @@ async def test_plan_created_event_emitted(
     )
 
     state = _state()
-    orch, events = _make_orchestrator(state)
+    orch, events = _make_orchestrator(state, support=True)
     await orch.run()
 
     plan_events = [e for e in events if isinstance(e, PlanCreatedEvent)]
@@ -505,9 +531,46 @@ async def test_tool_called_includes_target_claim(
     )
 
     state = _state()
-    orch, events = _make_orchestrator(state)
+    orch, events = _make_orchestrator(state, support=True)
     await orch.run()
 
     tool_events = [e for e in events if isinstance(e, ToolCalledEvent)]
     assert len(tool_events) >= 1
     assert tool_events[0].target_claim_id == "c1"
+
+
+async def test_orchestrator_uses_injected_stopping_policy(
+    llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BRD-09: orchestrator consults the injected `StoppingPolicy` instance."""
+    from app.seams.stopping import SignalResult, StopContext, StopSignalOutput
+    from app.stopping import StoppingPolicy
+
+    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("PlanOutput", _plan("c1"))
+    llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
+    tavily = _FakeSource(SourceType.TAVILY, results=[_result("u1", 0.9)])
+    _install_registry(monkeypatch, {SourceType.TAVILY: tavily})
+
+    consulted: list[str] = []
+
+    class _ImmediateBudgetFake:
+        name = "Recorder"
+        priority = 1
+
+        async def evaluate(self, context: StopContext) -> StopSignalOutput:
+            consulted.append("called")
+            return StopSignalOutput(
+                signal_name=self.name,
+                result=SignalResult.STOP,
+                stop_reason=StopReason.STOPPED_BY_BUDGET,
+            )
+
+    fake_policy = StoppingPolicy(signals=[_ImmediateBudgetFake()])
+    state = _state(max_searches=10)
+    orch, _events = _make_orchestrator(state, stopping_policy=fake_policy)
+    reason = await orch.run()
+
+    assert reason == StopReason.STOPPED_BY_BUDGET
+    assert consulted, "Injected stopping policy was not consulted"
+

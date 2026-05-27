@@ -43,7 +43,7 @@
 | IP-12 | BRD-12 History Panel | 2026-05-26 | Completed | [IP-12](../../../docs/implementation-phase/implementation-plans/IP-12-history-panel.md) |
 | IP-13 | BRD-13 Center Panel | 2026-05-26 | Completed | [IP-13](../../../docs/implementation-phase/implementation-plans/IP-13-center-panel.md) |
 | IP-13-iter2 | BRD-13 Center Panel — UX Completion | 2026-05-27 | Completed | [IP-13 iter 2](../../../docs/implementation-phase/implementation-plans/IP-13-center-panel-iter2.md) |
-| IP-09 | BRD-09 Stopping Signal Policy | 2026-05-26 | Ready for Implementation (F2 approved 9.75/10) | [IP-09](../../../docs/implementation-phase/implementation-plans/IP-09-stopping-signals.md) |
+| IP-09 | BRD-09 Stopping Signal Policy | 2026-05-26 | Completed | [IP-09](../../../docs/implementation-phase/implementation-plans/IP-09-stopping-signals.md) |
 
 ---
 
@@ -60,7 +60,7 @@
 | BRD-06 | Source Plugins (Tavily + Wikipedia) | 2026-05-26 | Implemented | [BRD-06](../../../docs/implementation-phase/brds/BRD-06-source-plugins.md) |
 | BRD-07 | Agent FSM & Research Loop | 2026-05-27 | Implemented | [BRD-07](../../../docs/implementation-phase/brds/BRD-07-agent-fsm.md) |
 | BRD-08 | Confidence Calculation Engine | 2026-05-26 | Implemented | [BRD-08](../../../docs/implementation-phase/brds/BRD-08-confidence-calculation.md) |
-| BRD-09 | Stopping Signal Policy | 2026-05-26 | Draft | [BRD-09](../../../docs/implementation-phase/brds/BRD-09-stopping-signals.md) |
+| BRD-09 | Stopping Signal Policy | 2026-05-26 | Implemented | [BRD-09](../../../docs/implementation-phase/brds/BRD-09-stopping-signals.md) |
 | BRD-10 | SSE Streaming & Resume | 2026-05-26 | Draft | [BRD-10](../../../docs/implementation-phase/brds/BRD-10-sse-streaming.md) |
 | BRD-11 | Frontend Setup & Layout Shell | 2026-05-26 | Draft | [BRD-11](../../../docs/implementation-phase/brds/BRD-11-frontend-layout.md) |
 | BRD-12 | History Panel (Left Sidebar) | 2026-05-26 | Draft | [BRD-12](../../../docs/implementation-phase/brds/BRD-12-history-panel.md) |
@@ -103,6 +103,7 @@
 | CR-13-002 | BRD-13 Center Panel (iter 2) | 1 | 8.88/10 | Returned to Coder | [CR-13-002](../../../docs/implementation-phase/reviews/CR-13-002-center-panel-iter2.md) |
 | CR-13-003 | BRD-13 Center Panel (iter 2 — re-review) | 2 | 9.53/10 | Approved | [CR-13-003](../../../docs/implementation-phase/reviews/CR-13-003-center-panel-iter2.md) |
 | CR-07-001 | BRD-07 Agent FSM & Research Loop | 1 | 9.4/10 | Approved | [CR-07-001](../../../docs/implementation-phase/reviews/CR-07-001-agent-fsm.md) |
+| CR-09-001 | BRD-09 Stopping Signal Policy | 1 | 9.83/10 | Approved | [CR-09-001](../../../docs/implementation-phase/reviews/CR-09-001-stopping-signals.md) |
 
 ---
 

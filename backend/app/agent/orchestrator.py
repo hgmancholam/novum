@@ -35,6 +35,7 @@ from app.domain.events import (
     StoppedEvent,
 )
 from app.llm.client import count_tokens
+from app.stopping import StoppingPolicy
 
 logger = structlog.get_logger(__name__)
 
@@ -42,16 +43,19 @@ logger = structlog.get_logger(__name__)
 type EventCallback = Callable[[BaseEvent], Awaitable[None]]
 
 
-_HONEST_UNANSWERABLE_SAFETY_ROUNDS = 5
-
-
 class AgentOrchestrator:
     """Drives a ``RunState`` through the research FSM."""
 
-    def __init__(self, state: RunState, emit: EventCallback) -> None:
+    def __init__(
+        self,
+        state: RunState,
+        emit: EventCallback,
+        stopping_policy: StoppingPolicy | None = None,
+    ) -> None:
         self.state = state
         self._emit = emit
         self._cancelled = False
+        self._stopping_policy = stopping_policy or StoppingPolicy()
 
     def cancel(self) -> None:
         """Request graceful cancellation before the next handler iteration."""
@@ -144,8 +148,11 @@ class AgentOrchestrator:
         self.state.transition_to(AgentState.CRITIQUING)
 
     async def _handle_searching(self) -> None:
-        if self.state.search_count >= self.state.max_searches:
-            await self._stop(StopReason.STOPPED_BY_BUDGET)
+        result = await self._stopping_policy.evaluate(self.state)
+        if self._stopping_policy.should_stop(result):
+            if result.stop_reason is None:
+                raise RuntimeError("Stopping signal returned STOP without a stop_reason")
+            await self._stop(result.stop_reason)
             return
         events = await execute_search_round(self.state)
         for ev in events:
@@ -162,28 +169,33 @@ class AgentOrchestrator:
             if self.state.covered_claims:
                 self.state.transition_to(AgentState.DRAFTING)
                 return
-            # Zero coverage with no claims left: budget takes priority,
-            # then safety net, then honest unanswerable as default.
-            if self.state.search_count >= self.state.max_searches:
-                await self._stop(StopReason.STOPPED_BY_BUDGET)
+            # No coverage and no pending claims — let the policy decide between
+            # BUDGET (search_count >= max_searches) and HONEST_UNANSWERABLE.
+            result = await self._stopping_policy.evaluate(self.state)
+            if self._stopping_policy.should_stop(result):
+                if result.stop_reason is None:
+                    raise RuntimeError(
+                        "Stopping signal returned STOP without a stop_reason"
+                    )
+                await self._stop(result.stop_reason)
             else:
+                # Defensive: total_claims==0 case is impossible after planning.
                 await self._stop(StopReason.HONEST_UNANSWERABLE)
             return
 
-        # Safety net (O-13): no coverage after many rounds → honest stop.
-        if (
-            self.state.coverage_ratio() == 0.0
-            and self.state.search_count >= _HONEST_UNANSWERABLE_SAFETY_ROUNDS
-        ):
-            await self._stop(StopReason.HONEST_UNANSWERABLE)
-            return
-
-        if self.state.search_count >= self.state.max_searches:
-            # Either draft what we have, or budget-stop if nothing covered.
-            if self.state.covered_claims:
+        result = await self._stopping_policy.evaluate(self.state)
+        if self._stopping_policy.should_stop(result):
+            if result.stop_reason is None:
+                raise RuntimeError("Stopping signal returned STOP without a stop_reason")
+            # Budget stops still let a partial draft proceed when we have
+            # covered claims — honest stops always terminate immediately.
+            if (
+                result.stop_reason is StopReason.STOPPED_BY_BUDGET
+                and self.state.covered_claims
+            ):
                 self.state.transition_to(AgentState.DRAFTING)
             else:
-                await self._stop(StopReason.STOPPED_BY_BUDGET)
+                await self._stop(result.stop_reason)
             return
 
         self.state.transition_to(AgentState.SEARCHING)
@@ -192,8 +204,6 @@ class AgentOrchestrator:
         await draft_answer(self.state)
         self.state.transition_to(AgentState.JUDGING)
 
-    # TODO(BRD-09): wire ConfidenceCalculator.check_sufficient into the
-    # layered stopping policy here.
     async def _handle_judging(self) -> None:
         judge_event = await evaluate_with_judge(self.state)
         await self.emit(judge_event)
@@ -201,22 +211,30 @@ class AgentOrchestrator:
         self.state.last_structural_confidence = judge_event.structural_confidence
         self.state.judge_attempts += 1
 
-        if judge_event.passed:
-            await self._stop(StopReason.JUDGE_CONFIRMED)
+        result = await self._stopping_policy.evaluate(
+            self.state,
+            judge_confidence=judge_event.judge_confidence,
+        )
+        if self._stopping_policy.should_stop(result):
+            if result.stop_reason is None:
+                raise RuntimeError("Stopping signal returned STOP without a stop_reason")
+            await self._stop(result.stop_reason)
             return
 
+        # Judge sub-loop safety net (O-07): not part of the layered policy.
         if self.state.judge_attempts >= self.state.max_judge_attempts:
             # O-09: never silently confirm.
             await self._stop(StopReason.STOPPED_BY_BUDGET)
             return
 
-        # RF-15 disconfirmation (O-14).
+        # RF-15 disconfirmation (BRD-08, untouched by BRD-09).
         mismatch = detect_mismatch(
             structural=judge_event.structural_confidence,
             judge=judge_event.judge_confidence,
         )
         if mismatch.has_mismatch:
-            assert mismatch.trust_flag is not None
+            if mismatch.trust_flag is None:
+                raise RuntimeError("Mismatch detected without a trust_flag")
             await self.emit(
                 ConfidenceMismatchEvent(
                     structural_confidence=judge_event.structural_confidence,

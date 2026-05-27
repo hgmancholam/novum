@@ -4,11 +4,59 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 26
+**Total Decisions:** 27
 
 ---
 
 ## Recent Decisions
+
+## D-027: Follow-up — Evidence polarity classifier required for O-04 agreement gate
+
+**Date:** 2026-05-26
+**Phase:** Follow-up (post BRD-09 F5)
+**Author:** Orchestrator Agent
+
+The Reviewer (CR-09-001, 9.83/10) surfaced a real V1 production gap exposed by the new `JudgeSignal` agreement gate (IP-09 O-04, threshold `agreement >= 0.7`): `backend/app/agent/tasks/search.py` still hard-codes `EvidencePolarity.NEUTRAL` on every emitted `EvidenceAddedEvent`. With all evidence neutral, `calculate_agreement(...)` returns `0.0`, the agreement gate fails permanently, and `JUDGE_CONFIRMED` is **unreachable in production**.
+
+In the orchestrator regression suite the gap is masked by a `support: bool` fixture flag that rewrites the emitted evidence polarity to `SUPPORTS` (Coder fixture decision, intentionally surfaced §7 of the implementation report).
+
+**Decision:** record this as a **mandatory follow-up BRD** before any user-visible release. Two concrete options on the table:
+1. A lightweight LLM-call step inside `analyze_evidence` that classifies each new evidence item against its claim (polarity ∈ {supports, contradicts, neutral}) before persisting the event.
+2. Piggyback polarity classification onto the existing synthesizer / judge call (cheaper, but couples concerns).
+
+Until the follow-up ships, V1 demos MUST use either the calibration eval set or pre-classified seed runs. The orchestrator regression suite already protects the policy paths, so no immediate code change is needed.
+
+---
+
+## D-026: BRD-09 / IP-09 — Stopping Signal Policy Review Approved, Workflow Closed (F5)
+
+**Date:** 2026-05-26
+**Phase:** F5 (COMPLETE)
+**Author:** Orchestrator Agent
+
+Reviewer scored the implementation **9.83 / 10** on iteration 1 — no rework needed. Independent verification confirmed: 87/87 tests pass (58 new stopping + 29 regression delta) in 7.3 s; **100 %** statement coverage on `app/stopping/` and `app/seams/stopping.py`; `ruff` and `pyright --strict` both clean (0/0); BRD-08 boundary respected (zero diffs in `backend/app/confidence/**`, 61 confidence/state tests still green).
+
+**Workflow trace for BRD-09:**
+- F2 (PLAN): IP-09 authored by Orchestrator, 1 iteration.
+- F2.S3 sub-loop (AUDIT): 1 iteration, audit_score **9.75 / 10** (APPROVED, ≥ 9 gate). Report: [AUDIT-PLAN-US-09.md](../../../docs/implementation-phase/audits/AUDIT-PLAN-US-09.md).
+- F3 (IMPLEMENT): Coder shipped per IP-09 with 4 documented pragmatic deviations (TYPE_CHECKING lazy import, `getattr` forward-safe guard, `RuntimeError` not `assert`, and the smaller-diff fixture choices IP-09 §7.8 row 2 delegated).
+- F4 (REVIEW): 1 iteration, code_review_score **9.83 / 10** (APPROVED, ≥ 9 gate). Report: [CR-09-001-stopping-signals.md](../../../docs/implementation-phase/reviews/CR-09-001-stopping-signals.md).
+- F5 (COMPLETE): knowledge-base-index updated — BRD-09 → Implemented, IP-09 → Completed.
+
+**Quality gates summary:**
+| Gate | Threshold | Actual | Iterations used | Status |
+|---|---|---|---|---|
+| Document Audit (F2) | ≥ 9 | 9.75 | 1 / 3 | PASS |
+| Code Review (F4) | ≥ 9 | 9.83 | 1 / 5 | PASS |
+| Coverage on `app.stopping` + `app.seams.stopping` | ≥ 80 % | 100 % | — | PASS |
+
+**Architectural milestone:** with BRD-09 shipped, **seam #2 of 3** is in place. The remaining seam (`OutputRenderer`) is owned by BRD-16. The `TODO(BRD-09)` marker in `app/agent/orchestrator.py::_handle_judging` is removed; `ConfidenceCalculator.check_sufficient` is intentionally left intact but unused (superseded by the layered policy, per IP-09 O-08 boundary with BRD-08).
+
+**Follow-up surfaced (see D-027):** V1 `search.py` hard-codes `EvidencePolarity.NEUTRAL`; the agreement gate (O-04, ≥ 0.7) is unreachable in production until a polarity-classifier BRD ships. Tracked as a known issue, not a regression.
+
+BRD-09 closes. Next dependent BRD is **BRD-10 (SSE Streaming & Resume)**.
+
+---
 
 ## D-026: BRD-10 / IP-10 — SSE Streaming & Resume Implemented and Approved (F2 → F5)
 

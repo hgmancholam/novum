@@ -47,6 +47,9 @@ class RunState(BaseModel):
     confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
     output_format: str = "prose"
 
+    # Set by a future ambiguity-detection task; read by HonestStopSignal (BRD-09).
+    has_ambiguity: bool = False
+
     current_state: AgentState = AgentState.INIT
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
