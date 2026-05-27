@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-26
-**Total Lessons:** 12
+**Total Lessons:** 13
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,7 @@
 
 ## Recent Lessons
 
+- **L-013:** `...init` Spread in `fetch()` Options Must Come Before `headers`/`body` (2026-05-26)
 - **L-012:** Float-Boundary Tests for Strict-`>` Thresholds Must Use Exact IEEE-754 Values (2026-05-26)
 - **L-011:** Drive Interval-Backed Components from a Prop in Tests, not from Fake Timers (2026-05-26)
 - **L-010:** Cancellation Tests in Single-Task Async FSMs Need a Yielding Emit Hook (2026-05-27)
@@ -25,6 +26,52 @@
 - **L-003:** Static-Only Tests for DB Migrations are Acceptable for Iteration 1 (2026-05-26)
 - **L-002:** Unit Tests are Mandatory per F3.S3 (2026-05-26)
 - **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
+
+---
+
+## L-013: `...init` Spread in `fetch()` Options Must Come Before `headers`/`body`
+
+**Date:** 2026-05-26
+**Agent:** All agents
+**Category:** Frontend / HTTP / Bug
+
+### Situation
+`POST /api/runs` returned FastAPI error 422: `"Input should be a valid dictionary or object to extract fields from"`. The request body was arriving as a raw JSON string instead of a parsed object.
+
+### Root Cause
+In `lib/api.ts`, the spread `...init` was placed **after** `headers` and `body` in the `fetch()` options object:
+
+```typescript
+// ❌ BROKEN — ...init overrides headers (and body) if init contains those keys
+fetch(url, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", ...init?.headers },
+  body: JSON.stringify(body),
+  ...init,   // ← if init has {headers: {...}}, it wipes Content-Type!
+});
+```
+
+`createRun` passed `init = { headers: { "X-Username": ..., "X-Token": ... } }`. The final spread replaced the entire `headers` object, silently dropping `Content-Type: application/json`. FastAPI received the body as `text/plain`, could not deserialize it, and rejected it as a string literal.
+
+### Fix
+Move `...init` **before** the explicit keys so the explicit values always win:
+
+```typescript
+// ✅ CORRECT — explicit headers and body always take precedence
+fetch(url, {
+  method: "POST",
+  ...init,
+  headers: { "Content-Type": "application/json", ...init?.headers },
+  body: JSON.stringify(body),
+});
+```
+
+This was applied to all four methods in `api.ts`: `get`, `post`, `put`, `delete`.
+
+### Prevention
+- Rule: in any `fetch(url, { ...init, headers: {...}, body: ... })` pattern, `...init` must be the first key after `method`.
+- Test: assert `Content-Type: application/json` is present in the `fetch` call in any hook test that passes auth headers.
+- Code review: flag any `...init` or `...options` spread placed after `headers` or `body` in a `fetch()` call.
 
 ---
 

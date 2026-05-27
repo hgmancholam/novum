@@ -72,6 +72,7 @@ describe("useCreateRun", () => {
     const headers = init.headers as Record<string, string>;
     expect(headers["X-Username"]).toBe("alice");
     expect(headers["X-Token"]).toBe("secret-token");
+    expect(headers["Content-Type"]).toBe("application/json");
 
     await waitFor(() => {
       expect(result.current.createdRun?.id).toBe(

@@ -37,11 +37,11 @@ export const api = {
   async get<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${API_URL}${path}`, {
       method: "GET",
+      ...init,
       headers: {
         "Content-Type": "application/json",
         ...init?.headers,
       },
-      ...init,
     });
     return handleResponse<T>(response);
   },
@@ -49,12 +49,12 @@ export const api = {
   async post<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
     const response = await fetch(`${API_URL}${path}`, {
       method: "POST",
+      ...init,
       headers: {
         "Content-Type": "application/json",
         ...init?.headers,
       },
       body: body !== undefined ? JSON.stringify(body) : null,
-      ...init,
     });
     return handleResponse<T>(response);
   },
@@ -62,12 +62,12 @@ export const api = {
   async put<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
     const response = await fetch(`${API_URL}${path}`, {
       method: "PUT",
+      ...init,
       headers: {
         "Content-Type": "application/json",
         ...init?.headers,
       },
       body: body !== undefined ? JSON.stringify(body) : null,
-      ...init,
     });
     return handleResponse<T>(response);
   },
@@ -75,11 +75,11 @@ export const api = {
   async delete<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${API_URL}${path}`, {
       method: "DELETE",
+      ...init,
       headers: {
         "Content-Type": "application/json",
         ...init?.headers,
       },
-      ...init,
     });
     return handleResponse<T>(response);
   },
