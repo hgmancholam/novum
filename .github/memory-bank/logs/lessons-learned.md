@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-26
-**Total Lessons:** 11
+**Total Lessons:** 12
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,7 @@
 
 ## Recent Lessons
 
+- **L-012:** Float-Boundary Tests for Strict-`>` Thresholds Must Use Exact IEEE-754 Values (2026-05-26)
 - **L-011:** Drive Interval-Backed Components from a Prop in Tests, not from Fake Timers (2026-05-26)
 - **L-010:** Cancellation Tests in Single-Task Async FSMs Need a Yielding Emit Hook (2026-05-27)
 - **L-009:** Vitest Fake Timers — `advanceTimersByTime` Already Moves `Date.now()`; Do Not Call `setSystemTime` Again (2026-05-27)
@@ -24,6 +25,39 @@
 - **L-003:** Static-Only Tests for DB Migrations are Acceptable for Iteration 1 (2026-05-26)
 - **L-002:** Unit Tests are Mandatory per F3.S3 (2026-05-26)
 - **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
+
+---
+
+## L-012: Float-Boundary Tests for Strict-`>` Thresholds Must Use Exact IEEE-754 Values
+
+**Date:** 2026-05-26
+**Agent:** Coder (BRD-08 / IP-08 — confidence calculation)
+**Category:** Backend / Testing / Floating-Point
+
+### Problem
+When testing `detect_mismatch(structural, judge, threshold)` at the boundary where `divergence == threshold` must *not* trigger (strict `>`), using human-friendly decimals fails:
+
+```python
+# FAILS: 0.8 - 0.6 == 0.20000000000000007 in IEEE-754
+result = detect_mismatch(structural=0.8, judge=0.6)  # threshold=0.2 default
+assert result.has_mismatch is False  # AssertionError
+```
+
+`0.2`, `0.6`, `0.8` are all non-terminating in binary; the subtraction overshoots by ~1e-16 and the strict `>` fires.
+
+### Fix
+Use exact IEEE-754 values (sums/differences of powers of 2 — `0.5`, `0.25`, `0.125`, `0.75`, …) so the assertion is deterministic:
+
+```python
+# Exact: 0.5 - 0.25 == 0.25 in IEEE-754
+result = detect_mismatch(structural=0.5, judge=0.25, threshold=0.25)
+assert result.has_mismatch is False  # passes
+```
+
+### Rule
+- Strict-`>` boundary assertions: pick operands whose binary representation is exact.
+- Non-boundary float assertions: always wrap with `pytest.approx`.
+- Document the choice with an inline comment so the test doesn't look like an arbitrary value.
 
 ---
 

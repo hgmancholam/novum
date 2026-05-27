@@ -4,11 +4,143 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 21
+**Total Decisions:** 25
 
 ---
 
 ## Recent Decisions
+
+## D-025: BRD-09 / IP-09 — Stopping Signal Policy Plan Approved (F2)
+
+**Date:** 2026-05-26
+**Phase:** F2 (PLAN → F2.S5 SAVE)
+**Author:** Orchestrator Agent
+
+Implementation plan **IP-09 Stopping Signal Policy** authored and approved by the Auditor on the first iteration with score **9.75 / 10**. Plan saved at `docs/implementation-phase/implementation-plans/IP-09-stopping-signals.md`. Audit report at `docs/implementation-phase/audits/AUDIT-PLAN-US-09.md`.
+
+**Key plan characteristics:**
+- Implements seam #2 of 3 (`StoppingSignal`) per architecture rule #1.
+- 10 binding overrides (O-01…O-10) on top of BRD-09 §4 — most notably:
+  - **O-03**: `StopContext` uses `search_count` / `max_searches`, not `iteration_count` (BRD bug: `state.iteration_count` counts FSM ticks, not research rounds).
+  - **O-04**: `JudgeSignal` gates on `coverage >= 0.8 AND agreement >= 0.7` before approval (fixes AC-03 contradiction: judge sycophancy bypass).
+  - **O-06**: `HONEST_UNANSWERABLE` requires **all** claims resolved with **zero** covered (matches BRD-07 semantics; BRD's 50 %-uncoverable threshold would orphan draftable answers).
+  - **O-07**: judge-attempts cap stays inline in `_handle_judging` (judge sub-loop counter ≠ research budget).
+  - **O-08**: no module-level `stopping_policy` singleton; `AgentOrchestrator` owns its instance and accepts an optional `stopping_policy` kwarg for test injection.
+- Three surgical edits in `app/agent/orchestrator.py` (`_handle_searching`, `_handle_analyzing`, `_handle_judging`).
+- One `RunState` field added: `has_ambiguity: bool = False` (reader only; emitter deferred to a future BRD).
+- Test plan: ~51 unit tests across `test_seams_stopping.py`, `test_stopping_signals.py`, `test_stopping_policy.py`; coverage target ≥ 95 % on `app.stopping`.
+- BRD-08 boundary explicitly documented in IP-09 §3 — IP-09 is **read-only** with respect to `app/confidence/**`.
+
+**Quality gate:**
+| Gate | Threshold | Actual | Iterations used | Status |
+|---|---|---|---|---|
+| Document Audit (F2) | ≥ 9 | 9.75 | 1 / 3 | PASS |
+
+**3 non-blocking minor findings applied in-place before save:**
+- Edit A clarified: honest stops discard partial drafts by design (RF-04 symmetric to Edit B's budget exception).
+- Test renamed: `test_honest_contradiction_low_priority_when_resolved` → `test_honest_contradiction_defers_when_no_conflict_high`.
+- `test_policy_uses_structural_confidence_once` switched from monkey-patching `app.confidence` to injecting a recording fake signal via the new `StoppingPolicy(signals=…)` kwarg.
+
+Next step: F3 (IMPLEMENT) — delegate to Coder agent.
+
+---
+
+## D-024: BRD-08 / IP-08 — Review Approved, Workflow Closed (F5)
+
+**Date:** 2026-05-26
+**Phase:** F5 (COMPLETE)
+**Author:** Orchestrator Agent
+
+Reviewer scored the implementation **10 / 10** on iteration 1 — no rework needed. Independent verification (not just Coder self-report) confirmed: 61/61 tests pass (41 confidence + 20 FSM regression), 100 % coverage on `app.confidence`, `ruff` and `pyright --strict` clean, `_DIVERGENCE_THRESHOLD` constant verifiably removed from the codebase (grep across `backend/` returns 0 matches), and all 8 binding deviations (O-01…O-08) verified file:line.
+
+**Workflow trace for BRD-08:**
+- F2 (PLAN): IP-08 authored by Orchestrator, 1 iteration.
+- F2.S3 sub-loop (AUDIT): 1 iteration, audit_score **9.75 / 10** (APPROVED, ≥ 9 gate). Report: [AUDIT-PLAN-IP-08-1-2026-05-26.md](../../../docs/implementation-phase/audits/AUDIT-PLAN-IP-08-1-2026-05-26.md).
+- F3 (IMPLEMENT): Coder shipped per D-023 with zero binding deviations from IP-08.
+- F4 (REVIEW): 1 iteration, code_review_score **10 / 10** (APPROVED, ≥ 9 gate). Report: [REVIEW-IP-08-1-2026-05-26.md](../../../docs/implementation-phase/reviews/REVIEW-IP-08-1-2026-05-26.md).
+- F5 (COMPLETE): knowledge-base-index updated — BRD-08 → Implemented, IP-08 → Completed.
+
+**Quality gates summary:**
+| Gate | Threshold | Actual | Iterations used | Status |
+|---|---|---|---|---|
+| Document Audit (F2) | ≥ 9 | 9.75 | 1 / 3 | PASS |
+| Code Review (F4) | ≥ 9 | 10 | 1 / 5 | PASS |
+| Coverage on `app.confidence` | ≥ 80 % | 100 % | — | PASS |
+
+BRD-08 closes. Next dependent BRD is **BRD-09 (Stopping Signal Policy)**, which will wire `ConfidenceCalculator.check_sufficient(...)` into the FSM (currently marked `# TODO(BRD-09)` in `app/agent/orchestrator.py`).
+
+---
+
+## D-023: BRD-08 / IP-08 — Confidence Calculation Engine Implemented
+
+**Date:** 2026-05-26
+**Phase:** F3 (IMPLEMENT)
+**Author:** Coder Agent
+
+Implemented the `app.confidence` package fulfilling RF-12 (`final_confidence = min(S, J)` with the four-component weighted structural score) and RF-15 (source independence + S/J mismatch detection). Created `structural.py` (5 pure helpers + `calculate_structural_confidence`), `mismatch.py` (`detect_mismatch` returning a frozen `MismatchResult` dataclass), `calculator.py` (`ConfidenceCalculator` with `calculate` and the BRD-09-deferred `check_sufficient`), and `__init__.py` with the alphabetically-ordered public exports.
+
+All eight binding deviations from IP-08 §3 were applied verbatim:
+- **O-01:** Re-used `StructuralConfidence` / `ConfidenceResult` from `app.domain.confidence`; no `StructuralWeights` dataclass introduced.
+- **O-02:** No unused imports in `calculator.py`.
+- **O-03:** PEP 604 union syntax everywhere (`str | None`); `from __future__ import annotations` at the top of every new module.
+- **O-04:** Replaced the placeholder in `app/agent/tasks/draft.py::evaluate_with_judge` (`state.coverage_ratio()` → `calculate_structural_confidence(state).score`); deleted the placeholder comment.
+- **O-05:** Removed `_DIVERGENCE_THRESHOLD = 0.3` from `orchestrator.py`; the inline `abs(...)` divergence block in `_handle_judging` now delegates to `detect_mismatch(...)`. The mismatch threshold is harmonised from 0.3 (orchestrator-only) to **0.2** (BRD-08 spec), strictly tightening detection — no event becomes invalid retroactively.
+- **O-06:** `MismatchResult` is a `@dataclass(frozen=True)`, not a Pydantic model.
+- **O-07:** `calculator.py` does not call `detect_mismatch`; mismatch detection stays an orchestrator concern.
+- **O-08:** `ConfidenceCalculator.check_sufficient(...)` shipped and unit-tested but NOT wired into the FSM. Added `# TODO(BRD-09)` marker above `_handle_judging`.
+
+**Tests:** 41 new unit tests (`test_confidence_structural.py` — 19, `test_confidence_mismatch.py` — 8, `test_confidence_calculator.py` — 14); existing `test_agent_tasks_draft.py` and `test_agent_orchestrator.py` updated for the new weighted score and the 0.2 threshold + richer `trust_flag` string. **Coverage on `app.confidence`: 100 %** (target was ≥ 95 %).
+
+**Verification:** all five mandated commands exit 0 — confidence-tests (41 passed), FSM-regression (20 passed), coverage (100 %), `ruff check` clean, `pyright app/confidence/` clean (0 errors, 0 warnings).
+
+**Files created:** `app/confidence/{__init__,structural,mismatch,calculator}.py`, `tests/test_confidence_{structural,mismatch,calculator}.py`.
+**Files modified:** `app/agent/tasks/draft.py`, `app/agent/orchestrator.py`, `tests/test_agent_tasks_draft.py`, `tests/test_agent_orchestrator.py`.
+
+**RF Mapping:** RF-12 (confidence formula), RF-15 (independence + mismatch).
+
+---
+
+## D-022: BRD-13 Center Panel — Iter 2 Re-review CR-13-003 Approved
+
+**Date:** 2026-05-26
+**Phase:** F4 (REVIEW — re-review against D-021)
+**Author:** Reviewer Agent
+**Iteration:** 2/5 (F3↔F4 loop count after this review: **2 / 5**)
+**Predecessor:** D-021 (fix pass) · D-020 (CR-13-002 return)
+
+**Outcome.** ✅ **APPROVED** at **9.53 / 10** (gate ≥ 9.0). All four CR-13-002 blockers closed:
+
+1. **M-1 (ElapsedClock stability).** `setSystemTime + advanceTimersByTime` removed; component is now driven via the `now?: Date` prop with `render`/`rerender`. The L-009-flaky case was split into 2 stable cases (interval test asserts only that text *changes*). Full suite: **39 files / 274 tests green** — confirmed by re-running `npx vitest run` and the isolated file (12 tests, 56 ms).
+2. **M-2 (5 new ESLint errors).** All cleared in `NewRunContainer.tsx`, `NewRunContainer.test.tsx`, `CenterPanelContainer.test.tsx` via `void navigate(...)`, sync `onSubmit` wrapper, removal of unused `async`, and an explicit guard replacing `!`. Verified via `npx eslint src/pages src/components/organisms/QuestionForm.tsx`.
+3. **S-1 (QuestionForm microcopy).** All 12 surfaces in `ui-prototype.md` §7.2 match verbatim — including the previously missing context label, threshold tooltip, submit-disabled tooltip, and the corrected format legend / option strings.
+4. **S-2 (TrustSummary §7.7 line 1).** `buildSummaryLine(run)` covers all 7 `stop_reason` enum values plus the running case with the exact glyphs (✓ / ⚠ / ⊘) and copy; the `<dl>` trust rows remain underneath (RF-13 honesty preserved). Minor acceptable substitution: `errored` uses `see details` instead of `<provider reason>` until BRD-10 wires the field — flagged as N-1.
+
+**Open items (do not block merge).**
+- **SF-1 — SHOULD FIX:** 4 inherited lint warnings on `QuestionForm.tsx` (`FormEvent` deprecation + 3 numeric template-literal interpolations on L117/L122/L129/L134). Pre-existed iter 2's diff and were not flagged by CR-13-002; deferred to a follow-up tidy-up pass as instructed by the re-review brief.
+- **N-1 — NICE TO HAVE:** interpolate `errored` provider reason into `TrustSummary` line 1 once the event log (BRD-10) exposes it.
+
+**Validation evidence.**
+- `npx vitest run` → 39 / 39 files, 274 / 274 tests pass.
+- `npx vitest run src/components/molecules/ElapsedClock.test.tsx` → 12 / 12 pass, 56 ms.
+- `npx eslint src/pages src/components/organisms/QuestionForm.tsx` → 0 errors from CR-13-002 scope; 4 inherited warnings on `QuestionForm.tsx` (SF-1).
+
+**Score breakdown.**
+
+| Criterion | Weight | Score | Weighted | Δ vs CR-13-002 |
+|---|---:|---:|---:|---:|
+| Code Quality | 25 % | 9.0 | 2.25 | +0.25 |
+| Test Coverage | 20 % | 9.5 | 1.90 | +0.40 |
+| Architecture | 20 % | 10.0 | 2.00 | 0 |
+| Documentation | 15 % | 9.5 | 1.425 | 0 |
+| Security | 10 % | 10.0 | 1.00 | 0 |
+| Performance | 10 % | 9.5 | 0.95 | 0 |
+| **Total** | | | **9.525** | **+0.645** |
+
+**Report.** `docs/implementation-phase/reviews/CR-13-003-center-panel-iter2.md`
+
+**Next.** Orchestrator advances BRD-13 iter 2 to **F5 (COMPLETE)**. No further iterations required.
+
+---
 
 ## D-021: BRD-13 Iter 2 — CR-13-002 Fixes Applied
 

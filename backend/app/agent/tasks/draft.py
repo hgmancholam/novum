@@ -13,6 +13,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from app.agent.run_state import RunState
+from app.confidence import calculate_structural_confidence
 from app.domain.events import (
     AnswerSection,
     JudgeRuledEvent,
@@ -81,8 +82,7 @@ async def evaluate_with_judge(state: RunState) -> JudgeRuledEvent:
         response_model=JudgeVerdict,
     )
     judge_confidence = verdict.confidence
-    # Placeholder structural confidence until BRD-08 ships.
-    structural_confidence = state.coverage_ratio()
+    structural_confidence = calculate_structural_confidence(state).score
     final_confidence = min(judge_confidence, structural_confidence)
     threshold = state.confidence_threshold
     passed = final_confidence >= threshold and verdict.verdict.lower() == "approve"

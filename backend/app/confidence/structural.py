@@ -1,0 +1,72 @@
+"""Structural confidence components (RF-12, RF-15).
+
+Pure synchronous helpers operating on in-memory ``RunState``. Each
+function returns a float in ``[0.0, 1.0]`` and is safe against the
+empty edge cases documented in IP-08 §4.1.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from urllib.parse import urlparse
+
+from app.domain.confidence import StructuralConfidence
+
+if TYPE_CHECKING:
+    from app.agent.run_state import EvidenceItem, RunState
+
+_DIVERSITY_TABLE: dict[int, float] = {0: 0.0, 1: 0.3, 2: 0.5, 3: 0.7, 4: 0.9}
+
+
+def calculate_coverage(state: RunState) -> float:
+    """C_coverage: covered claims / total sub-claims (0.0 when none)."""
+    if not state.sub_claims:
+        return 0.0
+    return len(state.covered_claims) / len(state.sub_claims)
+
+
+def calculate_agreement(evidence: list[EvidenceItem]) -> float:
+    """C_agreement: confidence-weighted ratio of supporting evidence."""
+    if not evidence:
+        return 0.0
+    total_weight = sum(e.confidence for e in evidence)
+    if total_weight == 0.0:
+        return 0.0
+    support_weight = sum(e.confidence for e in evidence if e.polarity == "supports")
+    return support_weight / total_weight
+
+
+def _extract_domain(url: str) -> str:
+    """Return a lowercased host without scheme or ``www.`` prefix."""
+    parsed = urlparse(url if "://" in url else f"http://{url}")
+    host = (parsed.netloc or parsed.path).split("/")[0].lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host
+
+
+def calculate_diversity(evidence: list[EvidenceItem]) -> float:
+    """C_diversity: unique-domain count mapped through a fixed table."""
+    if not evidence:
+        return 0.0
+    domains = {_extract_domain(e.source_url) for e in evidence}
+    count = len(domains)
+    return _DIVERSITY_TABLE.get(count, 1.0)
+
+
+def calculate_no_conflict(state: RunState) -> float:
+    """C_no_conflict: 1 - contradictions / evidence, clamped to [0.0, 1.0]."""
+    if not state.evidence:
+        return 1.0
+    ratio = len(state.contradictions) / len(state.evidence)
+    return max(0.0, 1.0 - ratio)
+
+
+def calculate_structural_confidence(state: RunState) -> StructuralConfidence:
+    """Compose the four S components into a ``StructuralConfidence``."""
+    return StructuralConfidence(
+        coverage=calculate_coverage(state),
+        agreement=calculate_agreement(state.evidence),
+        diversity=calculate_diversity(state.evidence),
+        no_conflict=calculate_no_conflict(state),
+    )

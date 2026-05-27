@@ -66,9 +66,11 @@ async def test_evaluate_with_judge_passes_when_above_threshold(
     mock_create.return_value = JudgeVerdict(confidence=0.9, verdict="approve", rationale="ok")
     state = _state(threshold=0.5)
     event = await draft_mod.evaluate_with_judge(state)
+    # S = 0.35*1.0 (coverage 2/2) + 0.30*0 (neutral polarity, no supports)
+    #   + 0.20*0.3 (1 unique domain) + 0.15*1.0 (no contradictions) = 0.56
     assert event.judge_confidence == 0.9
-    assert event.structural_confidence == 1.0  # 2/2 covered
-    assert event.final_confidence == 0.9
+    assert event.structural_confidence == pytest.approx(0.56)
+    assert event.final_confidence == pytest.approx(0.56)
     assert event.passed is True
 
 
@@ -79,7 +81,7 @@ async def test_evaluate_with_judge_fails_when_below_threshold(
     state = _state(threshold=0.7)
     event = await draft_mod.evaluate_with_judge(state)
     assert event.passed is False
-    assert event.final_confidence == 0.4
+    assert event.final_confidence == pytest.approx(0.4)
 
 
 async def test_evaluate_with_judge_fails_when_verdict_reject(

@@ -25,6 +25,7 @@ from app.agent.tasks import (
     map_issues_to_claims,
     revise_plan,
 )
+from app.confidence import detect_mismatch
 from app.domain.enums import StopReason
 from app.domain.events import (
     AgentErroredEvent,
@@ -41,7 +42,6 @@ logger = structlog.get_logger(__name__)
 type EventCallback = Callable[[BaseEvent], Awaitable[None]]
 
 
-_DIVERGENCE_THRESHOLD = 0.3
 _HONEST_UNANSWERABLE_SAFETY_ROUNDS = 5
 
 
@@ -192,6 +192,8 @@ class AgentOrchestrator:
         await draft_answer(self.state)
         self.state.transition_to(AgentState.JUDGING)
 
+    # TODO(BRD-09): wire ConfidenceCalculator.check_sufficient into the
+    # layered stopping policy here.
     async def _handle_judging(self) -> None:
         judge_event = await evaluate_with_judge(self.state)
         await self.emit(judge_event)
@@ -209,14 +211,18 @@ class AgentOrchestrator:
             return
 
         # RF-15 disconfirmation (O-14).
-        divergence = abs(judge_event.structural_confidence - judge_event.judge_confidence)
-        if divergence > _DIVERGENCE_THRESHOLD:
+        mismatch = detect_mismatch(
+            structural=judge_event.structural_confidence,
+            judge=judge_event.judge_confidence,
+        )
+        if mismatch.has_mismatch:
+            assert mismatch.trust_flag is not None
             await self.emit(
                 ConfidenceMismatchEvent(
                     structural_confidence=judge_event.structural_confidence,
                     judge_confidence=judge_event.judge_confidence,
-                    divergence=divergence,
-                    trust_flag="structural/judge divergence > 0.3",
+                    divergence=mismatch.divergence,
+                    trust_flag=mismatch.trust_flag,
                 )
             )
 

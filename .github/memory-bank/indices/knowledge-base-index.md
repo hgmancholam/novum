@@ -3,8 +3,8 @@
 > Central index of all knowledge artifacts in the Novum project.
 > Updated automatically by agents after each task.
 
-**Last Updated:** 2026-05-27
-**Updated By:** Orchestrator Agent (post IP-07 / CR-07-001)
+**Last Updated:** 2026-05-26
+**Updated By:** Orchestrator Agent (post IP-08 / REVIEW-IP-08-1 approved 10/10)
 
 ---
 
@@ -37,11 +37,13 @@
 | IP-05 | BRD-05 LLM Client Integration | 2026-05-26 | Completed | [IP-05](../../../docs/implementation-phase/implementation-plans/IP-05-llm-client.md) |
 | IP-06 | BRD-06 Source Plugins (Tavily + Wikipedia) | 2026-05-26 | Completed | [IP-06](../../../docs/implementation-phase/implementation-plans/IP-06-source-plugins.md) |
 | IP-07 | BRD-07 Agent FSM & Research Loop | 2026-05-27 | Completed | [IP-07](../../../docs/implementation-phase/implementation-plans/IP-07-agent-fsm.md) |
+| IP-08 | BRD-08 Confidence Calculation Engine | 2026-05-26 | Completed | [IP-08](../../../docs/implementation-phase/implementation-plans/IP-08-confidence-calculation.md) |
 | IP-11 | BRD-11 Frontend Setup & Layout Shell | 2026-05-26 | Completed | [IP-11](../../../docs/implementation-phase/implementation-plans/IP-11-frontend-layout.md) |
 | IP-11-iter2 | BRD-11 / BRD-04 Auth Wiring | 2026-05-26 | Completed | [IP-11 iter 2](../../../docs/implementation-phase/implementation-plans/IP-11-frontend-layout-iter2.md) |
 | IP-12 | BRD-12 History Panel | 2026-05-26 | Completed | [IP-12](../../../docs/implementation-phase/implementation-plans/IP-12-history-panel.md) |
 | IP-13 | BRD-13 Center Panel | 2026-05-26 | Completed | [IP-13](../../../docs/implementation-phase/implementation-plans/IP-13-center-panel.md) |
-| IP-13-iter2 | BRD-13 Center Panel — UX Completion | 2026-05-27 | Implemented | [IP-13 iter 2](../../../docs/implementation-phase/implementation-plans/IP-13-center-panel-iter2.md) |
+| IP-13-iter2 | BRD-13 Center Panel — UX Completion | 2026-05-27 | Completed | [IP-13 iter 2](../../../docs/implementation-phase/implementation-plans/IP-13-center-panel-iter2.md) |
+| IP-09 | BRD-09 Stopping Signal Policy | 2026-05-26 | Ready for Implementation (F2 approved 9.75/10) | [IP-09](../../../docs/implementation-phase/implementation-plans/IP-09-stopping-signals.md) |
 
 ---
 
@@ -57,7 +59,7 @@
 | BRD-05 | LLM Client Integration | 2026-05-26 | Implemented | [BRD-05](../../../docs/implementation-phase/brds/BRD-05-llm-client.md) |
 | BRD-06 | Source Plugins (Tavily + Wikipedia) | 2026-05-26 | Implemented | [BRD-06](../../../docs/implementation-phase/brds/BRD-06-source-plugins.md) |
 | BRD-07 | Agent FSM & Research Loop | 2026-05-27 | Implemented | [BRD-07](../../../docs/implementation-phase/brds/BRD-07-agent-fsm.md) |
-| BRD-08 | Confidence Calculation Engine | 2026-05-26 | Draft | [BRD-08](../../../docs/implementation-phase/brds/BRD-08-confidence-calculation.md) |
+| BRD-08 | Confidence Calculation Engine | 2026-05-26 | Implemented | [BRD-08](../../../docs/implementation-phase/brds/BRD-08-confidence-calculation.md) |
 | BRD-09 | Stopping Signal Policy | 2026-05-26 | Draft | [BRD-09](../../../docs/implementation-phase/brds/BRD-09-stopping-signals.md) |
 | BRD-10 | SSE Streaming & Resume | 2026-05-26 | Draft | [BRD-10](../../../docs/implementation-phase/brds/BRD-10-sse-streaming.md) |
 | BRD-11 | Frontend Setup & Layout Shell | 2026-05-26 | Draft | [BRD-11](../../../docs/implementation-phase/brds/BRD-11-frontend-layout.md) |
@@ -99,6 +101,7 @@
 | CR-11-002 | BRD-11 / BRD-04 Auth Wiring (iter 2) | 1 | 9.6/10 | Approved | [CR-11-002](../../../docs/implementation-phase/reviews/CR-11-002-auth-wiring.md) |
 | CR-13-001 | BRD-13 Center Panel | 1 | 9.6/10 | Approved | [CR-13-001](../../../docs/implementation-phase/reviews/CR-13-001-center-panel.md) |
 | CR-13-002 | BRD-13 Center Panel (iter 2) | 1 | 8.88/10 | Returned to Coder | [CR-13-002](../../../docs/implementation-phase/reviews/CR-13-002-center-panel-iter2.md) |
+| CR-13-003 | BRD-13 Center Panel (iter 2 — re-review) | 2 | 9.53/10 | Approved | [CR-13-003](../../../docs/implementation-phase/reviews/CR-13-003-center-panel-iter2.md) |
 | CR-07-001 | BRD-07 Agent FSM & Research Loop | 1 | 9.4/10 | Approved | [CR-07-001](../../../docs/implementation-phase/reviews/CR-07-001-agent-fsm.md) |
 
 ---

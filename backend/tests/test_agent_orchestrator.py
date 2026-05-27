@@ -348,7 +348,7 @@ async def test_rf15_disconfirmation_emits_confidence_mismatch(
         SynthesizedAnswer(prose="a", key_points=[], citations=[]),
         SynthesizedAnswer(prose="a", key_points=[], citations=[]),
     )
-    # Judge rejects with low confidence → S=1.0 (covered), J=0.1 → divergence 0.9 > 0.3
+    # Judge rejects with low confidence → S ~= 0.6, J=0.1 → divergence ~0.5 > 0.2
     llm_stub.queue(
         "JudgeVerdict",
         JudgeVerdict(
@@ -371,7 +371,8 @@ async def test_rf15_disconfirmation_emits_confidence_mismatch(
     assert reason == StopReason.JUDGE_CONFIRMED
     mismatches = [e for e in events if isinstance(e, ConfidenceMismatchEvent)]
     assert len(mismatches) == 1
-    assert mismatches[0].divergence > 0.3
+    assert mismatches[0].divergence > 0.2
+    assert "Structural metrics" in mismatches[0].trust_flag
 
 
 async def test_error_path_emits_agent_errored(
