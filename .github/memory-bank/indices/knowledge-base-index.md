@@ -72,6 +72,7 @@
 | BRD-16 | Output Format Renderers | 2026-05-26 | Draft | [BRD-16](../../../docs/implementation-phase/brds/BRD-16-output-renderers.md) |
 | BRD-17 | Testing Strategy & Calibration Eval | 2026-05-26 | Draft | [BRD-17](../../../docs/implementation-phase/brds/BRD-17-testing-strategy.md) |
 | BRD-18 | Infrastructure & Deployment | 2026-05-26 | Draft | [BRD-18](../../../docs/implementation-phase/brds/BRD-18-infrastructure.md) |
+| BRD-20 | Delete Finished Run & History Pagination | 2026-05-27 | Draft | [BRD-20](../../../docs/implementation-phase/brds/BRD-20-delete-run-and-pagination.md) |
 
 ---
 
@@ -79,7 +80,8 @@
 
 | ID | Title | BRD Reference | Status | Location |
 |----|-------|---------------|--------|----------|
-| - | No user stories created yet | - | - | - |
+| US-20-A | Delete a finished run from the history panel | BRD-20 | Draft | [US-20-A](../../../docs/implementation-phase/user-stories/US-20-A-delete-finished-run.md) |
+| US-20-B | Paginate the history panel with a "More" button | BRD-20 | Draft | [US-20-B](../../../docs/implementation-phase/user-stories/US-20-B-history-pagination.md) |
 
 ---
 

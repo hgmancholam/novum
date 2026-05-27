@@ -67,22 +67,28 @@ class AgentOrchestrator:
 
     async def run(self) -> StopReason:
         """Execute the FSM until a terminal state."""
-        await self.emit(
-            QuestionAskedEvent(
-                question=self.state.question,
-                user_context=self.state.user_context,
-                detected_question_type=None,
+        # Prelude runs only on a fresh start (INIT). For resumed runs,
+        # ``_fold_events`` has already placed the state somewhere in the
+        # FSM (typically SEARCHING), so we skip straight into the loop.
+        is_fresh = self.state.current_state == AgentState.INIT
+        if is_fresh:
+            await self.emit(
+                QuestionAskedEvent(
+                    question=self.state.question,
+                    user_context=self.state.user_context,
+                    detected_question_type=None,
+                )
             )
-        )
-        self.state.total_tokens += count_tokens(self.state.question)
+            self.state.total_tokens += count_tokens(self.state.question)
 
-        await self._normalize_question()
+            await self._normalize_question()
 
-        if not await self._detect_question_type():
-            return StopReason.HONEST_UNANSWERABLE
+            if not await self._detect_question_type():
+                return StopReason.HONEST_UNANSWERABLE
 
         try:
-            self.state.transition_to(AgentState.PLANNING)
+            if is_fresh:
+                self.state.transition_to(AgentState.PLANNING)
             while self.state.current_state not in (
                 AgentState.STOPPED,
                 AgentState.ERRORED,
