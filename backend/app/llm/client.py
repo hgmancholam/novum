@@ -29,6 +29,11 @@ T = TypeVar("T", bound=BaseModel)
 # Module-level litellm configuration (ai-services.md §1.1).
 litellm.api_base = settings.llm_api_base
 litellm.api_key = settings.github_token
+# Drop provider-unsupported params silently (e.g. gpt-5 rejects any
+# ``temperature`` other than 1, gpt-5.1 rejects ``temperature`` unless
+# ``reasoning_effort='none'``). Without this every synthesizer call
+# would hard-fail. Tested explicitly per role in test_llm_client.py.
+litellm.drop_params = True
 
 # Instructor-patched async client. Tests monkeypatch
 # ``app.llm.client.client.chat.completions.create`` directly.

@@ -46,7 +46,11 @@ ROLE_CONFIGS: dict[LLMRole, RoleConfig] = {
     ),
     LLMRole.SYNTHESIZER: RoleConfig(
         model=settings.llm_model_synthesizer,
-        temperature=0.3,
+        # gpt-5 only supports temperature=1; litellm.drop_params=True
+        # would silently coerce, but we set it explicitly to keep the
+        # config honest. Determinism for synthesis comes from the prompt,
+        # not from sampling temperature.
+        temperature=1.0,
         max_tokens=4096,
         description="Final answer synthesizer",
     ),
