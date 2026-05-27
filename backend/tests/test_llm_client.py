@@ -34,7 +34,7 @@ async def test_call_classifier_returns_question_classification(
     mock_create: AsyncMock,
 ) -> None:
     expected = QuestionClassification(
-        question_type=1, rationale="factual", answerable=True
+        question_type="factual", rationale="factual", answerable=True
     )
     mock_create.return_value = expected
 

@@ -11,7 +11,7 @@ from app.agent.run_state import EvidenceItem, RunState
 from app.agent.tasks import draft as draft_mod
 from app.domain.events import SubClaim
 from app.llm import client as client_module
-from app.llm.models import JudgeVerdict, SynthesizedAnswer
+from app.llm.models import JudgeVerdict
 
 
 @pytest.fixture
@@ -22,9 +22,12 @@ def mock_create(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
 
 
 def _state(threshold: float = 0.7) -> RunState:
+    from app.domain.enums import QuestionType
+
     s = RunState(
         run_id=uuid4(),
         question="Q?",
+        question_type=QuestionType.FACTUAL,  # WP-2 requires question_type
         confidence_threshold=threshold,
         sub_claims=[
             SubClaim(id="c1", text="t1", status="covered"),
@@ -46,11 +49,16 @@ def _state(threshold: float = 0.7) -> RunState:
 
 
 async def test_draft_answer_populates_state(mock_create: AsyncMock) -> None:
-    mock_create.return_value = SynthesizedAnswer(
-        prose="The answer is 42.",
-        key_points=["one", "two"],
-        citations=["https://example.com/1"],
-    )
+    from app.domain.enums import AnswerKind
+
+    # WP-2: draft_answer now requests response_model=dict, so mock must return a dict
+    mock_create.return_value = {
+        "prose": "The answer is 42.",
+        "key_points": ["one", "two"],
+        "citations": ["https://example.com/1"],
+        "gaps": [],
+        "answer_kind": AnswerKind.DIRECT.value,  # Use enum value string
+    }
     state = _state()
     result = await draft_mod.draft_answer(state)
     assert state.draft_answer == "The answer is 42."

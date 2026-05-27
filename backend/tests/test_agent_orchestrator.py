@@ -54,8 +54,34 @@ class _LLMStub:
     async def __call__(self, *_args: Any, **kwargs: Any) -> Any:
         model = kwargs["response_model"]
         name = model.__name__
+        # WP-2: draft.py calls synthesizer with response_model=dict and validates manually.
+        # Tests queue under "SynthesizedAnswer"; redirect dict lookups to it.
+        if name == "dict":
+            queue = self._queues.get("SynthesizedAnswer", [])
+            if queue:
+                value = queue.pop(0)
+                if hasattr(value, "model_dump"):
+                    return value.model_dump()
+                return value
+            raise AssertionError("No queued LLM response for SynthesizedAnswer (dict)")
         queue = self._queues.get(name, [])
         if not queue:
+            # Auto-respond for QuestionNormalization (added in WP-2 pipeline):
+            # tests don't care about normalization, only classification onward.
+            if name == "QuestionNormalization":
+                from app.llm.models import QuestionNormalization
+
+                # Echo back the user's question so state.question is not mutated.
+                messages = kwargs.get("messages") or []
+                user_msg = next(
+                    (m["content"] for m in messages if m.get("role") == "user"),
+                    "(stub)",
+                )
+                return QuestionNormalization(
+                    normalized_question=user_msg or "(stub)",
+                    was_corrected=False,
+                    language="en",
+                )
             raise AssertionError(f"No queued LLM response for {name}")
         return queue.pop(0)
 
@@ -172,8 +198,8 @@ def _plan(*ids: str) -> PlanOutput:
     )
 
 
-def _classify(bucket: int, answerable: bool = True) -> QuestionClassification:
-    return QuestionClassification(question_type=bucket, rationale="x", answerable=answerable)
+def _classify(question_type: str, answerable: bool = True) -> QuestionClassification:
+    return QuestionClassification(question_type=question_type, rationale="x", answerable=answerable)
 
 
 # ----------------------------------------------------------------------------
@@ -182,7 +208,7 @@ def _classify(bucket: int, answerable: bool = True) -> QuestionClassification:
 
 
 async def test_run_happy_path(llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     llm_stub.queue(
         "CritiqueOutput",
@@ -226,28 +252,49 @@ async def test_run_happy_path(llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatc
 
 
 async def test_rf06_unanswerable_stops_before_planning(
-    llm_stub: _LLMStub,
+    llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(6))
+    """RF-06 amendment (WP-2.0): personal_private questions are answerable but trigger ETHICAL_REDIRECT."""
+    llm_stub.queue("QuestionClassification", _classify("personal_private"))
+    llm_stub.queue("PlanOutput", _plan("c1"))
+    llm_stub.queue(
+        "CritiqueOutput",
+        CritiqueOutput(acceptable=True, summary="ok"),
+    )
+    llm_stub.queue(
+        "SynthesizedAnswer",
+        SynthesizedAnswer(
+            prose="I cannot answer personal questions",
+            key_points=["Privacy"],
+            answer_kind="ethical_redirect",
+            redirect_alternatives=["General advice", "Professional resources"],
+        ),
+    )
+    llm_stub.queue(
+        "JudgeVerdict",
+        JudgeVerdict(confidence=0.95, verdict="approve", rationale="ok"),
+    )
+
+    tavily = _FakeSource(
+        SourceType.TAVILY,
+        results=[_result("u1", 0.9), _result("u2", 0.9), _result("u3", 0.9)],
+    )
+    _install_registry(monkeypatch, {SourceType.TAVILY: tavily})
 
     state = _state()
-    orch, events = _make_orchestrator(state)
+    orch, events = _make_orchestrator(state, support=True)
     reason = await orch.run()
 
-    assert reason == StopReason.HONEST_UNANSWERABLE
-    assert [type(e).__name__ for e in events] == [
-        "QuestionAskedEvent",
-        "StoppedEvent",
-    ]
-    stopped = events[-1]
-    assert isinstance(stopped, StoppedEvent)
-    assert stopped.answer_prose is None
+    assert reason == StopReason.JUDGE_CONFIRMED
+    types = [type(e).__name__ for e in events]
+    assert "QuestionAskedEvent" in types
+    assert "StoppedEvent" in types
 
 
 async def test_rf14_max_revisions_then_proceed(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     # First critique rejects, then revise, then critique rejects again,
     # then revise, then critique still rejects (but we've hit cap → proceed).
@@ -285,7 +332,7 @@ async def test_rf14_max_revisions_then_proceed(
 async def test_budget_exhausted_no_coverage(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1", "c2"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
 
@@ -308,7 +355,7 @@ async def test_budget_exhausted_no_coverage(
 
 
 async def test_cancel_mid_loop(llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
     tavily = _FakeSource(SourceType.TAVILY, results=[])
@@ -336,7 +383,7 @@ async def test_cancel_mid_loop(llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPat
 async def test_judge_max_attempts_stops_by_budget_not_silent_confirm(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
     llm_stub.queue(
@@ -368,7 +415,7 @@ async def test_judge_max_attempts_stops_by_budget_not_silent_confirm(
 async def test_rf15_disconfirmation_emits_confidence_mismatch(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
     llm_stub.queue(
@@ -406,7 +453,7 @@ async def test_rf15_disconfirmation_emits_confidence_mismatch(
 async def test_error_path_emits_agent_errored(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
 
@@ -436,7 +483,7 @@ async def test_illegal_transition_raises() -> None:
 async def test_evidence_ids_in_claim_covered_match_in_memory(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
     llm_stub.queue(
@@ -466,7 +513,7 @@ async def test_evidence_ids_in_claim_covered_match_in_memory(
 async def test_question_asked_event_emitted_first(
     llm_stub: _LLMStub,
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(7))
+    llm_stub.queue("QuestionClassification", _classify("subjective_opinion"))
     state = _state()
     orch, events = _make_orchestrator(state)
     await orch.run()
@@ -477,7 +524,7 @@ async def test_question_asked_event_emitted_first(
 async def test_safety_net_honest_unanswerable_after_5_empty_rounds(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
     empty = _FakeSource(SourceType.TAVILY, results=[])
@@ -492,7 +539,7 @@ async def test_safety_net_honest_unanswerable_after_5_empty_rounds(
 async def test_plan_created_event_emitted(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1", "c2"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
     tavily = _FakeSource(SourceType.TAVILY, results=[_result("u1", 0.9), _result("u2", 0.9)])
@@ -518,7 +565,7 @@ async def test_plan_created_event_emitted(
 async def test_tool_called_includes_target_claim(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
     tavily = _FakeSource(SourceType.TAVILY, results=[_result("u1", 0.9), _result("u2", 0.9)])
@@ -548,7 +595,7 @@ async def test_orchestrator_uses_injected_stopping_policy(
     from app.seams.stopping import SignalResult, StopContext, StopSignalOutput
     from app.stopping import StoppingPolicy
 
-    llm_stub.queue("QuestionClassification", _classify(1))
+    llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
     tavily = _FakeSource(SourceType.TAVILY, results=[_result("u1", 0.9)])

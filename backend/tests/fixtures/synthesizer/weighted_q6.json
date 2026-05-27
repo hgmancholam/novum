@@ -14,5 +14,8 @@
       "score": 0.38,
       "rationale": "Simpler debugging and request tracing, lower operational overhead"
     }
+  ],
+  "contradictions": [
+    "Sources disagree on which architecture scales better under bursty load"
   ]
 }

@@ -125,8 +125,9 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
                 context={"_requires_contradictions": requires_contradictions},
             )
 
-            # Check kind matches
-            if result.answer_kind != answer_kind:
+            # Check kind matches (only when LLM explicitly set answer_kind;
+            # None means "not echoed" and the resolver is authoritative).
+            if result.answer_kind is not None and result.answer_kind != answer_kind:
                 if retry_count == 0:
                     # First mismatch: retry with hardened prefix
                     system_prompt = (
@@ -142,6 +143,10 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
                         f"after retry; expected {answer_kind.value}"
                     )
 
+            # Stamp the resolver-chosen kind on the result so downstream consumers see it.
+            if result.answer_kind is None:
+                result.answer_kind = answer_kind
+
             # Success — populate state and return
             state.draft_answer = result.prose
             state.draft_citations = list(result.citations)
@@ -152,10 +157,10 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
             return result
 
         except ValidationError as exc:
+            err_text = str(exc)
             # Check if it's the contradictions requirement violation
-            if requires_contradictions and "contradictions required" in str(exc):
+            if requires_contradictions and "contradictions required" in err_text:
                 if retry_count == 0:
-                    # First missing contradictions: retry with even harder prefix
                     system_prompt = (
                         "CRITICAL: The run has detected contradictions. You MUST populate "
                         "the 'contradictions' field with at least one entry. Omitting it "
@@ -167,6 +172,21 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
                 else:
                     raise LLMContractError(
                         "Synthesizer omitted contradictions field after retry"
+                    ) from exc
+            # Kind-shape mismatch: payload claims kind X but populates fields of kind Y
+            if "answer_kind" in err_text or "must be populated" in err_text or "must be None" in err_text:
+                if retry_count == 0:
+                    system_prompt = (
+                        f"CRITICAL: You MUST set answer_kind to '{answer_kind.value}' "
+                        f"AND populate ONLY the matching kind-specific field. "
+                        f"Any other value will be rejected.\n\n"
+                        + system_prompt
+                    )
+                    retry_count += 1
+                    continue
+                else:
+                    raise LLMContractError(
+                        f"Synthesizer returned invalid kind shape after retry; expected {answer_kind.value}"
                     ) from exc
             # Other validation error — re-raise
             raise

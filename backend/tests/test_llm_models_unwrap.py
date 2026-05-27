@@ -85,7 +85,7 @@ def test_unwrap_does_not_apply_when_inner_lacks_expected_fields() -> None:
     [
         (
             QuestionClassification,
-            {"question_type": 1, "rationale": "r", "answerable": True},
+            {"question_type": "factual", "rationale": "r", "answerable": True},
         ),
         (
             QuestionNormalization,

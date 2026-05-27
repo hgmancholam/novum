@@ -20,45 +20,42 @@ def mock_create(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     return mock
 
 
-def _classification(bucket: int, answerable: bool = True) -> QuestionClassification:
-    return QuestionClassification(question_type=bucket, rationale="x", answerable=answerable)
+def _classification(question_type: str, answerable: bool = True) -> QuestionClassification:
+    return QuestionClassification(question_type=question_type, rationale="x", answerable=answerable)
 
 
 @pytest.mark.parametrize(
-    ("bucket", "expected"),
+    ("question_type_str", "expected"),
     [
-        (1, QuestionType.FACTUAL),
-        (2, QuestionType.COMPARATIVE),
-        (3, QuestionType.DEFINITIONAL),
-        (4, QuestionType.CAUSAL),
-        (5, QuestionType.STATE_OF_ART),
+        ("factual", QuestionType.FACTUAL),
+        ("comparative", QuestionType.COMPARATIVE),
+        ("definitional", QuestionType.DEFINITIONAL),
+        ("causal", QuestionType.CAUSAL),
+        ("state_of_art", QuestionType.STATE_OF_ART),
+        ("predictive_future", QuestionType.PREDICTIVE_FUTURE),
+        ("subjective_opinion", QuestionType.SUBJECTIVE_OPINION),
+        ("personal_private", QuestionType.PERSONAL_PRIVATE),
     ],
 )
-async def test_buckets_1_to_5_map_to_question_type(
-    mock_create: AsyncMock, bucket: int, expected: QuestionType
+async def test_all_8_question_types_map_correctly(
+    mock_create: AsyncMock, question_type_str: str, expected: QuestionType
 ) -> None:
-    mock_create.return_value = _classification(bucket)
+    """WP-2.0: All 8 question types are answerable and map string to enum."""
+    mock_create.return_value = _classification(question_type_str)
     mapped, verdict = await classify.classify_question("q?")
     assert mapped == expected
-    assert verdict.question_type == bucket
+    assert verdict.question_type == question_type_str
 
 
-@pytest.mark.parametrize("bucket", [6, 7, 8])
-async def test_buckets_6_7_8_return_none(mock_create: AsyncMock, bucket: int) -> None:
-    mock_create.return_value = _classification(bucket)
-    mapped, verdict = await classify.classify_question("q?")
-    assert mapped is None
-    assert verdict.question_type == bucket
-
-
-async def test_answerable_false_returns_none(mock_create: AsyncMock) -> None:
-    mock_create.return_value = _classification(1, answerable=False)
-    mapped, _ = await classify.classify_question("q?")
-    assert mapped is None
+async def test_unrecognized_question_type_raises_error(mock_create: AsyncMock) -> None:
+    """Classifier returning unrecognized question_type raises ValueError."""
+    mock_create.return_value = _classification("invalid_type")
+    with pytest.raises(ValueError, match="unrecognized question_type"):
+        await classify.classify_question("q?")
 
 
 async def test_passes_question_as_user_message(mock_create: AsyncMock) -> None:
-    mock_create.return_value = _classification(1)
+    mock_create.return_value = _classification("factual")
     await classify.classify_question("What is X?")
     kwargs: dict[str, Any] = mock_create.call_args.kwargs
     messages = kwargs["messages"]

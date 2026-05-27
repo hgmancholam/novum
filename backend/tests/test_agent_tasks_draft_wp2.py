@@ -47,7 +47,9 @@ def base_state() -> RunState:
             confidence=0.9,
         )
     ]
-    state.sub_claims = []
+    # Default: 1 claim, covered, high confidence — should select DIRECT
+    state.sub_claims = [SubClaim(id="c1", text="Test claim", status="covered")]
+    state.covered_claims = ["c1"]
     return state
 
 
@@ -55,17 +57,55 @@ def base_state() -> RunState:
 @pytest.mark.parametrize(
     "answer_kind,fixture_file,question_type,setup_func",
     [
-        (AnswerKind.DIRECT, "direct.json", QuestionType.FACTUAL, lambda s: setattr(s, "sub_claims", [SubClaim(id="c1", text="Test", status="covered")])),
-        (AnswerKind.WEIGHTED, "weighted_q6.json", QuestionType.COMPARATIVE, lambda s: setattr(s, "sub_claims", [SubClaim(id="c1", text="Test", status="covered")])),
-        (AnswerKind.SCENARIO, "scenario.json", QuestionType.PREDICTIVE_FUTURE, lambda s: None),
-        (AnswerKind.TRADEOFF, "tradeoff.json", QuestionType.SUBJECTIVE_OPINION, lambda s: None),
+        (
+            AnswerKind.DIRECT,
+            "direct.json",
+            QuestionType.FACTUAL,
+            lambda s: None,  # Default setup already triggers DIRECT
+        ),
+        (
+            AnswerKind.WEIGHTED,
+            "weighted_q6.json",
+            QuestionType.COMPARATIVE,
+            lambda s: s.events.append(
+                ContradictionDetectedEvent(
+                    claim_id="c1",
+                    source_a={"url": "a", "title": "A", "claim": "X"},
+                    source_b={"url": "b", "title": "B", "claim": "not X"},
+                    nature_of_conflict="disagreement",
+                )
+            ),  # Add contradiction to lower agreement < 0.6
+        ),
+        (
+            AnswerKind.SCENARIO,
+            "scenario.json",
+            QuestionType.PREDICTIVE_FUTURE,
+            lambda s: None,  # PREDICTIVE_FUTURE always selects SCENARIO
+        ),
+        (
+            AnswerKind.TRADEOFF,
+            "tradeoff.json",
+            QuestionType.SUBJECTIVE_OPINION,
+            lambda s: None,  # SUBJECTIVE_OPINION always selects TRADEOFF
+        ),
         (
             AnswerKind.ETHICAL_REDIRECT,
             "ethical_redirect.json",
             QuestionType.PERSONAL_PRIVATE,
-            lambda s: None,
+            lambda s: None,  # PERSONAL_PRIVATE always selects ETHICAL_REDIRECT
         ),
-        (AnswerKind.BEST_EFFORT, "best_effort.json", QuestionType.SUBJECTIVE_OPINION, lambda s: s.events.append(AmbiguityDetectedEvent(ambiguous_phrase="test", possible_interpretations=[], clarification_needed=""))),
+        (
+            AnswerKind.BEST_EFFORT,
+            "best_effort.json",
+            QuestionType.COMPARATIVE,
+            lambda s: s.events.append(
+                AmbiguityDetectedEvent(
+                    ambiguous_phrase="test",
+                    possible_interpretations=["A", "B"],
+                    clarification_needed="",
+                )
+            ),  # Ambiguity flag triggers BEST_EFFORT (only for non-priority types)
+        ),
     ],
 )
 async def test_draft_answer_per_kind(
@@ -175,13 +215,12 @@ async def test_g10_contradictions_present_succeeds(
         )
     ]
 
-    payload_with_contradictions = load_fixture("direct.json")
-    payload_with_contradictions["contradictions"] = [
-        "Source A says X, Source B says not X"
-    ]
+    # With ContradictionDetectedEvent present, draft.py forces agreement=0.5
+    # so resolver routes COMPARATIVE → WEIGHTED.
+    payload_with_contradictions = load_fixture("weighted_q6.json")
     mock_llm_call.return_value = payload_with_contradictions
 
-    base_state.question_type = QuestionType.FACTUAL
+    base_state.question_type = QuestionType.COMPARATIVE
     result = await draft_answer(base_state)
 
     assert result.contradictions is not None
@@ -205,7 +244,9 @@ async def test_g3_ambiguity_flag_derived_from_events(
 
     mock_llm_call.return_value = load_fixture("best_effort.json")
 
-    base_state.question_type = QuestionType.SUBJECTIVE_OPINION
+    # Use a non-priority question type so ambiguity_flag can route to BEST_EFFORT;
+    # SUBJECTIVE_OPINION would short-circuit to TRADEOFF before the ambiguity check.
+    base_state.question_type = QuestionType.COMPARATIVE
     result = await draft_answer(base_state)
 
     # With ambiguity_flag=True, resolver should select BEST_EFFORT

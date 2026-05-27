@@ -80,6 +80,7 @@ class LLMClient:
         role: LLMRole,
         messages: list[dict[str, str]],
         response_model: type[T],
+        max_tokens: int | None = None,
     ) -> T:
         """Make a structured LLM call.
 
@@ -90,6 +91,12 @@ class LLMClient:
         The concrete model is picked round-robin from the role's pool
         on every call; tenacity retries on rate-limit errors therefore
         try a different model on each attempt.
+
+        Args:
+            role: The LLM role to use (determines model pool, temperature, etc.)
+            messages: The conversation messages
+            response_model: Pydantic model class for structured output
+            max_tokens: Optional override for role's default max_tokens (WP-2 M3)
         """
         config = ROLE_CONFIGS[role]
         model = _next_model(role)
@@ -119,7 +126,7 @@ class LLMClient:
             api_key=settings.github_token,
             messages=messages,
             temperature=config.temperature,
-            max_tokens=config.max_tokens,
+            max_tokens=max_tokens if max_tokens is not None else config.max_tokens,
             response_model=response_model,
             # Disable Instructor's internal retry loop. We let tenacity
             # own the retry budget so that every retry attempt re-enters

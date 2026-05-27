@@ -205,7 +205,8 @@ class SynthesizedAnswer(BaseModel):
                     )
 
         # G10: contradiction enforcement
-        requires_contradictions = info.context.get("_requires_contradictions", False)
+        context = info.context or {}
+        requires_contradictions = context.get("_requires_contradictions", False)
         if requires_contradictions and not self.contradictions:
             raise ValueError(
                 "contradictions required: run surfaced ContradictionDetectedEvent "
