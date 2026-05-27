@@ -43,7 +43,7 @@ class QuestionEmbeddingIndex:
     """
 
     def __init__(self, cap: int | None = None) -> None:
-        self._cap = cap or settings.PRIOR_RUN_INDEX_CAP
+        self._cap = cap or settings.prior_run_index_cap
         # OrderedDict: insertion order preserved, move_to_end() for LRU
         # Key: run_id, Value: (question_text, embedding_vec, sub_claims)
         self._store: OrderedDict[UUID, tuple[str, np.ndarray, list[str]]] = OrderedDict()
