@@ -1,9 +1,10 @@
 /**
  * Button atom.
- * See ui-prototype.md §8.2 (atoms) and §1.6 (animation policy).
+ * See ui-design.md §6.1 (glass button variants) and §1 (glass as the
+ * default surface treatment). Sizes: sm | md | lg.
  *
- * Variants follow ui-prototype.md §8.2: primary | secondary | ghost | danger.
- * Sizes: sm | md | lg.
+ * All four variants use a glass surface (translucent fill + backdrop blur +
+ * 1px tinted border). Hierarchy is encoded in the tint, not in the chrome.
  */
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
@@ -21,20 +22,26 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const baseStyles =
   "inline-flex items-center justify-center font-medium rounded-[12px] " +
-  "transition-[background-color,transform,opacity] duration-150 ease-out " +
+  "transition-[background-color,transform,box-shadow,opacity] duration-150 ease-out " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 " +
   "focus-visible:ring-[var(--accent)] focus-visible:ring-offset-[var(--bg-primary)] " +
   "disabled:pointer-events-none disabled:opacity-50";
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-[var(--accent)] text-[var(--text-primary)] hover:bg-[var(--accent-hover)] active:scale-[0.97]",
+    "glass-primary text-white " +
+    "hover:bg-[var(--accent-hover)] hover:shadow-[0_8px_24px_var(--accent-glow)] " +
+    "active:scale-[0.97]",
   secondary:
-    "bg-[var(--bg-tertiary)] text-[var(--text-primary)] hover:bg-[var(--glass-bg)] border border-[var(--glass-border)]",
+    "glass text-[var(--text-primary)] hover:bg-[var(--glass-hover)] active:scale-[0.98]",
   ghost:
-    "bg-transparent text-[var(--text-primary)] hover:bg-[var(--glass-bg)]",
+    "bg-transparent text-[var(--text-primary)] " +
+    "hover:bg-[var(--glass-bg)] hover:[backdrop-filter:blur(12px)_saturate(150%)] " +
+    "active:scale-[0.98]",
   danger:
-    "bg-[var(--semantic-danger)] text-[var(--text-primary)] hover:opacity-90 active:scale-[0.97]",
+    "glass-danger text-[var(--text-primary)] " +
+    "hover:bg-[color-mix(in_srgb,var(--semantic-danger)_32%,transparent)] " +
+    "hover:shadow-[0_8px_24px_rgba(239,68,68,0.4)] active:scale-[0.97]",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {

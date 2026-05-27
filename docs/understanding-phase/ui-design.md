@@ -21,6 +21,7 @@ The target is **L2 — UI with product intent**, refined toward a *Tailwind Labs
 | **Micro-interaction over animation** | Buttons lift 1 px on hover, gain a glow, scale 0.98 on press. No keyframe animation longer than 300 ms. Motion exists to confirm input, never to entertain. |
 | **Generous whitespace** | Inherited from `ui-prototype.md` §1.2. Density reduced one notch vs the original spec to let the gradient and shadows breathe. |
 | **The trace is the hero** | Every visual decision must keep the trace timeline (RF-13) legible and scannable. Chrome recedes; evidence stands out. |
+| **Glass is the standard surface** | Every container that rises off the gradient — panels, modals, cards, rows, chips, badges and **buttons** — uses one of the four glass utilities (§6.7). Solid `bg-*` fills are forbidden for new components; the gradient must remain visible through the chrome. |
 
 > Inspiration sources: [refactoringui.com](https://refactoringui.com) (background gradient, type hierarchy), [linear.app](https://linear.app) (slate palette, micro-interactions), [vercel.com/geist](https://vercel.com/geist) (Inter typography), [Radix Colors](https://www.radix-ui.com/colors) (slate + indigo scales).
 
@@ -220,20 +221,22 @@ All motion routes through `motion/react`. Durations strictly between **100 ms an
 
 ## 6. Interactive treatments
 
-### 6.1 Buttons (atoms/Button.tsx)
+### 6.1 Buttons (atoms/Button.tsx) — **all variants are glass**
 
-| Variant | Background | Border | Hover | Press |
-|---|---|---|---|---|
-| `primary` | `linear-gradient(180deg, var(--accent-hover) 0%, var(--accent) 100%)` | — | `translateY(-1px)` + `--shadow-glow` | `translateY(0)` + `scale(0.98)` |
-| `secondary` | `var(--glass-bg)` + `backdrop-blur(20px)` | `1px solid var(--glass-border)` | `var(--glass-hover)` + border opacity 0.20 | `scale(0.98)` |
-| `ghost` | transparent | — | `var(--glass-bg)` | `scale(0.98)` |
-| `danger` | `linear-gradient(180deg, #f87171, var(--semantic-danger))` | — | `--shadow-lg` (red tint) | `scale(0.98)` |
-| `warm` *(new)* | `linear-gradient(180deg, #fcd34d, var(--warm))` | — | `--shadow-warm` | `scale(0.98)` |
+Buttons share the same chrome as every other lifted surface: a translucent fill, a 20 px backdrop blur and a 1 px tinted border (§6.7). Hierarchy comes from the **tint**, not from chrome. The body gradient remains partially visible through every button — that visual continuity is the whole point of the rule.
+
+| Variant | Glass utility | Tint | Text | Hover | Press |
+|---|---|---|---|---|---|
+| `primary` | `glass-primary` | `--accent` @ 80% | `white` | `bg → --accent-hover` + `--shadow-glow` | `scale(0.97)` |
+| `secondary` | `glass` | neutral slate @ 6% | `--text-primary` | `bg → --glass-hover` | `scale(0.98)` |
+| `ghost` | *(none — transparent)* | — | `--text-primary` | acquires `glass-subtle` on hover (`blur(12px) saturate(150%)` + `bg --glass-bg`) | `scale(0.98)` |
+| `danger` | `glass-danger` | `--semantic-danger` @ 22% | `--text-primary` | `bg → --semantic-danger @ 32%` + red glow | `scale(0.97)` |
 
 All buttons share:
 - `transition: background-color 150ms, transform 150ms, box-shadow 200ms var(--ease-out)`.
 - Focus ring: `outline: 2px solid var(--accent); outline-offset: 2px`.
 - Loading spinner replaces icon, never resizes the button.
+- Solid (non-glass) button fills are forbidden — if a future variant needs a solid CTA, it must still keep the backdrop blur and the 1 px tinted border.
 
 ### 6.2 Inputs
 
@@ -262,7 +265,27 @@ All buttons share:
 - Surface: `--bg-elevated` + `--glass-border` + `--shadow-lg`.
 - Radius: `--radius-xl`.
 
-### 6.6 Scrollbar (global)
+### 6.6 Glass utility hierarchy — **the standard**
+
+Five glass utilities live in [`frontend/src/index.css`](../../frontend/src/index.css) and the `<GlassSurface>` atom in [`frontend/src/components/atoms/GlassSurface.tsx`](../../frontend/src/components/atoms/GlassSurface.tsx) wraps the three neutral ones (`glass-subtle`, `glass`, `glass-strong`) with elevation + radius props.
+
+| Utility | When to use | Blur / saturate | Background | Border |
+|---|---|---|---|---|
+| `glass-subtle` | Chips, badges, inline pills, secondary sections inside a card | 12 px / 150% | `--glass-bg` @ 50% | `--glass-border` @ 60% |
+| `glass` | Default — panels, cards, rows, secondary buttons | 20 px / 180% | `--glass-bg` | `--glass-border` |
+| `glass-strong` | Modals and dialogs that must read against the scrim | 28 px / 200% | `--bg-elevated` @ 85% | `--glass-border` @ 220% + inset highlight + outer shadow |
+| `glass-primary` | Primary buttons and CTA surfaces | 20 px / 180% | `--accent` @ 80% | `--accent` @ 50% |
+| `glass-danger` | Destructive buttons | 20 px / 180% | `--semantic-danger` @ 22% | `--semantic-danger` @ 55% |
+
+**Rules** (enforced in review):
+
+1. **Prefer `<GlassSurface>`** for any element that wraps content (panels, modals, cards). Use raw utilities only when adding a wrapper component would be overkill (chips, pills, inline labels, buttons).
+2. **Glass only works over varied content.** The body gradient counts; a flat panel background does not. Never apply a glass utility on top of another solid color — the blur becomes invisible.
+3. **Never stack two glass utilities** on the same element. Pick one.
+4. **Borders are always glass-tinted** (`--glass-border` or `--*-soft`), never opaque slate or hex.
+5. **Solid fills on interactive surfaces are forbidden.** Buttons, rows and chips must be glass. Static text and timestamps may sit directly on the gradient.
+
+### 6.7 Scrollbar (global)
 
 Updated to match the slate palette:
 

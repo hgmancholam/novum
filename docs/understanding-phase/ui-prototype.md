@@ -57,9 +57,10 @@ Token families (full values in `ui-design.md` §2):
 
 ### 1.5 Visual effects — see [`ui-design.md` §4 and §6](./ui-design.md#4-depth-and-elevation)
 
-- **Glassmorphism** on the three panel containers and on modals: `backdrop-filter: blur(20px) saturate(180%)` over `var(--glass-bg)` with `1px solid var(--glass-border)`.
+- **Glass is the standard surface treatment.** Every container that rises off the gradient — panels, modals, cards, rows, chips, badges **and buttons** — uses one of five glass utilities (`glass-subtle`, `glass`, `glass-strong`, `glass-primary`, `glass-danger`) backed by `backdrop-filter: blur(...) saturate(...)` over a translucent fill with a 1 px tinted border. The body gradient must remain visible through the chrome. Solid (non-glass) fills on interactive surfaces are forbidden. Full rules and selection guide: `ui-design.md` §6.6.
+- The `<GlassSurface>` atom wraps the three neutral utilities (`glass-subtle | glass | glass-strong`) with `elevation` and `radius` props; prefer it for any wrapper component. Use raw utility classes only for in-place elements (chips, pills, inline buttons).
 - **Three elevation shadows** + `--shadow-glow` (indigo) + `--shadow-warm` (amber, used once per confirmed run). Full definitions in `ui-design.md` §4.
-- **No hard borders.** Always `var(--glass-border)` at 8–12% opacity.
+- **No hard borders.** Always `var(--glass-border)` (or a tinted `--*-soft`) at 8–12% opacity.
 - **`border-radius`** minimum 12 px on interactive elements; panels and modals use `--radius-xl` (24 px).
 
 ### 1.6 Animation policy (Motion) — see [`ui-design.md` §5](./ui-design.md#5-motion)

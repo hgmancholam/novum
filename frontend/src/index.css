@@ -176,3 +176,22 @@ body {
     0 20px 60px -10px rgba(0, 0, 0, 0.6);
 }
 
+/*
+ * Tinted glass utilities for primary / destructive buttons.
+ * Same blur + border treatment as neutral glass, with a translucent semantic
+ * fill so the action color still reads as the primary/danger affordance.
+ */
+@utility glass-primary {
+  background-color: color-mix(in srgb, var(--accent) 80%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+@utility glass-danger {
+  background-color: color-mix(in srgb, var(--semantic-danger) 22%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--semantic-danger) 55%, transparent);
+}
+
