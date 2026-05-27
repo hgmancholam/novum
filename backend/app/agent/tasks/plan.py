@@ -27,9 +27,6 @@ CLAIM_BUDGETS: dict[QuestionType, tuple[int, int]] = {
     QuestionType.COMPARATIVE: (2, 4),
     QuestionType.CAUSAL: (2, 4),
     QuestionType.STATE_OF_ART: (3, 6),
-    QuestionType.PREDICTIVE_FUTURE: (2, 4),
-    QuestionType.SUBJECTIVE_OPINION: (2, 4),
-    QuestionType.PERSONAL_PRIVATE: (1, 3),
 }
 _DEFAULT_BUDGET: tuple[int, int] = (3, 5)
 
