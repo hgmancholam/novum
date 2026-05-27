@@ -37,6 +37,8 @@ export const EVENT_LABELS: Record<EventType, string> = {
   ResumedAfterError: "Resumed after error",
   ResumedAfterCancel: "Resumed after cancel",
   Stopped: "Stopped",
+  SaturationDetected: "Saturation",
+  JudgeProviderDegraded: "Judge degraded",
 };
 
 export const EVENT_ACTIVITIES: Record<EventType, string> = {
@@ -60,6 +62,8 @@ export const EVENT_ACTIVITIES: Record<EventType, string> = {
   ResumedAfterError: "Picking up where it left off",
   ResumedAfterCancel: "Picking up where it left off",
   Stopped: "Wrapping up",
+  SaturationDetected: "Detecting saturation",
+  JudgeProviderDegraded: "Switching judge provider",
 };
 
 export function getEventLabel(type: string): string {

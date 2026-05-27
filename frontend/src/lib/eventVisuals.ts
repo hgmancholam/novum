@@ -68,6 +68,8 @@ export const EVENT_VISUALS: Record<EventType, EventVisual> = {
   ResumedAfterError:      { Icon: RotateCw,             tone: "info" },
   ResumedAfterCancel:     { Icon: RotateCw,             tone: "info" },
   Stopped:                { Icon: Flag,                 tone: "neutral" },
+  SaturationDetected:     { Icon: MinusCircle,          tone: "neutral" },
+  JudgeProviderDegraded:  { Icon: AlertCircle,          tone: "warn" },
 };
 
 const FALLBACK_VISUAL: EventVisual = { Icon: Flag, tone: "neutral" };

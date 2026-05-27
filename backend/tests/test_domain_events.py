@@ -33,6 +33,7 @@ from app.domain.events import (
     Event,
     EvidenceAddedEvent,
     JudgeRuledEvent,
+    JudgeProviderDegradedEvent,
     PlanCreatedEvent,
     PlanCritiquedEvent,
     PlanRevisedEvent,
@@ -40,6 +41,7 @@ from app.domain.events import (
     QuestionNormalizedEvent,
     ResumedAfterCancelEvent,
     ResumedAfterErrorEvent,
+    SaturationDetectedEvent,
     SourceFailedEvent,
     StoppedEvent,
     SubClaim,
@@ -213,6 +215,19 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
             extra = {"cancel_event_id": str(uuid4()), "resume_point": "p"}
         case EventType.STOPPED:
             extra = {"stop_reason": StopReason.JUDGE_CONFIRMED.value}
+        case EventType.SATURATION_DETECTED:
+            extra = {
+                "round_index": 3,
+                "novelty": 0.12,
+                "k": 3,
+                "threshold": 0.15,
+            }
+        case EventType.JUDGE_PROVIDER_DEGRADED:
+            extra = {
+                "requested_provider": "anthropic",
+                "fallback_provider": "github",
+                "error_class": "AuthenticationError",
+            }
     base.update(extra)
     return base
 
@@ -238,6 +253,8 @@ _EXPECTED_CLASS: dict[EventType, type] = {
     EventType.RESUMED_AFTER_ERROR: ResumedAfterErrorEvent,
     EventType.RESUMED_AFTER_CANCEL: ResumedAfterCancelEvent,
     EventType.STOPPED: StoppedEvent,
+    EventType.SATURATION_DETECTED: SaturationDetectedEvent,
+    EventType.JUDGE_PROVIDER_DEGRADED: JudgeProviderDegradedEvent,
 }
 
 
@@ -276,9 +293,9 @@ def test_extra_fields_preserved_in_model_extra() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_event_type_enum_has_20_values() -> None:
-    """AC-04: there are exactly 20 event types."""
-    assert len(EventType) == 20
+def test_event_type_enum_has_22_values() -> None:
+    """AC-04 (WP-4/5): there are exactly 22 event types."""
+    assert len(EventType) == 22
 
 
 def test_forkable_events_exact_membership() -> None:
@@ -295,12 +312,12 @@ def test_forkable_events_exact_membership() -> None:
 def test_event_type_map_covers_every_event_type() -> None:
     """Every ``EventType`` value must map to a concrete class."""
     assert set(EVENT_TYPE_MAP.keys()) == {v.value for v in EventType}
-    assert len(EVENT_TYPE_MAP) == 20
+    assert len(EVENT_TYPE_MAP) == 22
 
 
 def test_event_type_map_values_are_unique_classes() -> None:
     classes = list(EVENT_TYPE_MAP.values())
-    assert len(set(classes)) == len(classes) == 20
+    assert len(set(classes)) == len(classes) == 22
 
 
 # ---------------------------------------------------------------------------

@@ -76,8 +76,8 @@ def test_output_format_values() -> None:
     assert {v.value for v in OutputFormat} == {"prose", "structured"}
 
 
-def test_event_type_has_exactly_20_values() -> None:
-    assert len(EventType) == 20
+def test_event_type_has_exactly_22_values() -> None:
+    assert len(EventType) == 22
 
 
 def test_event_type_values() -> None:
@@ -102,6 +102,8 @@ def test_event_type_values() -> None:
         "ResumedAfterError",
         "ResumedAfterCancel",
         "Stopped",
+        "SaturationDetected",
+        "JudgeProviderDegraded",
     }
     assert {v.value for v in EventType} == expected
 
