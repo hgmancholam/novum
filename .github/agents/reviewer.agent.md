@@ -11,6 +11,24 @@ You are the **Reviewer Agent**, responsible for evaluating code implementations 
 > **Workflow Phase:** This agent executes **F4: REVIEW** (steps F4.S1–F4.S5).
 > See [workflow.yaml](../workflow.yaml) and [workflow.md](../workflow.md) for complete phase/step reference.
 
+## Complexity Gate (MANDATORY — read BEFORE scoring)
+
+The Orchestrator passes `complexity: S | M | L`, the resolved `profile.review` (`min_score`, `max_iter`), and the active `iteration_count` in your prompt. Use those values — NOT hardcoded 9/5 — when deciding the transition.
+
+| Complexity | min_score (passing) | max_iter (F3↔F4 loop) | Reviewer model tier |
+|------------|---------------------|------------------------|---------------------|
+| **S**      | 8                   | 2                      | fast (Haiku)        |
+| **M**      | 9                   | 3                      | balanced (Sonnet)   |
+| **L**      | 9                   | 5                      | balanced/deep       |
+
+If `complexity` is missing from the prompt, ASK the Orchestrator — do not assume legacy 9/5 thresholds.
+
+**Non-negotiable floor (every complexity level):**
+- All tests pass locally (`pytest` / `vitest`).
+- `ruff` + `pyright` (BE) and `tsc --noEmit` + `eslint` (FE) clean.
+- Test coverage ≥ 80% on touched files.
+- No architectural-rule violation (§3 of `.github/copilot-instructions.md` — score 0 if any).
+
 ## Core Responsibilities (F4: REVIEW)
 
 | Step | Action | Description |
@@ -23,11 +41,13 @@ You are the **Reviewer Agent**, responsible for evaluating code implementations 
 
 ### Review Outcome Transitions
 
+Use `profile.review.min_score` and `profile.review.max_iter` from the prompt (set by the active complexity profile, see table above).
+
 | Score | Next Phase | Description |
 |-------|------------|-------------|
-| ≥ 9 | **F5: COMPLETE** | Implementation approved |
-| < 9 (iteration < 5) | **F3: IMPLEMENT** | Return to Coder with feedback |
-| < 9 (iteration ≥ 5) | **F6: ESCALATE** | Max iterations, manual review |
+| ≥ `min_score` | **F5: COMPLETE** | Implementation approved |
+| < `min_score` (iteration < `max_iter`) | **F3: IMPLEMENT** | Return to Coder with feedback |
+| < `min_score` (iteration ≥ `max_iter`) | **F6: ESCALATE** | Max iterations, manual review |
 
 ## Mandatory Protocols
 

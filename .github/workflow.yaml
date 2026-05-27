@@ -4,11 +4,130 @@
 
 workflow:
   name: "Novum Agentic Development Workflow"
-  version: "1.0.0"
+  version: "1.1.0"
   description: >
-    Orchestrated workflow for requirement analysis, implementation, 
-    code review, and quality assurance. Ensures minimum score of 9/10 
-    with maximum 5 iteration cycles.
+    Orchestrated workflow for requirement analysis, implementation,
+    code review, and quality assurance. Adaptive depth via complexity
+    triage (S/M/L); minimum review score 8-9/10 depending on profile,
+    with max 5 code-review iterations.
+
+# =============================================================================
+# COMPLEXITY TRIAGE (mandatory pre-flight gate, runs on EVERY new request)
+# =============================================================================
+# Triage is NOT bound to F1. It runs as a pre-flight gate before whatever
+# phase the user requests as entry point:
+#   - "Analyze requirement X"     → triage → F1
+#   - "Plan US-XX"                → triage → F2
+#   - "Implement PLAN-US-XX"      → triage → F3
+#   - "Review PR / branch"        → triage → F4
+#   - "Continue iteration on US"  → triage → resume at last phase
+#
+# The Orchestrator MUST classify every incoming request as S | M | L BEFORE
+# delegating to any subagent. Classification is recorded in the decisions log
+# and drives:
+#   - which phases run (BSA / Auditor can be skipped on S)
+#   - per-phase iteration caps and score thresholds (quality_profiles)
+#   - which model is used for each subagent invocation (model_routing)
+#
+# If the request straddles two levels → pick the HIGHER level (fail-safe).
+# Mid-flow re-classification (upward only) is allowed when:
+#   - Coder exceeds LOC estimate by > 50%, OR
+#   - Reviewer scores < 7 on the first pass.
+# On re-classification, gates skipped by the previous profile MUST be
+# re-enabled and re-run on the artifacts produced so far.
+#
+# If the user explicitly overrides the level (e.g. "force complexity=L"),
+# honor the override and log it as `triage.override_reason`.
+# =============================================================================
+complexity_triage:
+  run_on: "every_new_request"      # not only at F0 — also when entering F2/F3/F4 directly
+  applies_to_entry_phases: ["F1", "F2", "F3", "F4"]
+  user_override: allowed
+  levels:
+    S:
+      name: "Simple"
+      signals:
+        - "CRUD over an existing table"
+        - "Bugfix / refactor / copy change / dependency bump"
+        - "New endpoint without migration"
+        - "0-1 new RFs touched"
+        - "≤ 6 files modified"
+        - "0 new architectural decisions"
+    M:
+      name: "Medium"
+      signals:
+        - "New feature inside an existing seam (Source / StoppingSignal / OutputRenderer)"
+        - "Trivial migration (additive column, new table without FK web)"
+        - "Touches FE + BE atomically"
+        - "1-2 new RFs touched"
+        - "7-15 files modified"
+        - "≤ 1 new architectural decision"
+    L:
+      name: "Complex"
+      signals:
+        - "New seam, new external service, new FSM"
+        - "Event-schema contract change"
+        - "Resolves a pending decision from docs/technical-phase/tech-stack.md"
+        - "≥ 2 new RFs touched"
+        - "> 15 files modified or cross-cutting refactor"
+        - "≥ 2 architectural decisions"
+
+# =============================================================================
+# QUALITY PROFILES (parameterized gates, indexed by complexity level)
+# =============================================================================
+# Agents MUST read the active profile (set by the Orchestrator after triage)
+# and honor its thresholds. Tests, lint and typecheck are NEVER skipped — they
+# are the real correctness floor; profiles only tune document-level rigor.
+# =============================================================================
+quality_profiles:
+  S:
+    audit_f1:        { enabled: false }                       # BSA → no Auditor
+    audit_f2:        { enabled: false }                       # Orchestrator → no Auditor
+    bsa:             { enabled: false }                       # Orchestrator inlines a mini-BRD (≤ 30 lines)
+    review:          { min_score: 8, max_iter: 2 }
+    plan_format:     "checklist"
+    test_coverage:   { backend: 80, frontend: 80 }
+  M:
+    audit_f1:        { enabled: true,  min_score: 8, max_iter: 1 }
+    audit_f2:        { enabled: true,  min_score: 8, max_iter: 1 }
+    bsa:             { enabled: true }
+    review:          { min_score: 9, max_iter: 3 }
+    plan_format:     "standard"
+    test_coverage:   { backend: 80, frontend: 80 }
+  L:
+    audit_f1:        { enabled: true,  min_score: 9, max_iter: 3 }  # legacy behavior
+    audit_f2:        { enabled: true,  min_score: 9, max_iter: 3 }
+    bsa:             { enabled: true }
+    review:          { min_score: 9, max_iter: 5 }
+    plan_format:     "full"
+    test_coverage:   { backend: 80, frontend: 80 }
+
+# =============================================================================
+# MODEL ROUTING (passed to runSubagent via the `model` parameter)
+# =============================================================================
+# Format MUST match the model picker string exactly, including "(copilot)".
+# Confirm names against the VS Code model selector before first use; adjust
+# here if your tenant exposes different identifiers.
+#
+# Escalation rule: if a subagent returns score < threshold OR asks for
+# clarification, re-invoke with the next tier UP (fast → balanced → deep)
+# before escalating to F6.
+# =============================================================================
+model_routing:
+  tiers:
+    fast:     "Claude Haiku 4.5 (copilot)"
+    balanced: "Claude Sonnet 4.5 (copilot)"
+    deep:     "Claude Opus 4.7 (copilot)"
+  matrix:
+    # Read-only exploration: always cheap
+    Explore:  { S: fast,     M: fast,     L: fast }
+    # Analysis & audit: scale rigor with complexity
+    BSA:      { S: skipped,  M: fast,     L: balanced }
+    Auditor:  { S: skipped,  M: fast,     L: balanced }
+    # Implementation: always balanced minimum (writes production code)
+    Coder:    { S: balanced, M: balanced, L: balanced }
+    # Review: cheap for trivial changes, deep for cross-cutting refactors
+    Reviewer: { S: fast,     M: balanced, L: balanced }
 
 # =============================================================================
 # AGENTS
@@ -202,6 +321,9 @@ skills:
 # │ Phase  │ ID           │ Agent          │ Description                      │
 # ├────────┼──────────────┼────────────────┼──────────────────────────────────┤
 # │ IDLE   │ F0           │ -              │ Waiting for new requirement      │
+# │ TRIAGE │ F0.5         │ Orchestrator   │ Pre-flight: classify S/M/L,      │
+# │        │              │                │ select profile + model routing.  │
+# │        │              │                │ Runs before F1/F2/F3/F4 entry.   │
 # │ ANALYZE│ F1           │ BSA + Auditor  │ Requirements analysis + audit    │
 # │ PLAN   │ F2           │ Orch + Auditor │ Implementation planning + audit  │
 # │ IMPLEMENT│ F3         │ Coder          │ Code implementation              │
@@ -209,6 +331,12 @@ skills:
 # │ COMPLETE│ F5          │ -              │ Approved, finalize               │
 # │ ESCALATE│ F6          │ -              │ Max iterations, manual review    │
 # └────────┴──────────────┴────────────────┴──────────────────────────────────┘
+#
+# NOTE on entry points:
+#   - F0.5 TRIAGE is ALWAYS executed first, regardless of the entry phase
+#     the user requests (F1, F2, F3, or F4). Triage cannot be skipped.
+#   - After triage, control jumps directly to the requested entry phase
+#     using the active quality profile and model routing.
 #
 # NOTE on internal audit sub-loops:
 #   - F1 has an internal audit sub-loop (Auditor) with audit_iter_F1 (max 3).
@@ -226,7 +354,45 @@ phases:
   - id: "F0"
     name: "IDLE"
     description: "Waiting for new requirement"
-    next: "F1"
+    next: "F0.5"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # F0.5: TRIAGE — Orchestrator (pre-flight, runs for EVERY new request)
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: "F0.5"
+    name: "TRIAGE"
+    description: >
+      Pre-flight gate. Runs before whichever phase the user requests as entry
+      point (F1, F2, F3 or F4). Classifies the request as S/M/L, activates the
+      matching quality_profile and model_routing column, and records the
+      decision in the memory bank.
+    agent: "orchestrator"
+    steps:
+      - id: "F0.5.S1"
+        action: "parse_entry_request"
+        description: >
+          Determine the requested entry phase. Accepts: "analyze X" → F1,
+          "plan US-XX" → F2, "implement PLAN-US-XX" → F3, "review branch" → F4,
+          "continue US-XX" → resume at last recorded phase.
+      - id: "F0.5.S2"
+        action: "classify_complexity"
+        description: >
+          Apply complexity_triage.levels signals. Output: {level: S|M|L,
+          rationale, profile, models}. Honor user-supplied override if present.
+      - id: "F0.5.S3"
+        action: "record_triage_decision"
+        description: >
+          Append the triage decision to .github/memory-bank/logs/decisions-history.md
+          with the entry phase, complexity, profile snapshot and model matrix.
+    next_conditions:
+      - condition: "entry_phase == 'F1'"
+        next: "F1"
+      - condition: "entry_phase == 'F2'"
+        next: "F2"
+      - condition: "entry_phase == 'F3'"
+        next: "F3"
+      - condition: "entry_phase == 'F4'"
+        next: "F4"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # F1: ANALYZE — BSA Agent + Auditor Agent (internal audit sub-loop)
@@ -420,10 +586,11 @@ phases:
     terminal: true
 
 # =============================================================================
-# ITERATION CONTROL
+# ITERATION CONTROL (overridden by quality_profiles when complexity is set)
 # =============================================================================
 iteration:
-  # F3 <-> F4 code review loop (Reviewer)
+  # F3 <-> F4 code review loop (Reviewer) — UPPER BOUND across all profiles.
+  # Effective cap is min(this value, quality_profiles[<level>].review.max_iter).
   max_cycles: 5
   tracking:
     counter_variable: "iteration_count"
@@ -431,6 +598,10 @@ iteration:
 
 # Internal audit sub-loops (Auditor) — independent from the code review loop.
 audit_iteration:
+  # UPPER BOUND across all profiles. Effective cap is
+  # min(this value, quality_profiles[<level>].audit_fX.max_iter).
+  # When quality_profiles[<level>].audit_fX.enabled is false, the sub-loop
+  # does not run at all (the Auditor returns `skipped` immediately).
   max_cycles_per_phase: 3
   tracking:
     counters:
@@ -471,7 +642,9 @@ memory_protocol:
       - update: "indices/knowledge-base-index.md"
 
 # =============================================================================
-# QUALITY GATES
+# QUALITY GATES (legacy thresholds — superseded by quality_profiles when
+# a complexity level is set on the active run. Kept for backwards reference
+# and as defaults when triage is somehow skipped.)
 # =============================================================================
 quality_gates:
   review_score:

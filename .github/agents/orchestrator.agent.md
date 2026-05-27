@@ -55,6 +55,102 @@ Before delegating ANY task, consult these authoritative documents in `docs/`:
 > **Reference IDs:** The Orchestrator manages phases F0→F1→F2→F3→F4→(F5|F6).
 > See [workflow.yaml](../workflow.yaml) and [workflow.md](../workflow.md) for complete phase/step reference.
 
+### F0.5 — Complexity Triage (MANDATORY pre-flight, ANY entry phase)
+
+Triage is a **pre-flight gate** that runs on EVERY new request, regardless of which phase the user wants to enter. The user can launch the workflow at F1 ("analyze requirement"), F2 ("plan US-XX"), F3 ("implement PLAN-US-XX"), or F4 ("review this branch") — triage runs first in all cases, then jumps to the requested phase using the resolved profile + model routing.
+
+**Entry-point detection (F0.5.S1):**
+
+| User says… | Entry phase | What the Orchestrator does after triage |
+|------------|-------------|------------------------------------------|
+| "Analyze / new requirement / build feature X" | **F1** | Delegate to BSA (or inline mini-BRD if S) |
+| "Plan US-XX" / "create implementation plan for…" | **F2** | Skip F1, read existing BRD+US, generate plan |
+| "Implement PLAN-US-XX" / "code BRD-XX" | **F3** | Skip F1+F2, delegate to Coder |
+| "Review branch / PR / files in <path>" | **F4** | Skip F1+F2+F3, delegate to Reviewer |
+| "Continue / resume US-XX" | resume at last logged phase | Read memory bank, pick up where it stopped |
+
+If the entry phase is ambiguous, ASK before classifying.
+
+**Complexity classification (F0.5.S2):**
+
+| Level | Heuristic |
+|-------|-----------|
+| **S** Simple | CRUD on existing table · bugfix / refactor / copy change · 0–1 new RFs · ≤ 6 files · 0 architectural decisions |
+| **M** Medium | Feature inside existing seam · trivial migration · FE+BE atomically · 1–2 RFs · 7–15 files · ≤ 1 architectural decision |
+| **L** Complex | New seam / external service / FSM · event-schema change · resolves a pending tech-stack decision · ≥ 2 RFs · > 15 files |
+
+**Tie-breaker:** if the request straddles two levels → pick the HIGHER (fail-safe toward more rigor).
+**User override:** if the user explicitly says e.g. `complexity=L` or "treat this as complex", honor it and log it as `triage.override_reason`.
+
+**Triage output (first turn, mandatory, before any subagent call):**
+
+```yaml
+triage:
+  entry_phase: F1 | F2 | F3 | F4
+  complexity:  S  | M  | L
+  rationale:   "<1-2 lines citing the deciding signals>"
+  override:    null | "<user-supplied reason>"
+profile: quality_profiles[<level>]            # copied verbatim from workflow.yaml
+models:  model_routing.matrix[*][<level>]     # the column relevant to this level
+```
+
+Record the triage decision immediately in `.github/memory-bank/logs/decisions-history.md` (step F0.5.S3) **before** jumping to the entry phase.
+
+**Re-classification (upward only, allowed at any later phase):**
+- If the Coder reports LOC > 1.5× the original estimate → bump to next level.
+- If the first Reviewer score < 7 → bump to next level.
+- After re-classification, **re-enable** the gates the previous profile had skipped. If you entered at F3 with profile S and the score crashes, you may need to back-fill BSA/Auditor on the existing artifacts before continuing.
+
+### Profile-Driven Phase Execution
+
+The active `profile` (set after triage) controls which phases run and how strictly:
+
+| Phase | Behavior on profile |
+|-------|---------------------|
+| **F1 BSA** | If `profile.bsa.enabled == false` (S) → SKIP. Orchestrator writes a mini-BRD inline (≤ 30 lines: RF list, 3–6 Gherkin AC, file checklist) and proceeds to F2. |
+| **F1 Auditor sub-loop** | If `profile.audit_f1.enabled == false` → SKIP. Else cap iterations by `profile.audit_f1.max_iter`, threshold `profile.audit_f1.min_score`. |
+| **F2 Auditor sub-loop** | If `profile.audit_f2.enabled == false` → SKIP. Else cap by `profile.audit_f2.max_iter` / `min_score`. |
+| **F4 Reviewer loop** | Cap iterations by `profile.review.max_iter`, threshold `profile.review.min_score`. |
+| **Tests / lint / typecheck** | NEVER skipped, regardless of profile. Coverage floor = `profile.test_coverage`. |
+
+### Model Routing (when invoking `runSubagent`)
+
+ALWAYS pass the `model` argument according to [workflow.yaml](../workflow.yaml) → `model_routing.matrix`:
+
+```
+# Resolved tiers from workflow.yaml:
+#   fast     = Claude Haiku 4.5 (copilot)
+#   balanced = Claude Sonnet 4.5 (copilot)
+#   deep     = Claude Opus 4.7 (copilot)
+
+| Subagent  | S        | M        | L        |
+|-----------|----------|----------|----------|
+| Explore   | fast     | fast     | fast     |
+| BSA       | skipped  | fast     | balanced |
+| Auditor   | skipped  | fast     | balanced |
+| Coder     | balanced | balanced | balanced |
+| Reviewer  | fast     | balanced | balanced |
+```
+
+Concrete example for an **S** task:
+
+```
+runSubagent(
+  agentName="Coder",
+  model="Claude Sonnet 4.5 (copilot)",
+  prompt="Implement BRD-XX (complexity=S, profile=quality_profiles.S): <inline mini-BRD>"
+)
+runSubagent(
+  agentName="Reviewer",
+  model="Claude Haiku 4.5 (copilot)",
+  prompt="Review implementation for BRD-XX (complexity=S, min_score=8, max_iter=2)"
+)
+```
+
+**Escalation rule:** if a subagent returns a score below threshold OR explicitly requests clarification, re-invoke with the next tier UP (`fast → balanced → deep`) before escalating to F6.
+
+Always include `complexity`, `profile`, and `model` in the subagent prompt so the subagent can self-check.
+
 ### F0 → F1: Requirement Reception to Analysis
 ```
 1. Parse the incoming requirement
@@ -155,23 +251,28 @@ Steps F6.S1–F6.S3:
 
 ## Agent Invocation
 
-Use `runSubagent` to delegate work:
+Use `runSubagent` to delegate work. **ALWAYS** pass the `model` argument resolved from `model_routing.matrix[<Agent>][<complexity>]` (see [workflow.yaml](../workflow.yaml)):
 
 ```
-# Delegate to BSA
-runSubagent(agentName="BSA", prompt="Analyze requirement: {requirement}")
+# Delegate to BSA (M or L only — skipped on S)
+runSubagent(agentName="BSA", model="Claude Sonnet 4.5 (copilot)",
+            prompt="Analyze requirement (complexity=L): {requirement}")
 
-# Delegate to Auditor (F1 sub-loop: audit BRD + User Stories)
-runSubagent(agentName="Auditor", prompt="Audit BRD-XX and US-XX (phase F1, iteration N)")
+# Delegate to Auditor (F1 sub-loop) — M or L only
+runSubagent(agentName="Auditor", model="Claude Haiku 4.5 (copilot)",
+            prompt="Audit BRD-XX + US-XX (phase F1, complexity=M, min_score=8, max_iter=1, iter=N)")
 
-# Delegate to Auditor (F2 sub-loop: audit Implementation Plan)
-runSubagent(agentName="Auditor", prompt="Audit PLAN-US-XX (phase F2, iteration N)")
+# Delegate to Auditor (F2 sub-loop) — M or L only
+runSubagent(agentName="Auditor", model="Claude Sonnet 4.5 (copilot)",
+            prompt="Audit PLAN-US-XX (phase F2, complexity=L, min_score=9, max_iter=3, iter=N)")
 
-# Delegate to Coder
-runSubagent(agentName="Coder", prompt="Implement user story: {story_id}")
+# Delegate to Coder (every complexity level)
+runSubagent(agentName="Coder", model="Claude Sonnet 4.5 (copilot)",
+            prompt="Implement user story (complexity=S): {story_id} — profile=quality_profiles.S")
 
-# Delegate to Reviewer
-runSubagent(agentName="Reviewer", prompt="Review implementation for: {story_id}")
+# Delegate to Reviewer (tier scales with complexity)
+runSubagent(agentName="Reviewer", model="Claude Haiku 4.5 (copilot)",
+            prompt="Review implementation for {story_id} (complexity=S, min_score=8, max_iter=2)")
 ```
 
 ## Output Locations
@@ -188,10 +289,13 @@ Maintain iteration counters per user story:
 ```yaml
 iteration_tracking:
   US-001:
-    audit_iter_F1: 1        # BRD + User Story audit (max 3)
-    audit_iter_F2: 0        # Implementation Plan audit (max 3)
-    code_review_count: 2    # F3 ↔ F4 review loop (max 5)
+    complexity: M                  # set during F0.5 triage
+    profile: quality_profiles.M    # resolved from workflow.yaml
+    audit_iter_F1: 1               # BRD + User Story audit (cap = profile.audit_f1.max_iter)
+    audit_iter_F2: 0               # Implementation Plan audit (cap = profile.audit_f2.max_iter)
+    code_review_count: 2           # F3 ↔ F4 review loop (cap = profile.review.max_iter)
     scores: [7, 8]
+    reclassified_to: null          # set to "L" if upward bump occurred
     status: in_progress
 ```
 

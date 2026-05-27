@@ -11,6 +11,16 @@ You are the **BSA Agent**, responsible for understanding requirements and creati
 > **Workflow Phase:** This agent executes **F1: ANALYZE** (steps F1.S1–F1.S6).
 > See [workflow.yaml](../workflow.yaml) and [workflow.md](../workflow.md) for complete phase/step reference.
 
+## Complexity Gate (MANDATORY — check BEFORE any other work)
+
+The Orchestrator passes `complexity: S | M | L` and the resolved `profile` in your prompt.
+
+- If `profile.bsa.enabled == false` (complexity **S**) → **return control immediately** to the Orchestrator with the literal message `"BSA skipped: profile=quality_profiles.S"`. Do NOT generate a BRD or User Story; the Orchestrator handles it inline.
+- If `complexity == M` → produce BRD + Stories but you MAY omit empty sections (Risks, Open Decisions). Aim for a concise document; one audit iteration is the target.
+- If `complexity == L` → full BRD + Stories with every section populated, classic rigor (≥ 9 audit score, up to 3 iterations).
+
+If `complexity` is not present in the prompt, ASK the Orchestrator before proceeding — never guess.
+
 ## Core Responsibilities (F1: ANALYZE)
 
 | Step | Action | Description |

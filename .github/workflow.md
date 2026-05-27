@@ -4,6 +4,69 @@
 
 ---
 
+## 0. Adaptive Depth — Complexity Triage (S / M / L)
+
+**Triage is a pre-flight gate that runs on EVERY new request, regardless of the entry phase.** The user can launch the workflow at F1 ("analyze requirement"), F2 ("plan US-XX"), F3 ("implement PLAN-US-XX") or F4 ("review branch"). The Orchestrator ALWAYS runs F0.5 first to classify complexity and activate the matching **quality profile** + **model routing**, then jumps directly to the requested phase.
+
+Tests, lint and typecheck NEVER scale down — they are the correctness floor at every level.
+
+### Entry points
+
+| User says… | Entry phase | Triage runs? |
+|------------|-------------|--------------|
+| "Analyze / new requirement / build X" | **F1** | ✅ yes |
+| "Plan US-XX" / "create implementation plan" | **F2** | ✅ yes |
+| "Implement PLAN-US-XX" / "code BRD-XX" | **F3** | ✅ yes |
+| "Review branch / PR / files" | **F4** | ✅ yes |
+| "Continue / resume US-XX" | resume at last logged phase | ✅ yes (re-validates classification) |
+
+### Profiles
+
+| Level | Heuristic (any of) | BSA / Auditor F1 | Auditor F2 | Reviewer (`min_score` / `max_iter`) | Default models (subagents) |
+|-------|--------------------|------------------|------------|--------------------------------------|----------------------------|
+| **S** Simple   | CRUD on existing table · bugfix / refactor / copy change · 0–1 RFs · ≤ 6 files · 0 arch. decisions | **skipped** (Orchestrator inlines a mini-BRD) | **skipped** | **8 / 2** | Coder: Sonnet · Reviewer: Haiku · Explore: Haiku |
+| **M** Medium   | Feature inside existing seam · trivial migration · FE+BE · 1–2 RFs · 7–15 files · ≤ 1 arch. decision | **8 / 1** | **8 / 1** | **9 / 3** | BSA/Auditor: Haiku · Coder/Reviewer: Sonnet |
+| **L** Complex  | New seam / external service / FSM · event-schema change · pending tech-stack decision · ≥ 2 RFs · > 15 files | **9 / 3** (legacy) | **9 / 3** (legacy) | **9 / 5** | BSA/Auditor/Coder/Reviewer: Sonnet (or Opus on escalation) |
+
+**Rules:**
+- Tie-breaker: choose the HIGHER level if straddling two.
+- User override allowed (e.g. "treat this as complex" → force L).
+- Upward re-classification mid-run is allowed (Coder LOC > 1.5× estimate, or Reviewer first score < 7); skipped gates re-activate and back-fill missing artifacts.
+- Model selection is passed via `runSubagent(model="...")` per `model_routing` in [workflow.yaml](workflow.yaml).
+- Escalation across model tiers (`fast → balanced → deep`) precedes F6 escalation.
+
+```mermaid
+flowchart TD
+    R[/"📥 New Request<br/>(any phrasing)"/] --> EP{{"F0.5.S1<br/>Detect entry phase"}}
+
+    EP -->|"analyze X"| T1{{"F0.5.S2 Triage"}}
+    EP -->|"plan US-XX"| T2{{"F0.5.S2 Triage"}}
+    EP -->|"implement PLAN-US-XX"| T3{{"F0.5.S2 Triage"}}
+    EP -->|"review branch"| T4{{"F0.5.S2 Triage"}}
+
+    subgraph TRIAGE["F0.5 TRIAGE — runs for every entry phase"]
+        T1 --> P1["Profile + Model Routing"]
+        T2 --> P1
+        T3 --> P1
+        T4 --> P1
+        P1 --> LOG["F0.5.S3 Log decision"]
+    end
+
+    LOG -->|"entry = F1"| F1J["→ F1 ANALYZE"]
+    LOG -->|"entry = F2"| F2J["→ F2 PLAN"]
+    LOG -->|"entry = F3"| F3J["→ F3 IMPLEMENT"]
+    LOG -->|"entry = F4"| F4J["→ F4 REVIEW"]
+
+    F1J --> F2J --> F3J --> F4J --> DONE["F5 COMPLETE"]
+
+    F4J -. "score<7 OR LOC×1.5<br/>→ bump level UP" .-> P1
+
+    style TRIAGE fill:#fff8e1,stroke:#f57f17
+    style DONE fill:#c8e6c9,stroke:#2e7d32
+```
+
+---
+
 ## 1. Phase & Step Quick Reference
 
 ### 1.1 Phases Overview
@@ -11,14 +74,15 @@
 | ID | Phase | Agent | Description |
 |----|-------|-------|-------------|
 | **F0** | IDLE | — | Waiting for new requirement |
-| **F1** | ANALYZE | BSA + **Auditor** | Requirements analysis + document audit (sub-loop) |
-| **F2** | PLAN | Orchestrator + **Auditor** | Implementation planning + plan audit (sub-loop) |
+| **F0.5** | TRIAGE | Orchestrator | Classify complexity S/M/L → activate profile + model routing |
+| **F1** | ANALYZE | BSA + **Auditor** | Requirements analysis + document audit (sub-loop; skipped on S) |
+| **F2** | PLAN | Orchestrator + **Auditor** | Implementation planning + plan audit (sub-loop; skipped on S) |
 | **F3** | IMPLEMENT | Coder | Code implementation and testing |
-| **F4** | REVIEW | Reviewer | Quality evaluation and scoring |
+| **F4** | REVIEW | Reviewer | Quality evaluation and scoring (threshold/iters per profile) |
 | **F5** | COMPLETE | — | Approved, finalize documentation |
 | **F6** | ESCALATE | — | Max iterations reached, manual review |
 
-> **Internal audit sub-loops:** Inside **F1** the Auditor validates the BRD + User Stories (max 3 attempts via `audit_iter_F1`). Inside **F2** the Auditor validates the Implementation Plan (max 3 attempts via `audit_iter_F2`). These are NOT new phases — they iterate inside their host phase until `audit_score ≥ 9` or the per-phase cap is reached (then escalates to F6). The F3↔F4 review loop (Reviewer, max 5) is independent.
+> **Adaptive depth:** F1 and F2 are governed by the active **quality profile** (see §0). On profile **S** they are skipped; on **M** they run with 1 audit iteration and threshold 8; on **L** they retain legacy behavior (up to 3 audit iterations, threshold 9). The F3↔F4 loop is bounded by `profile.review.max_iter` (S=2, M=3, L=5).
 
 ### 1.2 All Steps by Phase
 
@@ -487,8 +551,13 @@ stateDiagram-v2
 
 ### Quality Standards
 
-- **Minimum Score (code review F4)**: 9/10
-- **Max Iterations (code review F3↔F4)**: 5
-- **Minimum Score (document audit F1/F2)**: 9/10
-- **Max Iterations (document audit per phase)**: 3
-- **Test Coverage**: ≥80% (backend and frontend)
+Thresholds depend on the active complexity profile (see §0). Tests and lint are non-negotiable at every level.
+
+| Gate | Profile S | Profile M | Profile L |
+|------|-----------|-----------|-----------|
+| Code review score (F4) | ≥ 8/10 | ≥ 9/10 | ≥ 9/10 |
+| Code review iterations (F3↔F4) | ≤ 2 | ≤ 3 | ≤ 5 |
+| Document audit score (F1/F2) | n/a (skipped) | ≥ 8/10 | ≥ 9/10 |
+| Document audit iterations (per sub-loop) | n/a | ≤ 1 | ≤ 3 |
+| Test coverage (BE / FE) | ≥ 80% | ≥ 80% | ≥ 80% |
+| Lint / typecheck clean | required | required | required |
