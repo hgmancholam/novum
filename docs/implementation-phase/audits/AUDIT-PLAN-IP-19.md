@@ -307,3 +307,90 @@ These are mechanical fixes — not redesigns — and the Orchestrator can addres
 - Next audit will verify each B-* and M-* finding under section 0 (Resolution of Iter 1 findings) of the appended `## Iter 2` block in this file.
 
 ---
+
+## Iter 2 — 2026-05-26
+
+### 0. Resolution of Iter 1 findings
+
+| Prior finding | Status | Evidence in plan / BRD / code |
+|---|---|---|
+| **B-01** — session-cache staleness overwrites `stopped_at` | ✅ **CLOSED** | Plan §T5 `_write_terminal_row` opens a fresh `async_session_maker()` and uses SQL `update(Run).values(stop_reason=…, stopped_at=case((Run.stopped_at.is_(None), now), else_=Run.stopped_at))`. Guard is enforced by the database, not by the ORM identity-map. Imports of `update` / `case` from `sqlalchemy` are noted explicitly. Test T8 #5 mandates **two real sessions** plus a third independent session to assert `runs.stopped_at == T0`. |
+| **B-02** — rehydration crashes on illegal FSM transitions | ✅ **CLOSED** | Plan §3.1 introduces `_apply_state(state, target)` with direct assignment to `state.current_state`; explicitly documents that `transition_to` is bypassed. §3.2 adds `_stopped_followed_by_resume(events)` two-pass scan computing the `skip` set; the STOPPED row in §3.3 is folded only when `event["step_index"] not in skip`. Test T8 #15 asserts no `ValueError` raised mid-fold and that `current_state == AgentState.SEARCHING` post-resume. Verified against [run_state.py:91-94](../../../backend/app/agent/run_state.py) (`transition_to` raises `ValueError`) and [states.py:24](../../../backend/app/agent/states.py) (`TRANSITIONS[INIT]` excludes `CRITIQUING`, `TRANSITIONS[STOPPED] = set()`). |
+| **B-03** — `await_terminal` placement contradicts BRD §4.6 | ✅ **CLOSED** | BRD-19 amended to **v1.2**; §4.6 `resume_run` snippet now shows `await agent_runner.await_terminal(run_id, timeout=5.0)` as the **first statement**, with `await agent_runner.start(run_id)` as the **last statement** (verified at BRD-19 lines 187–198). Changelog entry at line 526 records the amendment. Plan §T6 mirrors the BRD verbatim and cites the v1.2 amendment. |
+| **B-04** — existing tests break when `agent_runner.start` runs unmocked | ✅ **CLOSED** | Plan §T9.0 adds an **autouse** `_noop_agent_runner` fixture in `tests/conftest.py`, monkeypatching both `app.services.run_service.agent_runner` and `app.main.agent_runner` to a `_NoopRunner` stub. Real-runner tests opt in via `@pytest.mark.real_agent_runner`; the marker is registered in `pyproject.toml`. |
+| **M-05** — session lifecycle double-specified | ✅ **CLOSED** | Plan §T4 step 1 + `_supervised_run` snippet show `async with async_session_maker() as session:` owning the session end-to-end. `_on_task_done` is described as sync, mutating only the registry; no `aclose` scheduling remains in the spec. §9 risk row updated to reflect the single ownership model. |
+| **M-06** — dispatch reads pydantic fields on dict-shaped events | ✅ **CLOSED** | §3.3 dispatch table uses `event["..."]` / `payload[...]` access throughout. Field names verified against [`app/domain/events.py`](../../../backend/app/domain/events.py): `sub_claims`, `new_sub_claims`, `target_claim_id`, `source_url`, `source_title`, `extracted_text`, `polarity`, `confidence`, `claim_id`, `source_type`, `judge_confidence`, `structural_confidence`, `stop_reason` — all match. Unknown event types skipped (RF-04). |
+| **m-07** — `cancel()` lock contradiction | ✅ **CLOSED** | Plan §T4 `cancel` docstring states explicitly: *"Registry reads are safe without the lock: this runner is single-event-loop (RF-05 / uvicorn --workers 1) and all mutations of those dicts happen on the same loop."* `cancel` remains sync per the BRD §4.2 public API. |
+| **m-09** — `ConnectionManager.__init__` missing `_subscribers` | ✅ **CLOSED** | Plan §T3 explicitly lists the `__init__` addition: `self._subscribers: dict[UUID, list[asyncio.Queue[dict[str, Any]]]] = {}`. Verified that [`app/sse/manager.py`](../../../backend/app/sse/manager.py) `ConnectionManager.__init__` does not have this field today — the plan correctly mandates adding it. |
+| **m-10 / N-03** — E11 prose did not match real `cancel_run` | ✅ **CLOSED** | Plan §4 E11 rewritten: *"second `POST /cancel` enters `RunService.cancel_run`, reads `run.stop_reason = USER_CANCELLED`, and raises `RunAlreadyStoppedError` → HTTP 400."* Matches [run_service.py:142-144](../../../backend/app/services/run_service.py) exactly. Test T8 #17 asserts the 400. |
+| **m-11** — `asyncio.shield` caller-cancel semantics | ✅ **CLOSED** | Plan §T4 `await_terminal` docstring spells out: *"if the HTTP request handler is cancelled (client disconnect), the inner task is NOT cancelled and continues to drain to a terminal event. The outer CancelledError propagates up to FastAPI as usual."* |
+| **n-12** — FakeOrchestrator state capture | ✅ **CLOSED** | Plan §T8 fixtures explicitly state: *"`FakeOrchestrator.__init__(state, emit, stopping_policy)` stores `self.state = state` (matching the real class's `self.state` attribute); tests read the rehydrated state via `fake.state` after the run completes."* |
+| **n-13** — T11 smoke-test delivery path | ✅ **CLOSED** | Plan §T11 adds the explicit *"Delivery-path note"*: SSE client receives events via BRD-10's 500 ms DB poll loop, not via `ConnectionManager.publish` queues. Queue path validated only at unit level (T8 #1). |
+| **#4/#5/#7/#8 time-rigour** | ✅ **CLOSED** | Iter 2 changelog states all time-sensitive tests wrap waits in `async with asyncio.timeout(...)`. §T8 prelude formalises: *"every `await` that may block on the orchestrator wraps the await in `async with asyncio.timeout(2.0):` (or 5.0 for shutdown). **No wallclock waits exceed 0.2 s.**"* |
+
+### 1. Score Summary
+
+| Criterion | Score | Weight | Weighted |
+|---|---|---|---|
+| BRD traceability (every task ↔ BRD §) | 9.5 / 10 | 15 % | 1.425 |
+| Acceptance-criteria coverage | 9.5 / 10 | 20 % | 1.900 |
+| **Blind-Path Absence** | **9.5 / 10** | 30 % | 2.850 |
+| Test rigour (deterministic, isolated, complete) | 9.0 / 10 | 20 % | 1.800 |
+| Non-breaking guarantees | 9.5 / 10 | 15 % | 1.425 |
+| **TOTAL** | | | **9.40 / 10** |
+
+(Same weighting scheme as Iter 1 for direct comparability.)
+
+### 2. Verdict
+
+✅ **APPROVED** — score 9.40 / 10 ≥ 9.00.
+
+### 3. Requirements Coverage Matrix (deltas vs Iter 1)
+
+| RF | Covered? | Where | Notes |
+|---|---|---|---|
+| RF-01 | ✅ | §T4, §T5, §T8 #1 | Runner spawns orchestrator; happy-path test exercises full FSM. |
+| RF-02 | ✅ | §T5 `_write_terminal_row`, §T8 #5 | Now SQL-guarded; preserves `T0` under concurrent writes. |
+| RF-03 | ✅ | §T2, §T4 step 5 | `get_latest_event` (DESC LIMIT 1, ORM row) + append-only fold. |
+| RF-04 | ✅ | §3.3, §3.4 | Dict-key access, unknown types skipped. |
+| RF-05 | ✅ | §T1 (`RunAlreadyRunningError`), §T4 single-writer lock | Verified against [orchestrator.py](../../../backend/app/agent/orchestrator.py). |
+| RF-08 | ✅ | §T3, §T5, §T6 | SSE publish non-fatal; cancel + await_terminal wired. |
+| RF-11 | ✅ | §3 rehydration, §T6, §T8 #15 | Now crash-safe (B-02 closed). |
+| RF-14 | ✅ | §T4 (inheritance from orchestrator) | Unchanged. |
+
+### 4. Blind-Path Findings
+
+No new BLOCKERs or MAJORs. Two informational notes (no score deduction):
+
+#### n-14 [NIT] — `TOOL_CALLED` `search_count` increment is unconditional in practice
+
+**Sections:** §3.3 TOOL_CALLED row.
+
+The table says `state.search_count += 1 if event["source_type"] indicates a search (any SourceType value other than internal LLM calls)`. Every current `SourceType` value (`tavily`, `wikipedia`) is a search; there is no "internal LLM call" `SourceType`. The conditional is effectively always-true. Harmless (count is correct), but the Coder may wonder which branch to write. Suggested footnote: *"In V1 all `SourceType` values are search sources; the conditional simplifies to an unconditional increment."* Informational only — does not affect approval.
+
+#### n-15 [NIT] — `_supervised_run` placeholder-orchestrator window
+
+**Sections:** §T4 step 1 (start) + `cancel`.
+
+`start()` registers the task with a placeholder `None` orchestrator before `_supervised_run` instantiates the real `AgentOrchestrator`. A `cancel()` arriving in that ~ms window returns `False` (because `orch is None`). The orchestrator's cooperative flag is therefore not raised; the run will proceed to its first cooperative checkpoint and only then observe the cancel via the normal flag flip on the second `cancel()` call. Probability is small (orchestrator construction is sub-ms) and the user-visible behaviour is "the cancel button might need a second click in a tiny race window". The plan's `RunService.cancel_run` belt-and-braces write of `stop_reason = USER_CANCELLED` (BRD §4.6) still happens, so the UI reflects cancellation immediately. Acceptable for V1; not a blocker. A short note in §T4 acknowledging the window would be a future polish.
+
+### 5. Required Changes
+
+None. The plan is ready for F3 (Coder).
+
+### 6. Positive Highlights
+
+- **All 13 iter-1 findings closed** — mechanical fixes applied surgically, no scope creep.
+- **B-01 fix is exemplary**: SQL-side `CASE WHEN stopped_at IS NULL` guard moves correctness out of the ORM cache and into the database, which is the strongest possible guarantee against the cross-session race.
+- **B-02 fix is principled**: the two-pass `_stopped_followed_by_resume` is a clean separation between "what to skip" and "how to fold". Direct-assignment `_apply_state` is correctly scoped to rehydration only.
+- **BRD v1.2 amendment is minimal and traceable** — single snippet rewrite + Changelog entry, no behavioural drift from v1.1 narrative.
+- **Autouse fixture pattern (T9.0)** with opt-in marker is the right tool for B-04 — it preserves the entire pre-IP-19 suite and is the lowest-blast-radius approach.
+- **Time-rigour wording in T8 prelude** (`async with asyncio.timeout`, no wallclock > 0.2 s) eliminates the flakiness category outright.
+
+### 7. Next Step
+
+- `audit_iter_F2 = 2` (terminated under the 3-iteration cap).
+- Hand the plan to **F3 (Coder)** for implementation.
+- F4 (Reviewer) will score the code against this plan + BRD-19 v1.2 with the same ≥ 9.0 threshold.
+
+---
