@@ -86,6 +86,14 @@ Then page 3 contains rows older than the last row of page 2
   And no row from page 2 is duplicated in page 3
 ```
 
+### Scenario 9: Owner-scoped list (mirrors BRD-20 AC-12)
+```gherkin
+Given user "alice" owns 5 finished runs and user "bob" owns 3 finished runs
+When alice sends GET /api/runs with header X-Username: alice
+Then the response contains exactly 5 items
+  And none of the items reference a run owned by bob
+```
+
 ## Technical Notes
 
 - Backend uses `ORDER BY started_at DESC, id DESC`, keyset over `(started_at, id)`.
@@ -96,6 +104,8 @@ Then page 3 contains rows older than the last row of page 2
 - Breaking change: `GET /api/runs` previously returned `list[RunListItem]`. It now returns `RunListPage`. The only consumer is the frontend `useRunHistory`, updated atomically.
 - Frontend `getRunHistory(cursor?)` MUST prefix `API_URL` (per user memory L-008).
 - No `IntersectionObserver` auto-load — the user wants an explicit gesture.
+- `list_runs_keyset` is **strictly owner-scoped**: signature `list_runs_keyset(username: str, limit, cursor)` (no `None` overload). SQL adds `WHERE owner_username = :username`. See BRD-20 §4.5 and §11 #2.
+- User-visible strings (`"More"`, `"Loading…"`, `"Invalid cursor"` 400 body, 401 `"Authentication required."` body) are pinned in BRD-20 §14.3 — use those literals verbatim. `"More"` supersedes the placeholder `"Load more"` in `ui-prototype.md §7.12 (L7)`.
 
 ## Dependencies
 

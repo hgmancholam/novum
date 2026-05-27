@@ -9,10 +9,15 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from app.dependencies import CurrentUsername, DbSession
-from app.domain.run import RunCreate, RunForkRequest, RunListItem, RunResponse
+from app.domain.run import (
+    RunCreate,
+    RunForkRequest,
+    RunListPage,
+    RunResponse,
+)
 from app.services.run_service import RunService
 
 router = APIRouter(prefix="/api/runs", tags=["Runs"])
@@ -29,16 +34,16 @@ async def create_run(
     return await service.create_run(data, username)
 
 
-@router.get("", response_model=list[RunListItem])
+@router.get("", response_model=RunListPage)
 async def list_runs(
     db: DbSession,
-    _username: CurrentUsername,
+    username: CurrentUsername,
     limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-) -> list[RunListItem]:
-    """List recent runs for all users — auth required (RF-09)."""
+    cursor: str | None = Query(None),
+) -> RunListPage:
+    """Owner-scoped keyset list of runs (BRD-20 AC-07..AC-12, RF-09)."""
     service = RunService(db)
-    return await service.list_runs(limit, offset)
+    return await service.list_runs_keyset(username, limit, cursor)
 
 
 @router.get("/{run_id}", response_model=RunResponse)
@@ -49,6 +54,18 @@ async def get_run(
     """Get a run by ID — public-by-URL per RF-05."""
     service = RunService(db)
     return await service.get_run(run_id)
+
+
+@router.delete("/{run_id}", status_code=204)
+async def delete_run(
+    run_id: UUID,
+    db: DbSession,
+    username: CurrentUsername,
+) -> Response:
+    """Delete a finished, owned run (BRD-20 AC-03..AC-06)."""
+    service = RunService(db)
+    await service.delete_run(run_id, username)
+    return Response(status_code=204)
 
 
 @router.post("/{run_id}/fork", response_model=RunResponse, status_code=201)

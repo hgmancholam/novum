@@ -116,5 +116,19 @@ class ConnectionManager:
         self._cancelled.clear()
         self._subscribers.clear()
 
+    def close(self, run_id: UUID) -> None:
+        """Drop every piece of state for ``run_id``. Idempotent.
+
+        Called by ``RunService.delete_run`` after the row commits so any
+        live SSE generator sees ``is_cancelled=True`` on its next tick
+        and unwinds (BRD-20 §9 last-row race).
+        """
+        # Flip cancel flag first so any in-flight generator stops emitting
+        # on its next loop iteration.
+        self._cancelled[run_id] = True
+        self._connections.pop(run_id, None)
+        self._subscribers.pop(run_id, None)
+        logger.debug("sse_close", run_id=str(run_id))
+
 
 connection_manager = ConnectionManager()

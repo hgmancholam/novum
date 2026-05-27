@@ -113,11 +113,38 @@ describe("HistoryList", () => {
     ).toBeInTheDocument();
   });
 
-  it("AC-04 — load more button calls onLoadMore", () => {
+  it("AC-04 — More button calls onLoadMore", () => {
     const props = setup({ hasNextPage: true });
     render(<HistoryList {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(props.onLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it("AC-04 — More button shows 'Loading…' while fetching next page", () => {
+    const props = setup({ hasNextPage: true, isFetchingNextPage: true });
+    render(<HistoryList {...props} />);
+    expect(
+      screen.getByRole("button", { name: "Loading…" })
+    ).toBeInTheDocument();
+  });
+
+  it("BRD-20 AC-15 — forwards delete clicks to onDeleteRun without selecting", () => {
+    const onSelectRun = vi.fn();
+    const onDeleteRun = vi.fn();
+    const props = setup({ onSelectRun, onDeleteRun });
+    render(<HistoryList {...props} />);
+    const deleteButtons = screen.getAllByTestId("history-item-delete");
+    expect(deleteButtons.length).toBeGreaterThan(0);
+    fireEvent.click(deleteButtons[0] as HTMLElement);
+    expect(onDeleteRun).toHaveBeenCalledTimes(1);
+    expect(onSelectRun).not.toHaveBeenCalled();
+  });
+
+  it("BRD-20 — does not render a delete affordance for running runs", () => {
+    const props = setup({ onDeleteRun: vi.fn() });
+    render(<HistoryList {...props} />);
+    // sampleRuns has exactly one running run (r2) → 2 delete buttons
+    expect(screen.getAllByTestId("history-item-delete")).toHaveLength(2);
   });
 
   it("forwards selection clicks to onSelectRun", () => {

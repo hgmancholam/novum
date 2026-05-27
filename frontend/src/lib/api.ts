@@ -108,24 +108,59 @@ export interface RunListItemDto {
 
 export interface ListRunsParams {
   limit?: number;
-  offset?: number;
+  cursor?: string | null;
+}
+
+export interface RunListPageDto {
+  items: RunListItemDto[];
+  has_more: boolean;
+  next_cursor: string | null;
 }
 
 export async function listRuns(
   params: ListRunsParams = {},
   init?: RequestInit
-): Promise<RunListItemDto[]> {
+): Promise<RunListPageDto> {
   const limit = params.limit ?? 20;
-  const offset = params.offset ?? 0;
-  const qs = new URLSearchParams({
-    limit: String(limit),
-    offset: String(offset),
-  });
-  return api.get<RunListItemDto[]>(`/api/runs?${qs.toString()}`, {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (params.cursor) {
+    qs.set("cursor", params.cursor);
+  }
+  return api.get<RunListPageDto>(`/api/runs?${qs.toString()}`, {
     ...init,
     // eslint-disable-next-line @typescript-eslint/no-misused-spread
     headers: { ...getAuthHeaders(), ...init?.headers },
   });
+}
+
+/**
+ * DELETE /api/runs/{id} — requires auth, returns 204 No Content.
+ *
+ * We bypass ``api.delete`` here because that helper assumes a JSON body
+ * on every successful response; 204 returns no body and would crash
+ * ``response.json()``. The ``...init`` spread MUST come before
+ * ``headers`` per L-009 so explicit auth headers always win.
+ */
+export async function deleteRun(
+  runId: string,
+  init?: RequestInit
+): Promise<void> {
+  const response = await fetch(`${API_URL}/api/runs/${runId}`, {
+    method: "DELETE",
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+      ...init?.headers,
+    },
+  });
+  if (!response.ok) {
+    const error: ApiError = await response.json().catch(() => ({
+      code: "UNKNOWN_ERROR",
+      message: response.statusText,
+    }));
+    throw new ApiClientError(response.status, error);
+  }
 }
 
 // ---------------------------------------------------------------------------

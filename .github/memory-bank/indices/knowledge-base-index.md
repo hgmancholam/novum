@@ -72,7 +72,7 @@
 | BRD-16 | Output Format Renderers | 2026-05-26 | Draft | [BRD-16](../../../docs/implementation-phase/brds/BRD-16-output-renderers.md) |
 | BRD-17 | Testing Strategy & Calibration Eval | 2026-05-26 | Draft | [BRD-17](../../../docs/implementation-phase/brds/BRD-17-testing-strategy.md) |
 | BRD-18 | Infrastructure & Deployment | 2026-05-26 | Draft | [BRD-18](../../../docs/implementation-phase/brds/BRD-18-infrastructure.md) |
-| BRD-20 | Delete Finished Run & History Pagination | 2026-05-27 | Draft | [BRD-20](../../../docs/implementation-phase/brds/BRD-20-delete-run-and-pagination.md) |
+| BRD-20 | Delete Finished Run & History Pagination | 2026-05-27 | Implemented | [BRD-20](../../../docs/implementation-phase/brds/BRD-20-delete-run-and-pagination.md) |
 
 ---
 
@@ -80,8 +80,8 @@
 
 | ID | Title | BRD Reference | Status | Location |
 |----|-------|---------------|--------|----------|
-| US-20-A | Delete a finished run from the history panel | BRD-20 | Draft | [US-20-A](../../../docs/implementation-phase/user-stories/US-20-A-delete-finished-run.md) |
-| US-20-B | Paginate the history panel with a "More" button | BRD-20 | Draft | [US-20-B](../../../docs/implementation-phase/user-stories/US-20-B-history-pagination.md) |
+| US-20-A | Delete a finished run from the history panel | BRD-20 | Implemented | [US-20-A](../../../docs/implementation-phase/user-stories/US-20-A-delete-finished-run.md) |
+| US-20-B | Paginate the history panel with a "More" button | BRD-20 | Implemented | [US-20-B](../../../docs/implementation-phase/user-stories/US-20-B-history-pagination.md) |
 
 ---
 
@@ -89,7 +89,7 @@
 
 | ID | User Story | Date | Status | Location |
 |----|------------|------|--------|----------|
-| - | No plans created yet | - | - | - |
+| PLAN-US-20 | US-20-A + US-20-B (BRD-20) | 2026-05-28 | Implemented | [PLAN-US-20](../../../docs/implementation-phase/implementation-plans/PLAN-US-20-delete-run-and-pagination.md) |
 
 ---
 
@@ -150,6 +150,14 @@
 | Agent Orchestrator | Backend | `backend/app/agent/orchestrator.py` | `AgentOrchestrator` FSM driver — emits events via async callback, no persistence | ✅ BRD-07 |
 | Agent Tasks | Backend | `backend/app/agent/tasks/{classify,plan,search,analyze,draft}.py` | LLM-backed steps: RF-06 classifier, RF-14 plan critic, search cascade, coverage analysis, synthesizer + judge + RF-15 disconfirmation | ✅ BRD-07 |
 | Critique Output | Backend | `backend/app/llm/models.py::CritiqueOutput` | Pydantic structured output for plan critic step (additive to BRD-05 surface) | ✅ BRD-07 |
+| RunListPage DTO | Backend | `backend/app/domain/run.py::RunListPage` | Cursor-paginated response envelope (`items`, `has_more`, `next_cursor`) | ✅ BRD-20 |
+| Run Service (keyset + delete) | Backend | `backend/app/services/run_service.py` | `list_runs_keyset` (owner-scoped, `started_at DESC, id DESC`) + `delete_run` (ownership-first guard, idempotent SSE close) | ✅ BRD-20 |
+| SSE Manager `close()` | Backend | `backend/app/sse/manager.py::ConnectionManager.close` | Idempotent per-run shutdown invoked from `delete_run` | ✅ BRD-20 |
+| Toast Store | Frontend | `frontend/src/stores/toastStore.ts` | Zustand store driving `Toaster` (`push`, `dismiss`, `reset`) | ✅ BRD-20 |
+| useToast Hook | Frontend | `frontend/src/hooks/useToast.ts` | Selector hook exposing `{push, dismiss}` | ✅ BRD-20 |
+| Toaster Molecule | Frontend | `frontend/src/components/molecules/Toaster.tsx` | Top-right toast stack, auto-dismiss 5s, AnimatePresence + reduced-motion | ✅ BRD-20 |
+| HistoryItem Organism | Frontend | `frontend/src/components/organisms/HistoryItem.tsx` | Animated row wrapper exposing trash affordance for finished runs | ✅ BRD-20 |
+| useRunHistory / useDeleteRun | Frontend | `frontend/src/hooks/useRunHistory.ts` | `useInfiniteQuery` cursor pagination + optimistic delete with rollback toast (plural `getQueriesData`/`setQueriesData`) | ✅ BRD-20 |
 
 ---
 
@@ -168,8 +176,9 @@
 | Method | Endpoint | Description | RF |
 |--------|----------|-------------|-----|
 | POST | `/api/runs` | Create new run | RF-01 |
-| GET | `/api/runs` | List recent runs | RF-09 |
+| GET | `/api/runs` | List recent runs (owner-scoped, keyset cursor) | RF-09 |
 | GET | `/api/runs/{id}` | Get run details | RF-02 |
+| DELETE | `/api/runs/{id}` | Delete a finished run (owner-only, cascades events, orphans forks) | BRD-20 |
 | GET | `/api/runs/{id}/events` | Stream run events (SSE) | RF-08 |
 | POST | `/api/runs/{id}/resume` | Resume stopped/errored run | RF-11 |
 | POST | `/api/runs/{id}/fork` | Fork run from event | RF-03 |

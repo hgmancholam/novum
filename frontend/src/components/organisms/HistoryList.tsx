@@ -1,6 +1,9 @@
 /**
  * HistoryList organism — presentational list with RF-09 / BRD-12 states.
  *
+ * Task 2.0 (BRD-20): list-loop lives here in HistoryList.tsx;
+ * HistoryItem replaces RunRow.
+ *
  * State coverage (ui-prototype.md §3.2):
  *   L1 - Empty list
  *   L2 - List with items
@@ -15,10 +18,11 @@
  */
 
 import { useMemo } from "react";
+import { AnimatePresence } from "motion/react";
 
 import { Button, Spinner } from "@/components/atoms";
 import { HistoryFilters, hasActiveFilters } from "./HistoryFilters";
-import { RunRow } from "./RunRow";
+import { HistoryItem } from "./HistoryItem";
 import type { HistoryFilterValues, RunSummary } from "@/types/history";
 
 export interface HistoryListProps {
@@ -28,6 +32,7 @@ export interface HistoryListProps {
   onFiltersChange: (next: HistoryFilterValues) => void;
   onSelectRun: (runId: string) => void;
   onNewQuestion: () => void;
+  onDeleteRun?: ((runId: string) => void) | undefined;
 
   isLoading: boolean;
   isError: boolean;
@@ -83,6 +88,7 @@ export function HistoryList({
   onFiltersChange,
   onSelectRun,
   onNewQuestion,
+  onDeleteRun,
   isLoading,
   isError,
   errorMessage,
@@ -146,15 +152,17 @@ export function HistoryList({
           </div>
         ) : (
           <ul className="flex flex-col" aria-label="Run history">
-            {filtered.map((run) => (
-              <li key={run.id}>
-                <RunRow
+            <AnimatePresence initial={false}>
+              {filtered.map((run) => (
+                <HistoryItem
+                  key={run.id}
                   run={run}
                   isSelected={run.id === selectedRunId}
                   onSelect={onSelectRun}
+                  onDelete={onDeleteRun}
                 />
-              </li>
-            ))}
+              ))}
+            </AnimatePresence>
             {hasNextPage ? (
               <li className="px-3 py-3">
                 <Button
@@ -164,7 +172,7 @@ export function HistoryList({
                   loading={isFetchingNextPage}
                   className="w-full"
                 >
-                  {isFetchingNextPage ? "Loading…" : "Load more"}
+                  {isFetchingNextPage ? "Loading…" : "More"}
                 </Button>
               </li>
             ) : null}

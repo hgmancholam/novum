@@ -53,29 +53,89 @@ async def test_create_run_returns_201_and_persists(
 
 
 # ---------------------------------------------------------------------------
-# AC-02 — list runs
+# AC-02 — list runs (BRD-20 keyset)
 # ---------------------------------------------------------------------------
 
 
-async def test_list_runs_orders_desc_by_started_at(
+async def test_list_runs_returns_envelope_shape(
     client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
 ) -> None:
+    """BRD-20 AC-07: response is {items, has_more, next_cursor}."""
     for _ in range(3):
         r = await client.post(
             "/api/runs", json=_VALID_BODY, headers=auth_headers
         )
         assert r.status_code == 201
 
-    response = await client.get(
-        "/api/runs", headers=auth_headers
-    )
+    response = await client.get("/api/runs", headers=auth_headers)
     assert response.status_code == 200
-    items = response.json()
-    assert len(items) == 3
-    timestamps = [item["started_at"] for item in items]
+    body = response.json()
+    assert set(body.keys()) >= {"items", "has_more", "next_cursor"}
+    assert isinstance(body["items"], list)
+    assert len(body["items"]) == 3
+    timestamps = [item["started_at"] for item in body["items"]]
     assert timestamps == sorted(timestamps, reverse=True)
-    # Each item must expose the owner username
-    assert all(item["username"] == seeded_user for item in items)
+    assert all(item["username"] == seeded_user for item in body["items"])
+    assert body["has_more"] is False
+    assert body["next_cursor"] is None
+
+
+async def test_list_runs_paginates_with_cursor(
+    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
+) -> None:
+    """BRD-20 AC-08: cursor pages traverse the full list without overlap."""
+    for _ in range(5):
+        await client.post("/api/runs", json=_VALID_BODY, headers=auth_headers)
+
+    page1 = (
+        await client.get("/api/runs?limit=2", headers=auth_headers)
+    ).json()
+    assert page1["has_more"] is True
+    assert page1["next_cursor"]
+    page2 = (
+        await client.get(
+            f"/api/runs?limit=2&cursor={page1['next_cursor']}",
+            headers=auth_headers,
+        )
+    ).json()
+    ids1 = {i["id"] for i in page1["items"]}
+    ids2 = {i["id"] for i in page2["items"]}
+    assert ids1.isdisjoint(ids2)
+
+
+async def test_list_runs_invalid_cursor_returns_400(
+    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
+) -> None:
+    """BRD-20 AC-11: malformed cursor → 400 with literal 'Invalid cursor'."""
+    response = await client.get(
+        "/api/runs?cursor=%21%21%21not-base64", headers=auth_headers
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid cursor"
+
+
+async def test_list_runs_excludes_other_users(
+    client: AsyncClient,
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    auth_headers: dict[str, str],
+) -> None:
+    """BRD-20 AC-09: list is owner-scoped."""
+    from app.models import User
+    from app.services.auth_service import AuthService
+
+    # Seed another user via the service so the X-Token is hash-matched.
+    auth = AuthService(sqlite_session)
+    _, bob_token = await auth.register("bob")
+    headers2 = {"X-Username": "bob", "X-Token": bob_token}
+
+    await client.post("/api/runs", json=_VALID_BODY, headers=headers2)
+    await client.post("/api/runs", json=_VALID_BODY, headers=auth_headers)
+
+    body = (await client.get("/api/runs", headers=auth_headers)).json()
+    assert len(body["items"]) == 1
+    assert body["items"][0]["username"] == seeded_user
+    _ = User  # silence unused-import lint
 
 
 # ---------------------------------------------------------------------------
@@ -436,3 +496,100 @@ async def test_post_resume_awaits_terminal_then_starts(
     kinds = [c[0] for c in fake.calls]
     assert kinds[0] == "await_terminal"
     assert kinds[-1] == "start"
+
+
+# ---------------------------------------------------------------------------
+# BRD-20 — DELETE /api/runs/{id}
+# ---------------------------------------------------------------------------
+
+
+async def _create_and_stop(
+    client: AsyncClient,
+    sqlite_session: AsyncSession,
+    auth_headers: dict[str, str],
+) -> str:
+    """Create a run via API then mark it terminal."""
+    from app.domain.enums import StopReason
+    from app.models import Run
+
+    create = await client.post(
+        "/api/runs", json=_VALID_BODY, headers=auth_headers
+    )
+    run_id = create.json()["id"]
+    run = await sqlite_session.get(Run, uuid.UUID(run_id))
+    assert run is not None
+    run.stop_reason = StopReason.JUDGE_CONFIRMED.value
+    await sqlite_session.commit()
+    return run_id
+
+
+async def test_delete_run_returns_204(
+    client: AsyncClient,
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    auth_headers: dict[str, str],
+) -> None:
+    """BRD-20 AC-03: finished + owned run yields 204 No Content."""
+    run_id = await _create_and_stop(client, sqlite_session, auth_headers)
+    response = await client.delete(f"/api/runs/{run_id}", headers=auth_headers)
+    assert response.status_code == 204
+    assert response.content == b""
+
+
+async def test_delete_run_missing_auth_returns_401(
+    client: AsyncClient,
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    auth_headers: dict[str, str],
+) -> None:
+    run_id = await _create_and_stop(client, sqlite_session, auth_headers)
+    response = await client.delete(f"/api/runs/{run_id}")
+    assert response.status_code == 401
+
+
+async def test_delete_run_unknown_returns_404_with_literal_detail(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    """BRD-20 §14.3: literal detail body is `Run not found: <id>`."""
+    rid = uuid.uuid4()
+    response = await client.delete(f"/api/runs/{rid}", headers=auth_headers)
+    assert response.status_code == 404
+    assert response.json()["detail"] == f"Run not found: {rid}"
+
+
+async def test_delete_run_not_owned_returns_403_with_literal_detail(
+    client: AsyncClient,
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    auth_headers: dict[str, str],
+) -> None:
+    """BRD-20 AC-05, §14.3: foreign run yields 403 with literal detail."""
+    from app.services.auth_service import AuthService
+
+    auth = AuthService(sqlite_session)
+    _, bob_token = await auth.register("bob")
+    headers_bob = {"X-Username": "bob", "X-Token": bob_token}
+
+    run_id = await _create_and_stop(client, sqlite_session, headers_bob)
+    response = await client.delete(f"/api/runs/{run_id}", headers=auth_headers)
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Run is not owned by the current user."
+
+
+async def test_delete_run_in_progress_returns_409_with_literal_detail(
+    client: AsyncClient,
+    seeded_user: str,
+    auth_headers: dict[str, str],
+) -> None:
+    """BRD-20 AC-04, §14.3: in-flight run yields 409 with literal detail."""
+    create = await client.post(
+        "/api/runs", json=_VALID_BODY, headers=auth_headers
+    )
+    run_id = create.json()["id"]
+    response = await client.delete(f"/api/runs/{run_id}", headers=auth_headers)
+    assert response.status_code == 409
+    assert (
+        response.json()["detail"]
+        == "Cannot delete a run that is still in progress. Cancel it first."
+    )
+

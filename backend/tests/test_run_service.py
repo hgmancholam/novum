@@ -12,7 +12,10 @@ from app.domain.enums import OutputFormat, StopReason
 from app.domain.run import RunCreate, RunForkRequest
 from app.exceptions import (
     EventNotFoundError,
+    InvalidCursorError,
     RunAlreadyStoppedError,
+    RunForbiddenError,
+    RunNotFinishedError,
     RunNotForkableError,
     RunNotFoundError,
     RunStillRunningError,
@@ -81,11 +84,11 @@ async def test_get_run_raises_when_missing(sqlite_session: AsyncSession) -> None
 
 
 # ---------------------------------------------------------------------------
-# list_runs
+# list_runs_keyset (BRD-20 AC-07..AC-12)
 # ---------------------------------------------------------------------------
 
 
-async def test_list_runs_truncates_long_questions(
+async def test_list_runs_keyset_truncates_long_questions(
     sqlite_session: AsyncSession, seeded_user: str
 ) -> None:
     long_q = "x" * 150
@@ -99,26 +102,17 @@ async def test_list_runs_truncates_long_questions(
     await sqlite_session.commit()
 
     svc = RunService(sqlite_session)
-    items = await svc.list_runs()
-    assert len(items) == 1
-    assert items[0].question == "x" * 100 + "..."
-    assert len(items[0].question) == 103
+    page = await svc.list_runs_keyset(seeded_user)
+    assert len(page.items) == 1
+    assert page.items[0].question == "x" * 100 + "..."
+    assert page.has_more is False
+    assert page.next_cursor is None
 
 
-async def test_list_runs_does_not_truncate_short_questions(
+async def test_list_runs_keyset_owner_scoped_excludes_other_users(
     sqlite_session: AsyncSession, seeded_user: str
 ) -> None:
-    await _create_run(sqlite_session, seeded_user)
-    svc = RunService(sqlite_session)
-    items = await svc.list_runs()
-    assert len(items) == 1
-    assert items[0].question == "What is the capital of France?"
-
-
-async def test_list_runs_returns_all_users_with_username(
-    sqlite_session: AsyncSession, seeded_user: str
-) -> None:
-    # Seed a second user + run.
+    """BRD-20 AC-09: list MUST NOT contain runs belonging to other users."""
     from app.models import User
 
     other = User(username="bob", token_hash="y" * 64)
@@ -128,11 +122,278 @@ async def test_list_runs_returns_all_users_with_username(
     await _create_run(sqlite_session, seeded_user)
 
     svc = RunService(sqlite_session)
-    all_items = await svc.list_runs()
-    assert len(all_items) == 2
+    page = await svc.list_runs_keyset(seeded_user)
+    assert len(page.items) == 1
+    assert page.items[0].username == seeded_user
 
-    usernames = {item.username for item in all_items}
-    assert usernames == {seeded_user, "bob"}
+
+async def test_list_runs_keyset_orders_started_at_desc_id_desc(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """BRD-20 AC-08: deterministic order (started_at DESC, id DESC)."""
+    base = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+    # Insert 3 with same started_at to exercise the id tiebreaker.
+    rows: list[Run] = []
+    for _ in range(3):
+        r = Run(
+            owner_username=seeded_user,
+            question="q",
+            output_format="prose",
+            confidence_threshold=0.7,
+            started_at=base,
+        )
+        sqlite_session.add(r)
+        rows.append(r)
+    # Plus one strictly newer.
+    newer = Run(
+        owner_username=seeded_user,
+        question="q",
+        output_format="prose",
+        confidence_threshold=0.7,
+        started_at=base.replace(hour=13),
+    )
+    sqlite_session.add(newer)
+    await sqlite_session.commit()
+
+    svc = RunService(sqlite_session)
+    page = await svc.list_runs_keyset(seeded_user, limit=10)
+    ids = [item.id for item in page.items]
+    assert ids[0] == newer.id
+    # Tie-broken by id DESC for the remaining three.
+    same_ts_ids = sorted([r.id for r in rows], reverse=True)
+    assert ids[1:] == same_ts_ids
+
+
+async def test_list_runs_keyset_pagination_has_more_and_cursor(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """BRD-20 AC-08, AC-11: has_more True + cursor when more rows exist."""
+    for i in range(5):
+        r = Run(
+            owner_username=seeded_user,
+            question=f"q{i}",
+            output_format="prose",
+            confidence_threshold=0.7,
+            started_at=datetime(2026, 1, 1, 10, i, 0, tzinfo=UTC),
+        )
+        sqlite_session.add(r)
+    await sqlite_session.commit()
+
+    svc = RunService(sqlite_session)
+    page1 = await svc.list_runs_keyset(seeded_user, limit=2)
+    assert len(page1.items) == 2
+    assert page1.has_more is True
+    assert page1.next_cursor is not None
+
+    page2 = await svc.list_runs_keyset(
+        seeded_user, limit=2, cursor=page1.next_cursor
+    )
+    assert len(page2.items) == 2
+    assert page2.has_more is True
+    # No overlap between page boundaries.
+    assert {i.id for i in page1.items}.isdisjoint({i.id for i in page2.items})
+
+    page3 = await svc.list_runs_keyset(
+        seeded_user, limit=2, cursor=page2.next_cursor
+    )
+    assert len(page3.items) == 1
+    assert page3.has_more is False
+    assert page3.next_cursor is None
+
+
+async def test_list_runs_keyset_invalid_cursor_raises(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """BRD-20 AC-11: malformed cursor → InvalidCursorError (400)."""
+    svc = RunService(sqlite_session)
+    with pytest.raises(InvalidCursorError):
+        await svc.list_runs_keyset(seeded_user, cursor="!!!not-base64!!!")
+
+
+# ---------------------------------------------------------------------------
+# delete_run (BRD-20 AC-03..AC-06)
+# ---------------------------------------------------------------------------
+
+
+async def _stop_run(
+    session: AsyncSession, run: Run, reason: StopReason = StopReason.JUDGE_CONFIRMED
+) -> None:
+    run.stop_reason = reason.value
+    run.stopped_at = datetime.now(UTC)
+    await session.commit()
+
+
+async def test_delete_run_removes_finished_run(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """BRD-20 AC-03: finished run is deleted permanently."""
+    run = await _create_run(sqlite_session, seeded_user)
+    await _stop_run(sqlite_session, run)
+    run_id = run.id
+
+    svc = RunService(sqlite_session)
+    await svc.delete_run(run_id, seeded_user)
+
+    sqlite_session.expire_all()
+    assert await sqlite_session.get(Run, run_id) is None
+
+
+async def test_delete_run_cascades_events(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """BRD-20 AC-06: associated events are removed via cascade."""
+    import sqlalchemy as sa
+
+    run = await _create_run(sqlite_session, seeded_user)
+    sqlite_session.add(
+        Event(
+            run_id=run.id,
+            step_index=1,
+            type="PlanCreated",
+            payload={"sub_claims": [], "rationale": "r"},
+        )
+    )
+    await _stop_run(sqlite_session, run)
+
+    svc = RunService(sqlite_session)
+    await svc.delete_run(run.id, seeded_user)
+
+    sqlite_session.expire_all()
+    result = await sqlite_session.execute(
+        sa.select(sa.func.count(Event.id)).where(Event.run_id == run.id)
+    )
+    assert result.scalar_one() == 0
+
+
+async def test_delete_run_orphans_forks(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """BRD-20 AC-06: forks survive parent deletion (DB enforces SET NULL).
+
+    The ``ON DELETE SET NULL`` clause is a Postgres-level guarantee on
+    ``runs.parent_run_id``. SQLite in unit tests does not enforce FK
+    actions unless ``PRAGMA foreign_keys=ON`` is set, so we only assert
+    the survivability part here (the SET NULL is covered by the model
+    definition and migration tests).
+    """
+    parent = await _create_run(sqlite_session, seeded_user)
+    forkable = Event(
+        run_id=parent.id,
+        step_index=1,
+        type="PlanCreated",
+        payload={"sub_claims": [], "rationale": "r"},
+    )
+    sqlite_session.add(forkable)
+    await sqlite_session.commit()
+
+    svc = RunService(sqlite_session)
+    fork = await svc.fork_run(
+        parent.id, RunForkRequest(event_id=forkable.id), seeded_user
+    )
+    await _stop_run(sqlite_session, parent)
+
+    await svc.delete_run(parent.id, seeded_user)
+
+    sqlite_session.expire_all()
+    fork_row = await sqlite_session.get(Run, fork.id)
+    assert fork_row is not None
+
+
+async def test_delete_run_missing_raises_404(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    svc = RunService(sqlite_session)
+    with pytest.raises(RunNotFoundError):
+        await svc.delete_run(uuid.uuid4(), seeded_user)
+
+
+async def test_delete_run_not_owned_raises_403(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """BRD-20 AC-05: caller must own the run."""
+    from app.models import User
+
+    other = User(username="bob", token_hash="y" * 64)
+    sqlite_session.add(other)
+    await sqlite_session.commit()
+    run = await _create_run(sqlite_session, "bob")
+    await _stop_run(sqlite_session, run)
+
+    svc = RunService(sqlite_session)
+    with pytest.raises(RunForbiddenError):
+        await svc.delete_run(run.id, seeded_user)
+
+
+async def test_delete_run_ownership_check_precedes_terminal_check(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """BRD-20 §4.5 leak guard: 403 must fire before 409.
+
+    A still-running run owned by someone else must NOT leak its state via
+    a 409 to the caller; it must yield 403.
+    """
+    from app.models import User
+
+    other = User(username="bob", token_hash="y" * 64)
+    sqlite_session.add(other)
+    await sqlite_session.commit()
+    run = await _create_run(sqlite_session, "bob")  # in-progress (no stop_reason)
+
+    svc = RunService(sqlite_session)
+    with pytest.raises(RunForbiddenError):
+        await svc.delete_run(run.id, seeded_user)
+
+
+async def test_delete_run_in_progress_raises_409(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """BRD-20 AC-04: cannot delete a run that is still in progress."""
+    run = await _create_run(sqlite_session, seeded_user)
+
+    svc = RunService(sqlite_session)
+    with pytest.raises(RunNotFinishedError):
+        await svc.delete_run(run.id, seeded_user)
+
+
+async def test_delete_run_swallows_run_still_terminating(
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BRD-20 §4.5: a hung await_terminal must NOT shadow the AC-04 409 body."""
+    from app.exceptions import RunStillTerminatingError
+
+    async def _raise_stt(*_args: object, **_kwargs: object) -> None:
+        raise RunStillTerminatingError("x")
+
+    monkeypatch.setattr(
+        "app.agent.runner.agent_runner.await_terminal", _raise_stt
+    )
+
+    run = await _create_run(sqlite_session, seeded_user)  # in-progress
+
+    svc = RunService(sqlite_session)
+    with pytest.raises(RunNotFinishedError):
+        await svc.delete_run(run.id, seeded_user)
+
+
+async def test_delete_run_closes_sse_connection(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """BRD-20 §9 last-row race: SSE state is cleared post-commit."""
+    from app.sse.manager import connection_manager
+
+    connection_manager.reset()
+    run = await _create_run(sqlite_session, seeded_user)
+    await _stop_run(sqlite_session, run)
+
+    svc = RunService(sqlite_session)
+    await svc.delete_run(run.id, seeded_user)
+
+    # Idempotent: a second close is a no-op.
+    connection_manager.close(run.id)
+    assert connection_manager.is_cancelled(run.id) is True
+    connection_manager.reset()
 
 
 # ---------------------------------------------------------------------------

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException
 from fastapi import status as http_status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # NOTE: `agent_runner` is imported lazily inside the methods that use it to
@@ -19,13 +21,23 @@ from app.domain.events import (
     ResumedAfterCancelEvent,
     ResumedAfterErrorEvent,
 )
-from app.domain.run import RunCreate, RunForkRequest, RunListItem, RunResponse
+from app.domain.run import (
+    RunCreate,
+    RunForkRequest,
+    RunListItem,
+    RunListPage,
+    RunResponse,
+)
 from app.exceptions import (
     EventNotFoundError,
+    InvalidCursorError,
     RunAlreadyStoppedError,
+    RunForbiddenError,
+    RunNotFinishedError,
     RunNotForkableError,
     RunNotFoundError,
     RunStillRunningError,
+    RunStillTerminatingError,
 )
 from app.models import Event, Run
 from app.services.event_service import EventService
@@ -35,6 +47,37 @@ from app.sse.manager import connection_manager
 _RESUMABLE: frozenset[str] = frozenset(
     {StopReason.USER_CANCELLED.value, StopReason.ERRORED.value}
 )
+
+
+def _encode_cursor(started_at: datetime, run_id: UUID) -> str:
+    """Encode ``(started_at, id)`` as an opaque base64 cursor (BRD-20 §4.4)."""
+    raw = f"{started_at.isoformat()}|{run_id}".encode()
+    return base64.urlsafe_b64encode(raw).decode("ascii")
+
+
+def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
+    """Decode an opaque cursor. Raises ``InvalidCursorError`` on tamper."""
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        iso, uuid_str = raw.split("|", 1)
+        started_at = datetime.fromisoformat(iso)
+        run_id = UUID(uuid_str)
+    except (binascii.Error, UnicodeDecodeError, ValueError) as exc:
+        raise InvalidCursorError() from exc
+    return started_at, run_id
+
+
+def _to_list_item(r: Run) -> RunListItem:
+    return RunListItem(
+        id=r.id,
+        username=r.owner_username,
+        question=(
+            r.question[:100] + "..." if len(r.question) > 100 else r.question
+        ),
+        started_at=r.started_at,
+        stopped_at=r.stopped_at,
+        stop_reason=StopReason(r.stop_reason) if r.stop_reason else None,
+    )
 
 
 class RunService:
@@ -68,37 +111,90 @@ class RunService:
             raise RunNotFoundError(str(run_id))
         return RunResponse.model_validate(run)
 
-    async def list_runs(
+    async def list_runs_keyset(
         self,
+        username: str,
         limit: int = 20,
-        offset: int = 0,
-    ) -> list[RunListItem]:
-        """List recent runs for all users (RF-09).
+        cursor: str | None = None,
+    ) -> RunListPage:
+        """Owner-scoped keyset page over ``(started_at DESC, id DESC)``.
 
-        The question is truncated at 100 chars with an ellipsis suffix —
-        the history panel (BRD-12) depends on this exact behavior.
+        BRD-20 §4.4 / §4.5:
+        - Filters ``WHERE owner_username = :username``.
+        - When ``cursor`` is set, restricts to rows strictly older than
+          the tuple it encodes.
+        - Fetches ``limit + 1`` rows to compute ``has_more`` cheaply.
+        - ``next_cursor`` is ``None`` iff ``has_more`` is ``False``.
         """
         query = (
             select(Run)
-            .order_by(Run.started_at.desc())
-            .limit(limit)
-            .offset(offset)
+            .where(Run.owner_username == username)
+            .order_by(Run.started_at.desc(), Run.id.desc())
+            .limit(limit + 1)
         )
-        result = await self.db.execute(query)
-        runs = result.scalars().all()
-        return [
-            RunListItem(
-                id=r.id,
-                username=r.owner_username,
-                question=(
-                    r.question[:100] + "..." if len(r.question) > 100 else r.question
-                ),
-                started_at=r.started_at,
-                stopped_at=r.stopped_at,
-                stop_reason=StopReason(r.stop_reason) if r.stop_reason else None,
+        if cursor is not None:
+            cur_ts, cur_id = _decode_cursor(cursor)
+            # Tuple keyset: (started_at, id) < (cur_ts, cur_id) under DESC,DESC.
+            # Some dialects (notably SQLite) lack row-value comparison, so we
+            # expand it to the equivalent OR/AND form for portability.
+            query = query.where(
+                or_(
+                    Run.started_at < cur_ts,
+                    and_(Run.started_at == cur_ts, Run.id < cur_id),
+                )
             )
-            for r in runs
-        ]
+
+        result = await self.db.execute(query)
+        rows = list(result.scalars().all())
+        has_more = len(rows) > limit
+        page = rows[:limit]
+        next_cursor: str | None = None
+        if has_more and page:
+            last = page[-1]
+            next_cursor = _encode_cursor(last.started_at, last.id)
+        return RunListPage(
+            items=[_to_list_item(r) for r in page],
+            has_more=has_more,
+            next_cursor=next_cursor,
+        )
+
+    async def delete_run(self, run_id: UUID, username: str) -> None:
+        """Permanently delete an owned, finished run (BRD-20 AC-03..AC-06).
+
+        Order is critical (BRD-20 §4.5 leak guard):
+        1. 404 if missing.
+        2. 403 if not owned by ``username`` — BEFORE the terminal check
+           so we never reveal someone else's run state via 409.
+        3. Best-effort ``await_terminal`` (swallow ``RunStillTerminatingError``
+           so the AC-04 409 body is never shadowed).
+        4. 409 if still running (``stop_reason IS NULL``).
+        5. Delete via ORM (cascades through events; ``runs.parent_run_id
+           ON DELETE SET NULL`` orphans forks per AC-06).
+        6. Close any open SSE state (idempotent).
+        """
+        run = await self.db.get(Run, run_id)
+        if run is None:
+            raise RunNotFoundError(str(run_id))
+        if run.owner_username != username:
+            raise RunForbiddenError()
+
+        from app.agent.runner import agent_runner
+
+        try:
+            await agent_runner.await_terminal(run_id, timeout=2.0)
+        except RunStillTerminatingError:
+            # Fall through to the stop_reason guard — it owns the 409 body.
+            pass
+
+        # Re-read to capture any stop_reason flip that may have committed
+        # while we awaited the terminal grace.
+        await self.db.refresh(run)
+        if run.stop_reason is None:
+            raise RunNotFinishedError()
+
+        await self.db.delete(run)
+        await self.db.commit()
+        connection_manager.close(run_id)
 
     async def fork_run(
         self,

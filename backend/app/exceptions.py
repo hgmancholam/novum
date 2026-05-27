@@ -11,7 +11,37 @@ class RunNotFoundError(HTTPException):
     def __init__(self, run_id: str) -> None:
         super().__init__(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Run {run_id} not found",
+            detail=f"Run not found: {run_id}",
+        )
+
+
+class RunForbiddenError(HTTPException):
+    """Authenticated caller does not own the target run (BRD-20 AC-05)."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Run is not owned by the current user.",
+        )
+
+
+class RunNotFinishedError(HTTPException):
+    """Run is still in progress; cannot delete (BRD-20 AC-04)."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete a run that is still in progress. Cancel it first.",
+        )
+
+
+class InvalidCursorError(HTTPException):
+    """Pagination cursor is malformed or tampered with (BRD-20 AC-11)."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid cursor",
         )
 
 

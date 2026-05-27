@@ -21,3 +21,4 @@ export { TraceEmpty, TRACE_EMPTY_MESSAGE } from "./TraceEmpty";
 export type { TraceEmptyProps } from "./TraceEmpty";
 export { LineageBadge } from "./LineageBadge";
 export type { LineageBadgeProps } from "./LineageBadge";
+export { Toaster } from "./Toaster";

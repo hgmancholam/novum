@@ -49,6 +49,18 @@ class RunListItem(BaseModel):
     stop_reason: StopReason | None
 
 
+class RunListPage(BaseModel):
+    """Keyset-paginated page of run summaries (BRD-20 §4.4, RF-09)."""
+
+    # extra="allow" honours the schema-evolution rule for envelopes that
+    # may grow new optional metadata (BRD-20 schema-evolution constraint).
+    model_config = ConfigDict(extra="allow")
+
+    items: list[RunListItem]
+    has_more: bool
+    next_cursor: str | None = None
+
+
 class RunForkRequest(BaseModel):
     """Request to fork a run from a specific event (RF-03)."""
 

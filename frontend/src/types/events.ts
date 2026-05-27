@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-27T05:41:38.024438+00:00
+// Generated: 2026-05-27T06:31:45.793569+00:00
 
 // ---------------------------------------------------------------------------
 // Enums

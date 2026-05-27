@@ -1,6 +1,8 @@
 export { HistoryList } from "./HistoryList";
 export { RunRow } from "./RunRow";
 export type { RunRowProps } from "./RunRow";
+export { HistoryItem } from "./HistoryItem";
+export type { HistoryItemProps } from "./HistoryItem";
 export { HistoryFilters, hasActiveFilters } from "./HistoryFilters";
 export type { HistoryFiltersProps } from "./HistoryFilters";
 export { QuestionDisplay } from "./QuestionDisplay";

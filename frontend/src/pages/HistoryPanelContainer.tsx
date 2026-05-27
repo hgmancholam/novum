@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/atoms";
 import { HistoryList } from "@/components/organisms/HistoryList";
 import { HistoryPanel } from "@/components/templates";
-import { useRunHistory } from "@/hooks/useRunHistory";
+import { useDeleteRun, useRunHistory } from "@/hooks/useRunHistory";
 import { useSelectionStore } from "@/stores/selectionStore";
 import { useUserStore } from "@/stores/userStore";
 import type { HistoryFilterValues, RunSummary } from "@/types/history";
@@ -62,6 +62,14 @@ export function HistoryPanelContainer() {
     void fetchNextPage();
   }, [fetchNextPage]);
 
+  const deleteMutation = useDeleteRun();
+  const handleDelete = useCallback(
+    (runId: string): void => {
+      deleteMutation.mutate(runId);
+    },
+    [deleteMutation]
+  );
+
   return (
     <HistoryPanel
       header={
@@ -82,6 +90,7 @@ export function HistoryPanelContainer() {
           onFiltersChange={setFilters}
           onSelectRun={handleSelect}
           onNewQuestion={handleNewQuestion}
+          onDeleteRun={handleDelete}
           isLoading={isLoading}
           isError={isError}
           {...(error instanceof Error ? { errorMessage: error.message } : {})}

@@ -1,18 +1,25 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, type InfiniteData } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
-import { mapRun, useRunHistory } from "./useRunHistory";
-import type { RunListItemDto } from "@/lib/api";
+import { mapRun, useDeleteRun, useRunHistory } from "./useRunHistory";
+import type { RunListItemDto, RunListPageDto } from "@/lib/api";
+import { useSelectionStore } from "@/stores/selectionStore";
+import { useToastStore } from "@/stores/toastStore";
+import type { RunHistoryPage } from "@/types/history";
 
 function makeWrapper() {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
   });
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
+  return { client, Wrapper };
 }
 
 const fetchMock = vi.fn();
@@ -20,6 +27,8 @@ const fetchMock = vi.fn();
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
+  useSelectionStore.getState().reset();
+  useToastStore.getState().reset();
 });
 
 afterEach(() => {
@@ -35,6 +44,20 @@ function dto(id: string, stop: RunListItemDto["stop_reason"] = null): RunListIte
     stopped_at: stop === null ? null : "2026-05-26T00:01:00Z",
     stop_reason: stop,
   };
+}
+
+function pageDto(
+  items: RunListItemDto[],
+  nextCursor: string | null = null
+): RunListPageDto {
+  return { items, has_more: nextCursor !== null, next_cursor: nextCursor };
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 describe("mapRun", () => {
@@ -60,15 +83,11 @@ describe("mapRun", () => {
 describe("useRunHistory", () => {
   it("fetches the first page and exposes mapped runs", async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify([dto("a"), dto("b", "judge_confirmed")]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
+      jsonResponse(pageDto([dto("a"), dto("b", "judge_confirmed")]))
     );
 
-    const { result } = renderHook(() => useRunHistory(20), {
-      wrapper: makeWrapper(),
-    });
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useRunHistory(20), { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
@@ -81,75 +100,205 @@ describe("useRunHistory", () => {
     expect(result.current.hasNextPage).toBe(false);
   });
 
-  it("flags hasNextPage when a full page is returned", async () => {
-    const fullPage = Array.from({ length: 2 }, (_, i) => dto(`r${i.toString()}`));
+  it("flags hasNextPage when the page carries a next_cursor", async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify(fullPage), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
+      jsonResponse(pageDto([dto("a"), dto("b")], "cur-1"))
     );
 
-    const { result } = renderHook(() => useRunHistory(2), {
-      wrapper: makeWrapper(),
-    });
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useRunHistory(2), { wrapper: Wrapper });
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
     expect(result.current.hasNextPage).toBe(true);
-    expect(result.current.data?.pages[0]?.nextOffset).toBe(2);
+    expect(result.current.data?.pages[0]?.nextCursor).toBe("cur-1");
+  });
+
+  it("passes the cursor through on fetchNextPage", async () => {
+    fetchMock.mockImplementation((url: unknown) => {
+      const str = String(url);
+      if (str.includes("cursor=cur-XYZ")) {
+        return Promise.resolve(jsonResponse(pageDto([dto("b")])));
+      }
+      return Promise.resolve(jsonResponse(pageDto([dto("a")], "cur-XYZ")));
+    });
+
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useRunHistory(1), { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(result.current.hasNextPage).toBe(true);
+    });
+
+    await act(async () => {
+      void result.current.fetchNextPage();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isFetchingNextPage).toBe(false);
+      expect(result.current.data?.pages.length).toBe(2);
+    });
+
+    const cursoredCall = fetchMock.mock.calls.find((args) =>
+      String(args[0]).includes("cursor=cur-XYZ")
+    );
+    expect(cursoredCall).toBeDefined();
   });
 
   it("surfaces fetch errors as isError", async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify({ code: "X", message: "fail" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      })
+      jsonResponse({ code: "X", message: "fail" }, 500)
     );
-    const { result } = renderHook(() => useRunHistory(20), {
-      wrapper: makeWrapper(),
-    });
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useRunHistory(20), { wrapper: Wrapper });
     await waitFor(() => {
       expect(result.current.isError).toBe(true);
     });
   });
 
   it("does not fetch when enabled is false", async () => {
+    const { Wrapper } = makeWrapper();
     const { result } = renderHook(
       () => useRunHistory(20, { enabled: false }),
-      { wrapper: makeWrapper() }
+      { wrapper: Wrapper }
     );
-    // Allow any pending microtasks to settle
     await new Promise((r) => setTimeout(r, 50));
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.current.data).toBeUndefined();
   });
 
   it("fetches when username changes (new queryKey triggers re-fetch)", async () => {
-    const page = [dto("a")];
-    // Use a factory so each call gets a fresh Response (body can only be read once)
     fetchMock.mockImplementation(() =>
-      Promise.resolve(
-        new Response(JSON.stringify(page), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        })
-      )
+      Promise.resolve(jsonResponse(pageDto([dto("a")])))
     );
 
     let username: string | null = "alice";
+    const { Wrapper } = makeWrapper();
     const { result, rerender } = renderHook(
       () => useRunHistory(20, { enabled: true, username }),
-      { wrapper: makeWrapper() }
+      { wrapper: Wrapper }
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // Simulate user switching: new username → new queryKey → new fetch
     username = "bob";
     rerender();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("useDeleteRun", () => {
+  function mockHappyPath(): void {
+    let deleted = false;
+    fetchMock.mockImplementation((_url: unknown, init?: RequestInit) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method === "DELETE") {
+        deleted = true;
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      const items = deleted ? [dto("b")] : [dto("a"), dto("b")];
+      return Promise.resolve(jsonResponse(pageDto(items)));
+    });
+  }
+
+  it("optimistically removes the row across cached pages", async () => {
+    mockHappyPath();
+
+    const { client, Wrapper } = makeWrapper();
+    const { result } = renderHook(
+      () => ({ history: useRunHistory(20), del: useDeleteRun() }),
+      { wrapper: Wrapper }
+    );
+    await waitFor(() => expect(result.current.history.isSuccess).toBe(true));
+
+    await act(async () => {
+      await result.current.del.mutateAsync("a");
+    });
+
+    await waitFor(() => {
+      const cached = client.getQueriesData<InfiniteData<RunHistoryPage>>({
+        queryKey: ["runs", "history"],
+      });
+      const allItems = cached.flatMap(
+        ([, data]) => data?.pages.flatMap((p) => p.items) ?? []
+      );
+      expect(allItems.find((r) => r.id === "a")).toBeUndefined();
+    });
+  });
+
+  it("rolls back the cache and pushes an error toast on failure", async () => {
+    fetchMock.mockImplementation((_url: unknown, init?: RequestInit) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method === "DELETE") {
+        return Promise.resolve(
+          jsonResponse({ code: "X", message: "boom" }, 500)
+        );
+      }
+      return Promise.resolve(jsonResponse(pageDto([dto("a"), dto("b")])));
+    });
+
+    const { Wrapper } = makeWrapper();
+    const { result: history } = renderHook(() => useRunHistory(20), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(history.current.isSuccess).toBe(true));
+
+    const { result: del } = renderHook(() => useDeleteRun(), { wrapper: Wrapper });
+    await act(async () => {
+      try {
+        await del.current.mutateAsync("a");
+      } catch {
+        /* expected */
+      }
+    });
+
+    await waitFor(() => {
+      const items = history.current.data?.pages[0]?.items ?? [];
+      expect(items.find((r) => r.id === "a")).toBeDefined();
+    });
+
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0]?.message).toBe(
+      "Couldn't delete the run. Please try again."
+    );
+    expect(toasts[0]?.kind).toBe("error");
+  });
+
+  it("clears selectedRunId when the deleted run was selected", async () => {
+    mockHappyPath();
+    useSelectionStore.getState().setSelectedRunId("a");
+
+    const { Wrapper } = makeWrapper();
+    const { result: history } = renderHook(() => useRunHistory(20), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(history.current.isSuccess).toBe(true));
+
+    const { result: del } = renderHook(() => useDeleteRun(), { wrapper: Wrapper });
+    await act(async () => {
+      await del.current.mutateAsync("a");
+    });
+
+    expect(useSelectionStore.getState().selectedRunId).toBeNull();
+  });
+
+  it("does not clear selectedRunId when a different run is deleted", async () => {
+    mockHappyPath();
+    useSelectionStore.getState().setSelectedRunId("b");
+
+    const { Wrapper } = makeWrapper();
+    const { result: history } = renderHook(() => useRunHistory(20), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(history.current.isSuccess).toBe(true));
+
+    const { result: del } = renderHook(() => useDeleteRun(), { wrapper: Wrapper });
+    await act(async () => {
+      await del.current.mutateAsync("a");
+    });
+
+    expect(useSelectionStore.getState().selectedRunId).toBe("b");
   });
 });

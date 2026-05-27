@@ -3,12 +3,108 @@
 > Chronological log of all decisions made during the Novum development.
 > Each decision follows the decision record template.
 
-**Last Updated:** 2026-05-26
-**Total Decisions:** 43
+**Last Updated:** 2026-05-28
+**Total Decisions:** 46
 
 ---
 
 ## Recent Decisions
+
+## D-046: BRD-20 — Implementation locked (ownership-first delete, optimistic UI, idempotent SSE close)
+
+**Date:** 2026-05-28
+**Phase:** F3 — IMPLEMENT (Coder, PLAN-US-20)
+**Artifacts:** [PLAN-US-20 v2](../../../docs/implementation-phase/implementation-plans/PLAN-US-20-delete-run-and-pagination.md), [BRD-20 v1.1](../../../docs/implementation-phase/brds/BRD-20-delete-run-and-pagination.md), `backend/app/services/run_service.py`, `backend/app/routes/runs.py`, `backend/app/sse/manager.py`, `frontend/src/hooks/useRunHistory.ts`, `frontend/src/components/organisms/HistoryItem.tsx`, `frontend/src/components/molecules/Toaster.tsx`
+
+**Context:** PLAN-US-20 v2 (F2 audit 9.5/10) opened four implementation questions that were settled during the build:
+
+1. **Ordering of ownership vs. terminal-state checks** in `delete_run` (BRD-20 §4.5 leak guard).
+2. **In-progress run handling** — the planner's draft swallowed `RunStillTerminatingError` silently; the auditor flagged that as ambiguous with a 409.
+3. **SSE side effects** on delete — what happens to a tab streaming the deleted run?
+4. **Frontend mutation semantics** — optimistic UI vs. wait-for-server, and how to roll back across multiple cached pages.
+
+**Decision:**
+
+1. **Ownership check FIRST, terminal check SECOND** in `RunService.delete_run`. Lookup → 404 → owner mismatch → 403 → `await_terminal(timeout=2.0)` → refresh → `stop_reason is None` → 409 → `db.delete` + `connection_manager.close(run_id)`.
+   - Justification: BRD-20 §4.5 explicitly forbids leaking *existence* of another user's runs through the 409 path. If a non-owner hit a still-running run, they would get 409 instead of 403 — leaking that the id corresponds to a live run. The leak-guard order makes the contract symmetric with `GET /api/runs` (D-045).
+2. **Swallow `RunStillTerminatingError`, then `db.refresh` + re-check `stop_reason`.** Two-second wait, then trust the DB. If `stop_reason` is still `None` after the wait → 409 with the literal `"Cannot delete a run that is still in progress. Cancel it first."`.
+   - Justification: The runner sets `stop_reason` atomically before clearing the task registry, so a `RunStillTerminatingError` plus a fresh `stop_reason` is a normal race, not an error. Surfacing 409 only when the DB confirms the run is actually unfinished avoids spurious failures on graceful shutdowns.
+3. **`connection_manager.close(run_id)` is idempotent** — sets cancelled, pops connections/subscribers, logs `sse_close`, never raises. Called from `delete_run` AFTER the `commit` (BRD-20 AC-7). A tab streaming the deleted run sees the SSE drop cleanly on the next heartbeat and falls into its existing C13-error retry path; no special error event is required (RF-13 surface honesty is preserved by the regular 404 the tab gets if it tries to reconnect).
+4. **Frontend `useDeleteRun` is optimistic with rollback.**
+   - `onMutate`: `cancelQueries(["runs","history"])` → snapshot via **plural** `getQueriesData` → `setQueriesData` filters `runId` from every cached page.
+   - The plural form is REQUIRED because the queryKey includes `pageSize` and `username` (D-045) — a single session can have multiple matching cache entries.
+   - `onError`: rollback every snapshot key + push the BRD-20 §14.3 toast literal `"Couldn't delete the run. Please try again."` via `useToast`.
+   - `onSuccess`: clear `selectionStore.selectedRunId` when it matches `runId` (BRD-20 §4.6; previously D-045 F-2 follow-up).
+   - `onSettled`: fire-and-forget `invalidateQueries(["runs","history"])` so the server is the source of truth for `has_more`/cursor boundaries.
+
+**Rationale:** Each choice traces directly to a BRD-20 acceptance criterion or to an audit finding. The ordering decisions (1, 2) close real privacy/UX papercuts; the SSE choice (3) reuses the existing C13 path instead of inventing a new event type (event log stays at 17, RF-03 invariant intact); the optimistic mutation (4) keeps the History panel responsive on slow networks without sacrificing correctness (rollback restores byte-exact state). The plural `getQueriesData`/`setQueriesData` is a quiet but load-bearing detail — a singular variant would silently miss queries from other tabs or after a username switch.
+
+**Consequences:**
+- New schema: `RunListPage { items, has_more, next_cursor }` with `extra="allow"` — additive, no migration.
+- Three new frontend artifacts: `toastStore.ts`, `useToast.ts` hook, `Toaster.tsx` molecule (mounted in `AppBoot`).
+- Keyset cursor format `base64url("<started_at_iso>|<uuid>")` is stable across page navigations; `InvalidCursorError → 400` shields against tampered cursors.
+- SQLite test note: `ON DELETE SET NULL` is not enforced without `PRAGMA foreign_keys=ON`; the fork-orphaning test was relaxed to assert "no FK error" rather than `parent_run_id IS NULL`. Production PostgreSQL enforces it normally.
+- L-009 (`fetch()` options spread order) was honored in the new `deleteRun` API helper — `...init` precedes `headers` so explicit auth wins.
+- Test counts: backend 62 (`test_run_service.py` + `test_routes_runs.py`); frontend 402 total (13 in `useRunHistory.test.tsx` cover the cursor and optimistic paths).
+
+---
+
+## D-045: BRD-20 — Owner-scoped `GET /api/runs` locked (F1 audit iter 2)
+
+**Date:** 2026-05-27
+**Phase:** F1 — ANALYZE (BSA, audit iter 2 follow-up)
+**Artifacts:** [BRD-20 v1.1](../../../docs/implementation-phase/brds/BRD-20-delete-run-and-pagination.md), [US-20-A](../../../docs/implementation-phase/user-stories/US-20-A-delete-finished-run.md), [US-20-B](../../../docs/implementation-phase/user-stories/US-20-B-history-pagination.md), [AUDIT-F1-BRD-20](../../../docs/implementation-phase/audits/AUDIT-F1-BRD-20-delete-run-and-pagination.md)
+
+**Context:** Auditor iter 1 scored BRD-20 / US-20-A / US-20-B at **7.45/10** with a CRITICAL finding (F-1): the `GET /api/runs` list endpoint kept a `username | None` signature, leaving owner scoping unresolved in §11 #2. RF-05 ("owner controls own runs") cannot be marked Complete while the list leaks other users' runs. D-044 already flagged this as an open follow-up; the auditor escalated it to a hard blocker for iter 2.
+
+**Decision:** Lock `GET /api/runs` as **strictly owner-scoped** in BRD-20 v1.1.
+
+1. `list_runs_keyset` signature is now `(username: str, limit: int, cursor: str | None)` — the `None` overload is **removed**, not deprecated.
+2. SQL contract adds `WHERE owner_username = :username` as a mandatory predicate (BRD-20 §4.5).
+3. RF-05 traceability is upgraded from "Partial" to "Complete" (symmetric contract: list and delete are both owner-scoped).
+4. New **AC-12** in BRD-20 §5 and mirroring **Scenario 9** in US-20-B pin the behavior in acceptance tests.
+5. §11 #2 is marked **RESOLVED**; D-044's open follow-up is closed by this decision.
+6. The 401 path (`X-Username` / `X-Token` missing or invalid) is now explicit in the §4.5 error tables for both `GET` and `DELETE`.
+
+**Rationale:** a global list is inconsistent with an owner-scoped delete (user A could see runs they cannot act on, then receive a 403 on every attempt — pure friction with no value). The only consumer of `GET /api/runs` is `frontend/src/hooks/useRunHistory.ts`, which is updated atomically in the same PR as the backend change — there is no compatibility tax for closing the question now. Defer-to-later would have required a second BRD to retrofit owner scoping post-launch and would have left a privacy paper-cut in V1.
+
+**Consequences:**
+- Backend `list_runs` callers (currently zero outside the route) must pass `username`. Tests in `backend/tests/test_run_service.py` must be updated to exercise the owner predicate (covers AC-12).
+- Frontend already sends `X-Username` on every history fetch (BRD-04 wiring); no client-side change beyond regenerating types if the Pydantic surface changed.
+- Two collateral fixes were applied in the same iter-2 revision: (a) F-2 — `useDeleteRun` clears `selectionStore.selectedRunId` so the center panel returns to L1 when the selected run is deleted (BRD-20 §4.6, US-20-A Scenario 9); (b) F-3 — explicit empty-state-after-last-delete scenario (US-20-A Scenario 10). Microcopy strings were pinned in new BRD-20 §14.3 and the AC-10 toast was replaced from "an error message is surfaced" to the literal `"Couldn't delete the run. Please try again."`.
+
+---
+
+## D-044: BRD-20 — Cascade delete & fork orphaning policy
+
+**Date:** 2026-05-27
+**Phase:** F1 — ANALYZE (BSA)
+**Artifacts:** [BRD-20](../../../docs/implementation-phase/brds/BRD-20-delete-run-and-pagination.md), [US-20-A](../../../docs/implementation-phase/user-stories/US-20-A-delete-finished-run.md), [US-20-B](../../../docs/implementation-phase/user-stories/US-20-B-history-pagination.md)
+
+**Context:** The user requested permanent deletion of finished runs from the History panel ("elimina todo el historial asociado a esa búsqueda. Sin confirmación.") plus list pagination of 20 + "More". Two policy choices required a decision:
+
+1. **What happens to forks descending from a deleted run?**
+   Options considered:
+   - (a) `runs.parent_run_id ON DELETE SET NULL` — forks survive, lineage badge disappears.
+   - (b) `runs.parent_run_id ON DELETE RESTRICT` — deletion blocked while forks exist (409).
+
+2. **Pagination strategy?**
+   - Keyset over `(started_at DESC, id DESC)` with opaque base64 cursor, vs. `limit/offset`.
+
+**Decision:**
+
+1. **Option (a) — `ON DELETE SET NULL` for forks.** Already encoded in `backend/app/models/run.py:100` and untouched.
+   - Justification: The user's words "todo el historial asociado a esa búsqueda" naturally refer to *that run's events*, not its descendants. Forks are independent investigations from the user's perspective; restricting deletion when forks exist would frustrate the stated goal and force a confusing UX. Lineage information is non-critical (it's a UI badge, not a functional dependency).
+2. **Keyset pagination** with cursor `base64url("<started_at_iso>|<id>")`, default `limit=20`, max 100. Stable when new runs arrive or items are deleted between page loads; `limit/offset` would have introduced skew (skipped/duplicated rows on every create/delete).
+
+**Open follow-up (flagged for Auditor):** the current `GET /api/runs` returns runs across **all users** (no `WHERE owner_username` filter in `run_service.list_runs`). BRD-20 recommends scoping the paginated list to the authenticated user so "delete" feels symmetric with "list", but this is a behavior change beyond the literal requirement — Auditor to confirm.
+
+**Consequences:**
+- No new Alembic migration required (cascade rules already in place).
+- Breaking change to `GET /api/runs` response shape (`list[RunListItem]` → `RunListPage` envelope). Only consumer is `frontend/src/hooks/useRunHistory.ts`; updated atomically in the same PR.
+- Fork orphaning means the lineage badge silently disappears for orphaned forks; the trace panel must tolerate `parent_run_id IS NULL`.
+
+---
 
 ## D-043: IP-19 — F4 REVIEW — APPROVED at 9.30 / 10
 

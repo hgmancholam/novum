@@ -1,8 +1,8 @@
 # BRD-20: Delete Finished Run & History Pagination
 
 **Document ID:** BRD-20
-**Version:** 1.0
-**Status:** Draft
+**Version:** 1.1
+**Status:** Draft (F1 iter 2)
 **Author:** BSA Agent
 **Date:** 2026-05-27
 **Implementation Order:** 20 of 20
@@ -23,7 +23,7 @@ The trust contract (RF-13) is honored by an animated removal of the card so the 
 
 | RF | Requirement | Coverage |
 |----|-------------|----------|
-| RF-05 | Cross-session persistence — owner controls own runs | Partial (delete is the inverse of create) |
+| RF-05 | Cross-session persistence — owner controls own runs | **Complete** (delete is owner-scoped; list is now also owner-scoped — symmetric contract, see §4.5 and §11 #2) |
 | RF-09 | History panel discovery & pagination | Complete (replaces ad-hoc `limit/offset`) |
 | RF-13 | UI as trust contract — visible affordance + animated removal | Complete |
 | RF-03 | Re-examinable runs — fork lineage handling on delete | Partial (orphan-but-keep policy) |
@@ -112,24 +112,50 @@ class RunListPage(BaseModel):
 
 The cursor encodes the `(started_at, id)` tuple of the **last item of the current page**; the next request returns rows strictly `(started_at, id) < cursor` under `ORDER BY started_at DESC, id DESC`.
 
+> **`next_cursor` semantics (clarification):** when `has_more` is `false`, `next_cursor` is **always** `null`, regardless of whether the page returned items (empty page or last non-empty page). Clients MUST NOT issue further `GET /api/runs` requests once they have observed `has_more=false`.
+
 ### 4.5 API Endpoints
 
 | Method | Path | Auth | Request | Response | Status codes |
 |--------|------|------|---------|----------|--------------|
-| `GET`    | `/api/runs?limit=20&cursor=<opaque>` | `X-Username` (required) | — | `RunListPage` | 200 |
-| `DELETE` | `/api/runs/{run_id}` | `X-Username` (required, owner-only) | — | empty body | **204**, 403, 404, 409 |
+| `GET`    | `/api/runs?limit=20&cursor=<opaque>` | `X-Username` + `X-Token` (required, owner-scoped) | — | `RunListPage` | 200, 400, **401** |
+| `DELETE` | `/api/runs/{run_id}` | `X-Username` + `X-Token` (required, owner-only) | — | empty body | **204**, 401, 403, 404, 409 |
 
 **`GET /api/runs` — breaking change to response shape.** The previous return `list[RunListItem]` becomes `RunListPage`. BRD-12 already documents the envelope (`items`, `hasMore`) on the frontend side; the rename `hasMore → has_more` aligns with snake_case JSON convention used elsewhere (`stop_reason`, `started_at`). Frontend types regenerate via `scripts/export_types.py`.
 
+**Owner scoping (resolves §11 #2).** `GET /api/runs` is now strictly owner-scoped. The service signature is `list_runs_keyset(username: str, limit: int, cursor: str | None)` (the `username | None` overload from v1.0 is **removed**). The SQL contract gains a mandatory predicate:
+
+```sql
+SELECT ...
+FROM runs
+WHERE owner_username = :username                 -- enforced by the route, not optional
+  AND (started_at, id) < (:cursor_started_at, :cursor_id)  -- only when cursor is present
+ORDER BY started_at DESC, id DESC
+LIMIT :limit;
+```
+
+Rationale: a global list is inconsistent with an owner-scoped delete (user A could see runs they cannot delete). The only consumer is `frontend/src/hooks/useRunHistory.ts`, updated atomically in this BRD — no compatibility tax.
+
 - `limit`: `1 ≤ limit ≤ 100`, default `20`.
 - `cursor`: omitted on the first page; on subsequent pages it MUST be the `next_cursor` returned by the previous response. Server validates format; malformed cursor → 400.
-- `has_more`: `True` iff a row strictly older than the last returned row exists.
+- `has_more`: `True` iff a row strictly older than the last returned row exists **for the same owner**.
 
-**`DELETE /api/runs/{run_id}`** — error model:
+**`GET /api/runs` — error model:**
+
+| Status | Condition | Body |
+|--------|-----------|------|
+| 200 | Success | `RunListPage` |
+| 400 | Malformed/tampered cursor | `{"detail": "Invalid cursor"}` |
+| 401 | `X-Username` or `X-Token` missing / unknown / mismatched (per BRD-04 auth middleware) | `{"detail": "Authentication required."}` |
+
+All user-visible strings (button labels, error detail bodies, error toasts) introduced by this BRD are listed verbatim in **§14.3 Microcopy additions** and cross-referenced from `docs/understanding-phase/ui-prototype.md §7.12 (History)`.
+
+**`DELETE /api/runs/{run_id}`** — error model (all detail bodies cross-referenced in §14.3):
 
 | Status | Condition | Body |
 |--------|-----------|------|
 | 204 | Deleted | empty |
+| 401 | `X-Username` / `X-Token` missing or invalid (BRD-04 middleware) | `{"detail": "Authentication required."}` |
 | 403 | `run.owner_username != X-Username` | `{"detail": "Run is not owned by the current user."}` |
 | 404 | Run does not exist | `{"detail": "Run not found: <id>"}` |
 | 409 | `run.stop_reason IS NULL` (still running) | `{"detail": "Cannot delete a run that is still in progress. Cancel it first."}` |
@@ -142,7 +168,7 @@ The owner check runs **before** the terminal-state check (avoids leaking the exi
 |-----------|------|-------|-------|-------------|
 | `HistoryItem` | `organisms/HistoryItem.tsx` | `run: RunSummary`, `selected: boolean`, `onSelect`, `onDelete?: (id) => void` | `isHovered` (CSS only via `group-hover`), `isExiting` | Renders the card; trash button only when `run.status !== "running"` AND `onDelete` is defined |
 | `HistoryPanel` | `organisms/HistoryPanel.tsx` | — | TanStack `useInfiniteQuery` page list | Renders flat list of pages and a "More" button when `hasNextPage`; spinner inside the button while `isFetchingNextPage` |
-| `useDeleteRun` | `hooks/useRunHistory.ts` | `runId` | Optimistic mutation | On `onMutate`, removes the item from every cached page via `setQueryData`; on error, rolls back and surfaces a toast |
+| `useDeleteRun` | `hooks/useRunHistory.ts` | `runId` | Optimistic mutation | On `onMutate`, removes the item from every cached page via `setQueryData`; **on success, if the deleted id matches `selectionStore.selectedRunId`, clear it so the center panel falls back to L1 (BRD-12 empty state)**; on error, rolls back and surfaces the toast string defined in §14.3 |
 
 ### 4.7 UI Layout
 
@@ -160,7 +186,8 @@ The owner check runs **before** the terminal-state check (avoids leaking the exi
 
 - Trash icon (`lucide-react` `Trash2`, 16px) is rendered absolute-positioned `bottom-2 right-2` inside the card.
 - Default opacity `0`; on `group-hover` AND `focus-visible:within` → `opacity-100` with a 120ms fade (Motion). Reduced-motion users see no transition.
-- The icon button has `aria-label="Delete run"` and `title="Delete run"`. It is **not** rendered for runs whose `status === "running"` (L1 in BRD-12 state machine), so screen readers never announce a forbidden action.
+- The icon button has `aria-label="Delete run"` and `title="Delete run"` (see §14.3 for the canonical strings; new entries proposed for `ui-prototype.md §7.12`). It is **not** rendered for runs whose `status === "running"` (L1 in BRD-12 state machine), so screen readers never announce a forbidden action.
+- The pagination affordance label is `"More"` (see §14.3; this supersedes the placeholder `"Load more"` currently listed in `ui-prototype.md §7.12 (L7)`).
 - On click → optimistic Motion `exit` animation (opacity 0, height 0, 180ms) then the card unmounts. List below slides up.
 
 ---
@@ -251,9 +278,9 @@ Then the "More" button is no longer rendered
 ### AC-10: Network/server error surfaces and rolls back
 ```gherkin
 Given the user clicks the trash icon
-When the DELETE request returns 500 or fails to reach the server
+When the DELETE request returns 5xx or fails to reach the server
 Then the card reappears in the panel
-  And an error toast/inline message is shown
+  And a toast is shown with the literal copy "Couldn't delete the run. Please try again." (see §14.3)
   And the cached query state is restored to the pre-mutation snapshot
 ```
 
@@ -264,13 +291,21 @@ Then the backend returns 400 with detail "Invalid cursor"
   And no rows are returned
 ```
 
+### AC-12: Owner-scoped list (resolves §11 #2)
+```gherkin
+Given user "alice" owns 5 finished runs and user "bob" owns 3 finished runs
+When alice sends GET /api/runs with header X-Username: alice
+Then the response contains exactly 5 items
+  And none of the items reference a run owned by bob
+```
+
 ---
 
 ## 6. Implementation Checklist
 
 - [ ] `backend/app/exceptions.py` — add `RunNotFinishedError` (409), `RunForbiddenError` (403)
 - [ ] `backend/app/domain/run.py` — add `RunListPage` model
-- [ ] `backend/app/services/run_service.py` — `delete_run(run_id, username)`, `list_runs_keyset(username|None, limit, cursor)`, internal `_encode_cursor` / `_decode_cursor`
+- [ ] `backend/app/services/run_service.py` — `delete_run(run_id, username)`, `list_runs_keyset(username: str, limit, cursor)` (owner-scoped, no `None` overload), internal `_encode_cursor` / `_decode_cursor`
 - [ ] `backend/app/routes/runs.py` — `DELETE /api/runs/{run_id}` route; refactor `GET /api/runs` to return `RunListPage`
 - [ ] `scripts/export_types.py` — regenerate `frontend/src/types/events.ts` (no event-schema change, but `RunListPage` is now part of the contract)
 - [ ] `frontend/src/types/history.ts` — switch envelope to `{ items, has_more, next_cursor }`
@@ -332,7 +367,7 @@ None added or modified.
 
 1. **Fork orphaning policy — RESOLVED: option (a) `ON DELETE SET NULL`.**
    The DB schema already encodes this (`runs.parent_run_id ON DELETE SET NULL`, verified in `backend/app/models/run.py:100`). Forks survive; lineage badge disappears. Rationale: the user requirement says "elimina todo el historial **asociado a esa búsqueda**", which we interpret as *that run's events*, not *every descendant*. Restricting deletion when forks exist would frustrate the user's stated goal.
-2. **List scope — OPEN.** Current `GET /api/runs` returns runs across **all users** (see `run_service.list_runs`, no `WHERE owner_username = …` clause). The requirement is silent. Recommend scoping the paginated list to `owner_username = X-Username` so "delete" feels symmetric with "list". Flag for the Auditor.
+2. **List scope — RESOLVED (F1 iter 2): owner-scoped.** `GET /api/runs` now filters `WHERE owner_username = :username` (see §4.5 SQL contract and AC-12 in §5). The previous `username | None` overload is removed from `list_runs_keyset`. Rationale: symmetric with delete (a user must not see runs they cannot delete); the only consumer is `frontend/src/hooks/useRunHistory.ts`, updated atomically — no compatibility tax. The 401 path is also documented in §4.5.
 3. **Cursor codec — RESOLVED: opaque base64 of `f"{started_at.isoformat()}|{id}"`.** Stateless, no DB round-trip to validate, easy to test. Tampered cursors return 400.
 4. **Pagination strategy — RESOLVED: keyset over `(started_at DESC, id DESC)`.** Avoids skew when new runs arrive between page loads. Offset-based pagination would have shifted the window every time a run is created or deleted.
 
@@ -372,3 +407,21 @@ None added or modified.
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-05-27 | BSA Agent | Initial draft |
+| 1.1 | 2026-05-27 | BSA Agent | F1 audit iter 2 fixes: owner-scoped `GET /api/runs` locked (AC-12, §11 #2 RESOLVED, RF-05 Complete); `useDeleteRun` clears `selectionStore.selectedRunId` (§4.6); 401 path documented; AC-10 toast string pinned; `next_cursor` null-on-`has_more=false` clarified (§4.4); new §14.3 microcopy additions. |
+
+### 14.3 Microcopy additions (proposed for `ui-prototype.md §7.12 History`)
+
+These strings are introduced by BRD-20 and MUST be added to the binding microcopy table in `docs/understanding-phase/ui-prototype.md §7.12` in a follow-up sync. Implementation must use these literals verbatim.
+
+| Surface | String | Used in |
+|---------|--------|---------|
+| Trash icon `aria-label` / `title` (`HistoryItem`) | `"Delete run"` | BRD-20 §4.7; US-20-A Scenario 1 |
+| Pagination button label (`HistoryPanel`) | `"More"` | BRD-20 §4.7; AC-07, AC-08; US-20-B Scenarios 1–3 (**supersedes** the earlier `"Load more"` placeholder in `ui-prototype.md §7.12 (L7)`) |
+| Pagination button in-flight label | `"Loading…"` | BRD-20 §4.6; US-20-B Scenario 5 |
+| Delete error toast (5xx / network) | `"Couldn't delete the run. Please try again."` | BRD-20 AC-10; US-20-A Scenario 8 |
+| `DELETE` 401 detail body | `"Authentication required."` | BRD-20 §4.5 (DELETE table) |
+| `DELETE` 403 detail body | `"Run is not owned by the current user."` | BRD-20 §4.5; US-20-A Scenario 6 |
+| `DELETE` 404 detail body | `"Run not found: <id>"` | BRD-20 §4.5 |
+| `DELETE` 409 detail body | `"Cannot delete a run that is still in progress. Cancel it first."` | BRD-20 §4.5; AC-04; US-20-A Scenario 5 |
+| `GET /api/runs` 400 detail body | `"Invalid cursor"` | BRD-20 §4.5; AC-11; US-20-B Scenario 6 |
+| `GET /api/runs` 401 detail body | `"Authentication required."` | BRD-20 §4.5 (GET error model) |

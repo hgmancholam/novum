@@ -1,14 +1,27 @@
 /**
- * useRunHistory — paginated history hook (BRD-12, RF-09).
+ * useRunHistory + useDeleteRun — history hooks (BRD-12, BRD-20, RF-09).
  *
- * Uses TanStack `useInfiniteQuery` over the backend's offset pagination.
- * Maps `RunListItemDto` → `RunSummary` with a derived `status`.
+ * `useRunHistory` wraps TanStack `useInfiniteQuery` over the backend's
+ * cursor-based pagination (BRD-20 §4.4). `useDeleteRun` performs the
+ * DELETE with optimistic removal across every cached history page
+ * (BRD-20 AC-03, AC-10).
  */
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 
-import { listRuns, type RunListItemDto } from "@/lib/api";
-import type { RunStatus, RunSummary } from "@/types/history";
+import { deleteRun, listRuns, type RunListItemDto } from "@/lib/api";
+import { useSelectionStore } from "@/stores/selectionStore";
+import { useToast } from "@/hooks/useToast";
+import type {
+  RunHistoryPage,
+  RunStatus,
+  RunSummary,
+} from "@/types/history";
 
 const PAGE_SIZE = 20;
 
@@ -32,11 +45,6 @@ export function mapRun(dto: RunListItemDto): RunSummary {
   };
 }
 
-export interface RunHistoryPage {
-  items: RunSummary[];
-  nextOffset: number | null;
-}
-
 export interface UseRunHistoryOptions {
   /** Only fetch when true (pass `isAuthenticated` from userStore). */
   enabled?: boolean;
@@ -53,16 +61,94 @@ export function useRunHistory(
   return useInfiniteQuery<RunHistoryPage>({
     queryKey: ["runs", "history", pageSize, username],
     enabled,
-    initialPageParam: 0,
+    initialPageParam: null as string | null,
     queryFn: async ({ pageParam }) => {
-      const offset = typeof pageParam === "number" ? pageParam : 0;
-      const dtos = await listRuns({ limit: pageSize, offset });
-      const items = dtos.map(mapRun);
-      const nextOffset =
-        items.length === pageSize ? offset + pageSize : null;
-      return { items, nextOffset };
+      const cursor =
+        typeof pageParam === "string" && pageParam.length > 0
+          ? pageParam
+          : null;
+      const dto = await listRuns({ limit: pageSize, cursor });
+      return {
+        items: dto.items.map(mapRun),
+        hasMore: dto.has_more,
+        nextCursor: dto.next_cursor,
+      };
     },
-    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Optimistic delete with rollback (BRD-20 AC-03, AC-10).
+ *
+ * - ``onMutate`` snapshots every cached history page and removes the
+ *   target id from each page's ``items``. The plural form
+ *   ``getQueriesData`` / ``setQueriesData`` is REQUIRED because the
+ *   query key includes ``pageSize`` and ``username`` — a single user
+ *   may have multiple matching cache entries.
+ * - ``onError`` restores the snapshot.
+ * - ``onSuccess`` clears ``selectedRunId`` if the deleted row was
+ *   selected (BRD-20 §4.6, RF-13 surface honesty).
+ * - ``onError`` surfaces the literal microcopy from BRD-20 §14.3.
+ * - ``onSettled`` invalidates the prefix so the next list reflects
+ *   server truth (boundaries, has_more recompute).
+ */
+export function useDeleteRun() {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  return useMutation<
+    void,
+    Error,
+    string,
+    { snapshots: Array<readonly [unknown, InfiniteData<RunHistoryPage> | undefined]> }
+  >({
+    mutationFn: async (runId: string) => {
+      await deleteRun(runId);
+    },
+    onMutate: async (runId) => {
+      await queryClient.cancelQueries({ queryKey: ["runs", "history"] });
+
+      const snapshots = queryClient.getQueriesData<InfiniteData<RunHistoryPage>>({
+        queryKey: ["runs", "history"],
+      });
+
+      queryClient.setQueriesData<InfiniteData<RunHistoryPage>>(
+        { queryKey: ["runs", "history"] },
+        (data) => {
+          if (!data) return data;
+          return {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              items: page.items.filter((item) => item.id !== runId),
+            })),
+          };
+        }
+      );
+
+      return { snapshots };
+    },
+    onError: (_err, _runId, context) => {
+      if (context?.snapshots) {
+        for (const [key, value] of context.snapshots) {
+          queryClient.setQueryData(key as readonly unknown[], value);
+        }
+      }
+      toast.push({
+        kind: "error",
+        message: "Couldn't delete the run. Please try again.",
+      });
+    },
+    onSuccess: (_data, runId) => {
+      const { selectedRunId, setSelectedRunId } = useSelectionStore.getState();
+      if (selectedRunId === runId) {
+        setSelectedRunId(null);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["runs", "history"] });
+    },
   });
 }

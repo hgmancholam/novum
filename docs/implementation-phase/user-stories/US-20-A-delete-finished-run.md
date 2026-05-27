@@ -82,8 +82,27 @@ Then F1 and F2 still exist in the database
 Given I clicked the trash icon and the card animated out
 When the DELETE request returns 5xx or fails to reach the server
 Then the card is restored to its previous position in the panel
-  And an error message is surfaced (toast or inline)
+  And a toast is shown with the literal copy "Couldn't delete the run. Please try again." (per BRD-20 §14.3)
   And the cached query state is restored to the pre-mutation snapshot
+```
+
+### Scenario 9: Deleting the currently selected run resets the center panel
+```gherkin
+Given the user has run R selected in the center panel
+  And R is finished and visible in the history panel
+When the user deletes R from its history card
+Then the center panel returns to the L1 empty state (per BRD-12 state machine)
+  And the selectionStore.selectedRunId is cleared
+  And no further SSE/fetch requests target R.id
+```
+
+### Scenario 10: Deleting the last visible run renders the history empty state
+```gherkin
+Given the panel shows exactly one finished run R owned by me
+When I delete R successfully
+Then the panel renders the L1 empty state from BRD-12
+  And no "More" button is rendered
+  And no cards are rendered
 ```
 
 ## Technical Notes
@@ -92,6 +111,8 @@ Then the card is restored to its previous position in the panel
 - `aria-label="Delete run"`, `title="Delete run"`, `type="button"`, `onClick` stops propagation so the row click handler (select run) does not fire.
 - Conditional render: button only mounts when `run.stop_reason !== null` AND `onDelete` is defined.
 - Optimistic mutation: `useDeleteRun` snapshots all `["runs", *]` query data in `onMutate`, removes the item from every page, and restores on `onError`. Invalidate on `onSettled`.
+- On `onSuccess`, `useDeleteRun` MUST also clear `selectionStore.selectedRunId` if it matches the deleted id, so the center panel falls back to BRD-12 L1 and no stale SSE/fetch fires (Scenario 9).
+- All user-visible strings (aria-label `"Delete run"`, error toast `"Couldn't delete the run. Please try again."`, server detail bodies for 401/403/404/409) are pinned in BRD-20 §14.3 — use those literals verbatim.
 - Server: ownership check **before** terminal-state check (do not leak existence of someone else's run).
 - The schema already has `events.run_id ON DELETE CASCADE` and `runs.parent_run_id ON DELETE SET NULL`; no migration is required (BRD-20 §4.2).
 - Append a `connection_manager.close(run_id)` call after the delete commits to drop any in-flight SSE consumers cleanly.

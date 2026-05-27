@@ -24,3 +24,16 @@ export interface HistoryFilterValues {
   stopReason?: StopReason;
   search?: string;
 }
+
+/**
+ * Cursor-paginated history page (BRD-20 §4.4).
+ *
+ * Wire shape from `GET /api/runs` is snake_case
+ * (`{ items, has_more, next_cursor }`); we expose the camelCase
+ * projection consistent with the rest of the FE types layer.
+ */
+export interface RunHistoryPage {
+  items: RunSummary[];
+  hasMore: boolean;
+  nextCursor: string | null;
+}
