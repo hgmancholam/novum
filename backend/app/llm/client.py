@@ -76,11 +76,14 @@ class LLMClient:
 
         result = await client.chat.completions.create(
             model=config.model,
-            # GitHub Models is reached via litellm's ``github`` provider.
-            # The model id (e.g. ``meta/Llama-4-Scout-17B-16E-Instruct``)
-            # already contains a slash, so prefix-based detection fails;
-            # we pin the provider explicitly per ai-services.md §1.1.
-            custom_llm_provider="github",
+            # GitHub Models is OpenAI-SDK-compatible (ai-services.md §1.1),
+            # so we route through litellm's ``openai`` provider with an
+            # explicit ``api_base`` and ``api_key``. The dedicated
+            # ``github`` provider in litellm targets a legacy Azure
+            # endpoint with a different catalog — do not use it.
+            custom_llm_provider="openai",
+            api_base=settings.llm_api_base,
+            api_key=settings.github_token,
             messages=messages,
             temperature=config.temperature,
             max_tokens=config.max_tokens,
