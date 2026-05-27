@@ -5,6 +5,7 @@ from __future__ import annotations
 import httpx
 import litellm
 import pytest
+from instructor.core import InstructorRetryException
 
 from app.llm.retry import RETRYABLE_EXCEPTIONS, create_retry_decorator, retry_llm
 
@@ -19,6 +20,13 @@ def test_retryable_exceptions_includes_rate_limit_error() -> None:
     """GitHub Models enforces per-model per-minute quotas; rotating across
     the model pool requires tenacity to retry on RateLimitError."""
     assert litellm.RateLimitError in RETRYABLE_EXCEPTIONS
+
+
+def test_retryable_exceptions_includes_instructor_retry_exception() -> None:
+    """Instructor wraps RateLimitError in InstructorRetryException after
+    its own internal retry loop; tenacity must catch the wrapper to
+    re-enter LLMClient.call and rotate to the next model."""
+    assert InstructorRetryException in RETRYABLE_EXCEPTIONS
 
 
 @pytest.mark.asyncio

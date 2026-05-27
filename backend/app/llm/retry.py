@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 import litellm
+from instructor.core import InstructorRetryException
 from tenacity import (
     before_sleep_log,
     retry,
@@ -34,6 +35,12 @@ RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
     httpx.ConnectError,
     httpx.HTTPStatusError,
     litellm.RateLimitError,
+    # Instructor wraps every underlying exception (including
+    # ``RateLimitError``) in ``InstructorRetryException`` after its own
+    # internal retry loop gives up. We still want tenacity to take over
+    # so that ``LLMClient.call`` is re-entered, which rotates to the
+    # next model in the pool.
+    InstructorRetryException,
 )
 
 

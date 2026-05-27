@@ -121,6 +121,12 @@ class LLMClient:
             temperature=config.temperature,
             max_tokens=config.max_tokens,
             response_model=response_model,
+            # Disable Instructor's internal retry loop. We let tenacity
+            # own the retry budget so that every retry attempt re-enters
+            # ``LLMClient.call`` and rotates to the next model in the
+            # role's pool. Without this Instructor burns 3 attempts on
+            # the same model before tenacity ever sees the error.
+            max_retries=1,
         )
 
         logger.info(
