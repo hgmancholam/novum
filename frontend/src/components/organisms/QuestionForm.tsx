@@ -341,25 +341,26 @@ export function QuestionForm({
                 ))}
               </div>
               {thresholdPreset === "custom" ? (
-                <input
-                  type="number"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={customThreshold}
-                  onChange={(e) => {
-                    const next = parseFloat(e.target.value);
-                    if (!Number.isNaN(next) && next >= 0 && next <= 1) {
-                      setCustomThreshold(next);
-                    }
-                  }}
-                  aria-label="Custom confidence threshold (0 to 1)"
-                  className={cn(
-                    "mt-1 w-24 rounded-[var(--radius-sm)] border border-[var(--glass-border)]",
-                    "bg-[var(--bg-secondary)] px-2 py-1 text-xs text-[var(--text-primary)]",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                  )}
-                />
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={customThreshold}
+                    onChange={(e) => {
+                      setCustomThreshold(parseFloat(e.target.value));
+                    }}
+                    aria-label="Custom confidence threshold (0 to 1)"
+                    aria-valuemin={0}
+                    aria-valuemax={1}
+                    aria-valuenow={customThreshold}
+                    className="w-full accent-(--accent)"
+                  />
+                  <span className="w-8 shrink-0 text-right text-xs tabular-nums text-(--text-secondary)">
+                    {customThreshold.toFixed(2)}
+                  </span>
+                </div>
               ) : null}
             </fieldset>
           </div>
