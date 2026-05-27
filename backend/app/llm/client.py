@@ -76,6 +76,11 @@ class LLMClient:
 
         result = await client.chat.completions.create(
             model=config.model,
+            # GitHub Models is reached via litellm's ``github`` provider.
+            # The model id (e.g. ``meta/Llama-4-Scout-17B-16E-Instruct``)
+            # already contains a slash, so prefix-based detection fails;
+            # we pin the provider explicitly per ai-services.md §1.1.
+            custom_llm_provider="github",
             messages=messages,
             temperature=config.temperature,
             max_tokens=config.max_tokens,
