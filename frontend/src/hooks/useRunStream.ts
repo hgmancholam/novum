@@ -45,8 +45,6 @@ export interface UseRunStreamResult {
   close: () => void;
 }
 
-const TERMINAL_EVENT_NAMES = new Set(["Stopped", "cancelled"]);
-
 export function useRunStream(
   options: UseRunStreamOptions
 ): UseRunStreamResult {

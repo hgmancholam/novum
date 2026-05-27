@@ -12,12 +12,6 @@ import { useRunStream } from "./useRunStream";
 
 const RUN_ID = "00000000-0000-0000-0000-000000000001";
 
-interface MockMessageEvent {
-  data: string;
-  lastEventId: string;
-  type: string;
-}
-
 class MockEventSource {
   static instances: MockEventSource[] = [];
 
