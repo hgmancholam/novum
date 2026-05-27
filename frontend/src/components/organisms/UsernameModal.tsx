@@ -55,7 +55,7 @@ export function UsernameModal({ isOpen, onClose }: UsernameModalProps) {
     >
       <GlassSurface
         data-testid="username-modal-surface"
-        variant="default"
+        variant="strong"
         elevation="lg"
         radius="xl"
         className="w-full max-w-md p-6"
