@@ -173,12 +173,9 @@ class StructuredRenderer:
     # ------------------------------------------------------------------
 
     def _format_stop_reason(self, reason: str) -> str:
-        """Map stop_reason enum value to human-readable text (all 7 values)."""
+        """Map stop_reason enum value to human-readable text (WP-3: 4 values)."""
         mapping = {
             "judge_confirmed": "✅ Verified",
-            "honest_unanswerable": "⚠️ Insufficient Evidence",
-            "honest_contradiction": "⚠️ Conflicting Sources",
-            "honest_ambiguous": "⚠️ Ambiguous Question",
             "stopped_by_budget": "ℹ️ Research Limit Reached",
             "user_cancelled": "🛑 Cancelled",
             "errored": "❌ Error",

@@ -240,7 +240,7 @@ class UserContextChallengedEvent(BaseEvent):
 
 
 class JudgeRuledEvent(BaseEvent):
-    """Judge LLM evaluation (RF-12)."""
+    """Judge LLM evaluation (RF-12, WP-3 G5 C_kind_appropriateness)."""
 
     type: Literal[EventType.JUDGE_RULED] = EventType.JUDGE_RULED
     judge_model: str
@@ -251,7 +251,8 @@ class JudgeRuledEvent(BaseEvent):
     passed: bool
     rationale: str
     suggested_improvements: list[str] | None = None
-    answer_kind: AnswerKind | None = None  # RF-17 (WP-1 additive; required at WP-3)
+    answer_kind: AnswerKind | None = None  # RF-17 (required when passed=True per WP-3)
+    kind_appropriateness: float = 1.0  # WP-3 G5: judge-scored 0..1 "does kind fit question?"
 
 
 class ConfidenceMismatchEvent(BaseEvent):
@@ -301,6 +302,23 @@ class ResumedAfterCancelEvent(BaseEvent):
 # =============================================================================
 
 
+class StopRationale(BaseModel):
+    """Structured 'why we stopped' payload (RF-13 / RF-19, WP-3 G2).
+
+    Aggregates the four signals the challenge spec expects to see on a
+    terminal run: evidence quality, source agreement, novelty (information
+    gain), and final confidence — plus the ceiling actually applied and a
+    short human-readable summary from the judge.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    reason: StopReason
+    triggering_signal: str  # e.g. "judge", "budget", "early_stop"
+    summary: str  # <= 280 chars, human-readable
+    confidence: float | None = None
+
+
 class AnswerSection(BaseModel):
     """Section of a structured answer."""
 
@@ -321,7 +339,7 @@ class Citation(BaseModel):
 
 
 class StoppedEvent(BaseEvent):
-    """Terminal event with final answer or honest stop."""
+    """Terminal event with final answer or budget/error stop."""
 
     type: Literal[EventType.STOPPED] = EventType.STOPPED
     stop_reason: StopReason
@@ -331,10 +349,10 @@ class StoppedEvent(BaseEvent):
     answer_structured: str | None = None  # pre-rendered structured format (BRD-16 enhancement)
     answer_sections: list[AnswerSection] | None = None
     citations: list[Citation] | None = None
-    answer_kind: AnswerKind | None = None  # RF-17 (WP-1 additive; required at WP-3)
+    answer_kind: AnswerKind | None = None  # RF-17 (required for judge_confirmed per WP-3)
 
-    # Honest stop details (if honest_*; scheduled for removal at WP-3)
-    honest_explanation: str | None = None
+    # WP-3 G2: structured stop rationale
+    stop_rationale: StopRationale | None = None
 
     # Metrics
     total_tokens: int | None = None

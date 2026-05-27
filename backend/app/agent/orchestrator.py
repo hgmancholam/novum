@@ -1,4 +1,4 @@
-"""Agent FSM orchestrator (BRD-07).
+"""Agent FSM orchestrator (BRD-07, WP-3 early-stop + StopRationale).
 
 Pure in-memory engine. Emits ``BaseEvent`` instances through an injected
 async callback; does NOT persist, stream, or implement the layered
@@ -26,7 +26,11 @@ from app.agent.tasks import (
     normalize_question,
     revise_plan,
 )
-from app.confidence import detect_mismatch
+from app.confidence import (
+    calculate_agreement,
+    calculate_coverage,
+    detect_mismatch,
+)
 from app.domain.enums import StopReason
 from app.domain.events import (
     AgentErroredEvent,
@@ -34,6 +38,7 @@ from app.domain.events import (
     ConfidenceMismatchEvent,
     QuestionAskedEvent,
     StoppedEvent,
+    StopRationale,
 )
 from app.llm.client import count_tokens
 from app.stopping import StoppingPolicy
@@ -120,10 +125,13 @@ class AgentOrchestrator:
         return self.state.stop_reason or StopReason.ERRORED
 
     async def _detect_question_type(self) -> bool:
+        """Classify question type (WP-1 always returns a type, no short-circuit)."""
         mapped, _ = await classify_question(self.state.question)
         if mapped is None:
-            await self._stop(StopReason.HONEST_UNANSWERABLE)
-            return False
+            # Defensive: classifier should never return None post-WP-1.
+            # If it does, default to FACTUAL and let resolver pick the right kind.
+            from app.domain.enums import QuestionType
+            mapped = QuestionType.FACTUAL
         self.state.question_type = mapped
         return True
 
@@ -200,33 +208,17 @@ class AgentOrchestrator:
             await self.emit(ev)
 
         if self.state.all_claims_resolved():
-            if self.state.covered_claims:
-                self.state.transition_to(AgentState.DRAFTING)
-                return
-            # No coverage and no pending claims — let the policy decide between
-            # BUDGET (search_count >= max_searches) and HONEST_UNANSWERABLE.
-            result = await self._stopping_policy.evaluate(self.state)
-            if self._stopping_policy.should_stop(result):
-                if result.stop_reason is None:
-                    raise RuntimeError(
-                        "Stopping signal returned STOP without a stop_reason"
-                    )
-                await self._stop(result.stop_reason)
-            else:
-                # Defensive: total_claims==0 case is impossible after planning.
-                await self._stop(StopReason.HONEST_UNANSWERABLE)
+            # WP-3: always proceed to draft, even with zero covered claims.
+            # The resolver will select BEST_EFFORT or ETHICAL_REDIRECT as needed.
+            self.state.transition_to(AgentState.DRAFTING)
             return
 
         result = await self._stopping_policy.evaluate(self.state)
         if self._stopping_policy.should_stop(result):
             if result.stop_reason is None:
                 raise RuntimeError("Stopping signal returned STOP without a stop_reason")
-            # Budget stops still let a partial draft proceed when we have
-            # covered claims — honest stops always terminate immediately.
-            if (
-                result.stop_reason is StopReason.STOPPED_BY_BUDGET
-                and self.state.covered_claims
-            ):
+            # WP-3: budget stops with any coverage proceed to draft (resolver decides kind).
+            if result.stop_reason is StopReason.STOPPED_BY_BUDGET:
                 self.state.transition_to(AgentState.DRAFTING)
             else:
                 await self._stop(result.stop_reason)
@@ -243,7 +235,21 @@ class AgentOrchestrator:
         await self.emit(judge_event)
         self.state.last_judge_confidence = judge_event.judge_confidence
         self.state.last_structural_confidence = judge_event.structural_confidence
+        self.state.last_coverage = calculate_coverage(self.state)
+        self.state.last_agreement = calculate_agreement(self.state.evidence)
         self.state.judge_attempts += 1
+
+        # WP-3 G8: Early-stop for trivial-fact questions (matrix row 1).
+        # When coverage=1.0 AND C_agreement≥0.9 AND J≥0.85 on any round, stop immediately.
+        from app.config import settings
+        if (
+            judge_event.passed
+            and self.state.last_coverage >= 1.0
+            and self.state.last_agreement >= settings.early_stop_min_agreement
+            and judge_event.judge_confidence >= settings.early_stop_min_judge
+        ):
+            await self._stop(StopReason.JUDGE_CONFIRMED)
+            return
 
         result = await self._stopping_policy.evaluate(
             self.state,
@@ -310,12 +316,14 @@ class AgentOrchestrator:
         return await self._stop(StopReason.ERRORED)
 
     async def _stop(self, reason: StopReason) -> StopReason:
+        """Transition to terminal state and emit StoppedEvent with StopRationale (WP-3 G2)."""
         self.state.stop_reason = reason
         if self.state.current_state not in (AgentState.STOPPED, AgentState.ERRORED):
             target = AgentState.ERRORED if reason == StopReason.ERRORED else AgentState.STOPPED
             self.state.transition_to(target)
         answer = self.state.draft_answer if reason == StopReason.JUDGE_CONFIRMED else None
         answer_structured: str | None = None
+        answer_kind = self.state.selected_answer_kind if reason == StopReason.JUDGE_CONFIRMED else None
 
         # BRD-16: render BOTH formats at stop time for client-side switching
         if reason == StopReason.JUDGE_CONFIRMED and answer:
@@ -346,11 +354,55 @@ class AgentOrchestrator:
 
         if reason == StopReason.JUDGE_CONFIRMED:
             self.state.final_answer = answer
+
+        # WP-3 G2: Build StopRationale for every terminal (optional for non-judge terminals).
+        stop_rationale: StopRationale | None = None
+        if reason == StopReason.JUDGE_CONFIRMED:
+            triggering_signal = (
+                "early_stop"
+                if (
+                    self.state.last_coverage >= 1.0
+                    and self.state.last_agreement >= 0.9
+                    and (self.state.last_judge_confidence or 0.0) >= 0.85
+                )
+                else "judge"
+            )
+            summary = f"Answered as {answer_kind.value if answer_kind else 'unknown'} with confidence {self.state.last_judge_confidence or 0.0:.2f}"
+            stop_rationale = StopRationale(
+                reason=reason,
+                triggering_signal=triggering_signal,
+                summary=summary,
+                confidence=self.state.last_judge_confidence,
+            )
+        elif reason == StopReason.STOPPED_BY_BUDGET:
+            stop_rationale = StopRationale(
+                reason=reason,
+                triggering_signal="budget",
+                summary=f"Reached search limit ({self.state.search_count} rounds)",
+                confidence=self.state.last_judge_confidence,
+            )
+        elif reason == StopReason.USER_CANCELLED:
+            stop_rationale = StopRationale(
+                reason=reason,
+                triggering_signal="user",
+                summary="User cancelled the run",
+                confidence=None,
+            )
+        elif reason == StopReason.ERRORED:
+            stop_rationale = StopRationale(
+                reason=reason,
+                triggering_signal="error",
+                summary="Run terminated due to an error",
+                confidence=None,
+            )
+
         await self.emit(
             StoppedEvent(
                 stop_reason=reason,
                 answer_prose=answer,
                 answer_structured=answer_structured,
+                answer_kind=answer_kind,
+                stop_rationale=stop_rationale,
                 total_tokens=self.state.total_tokens,
             )
         )

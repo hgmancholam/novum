@@ -11,9 +11,6 @@ export type OutcomeVariant = "success" | "warning" | "error" | "neutral";
 
 const reasonToVariant: Record<StopReason, OutcomeVariant> = {
   judge_confirmed: "success",
-  honest_unanswerable: "warning",
-  honest_contradiction: "warning",
-  honest_ambiguous: "warning",
   stopped_by_budget: "warning",
   user_cancelled: "neutral",
   errored: "error",

@@ -34,12 +34,6 @@ function buildSummaryLine(run: Run): string {
   switch (reason) {
     case "judge_confirmed":
       return `\u2713 Judge confirmed \u00b7 confidence \u2014 / threshold ${threshold}`;
-    case "honest_unanswerable":
-      return "\u26a0 Honest stop \u00b7 question is unanswerable";
-    case "honest_contradiction":
-      return "\u26a0 Honest stop \u00b7 sources disagree";
-    case "honest_ambiguous":
-      return "\u26a0 Honest stop \u00b7 question is ambiguous";
     case "stopped_by_budget":
       return "\u26a0 Stopped on budget \u00b7 best-effort answer";
     case "user_cancelled":

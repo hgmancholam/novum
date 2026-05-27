@@ -132,72 +132,26 @@ def test_budget_name() -> None:
 
 
 # ---------------------------------------------------------------------------
-# HonestStopSignal
+# HonestStopSignal — DEPRECATED in WP-3 (always returns DEFER)
 # ---------------------------------------------------------------------------
 
 
-async def test_honest_contradiction_fires() -> None:
-    out = await HonestStopSignal().evaluate(
-        _ctx(has_contradictions=True, no_conflict=0.1)
-    )
-    assert out.result is SignalResult.STOP
-    assert out.stop_reason is StopReason.HONEST_CONTRADICTION
-
-
-async def test_honest_contradiction_defers_when_no_conflict_high() -> None:
-    out = await HonestStopSignal().evaluate(
-        _ctx(has_contradictions=True, no_conflict=0.5)
-    )
-    assert out.result is SignalResult.DEFER
-
-
-async def test_honest_ambiguity_fires() -> None:
-    out = await HonestStopSignal().evaluate(_ctx(has_ambiguity=True))
-    assert out.result is SignalResult.STOP
-    assert out.stop_reason is StopReason.HONEST_AMBIGUOUS
-
-
-async def test_honest_unanswerable_all_failed() -> None:
-    out = await HonestStopSignal().evaluate(
+async def test_honest_signal_always_defers() -> None:
+    """WP-3: signal kept as no-op for backward compatibility; never STOPs."""
+    sig = HonestStopSignal()
+    out_contradiction = await sig.evaluate(_ctx(has_contradictions=True, no_conflict=0.1))
+    out_ambiguity = await sig.evaluate(_ctx(has_ambiguity=True))
+    out_unanswerable = await sig.evaluate(
         _ctx(total_claims=4, covered_claims=0, uncoverable_claims=4)
     )
-    assert out.result is SignalResult.STOP
-    assert out.stop_reason is StopReason.HONEST_UNANSWERABLE
-
-
-async def test_honest_no_unanswerable_when_partially_covered() -> None:
-    out = await HonestStopSignal().evaluate(
-        _ctx(total_claims=4, covered_claims=1, uncoverable_claims=3)
-    )
-    assert out.result is SignalResult.DEFER
-
-
-async def test_honest_no_unanswerable_when_pending() -> None:
-    out = await HonestStopSignal().evaluate(
-        _ctx(total_claims=4, covered_claims=0, uncoverable_claims=2)
-    )
-    assert out.result is SignalResult.DEFER
-
-
-async def test_honest_no_unanswerable_when_zero_claims() -> None:
-    out = await HonestStopSignal().evaluate(_ctx(total_claims=0))
-    assert out.result is SignalResult.DEFER
-
-
-async def test_honest_defers_when_clean() -> None:
-    out = await HonestStopSignal().evaluate(_ctx(total_claims=3, covered_claims=2))
-    assert out.result is SignalResult.DEFER
+    out_clean = await sig.evaluate(_ctx(total_claims=3, covered_claims=2))
+    for out in (out_contradiction, out_ambiguity, out_unanswerable, out_clean):
+        assert out.result is SignalResult.DEFER
+        assert out.stop_reason is None
 
 
 def test_honest_priority_is_10() -> None:
     assert HonestStopSignal().priority == 10
-
-
-async def test_honest_contradiction_beats_ambiguity() -> None:
-    out = await HonestStopSignal().evaluate(
-        _ctx(has_contradictions=True, no_conflict=0.0, has_ambiguity=True)
-    )
-    assert out.stop_reason is StopReason.HONEST_CONTRADICTION
 
 
 # ---------------------------------------------------------------------------

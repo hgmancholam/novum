@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-27T06:31:45.793569+00:00
+// Generated: 2026-05-27T10:29:32.399986+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -8,9 +8,6 @@
 
 export type StopReason =
   | "judge_confirmed"
-  | "honest_unanswerable"
-  | "honest_contradiction"
-  | "honest_ambiguous"
   | "stopped_by_budget"
   | "user_cancelled"
   | "errored";
@@ -20,7 +17,10 @@ export type QuestionType =
   | "comparative"
   | "definitional"
   | "state_of_art"
-  | "causal";
+  | "causal"
+  | "predictive_future"
+  | "subjective_opinion"
+  | "personal_private";
 
 export type OutputFormat =
   | "prose"
@@ -276,6 +276,21 @@ export const EventSchema = {
         "clarification_needed": {
           "title": "Clarification Needed",
           "type": "string"
+        },
+        "dimensions": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dimensions"
         }
       },
       "required": [
@@ -285,6 +300,19 @@ export const EventSchema = {
       ],
       "title": "AmbiguityDetectedEvent",
       "type": "object"
+    },
+    "AnswerKind": {
+      "description": "Shape of the answer produced at terminal ``judge_confirmed`` (RF-17).\n\nSelected by ``app.agent.tasks.select_answer_kind`` from\n``(question_type, S, C_coverage, C_agreement, ambiguity_flag)``.\nEach kind carries a soft confidence ceiling (see\n``app.confidence.kind_ceiling``).",
+      "enum": [
+        "direct",
+        "weighted",
+        "scenario",
+        "tradeoff",
+        "ethical_redirect",
+        "best_effort"
+      ],
+      "title": "AnswerKind",
+      "type": "string"
     },
     "AnswerSection": {
       "additionalProperties": true,
@@ -640,7 +668,7 @@ export const EventSchema = {
     },
     "ContradictionDetectedEvent": {
       "additionalProperties": true,
-      "description": "Irreconcilable source conflict (RF-04).",
+      "description": "Irreconcilable source conflict (RF-04).\n\nWP-2.5 additions (optional, additive): claim, supporting_chunk_ids,\ncontradicting_chunk_ids, round.",
       "properties": {
         "id": {
           "anyOf": [
@@ -725,6 +753,60 @@ export const EventSchema = {
         "nature_of_conflict": {
           "title": "Nature Of Conflict",
           "type": "string"
+        },
+        "claim": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim"
+        },
+        "supporting_chunk_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Supporting Chunk Ids"
+        },
+        "contradicting_chunk_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contradicting Chunk Ids"
+        },
+        "round": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round"
         }
       },
       "required": [
@@ -994,7 +1076,7 @@ export const EventSchema = {
     },
     "JudgeRuledEvent": {
       "additionalProperties": true,
-      "description": "Judge LLM evaluation (RF-12).",
+      "description": "Judge LLM evaluation (RF-12, WP-3 G5 C_kind_appropriateness).",
       "properties": {
         "id": {
           "anyOf": [
@@ -1108,6 +1190,22 @@ export const EventSchema = {
           ],
           "default": null,
           "title": "Suggested Improvements"
+        },
+        "answer_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnswerKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind_appropriateness": {
+          "default": 1.0,
+          "title": "Kind Appropriateness",
+          "type": "number"
         }
       },
       "required": [
@@ -1636,13 +1734,16 @@ export const EventSchema = {
       "type": "object"
     },
     "QuestionType": {
-      "description": "Supported question types (RF-06).",
+      "description": "Supported question types (RF-06).\n\nTypes 1\u20135 are the \"answerable\" classes. Types 6\u20138 used to short-circuit\nto ``honest_unanswerable``; per the 2026-05-27 amendment they now route\nto dedicated ``AnswerKind`` templates (predictive_future\u2192SCENARIO,\nsubjective_opinion\u2192TRADEOFF, personal_private\u2192ETHICAL_REDIRECT).",
       "enum": [
         "factual",
         "comparative",
         "definitional",
         "state_of_art",
-        "causal"
+        "causal",
+        "predictive_future",
+        "subjective_opinion",
+        "personal_private"
       ],
       "title": "QuestionType",
       "type": "string"
@@ -1937,13 +2038,46 @@ export const EventSchema = {
       "title": "SourceType",
       "type": "string"
     },
+    "StopRationale": {
+      "additionalProperties": true,
+      "description": "Structured 'why we stopped' payload (RF-13 / RF-19, WP-3 G2).\n\nAggregates the four signals the challenge spec expects to see on a\nterminal run: evidence quality, source agreement, novelty (information\ngain), and final confidence \u2014 plus the ceiling actually applied and a\nshort human-readable summary from the judge.",
+      "properties": {
+        "reason": {
+          "$ref": "#/$defs/StopReason"
+        },
+        "triggering_signal": {
+          "title": "Triggering Signal",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        }
+      },
+      "required": [
+        "reason",
+        "triggering_signal",
+        "summary"
+      ],
+      "title": "StopRationale",
+      "type": "object"
+    },
     "StopReason": {
-      "description": "Terminal states for a run (RF-01).\n\nThese are guarantees, not errors:\n- 4 honest stops (judge_confirmed, honest_*)\n- 1 budget safety net\n- 1 user action\n- 1 error state",
+      "description": "Terminal states for a run (RF-01, WP-3 amendment 2026-05-27).\n\nFour terminal states:\n- 1 positive terminal (judge_confirmed with AnswerKind)\n- 1 budget safety net\n- 1 user action\n- 1 error state\n\nThe three ``honest_*`` values were removed in WP-3. Ambiguous/sparse/\ncontradictory questions now route through ``AnswerKind`` selection\n(best_effort, weighted, scenario) inside ``judge_confirmed``.",
       "enum": [
         "judge_confirmed",
-        "honest_unanswerable",
-        "honest_contradiction",
-        "honest_ambiguous",
         "stopped_by_budget",
         "user_cancelled",
         "errored"
@@ -1953,7 +2087,7 @@ export const EventSchema = {
     },
     "StoppedEvent": {
       "additionalProperties": true,
-      "description": "Terminal event with final answer or honest stop.",
+      "description": "Terminal event with final answer or budget/error stop.",
       "properties": {
         "id": {
           "anyOf": [
@@ -2082,17 +2216,27 @@ export const EventSchema = {
           "default": null,
           "title": "Citations"
         },
-        "honest_explanation": {
+        "answer_kind": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/AnswerKind"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Honest Explanation"
+          "default": null
+        },
+        "stop_rationale": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StopRationale"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "total_tokens": {
           "anyOf": [

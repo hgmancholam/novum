@@ -44,20 +44,19 @@ def test_migration_has_upgrade_and_downgrade() -> None:
     assert callable(module.downgrade)
 
 
-def test_stop_reason_enum_has_seven_values() -> None:
-    """All 7 RF-01 stop_reason values appear in the migration source."""
-    source = _migration_source()
+def test_stop_reason_enum_has_four_values() -> None:
+    """WP-3: All 4 stop_reason values appear in migration 002 source."""
+    source_path = Path(__file__).parent.parent / "alembic" / "versions" / "002_collapse_stop_reasons.py"
+    assert source_path.exists(), "Migration 002 must exist for WP-3"
+    source = source_path.read_text(encoding="utf-8")
     expected = [
         "judge_confirmed",
-        "honest_unanswerable",
-        "honest_contradiction",
-        "honest_ambiguous",
         "stopped_by_budget",
         "user_cancelled",
         "errored",
     ]
     for value in expected:
-        assert f'"{value}"' in source, f"Missing stop_reason value: {value}"
+        assert f'"{value}"' in source, f"Missing stop_reason value in 002: {value}"
 
 
 def test_question_type_enum_values() -> None:

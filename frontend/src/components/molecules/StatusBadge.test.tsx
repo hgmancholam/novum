@@ -10,21 +10,6 @@ const cases: ReadonlyArray<{
   variant: string;
 }> = [
   { reason: "judge_confirmed", label: "Judge confirmed", variant: "success" },
-  {
-    reason: "honest_unanswerable",
-    label: "Honest stop — unanswerable",
-    variant: "warning",
-  },
-  {
-    reason: "honest_contradiction",
-    label: "Honest stop — contradiction",
-    variant: "warning",
-  },
-  {
-    reason: "honest_ambiguous",
-    label: "Honest stop — ambiguous",
-    variant: "warning",
-  },
   { reason: "stopped_by_budget", label: "Stopped on budget", variant: "warning" },
   { reason: "user_cancelled", label: "Cancelled", variant: "secondary" },
   { reason: "errored", label: "Errored", variant: "error" },

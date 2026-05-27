@@ -29,7 +29,7 @@ const sampleRuns: RunSummary[] = [
     username: "alice",
     question: "Tallest mountain?",
     status: "stopped",
-    stopReason: "honest_unanswerable",
+    stopReason: "stopped_by_budget",
     startedAt: new Date(Date.now() - 180_000).toISOString(),
     stoppedAt: null,
   },

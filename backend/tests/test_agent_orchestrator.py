@@ -332,26 +332,36 @@ async def test_rf14_max_revisions_then_proceed(
 async def test_budget_exhausted_no_coverage(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """WP-3: zero-coverage runs still draft (BEST_EFFORT) and reach JUDGE_CONFIRMED or budget."""
     llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1", "c2"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
+    llm_stub.queue(
+        "SynthesizedAnswer",
+        SynthesizedAnswer(
+            prose="best-effort answer with no sources",
+            key_points=["limited evidence"],
+            answer_kind="best_effort",
+            interpretation="No sources returned; presenting best-effort with caveats.",
+        ),
+    )
+    llm_stub.queue(
+        "JudgeVerdict",
+        JudgeVerdict(confidence=0.5, verdict="approve", rationale="best effort accepted"),
+    )
 
     # Source returns nothing → no coverage ever.
     empty = _FakeSource(SourceType.TAVILY, results=[])
     _install_registry(monkeypatch, {SourceType.TAVILY: empty})
 
-    # With BRD-09, HonestStopSignal (priority 10) fires before BudgetSignal
-    # (priority 20) once all claims are marked uncoverable. The fixture
-    # exhausts max_searches=2 and analyze marks both claims uncoverable
-    # at search_count>=2, so the policy emits HONEST_UNANSWERABLE.
     state = _state(max_searches=2)
     orch, events = _make_orchestrator(state)
     reason = await orch.run()
 
-    assert reason == StopReason.HONEST_UNANSWERABLE
+    # WP-3: always-answer — must reach a terminal that proves a draft was produced.
+    assert reason in (StopReason.JUDGE_CONFIRMED, StopReason.STOPPED_BY_BUDGET)
     stopped = events[-1]
     assert isinstance(stopped, StoppedEvent)
-    assert stopped.answer_prose is None
 
 
 async def test_cancel_mid_loop(llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -519,21 +529,6 @@ async def test_question_asked_event_emitted_first(
     await orch.run()
     assert isinstance(events[0], QuestionAskedEvent)
     assert events[0].question == state.question
-
-
-async def test_safety_net_honest_unanswerable_after_5_empty_rounds(
-    llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    llm_stub.queue("QuestionClassification", _classify("factual"))
-    llm_stub.queue("PlanOutput", _plan("c1"))
-    llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
-    empty = _FakeSource(SourceType.TAVILY, results=[])
-    _install_registry(monkeypatch, {SourceType.TAVILY: empty})
-
-    state = _state(max_searches=10)
-    orch, _events = _make_orchestrator(state)
-    reason = await orch.run()
-    assert reason == StopReason.HONEST_UNANSWERABLE
 
 
 async def test_plan_created_event_emitted(

@@ -479,7 +479,7 @@ async def test_supervisor_skips_redundant_stop_when_prior_stop_exists(
     supervisor must NOT append a second AgentErrored/Stopped pair."""
 
     async def script(orch: FakeOrchestrator) -> None:
-        await orch._emit(StoppedEvent(stop_reason=StopReason.HONEST_UNANSWERABLE))
+        await orch._emit(StoppedEvent(stop_reason=StopReason.JUDGE_CONFIRMED))
         raise RuntimeError("boom-after-stop")
 
     monkeypatch.setattr(
@@ -505,7 +505,7 @@ async def test_supervisor_skips_redundant_stop_when_prior_stop_exists(
     assert types.count(EventType.STOPPED.value) == 1
     assert EventType.AGENT_ERRORED.value not in types
     assert run is not None
-    assert run.stop_reason == StopReason.HONEST_UNANSWERABLE.value
+    assert run.stop_reason == StopReason.JUDGE_CONFIRMED.value
 
 
 # ---------------------------------------------------------------------------

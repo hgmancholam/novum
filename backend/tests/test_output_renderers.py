@@ -105,18 +105,16 @@ class TestStructuredRenderer:
         assert "Verified" in out.content
 
     def test_all_stop_reasons_mapped(self):
+        """WP-3: Verify all 4 stop_reason values are mapped."""
         renderer = StructuredRenderer()
         for reason in [
             "judge_confirmed",
-            "honest_unanswerable",
-            "honest_contradiction",
-            "honest_ambiguous",
             "stopped_by_budget",
             "user_cancelled",
             "errored",
         ]:
             ctx = make_context(stop_reason=reason)
-            out = renderer.render(ctx)
+            renderer.render(ctx)
             # Ensure we don't get raw enum value back
             assert renderer._format_stop_reason(reason) != reason
 

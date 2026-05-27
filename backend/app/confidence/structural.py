@@ -78,11 +78,24 @@ def calculate_no_conflict(state: RunState) -> float:
     return max(0.0, 1.0 - ratio)
 
 
-def calculate_structural_confidence(state: RunState) -> StructuralConfidence:
-    """Compose the four S components into a ``StructuralConfidence``."""
+def calculate_structural_confidence(
+    state: RunState,
+    kind_appropriateness: float = 1.0,
+) -> StructuralConfidence:
+    """Compose the five S components into a ``StructuralConfidence``.
+
+    Args:
+        state: Current run state
+        kind_appropriateness: Judge-scored 0..1 "does AnswerKind fit the question?"
+                              (WP-3 G5). Defaults to 1.0 when not yet judged.
+
+    Returns:
+        StructuralConfidence with all components populated
+    """
     return StructuralConfidence(
         coverage=calculate_coverage(state),
         agreement=calculate_agreement(state.evidence),
         diversity=calculate_diversity(state.evidence),
         no_conflict=calculate_no_conflict(state),
+        kind_appropriateness=kind_appropriateness,
     )

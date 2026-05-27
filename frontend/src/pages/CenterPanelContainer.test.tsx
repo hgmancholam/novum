@@ -126,7 +126,7 @@ describe("CenterPanelContainer", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         makeDto({
-          stop_reason: "honest_unanswerable",
+          stop_reason: "stopped_by_budget",
           stopped_at: "2026-05-26T00:01:00Z",
         })
       )
@@ -135,7 +135,7 @@ describe("CenterPanelContainer", () => {
     await waitFor(() => {
       expect(screen.getByTestId("stop-reason-card")).toHaveAttribute(
         "data-reason",
-        "honest_unanswerable"
+        "stopped_by_budget"
       );
     });
   });

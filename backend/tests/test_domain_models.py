@@ -111,19 +111,25 @@ def test_run_fork_request() -> None:
 
 
 def test_structural_confidence_score_all_ones() -> None:
-    s = StructuralConfidence(coverage=1.0, agreement=1.0, diversity=1.0, no_conflict=1.0)
+    s = StructuralConfidence(
+        coverage=1.0, agreement=1.0, diversity=1.0, no_conflict=1.0, kind_appropriateness=1.0
+    )
     assert s.score == pytest.approx(1.0)
 
 
 def test_structural_confidence_score_all_zero() -> None:
-    s = StructuralConfidence(coverage=0.0, agreement=0.0, diversity=0.0, no_conflict=0.0)
+    s = StructuralConfidence(
+        coverage=0.0, agreement=0.0, diversity=0.0, no_conflict=0.0, kind_appropriateness=0.0
+    )
     assert s.score == pytest.approx(0.0)
 
 
 def test_structural_confidence_score_weighted_formula() -> None:
-    """S = 0.35*c + 0.30*a + 0.20*d + 0.15*n."""
-    s = StructuralConfidence(coverage=0.8, agreement=0.6, diversity=0.4, no_conflict=0.2)
-    expected = 0.35 * 0.8 + 0.30 * 0.6 + 0.20 * 0.4 + 0.15 * 0.2
+    """WP-3: S = 0.35*c + 0.30*a + 0.20*d + 0.05*n + 0.10*k."""
+    s = StructuralConfidence(
+        coverage=0.8, agreement=0.6, diversity=0.4, no_conflict=0.2, kind_appropriateness=0.5
+    )
+    expected = 0.35 * 0.8 + 0.30 * 0.6 + 0.20 * 0.4 + 0.05 * 0.2 + 0.10 * 0.5
     assert s.score == pytest.approx(expected)
 
 

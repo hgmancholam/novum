@@ -14,22 +14,20 @@ from enum import StrEnum
 
 
 class StopReason(StrEnum):
-    """Terminal states for a run (RF-01).
+    """Terminal states for a run (RF-01, WP-3 amendment 2026-05-27).
 
-    These are guarantees, not errors:
-    - 4 honest stops (judge_confirmed, honest_*)
+    Four terminal states:
+    - 1 positive terminal (judge_confirmed with AnswerKind)
     - 1 budget safety net
     - 1 user action
     - 1 error state
 
-    Amendment 2026-05-27: the three ``honest_*`` values are scheduled for
-    removal at the end of WP-3. New code MUST NOT add new emission sites.
+    The three ``honest_*`` values were removed in WP-3. Ambiguous/sparse/
+    contradictory questions now route through ``AnswerKind`` selection
+    (best_effort, weighted, scenario) inside ``judge_confirmed``.
     """
 
     JUDGE_CONFIRMED = "judge_confirmed"
-    HONEST_UNANSWERABLE = "honest_unanswerable"
-    HONEST_CONTRADICTION = "honest_contradiction"
-    HONEST_AMBIGUOUS = "honest_ambiguous"
     STOPPED_BY_BUDGET = "stopped_by_budget"
     USER_CANCELLED = "user_cancelled"
     ERRORED = "errored"

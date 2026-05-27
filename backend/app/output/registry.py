@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from app.output.prose import ProseRenderer
 from app.output.structured import StructuredRenderer
-from app.seams.output import OutputRenderer
+
+if TYPE_CHECKING:
+    from app.seams.output import OutputRenderer
 
 
 class RendererRegistry:

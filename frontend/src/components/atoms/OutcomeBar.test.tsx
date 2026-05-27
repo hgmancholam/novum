@@ -20,9 +20,6 @@ describe("OutcomeBar", () => {
   });
 
   it.each([
-    ["honest_unanswerable", "warning"],
-    ["honest_contradiction", "warning"],
-    ["honest_ambiguous", "warning"],
     ["stopped_by_budget", "warning"],
     ["user_cancelled", "neutral"],
     ["errored", "error"],

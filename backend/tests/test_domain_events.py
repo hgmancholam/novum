@@ -65,7 +65,7 @@ def test_stopped_event_serializes_all_fields() -> None:
         answer_prose="The answer.",
         answer_sections=[AnswerSection(heading="Intro", content="Body")],
         citations=[Citation(id=1, url="https://example.com", title="Example")],
-        honest_explanation=None,
+        stop_rationale=None,
         total_tokens=1234,
         total_duration_seconds=12.5,
     )
@@ -212,7 +212,7 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
         case EventType.RESUMED_AFTER_CANCEL:
             extra = {"cancel_event_id": str(uuid4()), "resume_point": "p"}
         case EventType.STOPPED:
-            extra = {"stop_reason": StopReason.HONEST_UNANSWERABLE.value}
+            extra = {"stop_reason": StopReason.JUDGE_CONFIRMED.value}
     base.update(extra)
     return base
 

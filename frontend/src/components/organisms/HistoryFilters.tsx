@@ -26,9 +26,6 @@ const statusOptions: ReadonlyArray<{ value: RunStatus; label: string }> = [
 
 const stopReasonOptions: ReadonlyArray<{ value: StopReason; label: string }> = [
   { value: "judge_confirmed", label: "Confirmed" },
-  { value: "honest_unanswerable", label: "Unanswerable" },
-  { value: "honest_contradiction", label: "Contradiction" },
-  { value: "honest_ambiguous", label: "Ambiguous" },
   { value: "stopped_by_budget", label: "Budget" },
   { value: "user_cancelled", label: "Cancelled" },
   { value: "errored", label: "Errored" },

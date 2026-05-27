@@ -203,7 +203,7 @@ def build_synthesizer_prompt(
             f"    URL: {ev.get('url', 'N/A')}\n"
             f"    Snippet: {ev.get('snippet', '')}"
         )
-    evidence_block = "\n\n".join(evidence_lines) if evidence_lines else "(No evidence)"
+    "\n\n".join(evidence_lines) if evidence_lines else "(No evidence)"
 
     # Assemble system prompt
     system_prompt = _SHARED_SYSTEM_BLOCK

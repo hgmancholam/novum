@@ -24,24 +24,6 @@ export const stopReasonConfig: Record<StopReason, ReasonEntry> = {
       "The judge has verified this answer meets the confidence threshold.",
     variant: "success",
   },
-  honest_unanswerable: {
-    title: "Insufficient Evidence",
-    description:
-      "After thorough research, not enough reliable evidence was found to answer this question confidently.",
-    variant: "warning",
-  },
-  honest_contradiction: {
-    title: "Sources Contradict",
-    description:
-      "Multiple sources provide conflicting information that cannot be reconciled.",
-    variant: "warning",
-  },
-  honest_ambiguous: {
-    title: "Question Ambiguous",
-    description:
-      "The question has multiple valid interpretations. Please clarify what you're asking.",
-    variant: "warning",
-  },
   stopped_by_budget: {
     title: "Research Limit Reached",
     description:
@@ -69,7 +51,7 @@ const variantColorToken: Record<StopReasonVariant, string> = {
 
 export interface StopReasonCardProps {
   reason: StopReason;
-  /** Optional extra explanation (e.g. honest_explanation from a Stopped event). */
+  /** Optional extra explanation provided in the Stopped event. */
   explanation?: string | undefined;
   className?: string | undefined;
 }

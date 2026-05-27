@@ -17,11 +17,9 @@ if TYPE_CHECKING:
 
 # Enum types matching the database. `create_type=False` because the enums
 # are created explicitly by the Alembic migration, not by the ORM.
+# WP-3: StopReason collapsed from 7 to 4 values (migration 002).
 StopReasonType = ENUM(
     "judge_confirmed",
-    "honest_unanswerable",
-    "honest_contradiction",
-    "honest_ambiguous",
     "stopped_by_budget",
     "user_cancelled",
     "errored",

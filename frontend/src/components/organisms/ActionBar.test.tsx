@@ -129,7 +129,7 @@ describe("ActionBar", () => {
     expect(onResume).toHaveBeenCalledTimes(1);
   });
 
-  it("does NOT render Resume on judge_confirmed or honest_* stops", () => {
+  it("does NOT render Resume on judge_confirmed stop", () => {
     render(
       <ActionBar
         status="stopped"

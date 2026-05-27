@@ -95,22 +95,20 @@ def test_policy_signals_property_is_tuple() -> None:
 
 
 async def test_policy_honest_fires_before_budget() -> None:
-    """Honest contradiction trumps budget exhaustion (priority 10 < 20)."""
+    """WP-3: HonestStopSignal is deprecated (no STOP), so Budget wins when over budget."""
     state = _state(
         max_searches=5,
         search_count=10,  # over budget
         sub_claims=[SubClaim(id="c1", text="t", status="pending")],
     )
-    # Marker (any non-empty list triggers has_contradictions=True in the policy).
     state.contradictions.append(object())  # type: ignore[arg-type]
-    # Drive no_conflict below 0.3 by having more contradictions than evidence ratio.
     state.evidence.append(_evidence(polarity="contradicts"))
 
     policy = StoppingPolicy()
     result = await policy.evaluate(state)
 
     assert result.result is SignalResult.STOP
-    assert result.stop_reason is StopReason.HONEST_CONTRADICTION
+    assert result.stop_reason is StopReason.STOPPED_BY_BUDGET
 
 
 async def test_policy_budget_fires_before_judge() -> None:

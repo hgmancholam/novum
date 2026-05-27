@@ -18,9 +18,6 @@ export interface StatusBadgeProps {
 
 const stopReasonLabels: Record<StopReason, string> = {
   judge_confirmed: "Judge confirmed",
-  honest_unanswerable: "Honest stop — unanswerable",
-  honest_contradiction: "Honest stop — contradiction",
-  honest_ambiguous: "Honest stop — ambiguous",
   stopped_by_budget: "Stopped on budget",
   user_cancelled: "Cancelled",
   errored: "Errored",
@@ -28,9 +25,6 @@ const stopReasonLabels: Record<StopReason, string> = {
 
 const stopReasonVariants: Record<StopReason, BadgeVariant> = {
   judge_confirmed: "success",
-  honest_unanswerable: "warning",
-  honest_contradiction: "warning",
-  honest_ambiguous: "warning",
   stopped_by_budget: "warning",
   user_cancelled: "secondary",
   errored: "error",

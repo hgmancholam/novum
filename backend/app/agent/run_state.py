@@ -77,6 +77,8 @@ class RunState(BaseModel):
     max_judge_attempts: int = 3
     last_judge_confidence: float | None = None
     last_structural_confidence: float | None = None
+    last_coverage: float = 0.0  # WP-3 G8: for early-stop check
+    last_agreement: float = 0.0  # WP-3 G8: for early-stop check
 
     stop_reason: StopReason | None = None
     final_answer: str | None = None

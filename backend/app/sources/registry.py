@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import structlog
 
 from app.config import settings
 from app.domain.enums import SourceType
-from app.seams.source import Source
 from app.sources.tavily import TavilySource
 from app.sources.wikipedia import WikipediaSource
+
+if TYPE_CHECKING:
+    from app.seams.source import Source
 
 logger = structlog.get_logger(__name__)
 

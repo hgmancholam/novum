@@ -97,9 +97,6 @@ export interface RunListItemDto {
   stopped_at: string | null;
   stop_reason:
     | "judge_confirmed"
-    | "honest_unanswerable"
-    | "honest_contradiction"
-    | "honest_ambiguous"
     | "stopped_by_budget"
     | "user_cancelled"
     | "errored"
@@ -169,9 +166,6 @@ export async function deleteRun(
 
 export type StopReasonDto =
   | "judge_confirmed"
-  | "honest_unanswerable"
-  | "honest_contradiction"
-  | "honest_ambiguous"
   | "stopped_by_budget"
   | "user_cancelled"
   | "errored";

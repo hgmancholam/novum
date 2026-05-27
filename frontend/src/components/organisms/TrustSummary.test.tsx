@@ -16,7 +16,7 @@ function makeRun(overrides: Partial<Run> = {}): Run {
     confidenceThreshold: 0.7,
     startedAt: "2026-05-26T00:00:00Z",
     stoppedAt: "2026-05-26T00:01:00Z",
-    stopReason: "honest_unanswerable",
+    stopReason: "stopped_by_budget",
     parentRunId: null,
     forkedAtEventId: null,
     ...overrides,
@@ -26,7 +26,7 @@ function makeRun(overrides: Partial<Run> = {}): Run {
 describe("TrustSummary", () => {
   it("renders the outcome title and the threshold", () => {
     render(<TrustSummary run={makeRun()} />);
-    expect(screen.getByText("Insufficient Evidence")).toBeInTheDocument();
+    expect(screen.getByText("Research Limit Reached")).toBeInTheDocument();
     expect(screen.getByText("0.70")).toBeInTheDocument();
   });
 

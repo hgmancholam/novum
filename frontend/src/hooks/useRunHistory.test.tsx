@@ -70,7 +70,7 @@ describe("mapRun", () => {
     });
   });
   it("maps other stops to stopped", () => {
-    expect(mapRun(dto("a", "honest_unanswerable"))).toMatchObject({
+    expect(mapRun(dto("a", "stopped_by_budget"))).toMatchObject({
       status: "stopped",
     });
     expect(mapRun(dto("a", "user_cancelled"))).toMatchObject({

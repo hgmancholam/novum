@@ -7,9 +7,6 @@ import type { StopReason } from "@/types/events";
 
 const reasons: ReadonlyArray<StopReason> = [
   "judge_confirmed",
-  "honest_unanswerable",
-  "honest_contradiction",
-  "honest_ambiguous",
   "stopped_by_budget",
   "user_cancelled",
   "errored",

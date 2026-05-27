@@ -1,11 +1,10 @@
-"""Tests for domain enums (BRD-02 §4.2).
+"""Tests for domain enums (BRD-02 §4.2, WP-3 amendment).
 
-Cross-checks enum values and counts against the BRD-01 migration
-(``backend/alembic/versions/001_initial_schema.py``).
+Cross-checks enum values and counts against the Alembic migrations.
 
-Amendment 2026-05-27: ``QuestionType`` extended to 8 values (Types 6/7/8 no
-longer short-circuit); ``AnswerKind`` introduced (RF-17). ``StopReason``
-still 7 — collapse to 4 lands at end of WP-3.
+Amendment 2026-05-27 WP-3: ``StopReason`` collapsed from 7 to 4 values
+(migration 002). ``QuestionType`` extended to 8 values (Types 6/7/8 no
+longer short-circuit); ``AnswerKind`` introduced (RF-17).
 """
 
 from app.domain.enums import (
@@ -19,16 +18,15 @@ from app.domain.enums import (
 )
 
 
-def test_stop_reason_has_exactly_7_values() -> None:
-    assert len(StopReason) == 7
+def test_stop_reason_has_exactly_4_values() -> None:
+    """WP-3: StopReason collapsed to 4 values."""
+    assert len(StopReason) == 4
 
 
 def test_stop_reason_values() -> None:
+    """WP-3: Only judge_confirmed, stopped_by_budget, user_cancelled, errored."""
     expected = {
         "judge_confirmed",
-        "honest_unanswerable",
-        "honest_contradiction",
-        "honest_ambiguous",
         "stopped_by_budget",
         "user_cancelled",
         "errored",

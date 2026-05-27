@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # SSE
     sse_heartbeat_seconds: int = 15
 
+    # WP-3 G8: Early-stop thresholds for trivial-fact questions (matrix row 1).
+    # When coverage == 1.0 AND C_agreement >= 0.9 AND J >= 0.85 on round 1,
+    # stop immediately with judge_confirmed to avoid unnecessary iterations.
+    early_stop_min_agreement: float = 0.9
+    early_stop_min_judge: float = 0.85
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
