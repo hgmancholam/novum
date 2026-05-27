@@ -20,7 +20,7 @@ const COMPLEXITY_CONFIG: Record<
 };
 
 export function ComplexityBadge({ hint }: ComplexityBadgeProps) {
-  const config = COMPLEXITY_CONFIG[hint];
+  const config = COMPLEXITY_CONFIG[hint] ?? COMPLEXITY_CONFIG.standard;
 
   return (
     <span role="status" aria-label={config.label}>

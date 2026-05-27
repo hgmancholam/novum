@@ -21,9 +21,11 @@ import {
   MessageSquareWarning,
   MinusCircle,
   RotateCw,
+  Recycle,
   Search,
   ShieldCheck,
   SpellCheck,
+  Tag,
   XCircle,
 } from "lucide-react";
 
@@ -50,6 +52,7 @@ export interface EventVisual {
 export const EVENT_VISUALS: Record<EventType, EventVisual> = {
   QuestionAsked:          { Icon: MessageSquare,        tone: "info" },
   QuestionNormalized:     { Icon: SpellCheck,           tone: "info" },
+  QuestionClassified:     { Icon: Tag,                  tone: "info" },
   PlanCreated:            { Icon: Compass,              tone: "decision" },
   PlanCritiqued:          { Icon: FileWarning,          tone: "warn" },
   PlanRevised:            { Icon: FilePen,              tone: "info" },
@@ -70,6 +73,7 @@ export const EVENT_VISUALS: Record<EventType, EventVisual> = {
   Stopped:                { Icon: Flag,                 tone: "neutral" },
   SaturationDetected:     { Icon: MinusCircle,          tone: "neutral" },
   JudgeProviderDegraded:  { Icon: AlertCircle,          tone: "warn" },
+  PriorRunHintReplayed:   { Icon: Recycle,              tone: "info" },
 };
 
 const FALLBACK_VISUAL: EventVisual = { Icon: Flag, tone: "neutral" };

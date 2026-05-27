@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-27T21:37:38.249909+00:00
+// Generated: 2026-05-27T23:35:33.292239+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -60,6 +60,11 @@ export type EventType =
   | "ResumedAfterError"
   | "ResumedAfterCancel"
   | "Stopped";
+
+export type ComplexityHint =
+  | "trivial"
+  | "standard"
+  | "deep";
 
 // ---------------------------------------------------------------------------
 // Forkable events (RF-03): user-selectable branch points.
@@ -1929,6 +1934,17 @@ export const EventSchema = {
         "attempt_number": {
           "title": "Attempt Number",
           "type": "integer"
+        },
+        "complexity_hint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComplexityHint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

@@ -22,6 +22,7 @@ sys.path.insert(0, str(_BACKEND))
 from pydantic import TypeAdapter  # noqa: E402
 
 from app.domain.enums import (  # noqa: E402
+    ComplexityHint,
     EventType,
     EvidencePolarity,
     OutputFormat,
@@ -52,6 +53,7 @@ def _build_output() -> str:
         ("EvidencePolarity", [v.value for v in EvidencePolarity]),
         ("SourceType", [v.value for v in SourceType]),
         ("EventType", [v.value for v in EventType]),
+        ("ComplexityHint", [v.value for v in ComplexityHint]),
     ]
 
     adapter: TypeAdapter[Event] = TypeAdapter(Event)

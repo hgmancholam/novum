@@ -14,14 +14,15 @@ const expectedLabels: Record<ComplexityHint, string> = {
 describe("ComplexityBadge", () => {
   it.each(hints)("renders %s variant with correct label", (hint) => {
     render(<ComplexityBadge hint={hint} />);
-    expect(screen.getByText(expectedLabels[hint])).toBeInTheDocument();
+    const label = expectedLabels[hint]!;
+    expect(screen.getByText(label)).toBeInTheDocument();
   });
 
   it.each(hints)("has role=status and aria-label for %s", (hint) => {
     const { container } = render(<ComplexityBadge hint={hint} />);
     const badge = container.querySelector('[role="status"]');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveAttribute("aria-label", expectedLabels[hint]);
+    expect(badge).toHaveAttribute("aria-label", expectedLabels[hint]!);
   });
 
   it("has no accessibility violations", async () => {
