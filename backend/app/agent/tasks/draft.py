@@ -49,6 +49,59 @@ class _RawSynthesizerPayload(BaseModel):
     model_config = {"extra": "allow"}
 
 
+_LIST_OF_STR_FIELDS = (
+    "key_points",
+    "citations",
+    "gaps",
+    "contradictions",
+    "remaining_uncertainties",
+    "redirect_alternatives",
+    "alternative_interpretations",
+)
+
+
+def _coerce_to_string(value: Any) -> str:
+    """Best-effort coercion of a non-string LLM output into a string."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        # Prefer common text-bearing keys; fall back to joining string values.
+        for key in ("text", "content", "summary", "point", "value", "description"):
+            v = value.get(key)
+            if isinstance(v, str) and v.strip():
+                return v
+        parts = [v for v in value.values() if isinstance(v, str) and v.strip()]
+        if parts:
+            return " — ".join(parts)
+    if isinstance(value, list):
+        return " ".join(_coerce_to_string(v) for v in value if v is not None)
+    return str(value) if value is not None else ""
+
+
+def _coerce_synthesizer_payload(payload: Any) -> Any:
+    """Coerce common synthesizer-output type mistakes into the expected shape.
+
+    LLMs frequently emit ``citations=None``, ``remaining_uncertainties="..."``
+    (string instead of list), or ``key_points=[{"text": "..."}]`` (dict items).
+    Normalising before ``SynthesizedAnswer.model_validate`` avoids errored runs.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    for field in _LIST_OF_STR_FIELDS:
+        if field not in payload:
+            continue
+        v = payload[field]
+        if v is None:
+            payload[field] = []
+        elif isinstance(v, str):
+            payload[field] = [v] if v.strip() else []
+        elif isinstance(v, list):
+            payload[field] = [_coerce_to_string(item) for item in v if item is not None]
+        else:
+            payload[field] = [_coerce_to_string(v)]
+    return payload
+
+
 def _format_evidence_for_claim(state: RunState, claim: SubClaim) -> str:
     items = [e for e in state.evidence if e.claim_id == claim.id]
     if not items:
@@ -134,6 +187,7 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
                 if hasattr(raw_payload, "model_dump")
                 else raw_payload
             )
+            payload_dict = _coerce_synthesizer_payload(payload_dict)
             result = SynthesizedAnswer.model_validate(
                 payload_dict,
                 context={"_requires_contradictions": requires_contradictions},
@@ -202,7 +256,21 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
                     raise LLMContractError(
                         f"Synthesizer returned invalid kind shape after retry; expected {answer_kind.value}"
                     ) from exc
-            # Other validation error — re-raise
+            # Other validation error — retry once with hardened prompt; coercion
+            # already handled the common type mistakes, so a remaining error
+            # likely means the LLM omitted a required field or violated a
+            # constraint we cannot auto-fix.
+            if retry_count == 0:
+                system_prompt = (
+                    "CRITICAL: Your previous response failed schema validation. "
+                    "Respond with valid JSON matching the schema EXACTLY. "
+                    "All list fields must be arrays of strings (never null, never "
+                    "a single string, never objects). Required fields must be "
+                    "present.\n\n"
+                    + system_prompt
+                )
+                retry_count += 1
+                continue
             raise
 
     # Should not reach here
