@@ -97,7 +97,7 @@ def test_agreement_mixed() -> None:
     evidence = [
         _ev("https://a.com", "supports", 0.9),
         _ev("https://b.com", "supports", 0.9),
-        _ev("https://c.com", "refutes", 0.5),
+        _ev("https://c.com", "contradicts", 0.5),
     ]
     assert calculate_agreement(evidence) == pytest.approx(1.8 / 2.3)
 
@@ -190,7 +190,7 @@ def test_structural_full_state() -> None:
     evidence = [
         _ev("https://a.com", "supports", 0.8),
         _ev("https://b.com", "supports", 0.8),
-        _ev("https://c.com", "refutes", 0.4),
+        _ev("https://c.com", "contradicts", 0.4),
     ]
     state = _state(sub_claims=claims, covered=["c0"], evidence=evidence)
     result = calculate_structural_confidence(state)

@@ -69,6 +69,7 @@ class StoppingPolicy:
         state: RunState,
         *,
         judge_confidence: float | None = None,
+        judge_passed: bool | None = None,
     ) -> StopSignalOutput:
         """Walk all signals in priority order, return the first decisive result.
 
@@ -95,6 +96,7 @@ class StoppingPolicy:
             uncoverable_claims=len(state.uncoverable_claims),
             covered_claims=len(state.covered_claims),
             total_claims=len(state.sub_claims),
+            judge_passed=judge_passed,
         )
 
         first_continue: StopSignalOutput | None = None

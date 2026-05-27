@@ -248,6 +248,7 @@ class AgentOrchestrator:
         result = await self._stopping_policy.evaluate(
             self.state,
             judge_confidence=judge_event.judge_confidence,
+            judge_passed=judge_event.passed,
         )
         if self._stopping_policy.should_stop(result):
             if result.stop_reason is None:

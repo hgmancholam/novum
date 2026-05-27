@@ -90,6 +90,7 @@ def test_run_response_accepts_optional_fields() -> None:
 def test_run_list_item_minimal() -> None:
     item = RunListItem(
         id=uuid4(),
+        username="alice",
         question="Q",
         started_at=datetime.now(UTC),
         stopped_at=None,

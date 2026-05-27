@@ -37,6 +37,14 @@ class JudgeSignal:
                 confidence=context.structural_confidence,
             )
 
+        if context.judge_passed is False:
+            return StopSignalOutput(
+                signal_name=self.name,
+                result=SignalResult.CONTINUE,
+                explanation="Judge verdict was reject; never silently confirm",
+                confidence=context.structural_confidence,
+            )
+
         if context.coverage < _COVERAGE_GATE:
             return StopSignalOutput(
                 signal_name=self.name,

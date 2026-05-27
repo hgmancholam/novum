@@ -80,6 +80,7 @@ class StopContext:
     uncoverable_claims: int
     covered_claims: int
     total_claims: int
+    judge_passed: bool | None = None
 
 
 @runtime_checkable
