@@ -62,3 +62,15 @@ class JudgeVerdict(BaseModel):
     rationale: str = Field(..., description="Explanation of the verdict")
     improvements: list[str] = Field(default_factory=list)
     factual_errors: list[str] = Field(default_factory=list)
+
+
+class CritiqueOutput(BaseModel):
+    """Output of the plan critic step (RF-14)."""
+
+    acceptable: bool = Field(..., description="True if the plan is good enough to execute")
+    summary: str = Field(..., description="One-paragraph evaluation")
+    issues: list[str] = Field(default_factory=list, description="Concrete problems found")
+    suggested_changes: list[str] = Field(
+        default_factory=list,
+        description="Actionable revisions (only used if acceptable=False)",
+    )

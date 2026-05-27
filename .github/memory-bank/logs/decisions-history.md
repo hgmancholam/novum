@@ -3,12 +3,112 @@
 > Chronological log of all decisions made during the Novum development.
 > Each decision follows the decision record template.
 
-**Last Updated:** 2026-05-26
-**Total Decisions:** 16
+**Last Updated:** 2026-05-27
+**Total Decisions:** 19
 
 ---
 
 ## Recent Decisions
+
+## D-019: BRD-07 Agent FSM — Workflow Closed (Approved)
+
+**Date:** 2026-05-27
+**Agent:** Orchestrator (F4 → F5 close-out)
+**Category:** Backend / Agent FSM
+**Status:** Approved — CR-07-001 score 9.40/10
+
+### Context
+Reviewer agent inspected `app/agent/` and the 8 test files against IP-07 §3 (15 binding overrides) and §8 (AC mapping). All ACs verified by behavioural tests; all overrides applied; architectural rules preserved (append-only events, enum stop_reason, English-only, no new seams).
+
+### Outcome
+- Score 9.40/10, **Approved on first iteration** (no Coder rework needed).
+- BRD-07 status: Draft → **Implemented**.
+- Knowledge base index updated: IP-07 Completed, CR-07-001 registered, agent FSM components added.
+- New lesson recorded: **L-010** (cancellation tests in single-task async FSMs need a yielding emit hook).
+
+### Minor follow-ups (informational, defer to later BRDs — do not block)
+- **M-1** Dead-code line in `test_transition_illegal_raises` (cosmetic).
+- **M-2** `total_tokens` only counts the initial question; tighter accounting in BRD-17.
+- **M-3** `_handle_analyzing` has three overlapping budget branches; refactor candidate when BRD-09 layered policy rewrites it.
+- **M-4** `user_context` is f-string-interpolated into the synthesizer prompt; harden prompt-injection in BRD-10.
+- **M-5** `except Exception` is correct but deserves a one-line docstring note.
+- **M-6** Search cascade `break`s on empty Tavily results without trying Wikipedia; revisit in BRD-09.
+
+### References
+- Plan: [IP-07](../../../docs/implementation-phase/implementation-plans/IP-07-agent-fsm.md)
+- Implementation log: D-017
+- Review: [CR-07-001](../../../docs/implementation-phase/reviews/CR-07-001-agent-fsm.md)
+- New lesson: L-010 in `lessons-learned.md`
+
+---
+
+## D-018: BRD-13 Center Panel — Iter 2 Closes UX Blind Spots
+
+**Date:** 2026-05-27
+**Agent:** Orchestrator + Coder
+**Category:** Frontend / UX
+**Status:** Implemented (awaiting Reviewer — CR-13-002)
+
+### Context
+BRD-13 iter 1 (D-015) shipped a minimal trustworthy view (Question + Researching banner + StopReasonCard) but left several UX blind spots:
+1. Home `/` had no `QuestionForm` — users could not start a research from the UI at all.
+2. No first-run onboarding (`TypeDisclosure`, `SuggestionChips`) → RF-06 not surfaced.
+3. No `OutcomeBar` / `RunHeader` / `MetaRow` → terminal states lacked pre-attentive recognition.
+4. No `Resume` affordance on `errored` / `user_cancelled` stops → RF-11 hidden.
+5. No `NotFoundCard` for 404 → users got the generic error card.
+6. No `TrustSummary` surface → RF §6-quater guarantees not visible.
+
+### Decisions (iter 2 scope)
+1. Iter 2 stays **frontend-only**; coordinate with the parallel BRD-07 backend session by not touching `backend/`.
+2. Add `POST /api/runs` + `POST /api/runs/{id}/resume` clients to `lib/api.ts` (auth headers via `getAuthHeaders`, per L-007). New `useCreateRun` hook; `useRun` gains `resume`, `isResuming`, `resumeError`, and `isNotFound` (detects `ApiClientError.status === 404`).
+3. New atom `OutcomeBar` (variant ← `stop_reason`); molecules `ElapsedClock`, `MetaRow`, `TypeDisclosure`, `SuggestionChips`; organisms `QuestionForm`, `RunHeader`, `TrustSummary`, `NotFoundCard`.
+4. `QuestionForm` enforces backend `RunCreate` limits (10-2000 chars, 1000-char context). Advanced disclosure exposes `output_format` (Structured default) and `confidence_threshold` (presets 0.4 / 0.6 / 0.85 / custom). Microcopy verbatim from `ui-prototype.md` §7.2/§7.3/§7.7.
+5. `NewRunContainer` is a page-level container (data hooks only in `pages/`, per ESLint policy). Anonymous submission opens the login modal and preserves the draft; navigates to `/runs/:id` on success.
+6. Confidence/iteration/source rows on `TrustSummary` show `—` placeholders that explicitly call out "pending event log (BRD-10)" — never hide a trust dimension (RF-13).
+7. 404 → `NotFoundCard`; other errors keep the existing `StopReasonCard` error variant.
+8. `ActionBar` adds `Resume` button only when `stopReason ∈ {errored, user_cancelled}` (RF-11 resumable branches).
+
+### Consequences
+- 12 new files + 3 modified existing files + 1 plan doc.
+- 39 frontend test files / 273 tests / all passing (≥80% coverage maintained).
+- Acceptance criteria added: AC-05 (start-from-Home), AC-06 (TypeDisclosure visibility), AC-07 (Resume affordance + wiring), AC-08 (404 → NotFoundCard), AC-09 (OutcomeBar pre-attentive), AC-10 (TrustSummary placeholder copy).
+- Deferred (still BRD-10/14/15 territory): live answer stream, per-event-step picker, confidence chart, source list.
+
+### References
+- Plan: [IP-13 iter 2](../../../docs/implementation-phase/implementation-plans/IP-13-center-panel-iter2.md)
+- BRD: [BRD-13](../../../docs/implementation-phase/brds/BRD-13-center-panel.md)
+- Predecessor: D-015 (BRD-13 iter 1 scope alignment)
+
+---
+
+## D-017: BRD-07 Agent FSM — Implementation Complete
+
+**Date:** 2026-05-27
+**Agent:** Coder
+**Category:** Backend / Agent FSM
+**Status:** Implemented (awaiting Reviewer)
+
+### Context
+Implemented BRD-07 following IP-07 with all 15 binding overrides (O-01 to O-15). Pure in-memory FSM; no persistence/SSE (those belong to BRD-09/10).
+
+### Outcome
+- 10 source files in `app/agent/` (~750 LOC): `states.py`, `run_state.py`, `orchestrator.py`, `tasks/{classify,plan,search,analyze,draft}.py`.
+- 1 additive change to BRD-05 surface: `CritiqueOutput` in `app/llm/models.py` (O-02).
+- 8 test files, 77 tests, 97.40% coverage on `app/agent/` (threshold ≥90%).
+- ruff + ruff format + pyright strict all clean on agent scope.
+
+### Key implementation choices
+- Cancel test uses a yielding emit hook (awaits `asyncio.sleep(0)` and invokes `orch.cancel()` after the `PlanCritiquedEvent`) because the mocked LLM/source stubs never relinquish the event loop. This preserves the public API (`orch.cancel()` semantics unchanged).
+- `_handle_analyzing` resolves three priorities when all claims are uncoverable with zero coverage: (1) `STOPPED_BY_BUDGET` if `search_count >= max_searches`, (2) safety-net `HONEST_UNANSWERABLE` if `search_count >= 5`, (3) default `HONEST_UNANSWERABLE` otherwise.
+- `app/agent/**` added to `pyproject.toml` ruff per-file-ignores for `TC001/TC002/TC003` (Pydantic v2 needs runtime imports for schema building, same pattern as `app/routes/**`).
+- `pytest-cov` added to environment to gate coverage at 90%.
+
+### Files modified outside `app/agent/`
+- `backend/app/llm/models.py` — added `CritiqueOutput`.
+- `backend/app/llm/__init__.py` — re-export `CritiqueOutput`.
+- `backend/pyproject.toml` — ruff per-file-ignores entry for `app/agent/**`.
+
+---
 
 ## D-016: BRD-07 Agent FSM — IP-07 Binding Overrides Resolve Spec Drift
 

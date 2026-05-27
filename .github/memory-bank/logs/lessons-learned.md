@@ -3,8 +3,8 @@
 > Repository of lessons learned during the Novum development.
 > All agents must consult this before starting tasks and update after completing them.
 
-**Last Updated:** 2026-05-26
-**Total Lessons:** 8
+**Last Updated:** 2026-05-27
+**Total Lessons:** 10
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,8 @@
 
 ## Recent Lessons
 
+- **L-010:** Cancellation Tests in Single-Task Async FSMs Need a Yielding Emit Hook (2026-05-27)
+- **L-009:** Vitest Fake Timers — `advanceTimersByTime` Already Moves `Date.now()`; Do Not Call `setSystemTime` Again (2026-05-27)
 - **L-008:** Always Prefix Backend API Calls with `API_URL` — MANDATORY RULE (2026-05-26)
 - **L-007:** Upgrading a Header-Only Auth Fixture Requires Touching All Downstream Route Tests (2026-05-26)
 - **L-006:** `exactOptionalPropertyTypes` Requires `prop?: T | undefined` on Pass-Through Props (2026-05-26)
@@ -21,6 +23,72 @@
 - **L-003:** Static-Only Tests for DB Migrations are Acceptable for Iteration 1 (2026-05-26)
 - **L-002:** Unit Tests are Mandatory per F3.S3 (2026-05-26)
 - **L-001:** BRD Template for Spec-Driven Development (2026-05-26)
+
+---
+
+## L-010: Cancellation Tests in Single-Task Async FSMs Need a Yielding Emit Hook
+
+**Date:** 2026-05-27
+**Agent:** Coder (BRD-07 — `AgentOrchestrator`)
+**Category:** Backend / Testing / Asyncio
+
+### Situation
+`AgentOrchestrator.cancel()` sets `self._cancelled = True`, checked at the top of each `run()` loop iteration. The intuitive test pattern — wrap `orch.run()` in `asyncio.create_task`, then call `orch.cancel()` from the outer task — does not work when every LLM call and source call is mocked with synchronous `AsyncMock`s that never `await`-yield. The whole `run()` coroutine executes in a single scheduling slot before the outer task can run, so the cancel flag is set after `Stopped` has already been emitted with `judge_confirmed`.
+
+### Lesson
+For unit tests of a single-task async FSM with mocked I/O, inject cancellation via the **event callback** instead of an external task. The callback is `await`-ed inside the loop body, so an `await asyncio.sleep(0)` there gives the test a deterministic yielding point:
+
+```python
+async def cancelling_emit(event: BaseEvent) -> None:
+    captured.append(event)
+    if isinstance(event, PlanCritiquedEvent):
+        await asyncio.sleep(0)
+        orch.cancel()
+
+stop_reason = await orch.run()  # no outer task, no race
+assert stop_reason is StopReason.USER_CANCELLED
+```
+
+This keeps the orchestrator's public API unchanged (`cancel()` still works the way the worker will use it in BRD-10) while making the cancellation path unit-testable without a real `asyncio.Task` race.
+
+### Prevention
+- For any future FSM with `_cancelled`-style cooperative cancellation, write the cancel test against the emit hook, not against an outer task.
+- Document in the orchestrator docstring that the worker (BRD-10) is responsible for running the orchestrator in its own task — the cancel flag is correct, but the timing depends on a real event loop yielding on real I/O.
+
+---
+
+## L-009: Vitest Fake Timers — `advanceTimersByTime` Already Moves `Date.now()`; Do Not Call `setSystemTime` Again
+
+**Date:** 2026-05-27
+**Agent:** Coder (BRD-13 iter 2 — `ElapsedClock`)
+**Category:** Frontend / Testing
+
+### Situation
+While testing a `setInterval`-driven `ElapsedClock`, the assertion `toHaveTextContent("3s")` reported the rendered value as `"6s"`. The test was:
+
+```ts
+vi.setSystemTime(new Date("00:00:00Z"));
+render(<ElapsedClock startedAt="00:00:00Z" />);  // tick = 0
+act(() => {
+  vi.setSystemTime(new Date("00:00:03Z"));       // ← double-advance
+  vi.advanceTimersByTime(3_000);                 // also advances Date
+});
+// expected 3s, got 6s
+```
+
+### Root Cause
+`vi.advanceTimersByTime(ms)` already moves the fake clock forward by `ms` AND fires every timer whose deadline has passed during that window. Calling `setSystemTime(now + ms)` before `advanceTimersByTime(ms)` effectively jumps the clock twice: each interval tick calls `Date.now()`, which now returns `now + 2·ms`. The DOM ends up showing `2·ms` of elapsed time.
+
+### Lesson
+Use exactly one of the following per advance step:
+- `vi.advanceTimersByTime(ms)` — moves the clock and fires timers (preferred for setInterval/setTimeout-driven UIs).
+- `vi.setSystemTime(newDate)` — jumps the clock without firing timers (only when you want to observe an effect on the next render, not on the next tick).
+
+Never call both back-to-back when measuring elapsed time. The fixture should use `advanceTimersByTime` exclusively.
+
+### Prevention
+- When writing fake-timer tests for clocks/animations, decide upfront: "does this assertion depend on timers firing?" If yes, only `advanceTimersByTime`.
+- If a test needs a non-zero starting offset, call `setSystemTime` once **before** `render`, then drive elapsed time exclusively with `advanceTimersByTime`.
 
 ---
 

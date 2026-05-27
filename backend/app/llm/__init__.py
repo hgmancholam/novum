@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from app.llm.client import LLMClient, count_tokens, llm
 from app.llm.models import (
+    CritiqueOutput,
     JudgeVerdict,
     PlanOutput,
     QuestionClassification,
@@ -23,6 +24,7 @@ from app.llm.roles import ROLE_CONFIGS, LLMRole, RoleConfig
 
 __all__ = [
     "ROLE_CONFIGS",
+    "CritiqueOutput",
     "JudgeVerdict",
     "LLMClient",
     "LLMRole",

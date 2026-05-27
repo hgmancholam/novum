@@ -49,6 +49,7 @@ ignore = ["E501"]
 "tests/conftest.py" = ["E402", "TC001", "TC002", "TC003"]
 "app/routes/**" = ["TC001", "TC002", "TC003"]
 "app/services/**" = ["TC001", "TC002", "TC003"]
+"app/agent/**" = ["TC001", "TC002", "TC003"]
 "app/dependencies.py" = ["TC001", "TC002", "TC003"]
 
 [tool.pyright]
