@@ -20,6 +20,7 @@ import {
   NotFoundCard,
   StopReasonCard,
   type ForkModalEvent,
+  type SourceEntry,
 } from "@/components/organisms";
 import { CenterPanel } from "@/components/templates";
 import { useRun } from "@/hooks/useRun";
@@ -120,7 +121,12 @@ export function CenterPanelContainer() {
   const answerProse = useMemo<string | null>(() => {
     for (const e of events) {
       if (e.type === "Stopped" && typeof e.answer_prose === "string") {
-        return e.answer_prose;
+        // Strip the inline sources section appended by ProseRenderer
+        // (the dedicated SourcesCard replaces it with a styled card).
+        const prose: string = e.answer_prose;
+        const separator = "\n\n---\n\n### 📚 Sources\n\n";
+        const cutIdx = prose.indexOf(separator);
+        return cutIdx === -1 ? prose : prose.slice(0, cutIdx);
       }
     }
     return null;
@@ -134,6 +140,38 @@ export function CenterPanelContainer() {
       }
     }
     return null;
+  }, [events]);
+
+  /**
+   * Deduplicated source list from EvidenceAdded events.
+   * Each URL appears at most once; when duplicated the highest confidence wins.
+   */
+  const sources = useMemo<SourceEntry[]>(() => {
+    const byUrl = new Map<string, SourceEntry>();
+    for (const e of events) {
+      if (e.type !== "EvidenceAdded") {
+        continue;
+      }
+      const url = typeof e.source_url === "string" ? e.source_url : "";
+      const title =
+        typeof e.source_title === "string" ? e.source_title : url;
+      const sourceType =
+        e.source_type === "wikipedia" ? "wikipedia" : ("tavily" as const);
+      const polarity =
+        e.polarity === "contradicts"
+          ? "contradicts"
+          : e.polarity === "supports"
+            ? "supports"
+            : ("neutral" as const);
+      const confidence =
+        typeof e.confidence === "number" ? e.confidence : 0;
+
+      const existing = byUrl.get(url);
+      if (existing === undefined || confidence > existing.confidence) {
+        byUrl.set(url, { url, title, sourceType, polarity, confidence });
+      }
+    }
+    return [...byUrl.values()];
   }, [events]);
 
   // Client-side view format — defaults to run's stored format; toggleable post-answer
@@ -229,6 +267,7 @@ export function CenterPanelContainer() {
               answerStructured={answerStructured}
               viewFormat={viewFormat}
               onViewFormatChange={setViewFormat}
+              sources={sources}
             />
             {resumeError !== null ? (
               <p

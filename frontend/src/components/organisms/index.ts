@@ -34,3 +34,5 @@ export { ForkModal } from "./ForkModal";
 export type { ForkModalProps, ForkModalEvent } from "./ForkModal";
 export { StructuredAnswer } from "./StructuredAnswer";
 export type { StructuredAnswerProps } from "./StructuredAnswer";
+export { SourcesCard } from "./SourcesCard";
+export type { SourcesCardProps, SourceEntry } from "./SourcesCard";

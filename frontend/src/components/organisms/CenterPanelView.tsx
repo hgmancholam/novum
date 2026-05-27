@@ -23,6 +23,7 @@ import {
   type ResearchingBannerLatestEvent,
 } from "./ResearchingBanner";
 import { RunHeader } from "./RunHeader";
+import { SourcesCard, type SourceEntry } from "./SourcesCard";
 import { StopReasonCard } from "./StopReasonCard";
 import { StructuredAnswer } from "./StructuredAnswer";
 import { TrustSummary } from "./TrustSummary";
@@ -45,6 +46,8 @@ export interface CenterPanelViewProps {
   viewFormat?: string | undefined;
   /** Called when the user clicks a different format button. */
   onViewFormatChange?: ((format: string) => void) | undefined;
+  /** Evidence sources collected during the run (from EvidenceAdded events). */
+  sources?: readonly SourceEntry[] | undefined;
   className?: string | undefined;
 }
 
@@ -58,6 +61,7 @@ export function CenterPanelView({
   answerStructured,
   viewFormat,
   onViewFormatChange,
+  sources,
   className,
 }: CenterPanelViewProps) {
   const isTerminal = status === "stopped" && run.stopReason !== null;
@@ -128,6 +132,9 @@ export function CenterPanelView({
                   }
                   data-testid="run-answer"
                 />
+                {sources !== undefined && sources.length > 0 ? (
+                  <SourcesCard sources={sources} />
+                ) : null}
               </>
             ) : null}
             <TrustSummary run={run} />
