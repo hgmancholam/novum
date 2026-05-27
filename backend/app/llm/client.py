@@ -9,6 +9,7 @@ or ``httpx`` directly.
 
 from __future__ import annotations
 
+from itertools import cycle
 from typing import Any, TypeVar, cast
 
 import instructor
@@ -52,6 +53,20 @@ client: Any = instructor.from_litellm(  # pyright: ignore[reportUnknownMemberTyp
 )
 
 
+# Per-role round-robin iterators over each role's model pool. Advancing
+# the iterator on every call (and on every retry) spreads load across
+# the configured GitHub Models entries, mitigating per-model per-minute
+# rate limits.
+_MODEL_ROTATION: dict[LLMRole, Any] = {
+    role: cycle(config.models) for role, config in ROLE_CONFIGS.items()
+}
+
+
+def _next_model(role: LLMRole) -> str:
+    """Return the next model id from ``role``'s rotation pool."""
+    return cast("str", next(_MODEL_ROTATION[role]))
+
+
 def _has_system_message(messages: list[dict[str, str]]) -> bool:
     return any(m.get("role") == "system" for m in messages)
 
@@ -71,8 +86,13 @@ class LLMClient:
         If ``messages`` does not already contain a ``system`` message,
         the role's default system prompt is prepended. The caller stays
         in control whenever they pass their own ``system`` message.
+
+        The concrete model is picked round-robin from the role's pool
+        on every call; tenacity retries on rate-limit errors therefore
+        try a different model on each attempt.
         """
         config = ROLE_CONFIGS[role]
+        model = _next_model(role)
 
         if not _has_system_message(messages):
             messages = [
@@ -83,12 +103,12 @@ class LLMClient:
         logger.info(
             "llm_call_start",
             role=role.value,
-            model=config.model,
+            model=model,
             response_model=response_model.__name__,
         )
 
         result = await client.chat.completions.create(
-            model=config.model,
+            model=model,
             # GitHub Models is OpenAI-SDK-compatible (ai-services.md §1.1),
             # so we route through litellm's ``openai`` provider with an
             # explicit ``api_base`` and ``api_key``. The dedicated
@@ -106,7 +126,7 @@ class LLMClient:
         logger.info(
             "llm_call_complete",
             role=role.value,
-            model=config.model,
+            model=model,
             response_model=response_model.__name__,
         )
 

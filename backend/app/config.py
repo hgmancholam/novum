@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     llm_model_synthesizer: str = "openai/gpt-5"
     llm_model_judge: str = "deepseek/DeepSeek-V3-0324"
 
+    # Optional comma-separated model pools per role for round-robin rotation
+    # (mitigates GitHub Models per-model per-minute quotas). When empty, the
+    # single ``llm_model_<role>`` value above is used.
+    llm_model_classifier_pool: str = ""
+    llm_model_planner_pool: str = ""
+    llm_model_synthesizer_pool: str = ""
+    llm_model_judge_pool: str = ""
+
     # Search
     tavily_api_key: str
 

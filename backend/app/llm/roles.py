@@ -3,6 +3,11 @@
 Roles are resolved per ``docs/technical-phase/ai-services.md`` §1.2. The
 configuration is read once at import time from :mod:`app.config.settings`
 so a deployment can override any model via environment variables.
+
+Each role exposes a ``models`` tuple (1..N) used by the LLM client for
+round-robin rotation across the GitHub Models catalog, which mitigates
+per-model per-minute rate limits. The first entry is the canonical
+default and the only one used when no pool is configured.
 """
 
 from __future__ import annotations
@@ -25,27 +30,44 @@ class LLMRole(StrEnum):
 class RoleConfig(NamedTuple):
     """Resolved configuration for an :class:`LLMRole`."""
 
-    model: str
+    models: tuple[str, ...]
     temperature: float
     max_tokens: int
     description: str
 
+    @property
+    def model(self) -> str:
+        """Primary model for the role (first in rotation pool)."""
+        return self.models[0]
+
+
+def _resolve_pool(pool_csv: str, single: str) -> tuple[str, ...]:
+    """Parse a comma-separated model pool, falling back to ``single``."""
+    items = tuple(m.strip() for m in pool_csv.split(",") if m.strip())
+    return items if items else (single,)
+
 
 ROLE_CONFIGS: dict[LLMRole, RoleConfig] = {
     LLMRole.CLASSIFIER: RoleConfig(
-        model=settings.llm_model_classifier,
+        models=_resolve_pool(
+            settings.llm_model_classifier_pool, settings.llm_model_classifier
+        ),
         temperature=0.0,
         max_tokens=512,
         description="Question type classifier (RF-06)",
     ),
     LLMRole.PLANNER: RoleConfig(
-        model=settings.llm_model_planner,
+        models=_resolve_pool(
+            settings.llm_model_planner_pool, settings.llm_model_planner
+        ),
         temperature=0.2,
         max_tokens=2048,
         description="Sub-claim decomposition planner",
     ),
     LLMRole.SYNTHESIZER: RoleConfig(
-        model=settings.llm_model_synthesizer,
+        models=_resolve_pool(
+            settings.llm_model_synthesizer_pool, settings.llm_model_synthesizer
+        ),
         # gpt-5 only supports temperature=1; litellm.drop_params=True
         # would silently coerce, but we set it explicitly to keep the
         # config honest. Determinism for synthesis comes from the prompt,
@@ -55,7 +77,9 @@ ROLE_CONFIGS: dict[LLMRole, RoleConfig] = {
         description="Final answer synthesizer",
     ),
     LLMRole.JUDGE: RoleConfig(
-        model=settings.llm_model_judge,
+        models=_resolve_pool(
+            settings.llm_model_judge_pool, settings.llm_model_judge
+        ),
         temperature=0.0,
         max_tokens=2048,
         description="Cross-family judge for answer evaluation (RF-15)",
