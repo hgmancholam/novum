@@ -15,6 +15,8 @@ import {
   type UserIdentity,
 } from "@/lib/auth";
 import { API_URL } from "@/lib/constants";
+import { queryClient } from "@/lib/queryClient";
+import { useSelectionStore } from "@/stores/selectionStore";
 
 interface UserState {
   user: UserIdentity | null;
@@ -84,6 +86,8 @@ export const useUserStore = create<UserState>((set) => ({
 
   logout: () => {
     clearIdentity();
+    queryClient.clear();
+    useSelectionStore.getState().reset();
     set({ user: null, isAuthenticated: false });
   },
 }));

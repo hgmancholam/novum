@@ -1,20 +1,12 @@
 import { StrictMode, useEffect, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router-dom";
 import { router } from "./router";
+import { queryClient } from "@/lib/queryClient";
 import { UsernameModalContainer } from "@/components/organisms";
 import { useUserStore } from "@/stores/userStore";
 import "./index.css";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60,
-      retry: 1,
-    },
-  },
-});
 
 // Module-level guard: ensures `initialize()` runs exactly once even when
 // React 19 StrictMode double-invokes effects in dev. See IP-11 iter 2 §4.1.

@@ -9,6 +9,7 @@ import { act } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useUserStore } from "./userStore";
+import { useSelectionStore } from "./selectionStore";
 
 const RESET_STATE = {
   user: null,
@@ -133,7 +134,7 @@ describe("userStore", () => {
   });
 
   describe("logout", () => {
-    it("clears identity and authentication state", () => {
+    it("clears identity, authentication state, query cache and selection", () => {
       localStorage.setItem("novum_username", "alice");
       localStorage.setItem("novum_token", "tok");
       useUserStore.setState({
@@ -141,6 +142,9 @@ describe("userStore", () => {
         isVerifying: false,
         isAuthenticated: true,
       });
+
+      // Seed selection state to verify it gets reset
+      useSelectionStore.setState({ selectedRunId: "run-42", selectedEventId: 3 });
 
       act(() => {
         useUserStore.getState().logout();
@@ -151,6 +155,10 @@ describe("userStore", () => {
       expect(state.isAuthenticated).toBe(false);
       expect(localStorage.getItem("novum_username")).toBeNull();
       expect(localStorage.getItem("novum_token")).toBeNull();
+
+      const sel = useSelectionStore.getState();
+      expect(sel.selectedRunId).toBeNull();
+      expect(sel.selectedEventId).toBeNull();
     });
   });
 });

@@ -67,4 +67,19 @@ describe("selectionStore", () => {
     expect(s.leftPanelOpen).toBe(false);
     expect(s.rightPanelOpen).toBe(false);
   });
+
+  it("reset clears all selection state", () => {
+    useSelectionStore.setState({
+      selectedRunId: "run-99",
+      selectedEventId: 7,
+      leftPanelOpen: true,
+      rightPanelOpen: true,
+    });
+    useSelectionStore.getState().reset();
+    const s = useSelectionStore.getState();
+    expect(s.selectedRunId).toBeNull();
+    expect(s.selectedEventId).toBeNull();
+    expect(s.leftPanelOpen).toBe(false);
+    expect(s.rightPanelOpen).toBe(false);
+  });
 });

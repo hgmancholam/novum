@@ -19,6 +19,9 @@ export interface SelectionState {
   toggleLeftPanel: () => void;
   toggleRightPanel: () => void;
   closePanels: () => void;
+
+  /** Reset all selection state (called on logout). */
+  reset: () => void;
 }
 
 export const useSelectionStore = create<SelectionState>((set) => ({
@@ -48,5 +51,13 @@ export const useSelectionStore = create<SelectionState>((set) => ({
   },
   closePanels: () => {
     set({ leftPanelOpen: false, rightPanelOpen: false });
+  },
+  reset: () => {
+    set({
+      selectedRunId: null,
+      selectedEventId: null,
+      leftPanelOpen: false,
+      rightPanelOpen: false,
+    });
   },
 }));
