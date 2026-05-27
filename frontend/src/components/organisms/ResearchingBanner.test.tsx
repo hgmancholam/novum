@@ -5,16 +5,40 @@ import { axe } from "jest-axe";
 import { ResearchingBanner } from "./ResearchingBanner";
 
 describe("ResearchingBanner", () => {
-  it("renders the default 'Researching…' microcopy and spinner", () => {
+  it("renders the generic activity when no event has arrived yet", () => {
     render(<ResearchingBanner />);
     expect(screen.getByTestId("researching-banner")).toBeInTheDocument();
-    // Both the spinner (role=status, aria-label) and the visible label exist.
-    expect(screen.getAllByText("Researching\u2026").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("researching-activity")).toHaveTextContent(
+      "Working on it",
+    );
   });
 
-  it("respects a custom label", () => {
+  it("derives the activity from the latest event", () => {
+    render(
+      <ResearchingBanner latestEvent={{ type: "PlanCreated", step_index: 2 }} />,
+    );
+    expect(screen.getByTestId("researching-activity")).toHaveTextContent(
+      /plan/i,
+    );
+  });
+
+  it("renders the step + event count meta line", () => {
+    render(
+      <ResearchingBanner
+        latestEvent={{ type: "ToolCalled", step_index: 3 }}
+        eventCount={5}
+      />,
+    );
+    expect(screen.getByTestId("researching-meta")).toHaveTextContent(
+      "step 3 · 5 events",
+    );
+  });
+
+  it("respects an explicit label override", () => {
     render(<ResearchingBanner label="Working" />);
-    expect(screen.getAllByText("Working").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("researching-activity")).toHaveTextContent(
+      "Working",
+    );
   });
 
   it("has no accessibility violations", async () => {

@@ -198,6 +198,8 @@ export function CenterPanelContainer() {
               run={run}
               status={status}
               suppressResearchingBanner={showPostResumeNotice}
+              latestEvent={events.at(-1)}
+              eventCount={events.length}
             />
             {resumeError !== null ? (
               <p

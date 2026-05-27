@@ -24,7 +24,8 @@ describe("EventNode", () => {
     const node = screen.getByTestId("event-node");
     expect(node.getAttribute("data-expanded")).toBe("false");
     expect(screen.queryByTestId("event-payload-viewer")).toBeNull();
-    expect(node).toHaveTextContent("PlanCreated");
+    expect(node.getAttribute("data-event-type")).toBe("PlanCreated");
+    expect(node).toHaveTextContent("Plan");
     expect(node).toHaveTextContent("4 sub-claims");
     expect(node).toHaveTextContent("step 2");
     expect(node).toHaveTextContent("Δ 800 ms");

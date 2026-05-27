@@ -13,6 +13,7 @@ import { type ReactNode } from "react";
 import { EventIcon } from "@/components/atoms/EventIcon";
 import { EventPayloadViewer } from "@/components/atoms/EventPayloadViewer";
 import { cn } from "@/lib/cn";
+import { getEventLabel } from "@/lib/eventLabels";
 import { isDecisionEvent } from "@/lib/eventVisuals";
 
 export interface TraceEventInput {
@@ -86,7 +87,7 @@ export function EventNode({
         <span className="flex-1 min-w-0">
           <span className="flex items-center gap-2">
             <span className="font-medium text-[var(--text-primary)]">
-              {event.type}
+              {getEventLabel(event.type)}
             </span>
             {event.summary !== undefined && event.summary !== "" ? (
               <span className="truncate text-[var(--text-secondary)]">

@@ -17,7 +17,10 @@ import { cn } from "@/lib/cn";
 import type { Run, RunStatus } from "@/types/run";
 
 import { QuestionDisplay } from "./QuestionDisplay";
-import { ResearchingBanner } from "./ResearchingBanner";
+import {
+  ResearchingBanner,
+  type ResearchingBannerLatestEvent,
+} from "./ResearchingBanner";
 import { RunHeader } from "./RunHeader";
 import { StopReasonCard } from "./StopReasonCard";
 import { TrustSummary } from "./TrustSummary";
@@ -28,6 +31,10 @@ export interface CenterPanelViewProps {
   /** When true, do not render the `ResearchingBanner` even if the run is
    *  running (IP-15 F6: post-resume agent restart is deferred). */
   suppressResearchingBanner?: boolean | undefined;
+  /** Most recent event emitted by the agent — drives the banner activity copy. */
+  latestEvent?: ResearchingBannerLatestEvent | undefined;
+  /** Total events received so far — drives the banner meta line. */
+  eventCount?: number | undefined;
   className?: string | undefined;
 }
 
@@ -35,6 +42,8 @@ export function CenterPanelView({
   run,
   status,
   suppressResearchingBanner = false,
+  latestEvent,
+  eventCount,
   className,
 }: CenterPanelViewProps) {
   const isTerminal = status === "stopped" && run.stopReason !== null;
@@ -59,7 +68,11 @@ export function CenterPanelView({
         <QuestionDisplay question={run.question} />
 
         {status === "running" && !suppressResearchingBanner ? (
-          <ResearchingBanner startedAt={run.startedAt} />
+          <ResearchingBanner
+            startedAt={run.startedAt}
+            latestEvent={latestEvent}
+            eventCount={eventCount}
+          />
         ) : isTerminal && run.stopReason !== null ? (
           <div className="flex flex-col gap-3">
             <TrustSummary run={run} />
