@@ -12,7 +12,7 @@
  * via `useRun` and renders this view inside the `templates/CenterPanel` body.
  */
 
-import { OutcomeBar } from "@/components/atoms";
+import { OutcomeBar, GlassSurface } from "@/components/atoms";
 import { cn } from "@/lib/cn";
 import type { Run, RunStatus } from "@/types/run";
 
@@ -40,25 +40,33 @@ export function CenterPanelView({
   const isTerminal = status === "stopped" && run.stopReason !== null;
 
   return (
-    <div
+    <GlassSurface
       data-testid="center-panel-view"
-      className={cn("flex w-full flex-col gap-4", className)}
+      variant="default"
+      elevation="lg"
+      radius="xl"
+      className={cn(
+        "mx-auto flex w-full max-w-3xl flex-col gap-4 overflow-hidden",
+        className
+      )}
     >
       {isTerminal && run.stopReason !== null ? (
         <OutcomeBar reason={run.stopReason} />
       ) : null}
 
-      <RunHeader run={run} status={status} />
-      <QuestionDisplay question={run.question} />
+      <div className="flex flex-col gap-4 px-6 py-6">
+        <RunHeader run={run} status={status} />
+        <QuestionDisplay question={run.question} />
 
-      {status === "running" && !suppressResearchingBanner ? (
-        <ResearchingBanner startedAt={run.startedAt} />
-      ) : isTerminal && run.stopReason !== null ? (
-        <div className="flex flex-col gap-3">
-          <TrustSummary run={run} />
-          <StopReasonCard reason={run.stopReason} />
-        </div>
-      ) : null}
-    </div>
+        {status === "running" && !suppressResearchingBanner ? (
+          <ResearchingBanner startedAt={run.startedAt} />
+        ) : isTerminal && run.stopReason !== null ? (
+          <div className="flex flex-col gap-3">
+            <TrustSummary run={run} />
+            <StopReasonCard reason={run.stopReason} />
+          </div>
+        ) : null}
+      </div>
+    </GlassSurface>
   );
 }

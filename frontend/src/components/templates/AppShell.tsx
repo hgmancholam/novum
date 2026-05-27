@@ -189,7 +189,7 @@ export function AppShell({ left, center, right, forceBreakpoint }: AppShellProps
     <div
       data-testid="app-shell"
       data-breakpoint={breakpoint}
-      className="flex h-[100dvh] w-full overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)]"
+      className="flex h-[100dvh] w-full overflow-hidden bg-transparent text-[var(--text-primary)]"
     >
       {showLeftAsDrawer ? null : (
         <aside

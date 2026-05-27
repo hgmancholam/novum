@@ -1,12 +1,13 @@
 /**
  * HistoryPanel template — geometry-only container for the left panel.
- * See ui-prototype.md §2 (layout) and §8.2 (templates).
+ * See ui-prototype.md §2 (layout), §8.2 (templates) and ui-design.md §2.3.
  *
  * Slots: header, body, footer.
- * Glass background per §1.5 (visual effects).
+ * Glass background per ui-design.md §2.3.
  */
 
 import type { ReactNode } from "react";
+import { GlassSurface } from "@/components/atoms";
 import { cn } from "@/lib/cn";
 
 export interface HistoryPanelProps {
@@ -23,13 +24,12 @@ export function HistoryPanel({
   className,
 }: HistoryPanelProps) {
   return (
-    <div
+    <GlassSurface
       data-testid="history-panel"
-      className={cn(
-        "flex h-full w-full flex-col bg-[var(--bg-secondary)] " +
-          "backdrop-blur-[20px] backdrop-saturate-[180%]",
-        className
-      )}
+      variant="default"
+      elevation="lg"
+      radius="none"
+      className={cn("flex h-full w-full flex-col", className)}
     >
       {header !== undefined ? (
         <header className="border-b border-[var(--glass-border)] px-4 py-3">
@@ -42,6 +42,6 @@ export function HistoryPanel({
           {footer}
         </footer>
       ) : null}
-    </div>
+    </GlassSurface>
   );
 }

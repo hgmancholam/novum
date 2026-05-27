@@ -25,7 +25,7 @@ export function CenterPanel({
     <div
       data-testid="center-panel"
       className={cn(
-        "flex h-full w-full flex-col bg-[var(--bg-primary)]",
+        "flex h-full w-full flex-col bg-transparent",
         className
       )}
     >
