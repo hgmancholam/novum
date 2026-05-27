@@ -36,7 +36,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             web_concurrency=web_concurrency,
             hint="AgentRunner is single-loop; run uvicorn with --workers 1",
         )
+
+    # WP-6: Initialize question index singleton
+    from app.agent.question_index import get_index
+    _ = get_index()  # Instantiate on startup
+    logger.info("question_index_initialized")
+
     yield
+
+    # WP-6: Reset question index on shutdown
+    from app.agent.question_index import reset_index
+    reset_index()
+    logger.info("question_index_reset")
+
     await agent_runner.shutdown()
     await engine.dispose()
     logger.info("shutdown_complete")

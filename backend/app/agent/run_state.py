@@ -7,6 +7,7 @@ ephemeral working memory. Schema evolution uses ``extra="allow"``.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -93,6 +94,10 @@ class RunState(BaseModel):
 
     # WP-2 helper — in-memory event list for has_event() lookups
     events: list[BaseEvent] = Field(default_factory=list)
+
+    # WP-4: In-memory embeddings for saturation detection (never serialized)
+    chunk_embeddings: dict[str, Any] = Field(default_factory=dict, exclude=True)
+    last_novelty: float | None = None
 
     def transition_to(self, new_state: AgentState) -> None:
         if not can_transition(self.current_state, new_state):

@@ -207,6 +207,26 @@ class AgentOrchestrator:
         for ev in events:
             await self.emit(ev)
 
+        # WP-4: Check saturation after each evidence round
+        from app.config import settings as cfg
+        from app.domain.events import SaturationDetectedEvent
+        from app.stopping.signals.saturation import evaluate_saturation
+
+        saturation_result = await evaluate_saturation(self.state)
+        # Update last_novelty regardless of whether signal fires
+        # (judge prompt will include it as evidence_saturation)
+
+        if saturation_result.result.value == "defer" and saturation_result.explanation and "saturated" in saturation_result.explanation.lower():
+            # Signal detected saturation — emit event
+            await self.emit(
+                SaturationDetectedEvent(
+                    round_index=self.state.search_count,
+                    novelty=self.state.last_novelty or 0.0,
+                    k=cfg.saturation_window,
+                    threshold=cfg.novelty_floor,
+                )
+            )
+
         if self.state.all_claims_resolved():
             # WP-3: always proceed to draft, even with zero covered claims.
             # The resolver will select BEST_EFFORT or ETHICAL_REDIRECT as needed.
@@ -231,7 +251,8 @@ class AgentOrchestrator:
         self.state.transition_to(AgentState.JUDGING)
 
     async def _handle_judging(self) -> None:
-        judge_event = await evaluate_with_judge(self.state)
+        # WP-5: Pass emit callback for JudgeProviderDegradedEvent
+        judge_event = await evaluate_with_judge(self.state, emit_event=self.emit)
         await self.emit(judge_event)
         self.state.last_judge_confidence = judge_event.judge_confidence
         self.state.last_structural_confidence = judge_event.structural_confidence

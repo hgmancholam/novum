@@ -217,13 +217,30 @@ class SynthesizedAnswer(BaseModel):
 
 
 class JudgeVerdict(BaseModel):
-    """Verdict from the cross-family judge (RF-12, RF-15)."""
+    """Verdict from the cross-family judge (RF-12, RF-15, WP-5 extensions)."""
 
     confidence: float = Field(..., ge=0.0, le=1.0, description="Judge confidence J")
     verdict: str = Field(..., description="approve/reject/needs_revision")
     rationale: str = Field(..., description="Explanation of the verdict")
     improvements: list[str] = Field(default_factory=list)
     factual_errors: list[str] = Field(default_factory=list)
+
+    # WP-5: Judge verifier extensions (all optional with defaults for backward compat)
+    coherence: float = Field(1.0, ge=0.0, le=1.0, description="Logical consistency score")
+    contradictions_detected: list[str] = Field(
+        default_factory=list,
+        description="Specific contradictions the judge found",
+    )
+    missing_evidence: list[str] = Field(
+        default_factory=list,
+        description="Evidence gaps the judge identified",
+    )
+    kind_appropriateness: float = Field(
+        1.0,
+        ge=0.0,
+        le=1.0,
+        description="How well the answer_kind fits the question (WP-3 G5)",
+    )
 
     @model_validator(mode="before")
     @classmethod

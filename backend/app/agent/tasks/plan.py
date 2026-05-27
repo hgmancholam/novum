@@ -45,18 +45,49 @@ async def create_plan(
     question: str,
     question_type: QuestionType | None = None,
 ) -> PlanCreatedEvent:
-    """Create the initial plan for ``question``.
+    """Create the initial plan for ``question`` (WP-6: with prior-run hints).
 
     ``question_type`` (when known) is used to scale the number of
     sub-claims requested from the planner so trivial questions stay
     short and complex syntheses still get a richer plan.
+
+    WP-6: Queries the question index for similar past questions and
+    injects top-3 prior runs as planning hints (planner-only; synthesizer
+    and judge never see these).
     """
     lo, hi = _claim_budget(question_type)
+
+    # WP-6: Query question index for similar prior runs
+    from app.agent.question_index import get_index
+    from app.llm.embeddings import embed
+
+    prior_hints_block = ""
+    try:
+        index = get_index()
+        if len(index) > 0:
+            # Embed the current question
+            vecs = await embed([question])
+            if vecs:
+                hints = index.top_k(vecs[0], k=3)
+                if hints:
+                    hints_text = "\n".join([
+                        f"- Previous similar question: \"{h.question_text}\"\n"
+                        f"  Sub-claims used: {', '.join(h.sub_claims[:3])}{'...' if len(h.sub_claims) > 3 else ''}"
+                        for h in hints
+                    ])
+                    prior_hints_block = (
+                        f"\n\nPlanning hints from similar prior runs (you MAY borrow "
+                        f"relevant sub-claims, but you MUST NOT borrow conclusions):\n{hints_text}\n"
+                    )
+    except Exception:  # noqa: BLE001 - non-critical enhancement
+        # Don't fail the plan if index query fails
+        pass
+
     user_msg = (
         f"Decompose the following question into {lo}-{hi} verifiable sub-claims.\n"
         f"For a trivial single-fact question, prefer the lower bound "
         f"({lo}); do not pad with adjacent or background claims.\n\n"
-        f"Question: {question}\n"
+        f"Question: {question}{prior_hints_block}\n"
     )
     result = await llm.call(
         role=LLMRole.PLANNER,

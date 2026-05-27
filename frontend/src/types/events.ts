@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-27T10:29:32.399986+00:00
+// Generated: 2026-05-27T10:47:34.519464+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -52,6 +52,8 @@ export type EventType =
   | "UserContextChallenged"
   | "JudgeRuled"
   | "ConfidenceMismatch"
+  | "SaturationDetected"
+  | "JudgeProviderDegraded"
   | "AgentErrored"
   | "ResumedAfterError"
   | "ResumedAfterCancel"
@@ -1074,9 +1076,104 @@ export const EventSchema = {
       "title": "EvidencePolarity",
       "type": "string"
     },
+    "JudgeProviderDegradedEvent": {
+      "additionalProperties": true,
+      "description": "Judge provider failed, fell back to alternate provider (WP-5).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "JudgeProviderDegraded",
+          "default": "JudgeProviderDegraded",
+          "title": "Type",
+          "type": "string"
+        },
+        "requested_provider": {
+          "title": "Requested Provider",
+          "type": "string"
+        },
+        "fallback_provider": {
+          "title": "Fallback Provider",
+          "type": "string"
+        },
+        "error_class": {
+          "title": "Error Class",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requested_provider",
+        "fallback_provider",
+        "error_class"
+      ],
+      "title": "JudgeProviderDegradedEvent",
+      "type": "object"
+    },
     "JudgeRuledEvent": {
       "additionalProperties": true,
-      "description": "Judge LLM evaluation (RF-12, WP-3 G5 C_kind_appropriateness).",
+      "description": "Judge LLM evaluation (RF-12, WP-3 G5 C_kind_appropriateness, WP-5 extensions).",
       "properties": {
         "id": {
           "anyOf": [
@@ -1206,6 +1303,48 @@ export const EventSchema = {
           "default": 1.0,
           "title": "Kind Appropriateness",
           "type": "number"
+        },
+        "coherence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coherence"
+        },
+        "contradictions_detected": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contradictions Detected"
+        },
+        "missing_evidence": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missing Evidence"
         }
       },
       "required": [
@@ -1930,6 +2069,106 @@ export const EventSchema = {
       "title": "ResumedAfterErrorEvent",
       "type": "object"
     },
+    "SaturationDetectedEvent": {
+      "additionalProperties": true,
+      "description": "Novelty-based saturation signal fired (WP-4).\n\nComputed as: novelty = 1 - mean(max_cosine_similarity(chunk_i, prior_corpus))\nover the last k=3 chunks from the current round.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "SaturationDetected",
+          "default": "SaturationDetected",
+          "title": "Type",
+          "type": "string"
+        },
+        "round_index": {
+          "title": "Round Index",
+          "type": "integer"
+        },
+        "novelty": {
+          "title": "Novelty",
+          "type": "number"
+        },
+        "k": {
+          "default": 3,
+          "title": "K",
+          "type": "integer"
+        },
+        "threshold": {
+          "title": "Threshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "round_index",
+        "novelty",
+        "threshold"
+      ],
+      "title": "SaturationDetectedEvent",
+      "type": "object"
+    },
     "SourceFailedEvent": {
       "additionalProperties": true,
       "description": "Source plugin returned an error.",
@@ -2511,6 +2750,7 @@ export const EventSchema = {
       "ContradictionDetected": "#/$defs/ContradictionDetectedEvent",
       "ContradictionResolved": "#/$defs/ContradictionResolvedEvent",
       "EvidenceAdded": "#/$defs/EvidenceAddedEvent",
+      "JudgeProviderDegraded": "#/$defs/JudgeProviderDegradedEvent",
       "JudgeRuled": "#/$defs/JudgeRuledEvent",
       "PlanCreated": "#/$defs/PlanCreatedEvent",
       "PlanCritiqued": "#/$defs/PlanCritiquedEvent",
@@ -2519,6 +2759,7 @@ export const EventSchema = {
       "QuestionNormalized": "#/$defs/QuestionNormalizedEvent",
       "ResumedAfterCancel": "#/$defs/ResumedAfterCancelEvent",
       "ResumedAfterError": "#/$defs/ResumedAfterErrorEvent",
+      "SaturationDetected": "#/$defs/SaturationDetectedEvent",
       "SourceFailed": "#/$defs/SourceFailedEvent",
       "Stopped": "#/$defs/StoppedEvent",
       "ToolCalled": "#/$defs/ToolCalledEvent",
@@ -2576,6 +2817,12 @@ export const EventSchema = {
       "$ref": "#/$defs/ConfidenceMismatchEvent"
     },
     {
+      "$ref": "#/$defs/SaturationDetectedEvent"
+    },
+    {
+      "$ref": "#/$defs/JudgeProviderDegradedEvent"
+    },
+    {
       "$ref": "#/$defs/AgentErroredEvent"
     },
     {
@@ -2612,6 +2859,8 @@ export const EventSchema = {
 //   | UserContextChallengedEvent
 //   | JudgeRuledEvent
 //   | ConfidenceMismatchEvent
+//   | SaturationDetectedEvent
+//   | JudgeProviderDegradedEvent
 //   | AgentErroredEvent
 //   | ResumedAfterErrorEvent
 //   | ResumedAfterCancelEvent

@@ -5,6 +5,9 @@ structured-output interface backed by GitHub Models. Per
 ``copilot-instructions.md`` §1, the LLM provider is a *not-seam*: agent
 code imports :data:`llm` from this module and never touches ``litellm``
 or ``httpx`` directly.
+
+WP-5: Judge role now supports provider routing (Anthropic primary, GitHub
+fallback) with JudgeProviderDegradedEvent emission on degradation.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ import instructor
 import litellm
 import structlog
 import tiktoken
+from litellm.exceptions import APIConnectionError, AuthenticationError, RateLimitError
 from pydantic import BaseModel
 
 from app.config import settings
@@ -62,6 +66,11 @@ _MODEL_ROTATION: dict[LLMRole, Any] = {
 }
 
 
+# WP-5: Track if we've already degraded the judge provider in this run
+# (process-level flag to avoid spamming events on repeated judge calls)
+_judge_degraded = False
+
+
 def _next_model(role: LLMRole) -> str:
     """Return the next model id from ``role``'s rotation pool."""
     return cast("str", next(_MODEL_ROTATION[role]))
@@ -74,6 +83,77 @@ def _has_system_message(messages: list[dict[str, str]]) -> bool:
 class LLMClient:
     """Thin client exposing the single :meth:`call` entry point."""
 
+    async def _call_judge_with_fallback(
+        self,
+        messages: list[dict[str, str]],
+        response_model: type[T],
+        max_tokens: int | None = None,
+    ) -> tuple[T, str | None]:
+        """Call judge with provider routing and fallback (WP-5).
+
+        Returns: (result, degraded_event_info or None)
+        """
+        global _judge_degraded
+
+        config = ROLE_CONFIGS[LLMRole.JUDGE]
+        requested_provider = settings.judge_provider
+        max_tok = max_tokens if max_tokens is not None else config.max_tokens
+
+        # Attempt 1: Requested provider (anthropic or github)
+        if requested_provider == "anthropic" and settings.anthropic_api_key:
+            model = "anthropic/claude-haiku-4-5"
+            try:
+                logger.info("llm_judge_anthropic_attempt", model=model)
+                result = await client.chat.completions.create(
+                    model=model,
+                    custom_llm_provider="anthropic",
+                    api_key=settings.anthropic_api_key.get_secret_value(),
+                    messages=messages,
+                    temperature=config.temperature,
+                    max_tokens=max_tok,
+                    response_model=response_model,
+                    max_retries=1,
+                )
+                logger.info("llm_judge_anthropic_success", model=model)
+                return cast("T", result), None
+
+            except (AuthenticationError, APIConnectionError, RateLimitError) as exc:
+                logger.warning(
+                    "llm_judge_anthropic_failed",
+                    error_class=type(exc).__name__,
+                    error=str(exc),
+                )
+                # Fall through to GitHub fallback
+                degraded_event = {
+                    "requested_provider": "anthropic",
+                    "fallback_provider": "github",
+                    "error_class": type(exc).__name__,
+                }
+            except Exception:
+                # Unexpected error — re-raise, don't fall back
+                raise
+        else:
+            degraded_event = None
+
+        # Attempt 2: GitHub Models fallback (or primary if judge_provider=="github")
+        model = _next_model(LLMRole.JUDGE)  # Use configured judge model (deepseek)
+        logger.info("llm_judge_github_attempt", model=model, fallback=degraded_event is not None)
+
+        result = await client.chat.completions.create(
+            model=model,
+            custom_llm_provider="openai",
+            api_base=settings.llm_api_base,
+            api_key=settings.github_token,
+            messages=messages,
+            temperature=config.temperature,
+            max_tokens=max_tok,
+            response_model=response_model,
+            max_retries=1,
+        )
+
+        logger.info("llm_judge_github_success", model=model)
+        return cast("T", result), degraded_event if not _judge_degraded else None
+
     @retry_llm
     async def call(
         self,
@@ -81,6 +161,7 @@ class LLMClient:
         messages: list[dict[str, str]],
         response_model: type[T],
         max_tokens: int | None = None,
+        emit_event: Any = None,  # WP-5: optional event emitter for JudgeProviderDegradedEvent
     ) -> T:
         """Make a structured LLM call.
 
@@ -92,14 +173,20 @@ class LLMClient:
         on every call; tenacity retries on rate-limit errors therefore
         try a different model on each attempt.
 
+        WP-5: Judge role supports provider routing with fallback. Pass
+        ``emit_event`` callback to receive JudgeProviderDegradedEvent
+        when fallback occurs.
+
         Args:
             role: The LLM role to use (determines model pool, temperature, etc.)
             messages: The conversation messages
             response_model: Pydantic model class for structured output
             max_tokens: Optional override for role's default max_tokens (WP-2 M3)
+            emit_event: Optional async callback for emitting degradation events (WP-5)
         """
+        global _judge_degraded
+
         config = ROLE_CONFIGS[role]
-        model = _next_model(role)
 
         if not _has_system_message(messages):
             messages = [
@@ -110,9 +197,36 @@ class LLMClient:
         logger.info(
             "llm_call_start",
             role=role.value,
-            model=model,
             response_model=response_model.__name__,
         )
+
+        # WP-5: Special handling for judge role with provider routing
+        if role == LLMRole.JUDGE:
+            result, degraded_info = await self._call_judge_with_fallback(
+                messages, response_model, max_tokens
+            )
+
+            if degraded_info and emit_event and not _judge_degraded:
+                # Emit JudgeProviderDegradedEvent
+                from app.domain.enums import EventType
+                from app.domain.events import JudgeProviderDegradedEvent
+
+                event = JudgeProviderDegradedEvent(
+                    type=EventType.JUDGE_PROVIDER_DEGRADED,
+                    **degraded_info,
+                )
+                await emit_event(event)
+                _judge_degraded = True  # Emit once per process
+
+            logger.info(
+                "llm_call_complete",
+                role=role.value,
+                response_model=response_model.__name__,
+            )
+            return result
+
+        # Standard path for non-judge roles
+        model = _next_model(role)
 
         result = await client.chat.completions.create(
             model=model,

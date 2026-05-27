@@ -103,6 +103,12 @@ class EventType(StrEnum):
     JUDGE_RULED = "JudgeRuled"
     CONFIDENCE_MISMATCH = "ConfidenceMismatch"
 
+    # WP-4: Saturation detection
+    SATURATION_DETECTED = "SaturationDetected"
+
+    # WP-5: Judge provider degradation
+    JUDGE_PROVIDER_DEGRADED = "JudgeProviderDegraded"
+
     # Error & Recovery
     AGENT_ERRORED = "AgentErrored"
     RESUMED_AFTER_ERROR = "ResumedAfterError"

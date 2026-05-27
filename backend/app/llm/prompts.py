@@ -50,6 +50,10 @@ Guidelines:
 4. Each sub-claim should be factual, not speculative
 5. Number sub-claims as c1, c2, c3, etc.
 
+WP-6: If you receive planning hints from similar prior runs, you MAY borrow
+relevant sub-claims if they apply to the current question. You MUST NOT
+borrow conclusions or final answers from those runs.
+
 Output format: JSON matching the PlanOutput schema."""
 
 
@@ -85,6 +89,12 @@ Evaluation criteria:
 4. Logical coherence: Does the reasoning follow from the evidence?
 5. Honesty: Are limitations and uncertainties acknowledged?
 
+WP-5 extensions — you must also provide:
+- coherence (0..1): How logically consistent is the answer? Do the parts connect coherently?
+- contradictions_detected (list): Specific contradictions you found within the answer or between answer and evidence
+- missing_evidence (list): Key evidence gaps you identified
+- kind_appropriateness (0..1): How well does the answer format fit the question type?
+
 Scoring:
 - confidence 0.9-1.0: Excellent, ready to publish
 - confidence 0.7-0.89: Good, minor improvements needed
@@ -93,7 +103,7 @@ Scoring:
 
 Be rigorous. Your job is to protect users from incorrect information.
 
-Output format: JSON matching the JudgeVerdict schema."""
+Output format: JSON matching the JudgeVerdict schema with all fields populated."""
 
 
 ROLE_PROMPTS: dict[LLMRole, str] = {

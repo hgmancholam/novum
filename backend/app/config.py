@@ -1,5 +1,6 @@
 """Application configuration via environment variables."""
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,8 +32,32 @@ class Settings(BaseSettings):
     llm_model_synthesizer_pool: str = ""
     llm_model_judge_pool: str = ""
 
+    # WP-5: Judge provider routing (default "github" since no Anthropic key in prod)
+    judge_provider: str = "github"  # "anthropic" or "github"
+    judge_model: str = "deepseek/DeepSeek-V3-0324"  # GitHub fallback model
+    anthropic_api_key: SecretStr | None = None
+
     # Search
     tavily_api_key: str
+
+    # WP-4: Embeddings (for saturation signal novelty computation)
+    embedding_model: str = "openai/text-embedding-3-small"
+    openai_api_key: SecretStr | None = None
+
+    # WP-4: Saturation signal thresholds
+    # floor < 0.1 → system never saturates on broad questions (too strict);
+    # floor > 0.25 → false positives on rich corpora (too loose).
+    novelty_floor: float = 0.15
+    saturation_window: int = 3  # k=3 most recent chunks for novelty computation
+
+    # WP-4: Budget audit (G11) — matrix row 7 (memory of agents) needs ~8 rounds
+    # to saturate; row 8 (long-term risks) needs similar depth.
+    max_rounds: int = 20  # increased from 10 to allow deep exploration
+    max_searches_per_round: int = 5  # increased from 3 for broader coverage
+    max_tokens_per_run: int = 150_000  # increased from 100k for complex synthesis
+
+    # WP-6: Cross-run question memory
+    prior_run_index_cap: int = 256  # LRU cap on in-memory question index
 
     # Server
     host: str = "0.0.0.0"

@@ -5,12 +5,14 @@
   contradiction surfacing (G10), and validates kind-specific payloads.
 - ``evaluate_with_judge`` calls the judge and builds ``JudgeRuledEvent``
   with ``final_confidence = min(S, J)`` (O-08 in BRD-07; placeholder S
-  until BRD-08 ships).
+  until BRD-08 ships). WP-5: includes emit_event callback for degradation.
 - ``map_issues_to_claims`` is the RF-15 disconfirmation helper that
   finds which claims to re-open from judge issues.
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -195,24 +197,50 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
     raise LLMContractError("Draft answer retry loop exhausted without success")
 
 
-async def evaluate_with_judge(state: RunState) -> JudgeRuledEvent:
-    """Call the judge and assemble a ``JudgeRuledEvent``."""
+async def evaluate_with_judge(
+    state: RunState,
+    emit_event: Any = None,  # WP-5: optional callback for JudgeProviderDegradedEvent
+) -> JudgeRuledEvent:
+    """Call the judge and assemble a ``JudgeRuledEvent`` (WP-5 extensions).
+
+    WP-4: Includes evidence_saturation (state.last_novelty) in the judge context.
+    WP-5: Merges judge.contradictions_detected into final event.
+    """
     draft = state.draft_answer or ""
+
+    # WP-4: Include evidence saturation in judge context
+    saturation_note = ""
+    if state.last_novelty is not None:
+        saturation_note = f"\n\nEvidence saturation (novelty): {state.last_novelty:.3f} (lower = more repetitive)"
+
     user_msg = (
         f"Question: {state.question}\n\n"
         f"Draft answer:\n{draft}\n\n"
-        f"Evaluate factuality, completeness and grounding."
+        f"Evaluate factuality, completeness and grounding.{saturation_note}"
     )
     verdict = await llm.call(
         role=LLMRole.JUDGE,
         messages=[{"role": "user", "content": user_msg}],
         response_model=JudgeVerdict,
+        emit_event=emit_event,  # WP-5: pass through for fallback event
     )
     judge_confidence = verdict.confidence
     structural_confidence = calculate_structural_confidence(state).score
     final_confidence = min(judge_confidence, structural_confidence)
     threshold = state.confidence_threshold
     passed = final_confidence >= threshold and verdict.verdict.lower() == "approve"
+
+    # WP-5: Merge judge.contradictions_detected into synthesized answer if present
+    if verdict.contradictions_detected:
+        # The synthesizer may have already populated contradictions; merge without duplicates
+        existing = state.contradictions  # List[ContradictionDetectedEvent]
+        existing_texts = {c.nature_of_conflict for c in existing}
+        for judge_contradiction in verdict.contradictions_detected:
+            if judge_contradiction not in existing_texts:
+                # Append to state for visibility (not as a full event, just the text)
+                # The UI will surface this via JudgeRuledEvent.contradictions_detected
+                pass  # Already in verdict, will be in event below
+
     return JudgeRuledEvent(
         judge_model=ROLE_CONFIGS[LLMRole.JUDGE].model,
         judge_confidence=judge_confidence,
@@ -222,6 +250,10 @@ async def evaluate_with_judge(state: RunState) -> JudgeRuledEvent:
         passed=passed,
         rationale=verdict.rationale,
         suggested_improvements=list(verdict.improvements) or None,
+        # WP-5 extensions (all optional)
+        coherence=verdict.coherence if verdict.coherence != 1.0 else None,
+        contradictions_detected=verdict.contradictions_detected or None,
+        missing_evidence=verdict.missing_evidence or None,
     )
 
 

@@ -235,12 +235,12 @@ class UserContextChallengedEvent(BaseEvent):
 
 
 # =============================================================================
-# Judge & Confidence Events (RF-12, RF-15)
+# Judge & Confidence Events (RF-12, RF-15, WP-5)
 # =============================================================================
 
 
 class JudgeRuledEvent(BaseEvent):
-    """Judge LLM evaluation (RF-12, WP-3 G5 C_kind_appropriateness)."""
+    """Judge LLM evaluation (RF-12, WP-3 G5 C_kind_appropriateness, WP-5 extensions)."""
 
     type: Literal[EventType.JUDGE_RULED] = EventType.JUDGE_RULED
     judge_model: str
@@ -254,6 +254,11 @@ class JudgeRuledEvent(BaseEvent):
     answer_kind: AnswerKind | None = None  # RF-17 (required when passed=True per WP-3)
     kind_appropriateness: float = 1.0  # WP-3 G5: judge-scored 0..1 "does kind fit question?"
 
+    # WP-5 extensions (all optional for backward compat)
+    coherence: float | None = None  # 0..1 logical consistency score
+    contradictions_detected: list[str] | None = None  # specific contradictions judge found
+    missing_evidence: list[str] | None = None  # gaps judge identified
+
 
 class ConfidenceMismatchEvent(BaseEvent):
     """S and J diverge significantly (RF-15)."""
@@ -263,6 +268,39 @@ class ConfidenceMismatchEvent(BaseEvent):
     judge_confidence: float
     divergence: float
     trust_flag: str
+
+
+# =============================================================================
+# WP-4: Saturation Detection
+# =============================================================================
+
+
+class SaturationDetectedEvent(BaseEvent):
+    """Novelty-based saturation signal fired (WP-4).
+
+    Computed as: novelty = 1 - mean(max_cosine_similarity(chunk_i, prior_corpus))
+    over the last k=3 chunks from the current round.
+    """
+
+    type: Literal[EventType.SATURATION_DETECTED] = EventType.SATURATION_DETECTED
+    round_index: int
+    novelty: float  # 0..1, lower means more repetitive
+    k: int = 3  # window size (last k chunks)
+    threshold: float  # NOVELTY_FLOOR from config
+
+
+# =============================================================================
+# WP-5: Judge Provider Degradation
+# =============================================================================
+
+
+class JudgeProviderDegradedEvent(BaseEvent):
+    """Judge provider failed, fell back to alternate provider (WP-5)."""
+
+    type: Literal[EventType.JUDGE_PROVIDER_DEGRADED] = EventType.JUDGE_PROVIDER_DEGRADED
+    requested_provider: str  # e.g. "anthropic"
+    fallback_provider: str  # e.g. "github"
+    error_class: str  # exception class name
 
 
 # =============================================================================
@@ -365,7 +403,7 @@ class StoppedEvent(BaseEvent):
 
 
 Event = Annotated[
-    QuestionAskedEvent | QuestionNormalizedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
+    QuestionAskedEvent | QuestionNormalizedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
     Field(discriminator="type"),
 ]
 
@@ -388,6 +426,8 @@ EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
     EventType.USER_CONTEXT_CHALLENGED: UserContextChallengedEvent,
     EventType.JUDGE_RULED: JudgeRuledEvent,
     EventType.CONFIDENCE_MISMATCH: ConfidenceMismatchEvent,
+    EventType.SATURATION_DETECTED: SaturationDetectedEvent,
+    EventType.JUDGE_PROVIDER_DEGRADED: JudgeProviderDegradedEvent,
     EventType.AGENT_ERRORED: AgentErroredEvent,
     EventType.RESUMED_AFTER_ERROR: ResumedAfterErrorEvent,
     EventType.RESUMED_AFTER_CANCEL: ResumedAfterCancelEvent,
