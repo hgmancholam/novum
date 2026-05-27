@@ -48,13 +48,14 @@ def test_output_format_values() -> None:
     assert {v.value for v in OutputFormat} == {"prose", "structured"}
 
 
-def test_event_type_has_exactly_19_values() -> None:
-    assert len(EventType) == 19
+def test_event_type_has_exactly_20_values() -> None:
+    assert len(EventType) == 20
 
 
 def test_event_type_values() -> None:
     expected = {
         "QuestionAsked",
+        "QuestionNormalized",
         "PlanCreated",
         "PlanCritiqued",
         "PlanRevised",

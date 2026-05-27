@@ -17,6 +17,7 @@ from app.llm.models import (
     JudgeVerdict,
     PlanOutput,
     QuestionClassification,
+    QuestionNormalization,
     SubClaimOutput,
     SynthesizedAnswer,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "LLMRole",
     "PlanOutput",
     "QuestionClassification",
+    "QuestionNormalization",
     "RoleConfig",
     "SubClaimOutput",
     "SynthesizedAnswer",

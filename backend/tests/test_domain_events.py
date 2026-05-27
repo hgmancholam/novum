@@ -37,6 +37,7 @@ from app.domain.events import (
     PlanCritiquedEvent,
     PlanRevisedEvent,
     QuestionAskedEvent,
+    QuestionNormalizedEvent,
     ResumedAfterCancelEvent,
     ResumedAfterErrorEvent,
     SourceFailedEvent,
@@ -94,6 +95,13 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
     match event_type:
         case EventType.QUESTION_ASKED:
             extra = {"question": "What is the capital of France?"}
+        case EventType.QUESTION_NORMALIZED:
+            extra = {
+                "original_question": "quee s una paloma",
+                "normalized_question": "¿qué es una paloma?",
+                "was_corrected": True,
+                "language": "es",
+            }
         case EventType.PLAN_CREATED:
             extra = {
                 "sub_claims": [{"id": "c1", "text": "claim", "status": "pending"}],
@@ -211,6 +219,7 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
 
 _EXPECTED_CLASS: dict[EventType, type] = {
     EventType.QUESTION_ASKED: QuestionAskedEvent,
+    EventType.QUESTION_NORMALIZED: QuestionNormalizedEvent,
     EventType.PLAN_CREATED: PlanCreatedEvent,
     EventType.PLAN_CRITIQUED: PlanCritiquedEvent,
     EventType.PLAN_REVISED: PlanRevisedEvent,
@@ -267,9 +276,9 @@ def test_extra_fields_preserved_in_model_extra() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_event_type_enum_has_19_values() -> None:
-    """AC-04: there are exactly 19 event types."""
-    assert len(EventType) == 19
+def test_event_type_enum_has_20_values() -> None:
+    """AC-04: there are exactly 20 event types."""
+    assert len(EventType) == 20
 
 
 def test_forkable_events_exact_membership() -> None:
@@ -286,12 +295,12 @@ def test_forkable_events_exact_membership() -> None:
 def test_event_type_map_covers_every_event_type() -> None:
     """Every ``EventType`` value must map to a concrete class."""
     assert set(EVENT_TYPE_MAP.keys()) == {v.value for v in EventType}
-    assert len(EVENT_TYPE_MAP) == 19
+    assert len(EVENT_TYPE_MAP) == 20
 
 
 def test_event_type_map_values_are_unique_classes() -> None:
     classes = list(EVENT_TYPE_MAP.values())
-    assert len(set(classes)) == len(classes) == 19
+    assert len(set(classes)) == len(classes) == 20
 
 
 # ---------------------------------------------------------------------------

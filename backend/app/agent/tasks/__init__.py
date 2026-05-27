@@ -9,6 +9,7 @@ from app.agent.tasks.draft import (
     evaluate_with_judge,
     map_issues_to_claims,
 )
+from app.agent.tasks.normalize import normalize_question
 from app.agent.tasks.plan import create_plan, critique_plan, revise_plan
 from app.agent.tasks.search import execute_search_round
 
@@ -21,5 +22,6 @@ __all__ = (
     "evaluate_with_judge",
     "execute_search_round",
     "map_issues_to_claims",
+    "normalize_question",
     "revise_plan",
 )

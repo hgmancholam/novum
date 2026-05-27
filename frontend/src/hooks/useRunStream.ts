@@ -161,6 +161,7 @@ export function useRunStream(
     // would be silently dropped without explicit listeners.
     const NON_TERMINAL_EVENT_TYPES = [
       "QuestionAsked",
+      "QuestionNormalized",
       "PlanCreated",
       "PlanCritiqued",
       "PlanRevised",

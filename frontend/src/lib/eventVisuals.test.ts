@@ -13,6 +13,7 @@ import type { EventType } from "@/types/events";
 
 const ALL_EVENT_TYPES: readonly EventType[] = [
   "QuestionAsked",
+  "QuestionNormalized",
   "PlanCreated",
   "PlanCritiqued",
   "PlanRevised",

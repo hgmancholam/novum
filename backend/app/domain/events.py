@@ -46,6 +46,22 @@ class QuestionAskedEvent(BaseEvent):
     detected_question_type: QuestionType | None = None
 
 
+class QuestionNormalizedEvent(BaseEvent):
+    """Grammar/typo normalization of the user's question.
+
+    Emitted right after :class:`QuestionAskedEvent` and before the classifier
+    so the UI can show immediate feedback (“Buscando información sobre…”)
+    even when the original input had typos or informal phrasing. Downstream
+    LLM steps use ``normalized_question`` instead of the raw input.
+    """
+
+    type: Literal[EventType.QUESTION_NORMALIZED] = EventType.QUESTION_NORMALIZED
+    original_question: str
+    normalized_question: str
+    was_corrected: bool
+    language: str
+
+
 class SubClaim(BaseModel):
     """A sub-claim in the research plan."""
 
@@ -316,7 +332,7 @@ class StoppedEvent(BaseEvent):
 
 
 Event = Annotated[
-    QuestionAskedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
+    QuestionAskedEvent | QuestionNormalizedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
     Field(discriminator="type"),
 ]
 
@@ -324,6 +340,7 @@ Event = Annotated[
 # Mapping for deserialization and FSM dispatch.
 EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
     EventType.QUESTION_ASKED: QuestionAskedEvent,
+    EventType.QUESTION_NORMALIZED: QuestionNormalizedEvent,
     EventType.PLAN_CREATED: PlanCreatedEvent,
     EventType.PLAN_CRITIQUED: PlanCritiquedEvent,
     EventType.PLAN_REVISED: PlanRevisedEvent,

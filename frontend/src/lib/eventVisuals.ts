@@ -23,6 +23,7 @@ import {
   RotateCw,
   Search,
   ShieldCheck,
+  SpellCheck,
   XCircle,
 } from "lucide-react";
 
@@ -48,6 +49,7 @@ export interface EventVisual {
  */
 export const EVENT_VISUALS: Record<EventType, EventVisual> = {
   QuestionAsked:          { Icon: MessageSquare,        tone: "info" },
+  QuestionNormalized:     { Icon: SpellCheck,           tone: "info" },
   PlanCreated:            { Icon: Compass,              tone: "decision" },
   PlanCritiqued:          { Icon: FileWarning,          tone: "warn" },
   PlanRevised:            { Icon: FilePen,              tone: "info" },

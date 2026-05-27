@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-27T02:35:26.691878+00:00
+// Generated: 2026-05-27T05:41:38.024438+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -37,6 +37,7 @@ export type SourceType =
 
 export type EventType =
   | "QuestionAsked"
+  | "QuestionNormalized"
   | "PlanCreated"
   | "PlanCritiqued"
   | "PlanRevised"
@@ -1534,6 +1535,106 @@ export const EventSchema = {
       "title": "QuestionAskedEvent",
       "type": "object"
     },
+    "QuestionNormalizedEvent": {
+      "additionalProperties": true,
+      "description": "Grammar/typo normalization of the user's question.\n\nEmitted right after :class:`QuestionAskedEvent` and before the classifier\nso the UI can show immediate feedback (\u201cBuscando informaci\u00f3n sobre\u2026\u201d)\neven when the original input had typos or informal phrasing. Downstream\nLLM steps use ``normalized_question`` instead of the raw input.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "QuestionNormalized",
+          "default": "QuestionNormalized",
+          "title": "Type",
+          "type": "string"
+        },
+        "original_question": {
+          "title": "Original Question",
+          "type": "string"
+        },
+        "normalized_question": {
+          "title": "Normalized Question",
+          "type": "string"
+        },
+        "was_corrected": {
+          "title": "Was Corrected",
+          "type": "boolean"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        }
+      },
+      "required": [
+        "original_question",
+        "normalized_question",
+        "was_corrected",
+        "language"
+      ],
+      "title": "QuestionNormalizedEvent",
+      "type": "object"
+    },
     "QuestionType": {
       "description": "Supported question types (RF-06).",
       "enum": [
@@ -2259,6 +2360,7 @@ export const EventSchema = {
       "PlanCritiqued": "#/$defs/PlanCritiquedEvent",
       "PlanRevised": "#/$defs/PlanRevisedEvent",
       "QuestionAsked": "#/$defs/QuestionAskedEvent",
+      "QuestionNormalized": "#/$defs/QuestionNormalizedEvent",
       "ResumedAfterCancel": "#/$defs/ResumedAfterCancelEvent",
       "ResumedAfterError": "#/$defs/ResumedAfterErrorEvent",
       "SourceFailed": "#/$defs/SourceFailedEvent",
@@ -2271,6 +2373,9 @@ export const EventSchema = {
   "oneOf": [
     {
       "$ref": "#/$defs/QuestionAskedEvent"
+    },
+    {
+      "$ref": "#/$defs/QuestionNormalizedEvent"
     },
     {
       "$ref": "#/$defs/PlanCreatedEvent"
@@ -2336,6 +2441,7 @@ export const EventSchema = {
 //
 // Event =
 //     QuestionAskedEvent
+//   | QuestionNormalizedEvent
 //   | PlanCreatedEvent
 //   | PlanCritiquedEvent
 //   | PlanRevisedEvent

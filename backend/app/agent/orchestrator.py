@@ -23,6 +23,7 @@ from app.agent.tasks import (
     evaluate_with_judge,
     execute_search_round,
     map_issues_to_claims,
+    normalize_question,
     revise_plan,
 )
 from app.confidence import detect_mismatch
@@ -75,6 +76,8 @@ class AgentOrchestrator:
         )
         self.state.total_tokens += count_tokens(self.state.question)
 
+        await self._normalize_question()
+
         if not await self._detect_question_type():
             return StopReason.HONEST_UNANSWERABLE
 
@@ -117,6 +120,27 @@ class AgentOrchestrator:
             return False
         self.state.question_type = mapped
         return True
+
+    async def _normalize_question(self) -> None:
+        """Clean typos / informal phrasing before classification.
+
+        Replaces ``state.question`` with the normalized form so downstream
+        LLM steps see the cleaner input. The original is preserved in the
+        emitted ``QuestionNormalizedEvent``. Failures are swallowed: a
+        broken normalizer must not block the rest of the pipeline.
+        """
+        try:
+            event = await normalize_question(self.state.question)
+        except Exception as exc:  # noqa: BLE001 - non-critical step
+            logger.warning(
+                "normalize_question_failed",
+                error=str(exc),
+                run_id=str(self.state.run_id),
+            )
+            return
+        await self.emit(event)
+        if event.normalized_question and event.normalized_question != self.state.question:
+            self.state.question = event.normalized_question
 
     async def _handle_planning(self) -> None:
         event = await create_plan(self.state.question)

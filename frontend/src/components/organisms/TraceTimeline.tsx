@@ -58,6 +58,7 @@ function summaryOf(event: TraceTimelineEvent): string | undefined {
   const payload = event as Record<string, unknown>;
   const candidates = [
     "summary",
+    "normalized_question",
     "question",
     "answer",
     "claim",

@@ -24,6 +24,23 @@ class QuestionClassification(BaseModel):
     answerable: bool
 
 
+class QuestionNormalization(BaseModel):
+    """Output of the pre-classifier normalizer.
+
+    Cleans typos / informal phrasing without changing the user's intent
+    and detects the language so downstream prompts can reply in kind.
+    ``was_corrected`` is True iff ``normalized_question`` differs from
+    the raw input in a non-trivial way (more than whitespace).
+    """
+
+    normalized_question: str = Field(..., min_length=1)
+    was_corrected: bool
+    language: str = Field(
+        ...,
+        description="BCP-47-style code, e.g. 'es', 'en', 'pt'",
+    )
+
+
 class SubClaimOutput(BaseModel):
     """A single sub-claim emitted by the planner."""
 

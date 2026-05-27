@@ -40,10 +40,11 @@ class OutputFormat(StrEnum):
 
 
 class EventType(StrEnum):
-    """All event types (19) for the event log."""
+    """All event types (20) for the event log."""
 
     # Question & Planning
     QUESTION_ASKED = "QuestionAsked"
+    QUESTION_NORMALIZED = "QuestionNormalized"
     PLAN_CREATED = "PlanCreated"
     PLAN_CRITIQUED = "PlanCritiqued"
     PLAN_REVISED = "PlanRevised"
