@@ -12,9 +12,10 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.agent.states import AgentState, can_transition
-from app.domain.enums import QuestionType, StopReason
+from app.domain.enums import AnswerKind, EventType, QuestionType, StopReason
 from app.domain.events import (
     AnswerSection,
+    BaseEvent,
     ContradictionDetectedEvent,
     SubClaim,
 )
@@ -84,6 +85,13 @@ class RunState(BaseModel):
     total_tokens: int = 0
     iteration_count: int = 0
 
+    # WP-2 additions
+    selected_answer_kind: AnswerKind | None = None
+    ambiguity_dimensions: list[str] = Field(default_factory=list)
+
+    # WP-2 helper — in-memory event list for has_event() lookups
+    events: list[BaseEvent] = Field(default_factory=list)
+
     def transition_to(self, new_state: AgentState) -> None:
         if not can_transition(self.current_state, new_state):
             raise ValueError(f"Invalid transition: {self.current_state} -> {new_state}")
@@ -116,3 +124,10 @@ class RunState(BaseModel):
         if not self.sub_claims:
             return 0.0
         return len(self.covered_claims) / len(self.sub_claims)
+
+    def has_event(self, event_type: EventType) -> bool:
+        """Check if an event of the given type exists in the run.
+
+        WP-2 helper for G3/G10 wiring.
+        """
+        return any(e.type == event_type for e in self.events)

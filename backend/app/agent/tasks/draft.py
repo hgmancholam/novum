@@ -1,6 +1,8 @@
 """Drafting, judging and disconfirmation helpers.
 
 - ``draft_answer`` calls the synthesizer to produce the final prose.
+  WP-2: derives ambiguity_flag (G3), calls select_answer_kind, enforces
+  contradiction surfacing (G10), and validates kind-specific payloads.
 - ``evaluate_with_judge`` calls the judge and builds ``JudgeRuledEvent``
   with ``final_confidence = min(S, J)`` (O-08 in BRD-07; placeholder S
   until BRD-08 ships).
@@ -10,15 +12,18 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.agent.run_state import RunState
+from app.agent.tasks.select_answer_kind import AnswerKindInputs, select_answer_kind
 from app.confidence import calculate_structural_confidence
+from app.domain.enums import EventType
 from app.domain.events import (
     AnswerSection,
     JudgeRuledEvent,
     SubClaim,
 )
+from app.exceptions import LLMContractError
 from app.llm import (
     ROLE_CONFIGS,
     JudgeVerdict,
@@ -26,6 +31,7 @@ from app.llm import (
     SynthesizedAnswer,
     llm,
 )
+from app.llm.prompts import build_synthesizer_prompt
 
 
 class IssueToClaimMapping(BaseModel):
@@ -42,30 +48,131 @@ def _format_evidence_for_claim(state: RunState, claim: SubClaim) -> str:
 
 
 async def draft_answer(state: RunState) -> SynthesizedAnswer:
-    """Synthesize the final answer using all collected evidence."""
-    claim_blocks: list[str] = []
-    for claim in state.sub_claims:
-        claim_blocks.append(
-            f"{claim.id} ({claim.status}): {claim.text}\n{_format_evidence_for_claim(state, claim)}"
-        )
-    context_block = f"User context: {state.user_context}\n" if state.user_context else ""
-    user_msg = (
-        f"Question: {state.question}\n\n"
-        f"{context_block}"
-        f"Sub-claims and evidence:\n" + "\n\n".join(claim_blocks) + "\n\n"
-        "Produce the final answer."
+    """Synthesize the final answer using all collected evidence.
+
+    WP-2 implementation:
+    - G3: derive ambiguity_flag from state.has_event(EventType.AMBIGUITY_DETECTED)
+    - Select answer_kind based on question_type, S, coverage, agreement, ambiguity
+    - G10: enforce contradictions field when ContradictionDetectedEvent exists
+    - Build prompt with answer_kind-specific template
+    - Validate and retry on kind mismatch or missing contradictions (once each)
+    """
+    if state.question_type is None:
+        raise ValueError("draft_answer called before question_type was set")
+
+    # G3: derive ambiguity_flag from events
+    ambiguity_flag = state.has_event(EventType.AMBIGUITY_DETECTED)
+
+    # G10: check if contradictions are required
+    requires_contradictions = state.has_event(EventType.CONTRADICTION_DETECTED)
+
+    # Compute structural confidence inputs
+    struct_conf = calculate_structural_confidence(state)
+    coverage = state.coverage_ratio()
+    # agreement is in struct_conf.score (placeholder — BRD-08 has the real formula)
+    # For now, use a heuristic: if no contradictions, agreement = 0.8, else 0.5
+    agreement = 0.5 if requires_contradictions else 0.8
+
+    # Select answer kind
+    inputs = AnswerKindInputs(
+        question_type=state.question_type,
+        structural_confidence=struct_conf.score,
+        coverage=coverage,
+        agreement=agreement,
+        ambiguity_flag=ambiguity_flag,
     )
-    result = await llm.call(
-        role=LLMRole.SYNTHESIZER,
-        messages=[{"role": "user", "content": user_msg}],
-        response_model=SynthesizedAnswer,
-    )
-    state.draft_answer = result.prose
-    state.draft_citations = list(result.citations)
-    state.draft_sections = [
-        AnswerSection(heading=str(idx + 1), content=kp) for idx, kp in enumerate(result.key_points)
+    answer_kind = select_answer_kind(inputs)
+    state.selected_answer_kind = answer_kind
+
+    # Format evidence for synthesizer
+    evidence_list = [
+        {
+            "url": e.source_url,
+            "title": e.source_title,
+            "snippet": e.text,
+        }
+        for e in state.evidence
     ]
-    return result
+
+    # Build prompt
+    system_prompt, max_tokens = build_synthesizer_prompt(
+        question=state.question,
+        evidence=evidence_list,
+        answer_kind=answer_kind,
+        user_language="es",  # TODO: use state.language when added
+        requires_contradictions=requires_contradictions,
+    )
+
+    # Call synthesizer with retry logic
+    retry_count = 0
+    max_retries = 1
+
+    while retry_count <= max_retries:
+        try:
+            raw_payload = await llm.call(
+                role=LLMRole.SYNTHESIZER,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": state.question},
+                ],
+                response_model=dict,  # Get raw dict first
+                max_tokens=max_tokens,
+            )
+
+            # Validate with context
+            result = SynthesizedAnswer.model_validate(
+                raw_payload,
+                context={"_requires_contradictions": requires_contradictions},
+            )
+
+            # Check kind matches
+            if result.answer_kind != answer_kind:
+                if retry_count == 0:
+                    # First mismatch: retry with hardened prefix
+                    system_prompt = (
+                        f"CRITICAL: You MUST set answer_kind to '{answer_kind.value}'. "
+                        f"Any other value will be rejected.\n\n"
+                        + system_prompt
+                    )
+                    retry_count += 1
+                    continue
+                else:
+                    raise LLMContractError(
+                        f"Synthesizer returned answer_kind={result.answer_kind.value} "
+                        f"after retry; expected {answer_kind.value}"
+                    )
+
+            # Success — populate state and return
+            state.draft_answer = result.prose
+            state.draft_citations = list(result.citations)
+            state.draft_sections = [
+                AnswerSection(heading=str(idx + 1), content=kp)
+                for idx, kp in enumerate(result.key_points)
+            ]
+            return result
+
+        except ValidationError as exc:
+            # Check if it's the contradictions requirement violation
+            if requires_contradictions and "contradictions required" in str(exc):
+                if retry_count == 0:
+                    # First missing contradictions: retry with even harder prefix
+                    system_prompt = (
+                        "CRITICAL: The run has detected contradictions. You MUST populate "
+                        "the 'contradictions' field with at least one entry. Omitting it "
+                        "will cause validation failure.\n\n"
+                        + system_prompt
+                    )
+                    retry_count += 1
+                    continue
+                else:
+                    raise LLMContractError(
+                        "Synthesizer omitted contradictions field after retry"
+                    ) from exc
+            # Other validation error — re-raise
+            raise
+
+    # Should not reach here
+    raise LLMContractError("Draft answer retry loop exhausted without success")
 
 
 async def evaluate_with_judge(state: RunState) -> JudgeRuledEvent:

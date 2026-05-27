@@ -1,0 +1,23 @@
+{
+  "answer_kind": "tradeoff",
+  "prose": "Choosing a web framework involves balancing performance, ecosystem maturity, and team expertise.",
+  "key_points": [],
+  "citations": [],
+  "criteria": [
+    {
+      "name": "Performance",
+      "weight": 0.4,
+      "notes": "Request throughput and latency under load"
+    },
+    {
+      "name": "Ecosystem maturity",
+      "weight": 0.35,
+      "notes": "Library availability and community support"
+    },
+    {
+      "name": "Team expertise",
+      "weight": 0.25,
+      "notes": "Familiarity and onboarding costs"
+    }
+  ]
+}

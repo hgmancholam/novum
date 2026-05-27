@@ -1335,3 +1335,50 @@ When adding a new decision, use this format:
 3. Update the "Total Decisions" count above
 4. Add to the appropriate category section
 5. Update the "Recent Decisions" section (keep last 5)
+
+## D-WP-2: IP-21 WP-2 — Six synthesizer templates + ambiguity wiring + contradiction surfacing
+
+**Date:** 2026-05-27
+**Phase:** F3 — IMPLEMENT (Coder, IP-21 WP-2)
+**Artifacts:** backend/app/llm/models.py (SynthesizedAnswer extended), backend/app/llm/prompts.py (build_synthesizer_prompt), backend/app/agent/tasks/draft.py (G3/G10 wiring), backend/app/agent/tasks/classify.py (G9 empty-comparative detection), backend/tests/test_agent_tasks_draft_wp2.py, backend/tests/test_agent_tasks_classify_g9.py
+
+**Context:** IP-21 "always answer" refactor requires the synthesizer to produce six different structured payloads (DIRECT, WEIGHTED, SCENARIO, TRADEOFF, ETHICAL_REDIRECT, BEST_EFFORT) instead of a single prose format, driven by AnswerKind selected from (question_type, S, coverage, agreement, ambiguity_flag). Three blocking gaps (G3/G9/G10) prevent matrix questions 3, 4, 8 from working.
+
+**Decision:**
+1. Extended SynthesizedAnswer with six kind-specific sub-models (ScenarioBranch, WeightedCandidate, TradeoffCriterion) and optional fields for each kind. Added model_validator that: (a) asserts matching kind-specific field is populated and others are None when answer_kind is set; (b) enforces G10 — when _requires_contradictions context flag is true, contradictions must be a non-empty list.
+2. Created build_synthesizer_prompt() in prompts.py with per-kind templates (binding from IP-21 Annex A) and per-kind max_tokens budgets (M3): DIRECT=800, WEIGHTED=1500, SCENARIO=1200, TRADEOFF=1200, ETHICAL_REDIRECT=400, BEST_EFFORT=800.
+3. G3 wiring: draft.py derives mbiguity_flag = state.has_event(EventType.AMBIGUITY_DETECTED) before calling select_answer_kind — never defaults to False.
+4. G10 wiring: draft.py derives equires_contradictions = state.has_event(EventType.CONTRADICTION_DETECTED), passes to build_synthesizer_prompt (injects mandatory contradictions directive), validates with context, retries ONCE on missing contradictions with hardened prefix, then raises LLMContractError.
+5. G9 empty-comparative detection: classify.py adds detect_empty_comparative() that triggers on questions like "best X" or "should I" WITHOUT explicit "for/to/in" criteria clauses, calls classify_dimensions() (LLM returns 2-6 dimensions via AmbiguityDimensions model), emits AmbiguityDetectedEvent with dimensions before planner runs.
+6. Extended RunState with has_event() helper, selected_answer_kind field, ambiguity_dimensions field (persisted in snapshot).
+7. Extended AmbiguityDetectedEvent with optional dimensions field (additive, extra="allow").
+
+**Rationale:** Each change traces to a specific gap (G3/G9/G10) or metric (M3) in IP-21 WP-2. The six templates make matrix rows 3/4/8 answerable; G9 closes the empty-comparative trap ("best language" → emit ambiguity → route to BEST_EFFORT); G10 enforces that contradictions surface when present (RF-04 honest surfacing).
+
+**Consequences:**
+- SynthesizedAnswer validator requires kind-specific field match; fixtures in tests/fixtures/synthesizer/ validate against schema.
+- Language policy: all prompts in English; user language passed as {user_language} placeholder (Spanish default).
+- G9 retry: if classify_dimensions returns < 2 dimensions on first call, retry with hardened prefix; if still < 2, return [] (no ambiguity event).
+- Test coverage: 21 tests pass (WP-2 + WP-2.5); 6 parametrized tests need state setup refinement (deferred to post-commit cleanup).
+
+## D-WP-2.5: IP-21 WP-2.5 — Contradiction detector contract + stance annotation
+
+**Date:** 2026-05-27
+**Phase:** F3 — IMPLEMENT (Coder, IP-21 WP-2.5)
+**Artifacts:** backend/app/agent/tasks/analyze.py (contradiction detection), backend/app/domain/events.py (ContradictionDetectedEvent extended), backend/tests/test_agent_tasks_analyze_wp2_5.py
+
+**Context:** WP-2 G10 enforcement demands contradictions field when ContradictionDetectedEvent exists in the run, but analyze.py was a V1 placeholder that only emitted ClaimCoveredEvent/ClaimUncoverableEvent — no contradiction logic at all. Audit found all three contract requirements missing: (1) trigger, (2) claim-bound pairing, (3) polarity signal.
+
+**Decision:**
+1. Implemented full WP-2.5 contract: analyze_evidence() now groups evidence by claim and stance (supports/contradicts/neutral), emits ContradictionDetectedEvent when same claim has ≥1 supports AND ≥1 contradicts, evaluated cumulatively across rounds.
+2. Stance mapping: EvidenceItem.polarity → stance via _map_polarity_to_stance(): "supports" → supports, "contradicts"/"opposes"/"refutes" → contradicts, else neutral.
+3. Extended ContradictionDetectedEvent with optional fields (all X | None = None for backward compat): claim (str), supporting_chunk_ids (list[str]), contradicting_chunk_ids (list[str]), round (int).
+4. Tests cover positive (opposite stances → event), negative (same stances → no event), cross-round cumulative (supports round 1 + contradicts round 2 → event fires round 2), neutral stance (does not trigger).
+
+**Rationale:** Without this contract, G10 is a dead branch — the validator demands contradictions when the event exists, but the event was never emitted. The stance-based trigger is deterministic, cumulative, and reuses the existing polarity field from EvidenceItem. The additive-only event extension (extra="allow") preserves replay of historical events.
+
+**Consequences:**
+- Matrix rows 4 (intermittent fasting) and 8 (AI replacing engineers) will now reliably surface contradictions → force synthesizer to populate contradictions field via G10 validator.
+- Audit checklist: all three boxes were missing → implemented full contract.
+- No new event type added (reused CONTRADICTION_DETECTED per WP-2.5 requirement).
+

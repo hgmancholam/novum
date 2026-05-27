@@ -5,6 +5,12 @@ from __future__ import annotations
 from fastapi import HTTPException, status
 
 
+class LLMContractError(Exception):
+    """LLM output violated the expected contract after retries (WP-2)."""
+
+    pass
+
+
 class RunNotFoundError(HTTPException):
     """Run does not exist."""
 

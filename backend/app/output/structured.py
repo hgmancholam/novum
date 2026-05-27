@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from app.seams.output import OutputRenderer, RenderContext, RenderedOutput
+from app.seams.output import RenderContext, RenderedOutput
 
 
 class StructuredRenderer:

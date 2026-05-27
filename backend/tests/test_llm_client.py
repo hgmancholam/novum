@@ -148,7 +148,7 @@ async def test_call_does_not_prepend_system_when_present(
         (
             LLMRole.CLASSIFIER,
             QuestionClassification,
-            QuestionClassification(question_type=1, rationale="r", answerable=True),
+            QuestionClassification(question_type="factual", rationale="r", answerable=True),
         ),
         (
             LLMRole.PLANNER,

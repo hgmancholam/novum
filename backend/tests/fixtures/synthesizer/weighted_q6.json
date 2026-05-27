@@ -1,0 +1,18 @@
+{
+  "answer_kind": "weighted",
+  "prose": "For a high-scale AI platform, both event-driven architecture and synchronous microservices offer distinct advantages depending on operational priorities.",
+  "key_points": [],
+  "citations": [],
+  "candidates": [
+    {
+      "label": "Event-driven architecture",
+      "score": 0.62,
+      "rationale": "Better for asynchronous processing, resilience, and decoupling"
+    },
+    {
+      "label": "Synchronous microservices",
+      "score": 0.38,
+      "rationale": "Simpler debugging and request tracing, lower operational overhead"
+    }
+  ]
+}

@@ -182,6 +182,7 @@ class AmbiguityDetectedEvent(BaseEvent):
     ambiguous_phrase: str
     possible_interpretations: list[str]
     clarification_needed: str
+    dimensions: list[str] | None = None  # WP-2 additive for G9
 
 
 class ContradictionSource(BaseModel):
@@ -195,13 +196,23 @@ class ContradictionSource(BaseModel):
 
 
 class ContradictionDetectedEvent(BaseEvent):
-    """Irreconcilable source conflict (RF-04)."""
+    """Irreconcilable source conflict (RF-04).
+
+    WP-2.5 additions (optional, additive): claim, supporting_chunk_ids,
+    contradicting_chunk_ids, round.
+    """
 
     type: Literal[EventType.CONTRADICTION_DETECTED] = EventType.CONTRADICTION_DETECTED
     claim_id: str
     source_a: ContradictionSource
     source_b: ContradictionSource
     nature_of_conflict: str
+
+    # WP-2.5 additions (all optional for backward compat)
+    claim: str | None = None
+    supporting_chunk_ids: list[str] | None = None
+    contradicting_chunk_ids: list[str] | None = None
+    round: int | None = None
 
 
 class ContradictionResolvedEvent(BaseEvent):

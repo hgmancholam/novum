@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.seams.output import OutputRenderer, RenderContext, RenderedOutput
+from app.seams.output import RenderContext, RenderedOutput
 
 
 class ProseRenderer:

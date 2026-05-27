@@ -276,3 +276,18 @@ def _noop_agent_runner(
     stub = _NoopAgentRunner()
     monkeypatch.setattr("app.agent.runner.agent_runner", stub, raising=False)
     monkeypatch.setattr("app.main.agent_runner", stub, raising=False)
+
+
+@pytest.fixture
+def mock_llm_call(monkeypatch: pytest.MonkeyPatch):
+    """Mock the llm.call function for WP-2 / WP-2.5 tests.
+
+    Usage:
+        mock_llm_call.return_value = {...}  # Single return
+        mock_llm_call.side_effect = [...]   # Multiple calls with different returns
+    """
+    from unittest.mock import AsyncMock
+
+    mock = AsyncMock()
+    monkeypatch.setattr("app.llm.client.llm.call", mock)
+    return mock

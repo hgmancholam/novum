@@ -3,43 +3,38 @@
 All prompts are English-only (L-001). The synthesizer prompt instructs
 the LLM to reply in the user's language (Spanish by default) — this is
 data inside an English prompt, not a Spanish artifact.
+
+WP-2: added build_synthesizer_prompt() which constructs per-kind templates
+for the six AnswerKind values.
 """
 
 from __future__ import annotations
 
+from app.domain.enums import AnswerKind
 from app.llm.roles import LLMRole
 
-CLASSIFIER_SYSTEM_PROMPT = """You are a question classifier for a research agent. You decide whether a question is answerable by web research.
+CLASSIFIER_SYSTEM_PROMPT = """You are a question classifier for a research agent. You decide the type of question to route it properly.
+
+All question types are answerable; the routing determines which synthesis template to use.
 
 Question types:
-  1. Factual lookup (single verifiable fact)
-  2. Comparative (comparing entities)
-  3. Definitional (what is X? / is X an A or a B?)
-  4. Causal / explanatory (why / how does X happen?)
-  5. Aggregate (lists, summaries, syntheses across sources)
-  6. Subjective opinion (matter of personal taste, no objective answer)
-  7. Future prediction (genuinely unknowable, e.g. lottery numbers)
-  8. Personal advice / private information (requires the user's private data)
+- factual — single verifiable fact. Example: "What is the capital of Japan?"
+- comparative — explicit comparison of named alternatives, including "Should X use A or B?" style architecture decisions. Example: "Is PostgreSQL or MongoDB better for a small SaaS?", "Should a high-scale AI platform use event-driven architecture or synchronous microservices?"
+- definitional — asks what a concept means. Example: "What is event sourcing?"
+- state_of_art — asks the current best/leading approach for a technical problem. Example: "What is the most promising approach for long-term memory in AI agents?"
+- causal — asks why or how-caused. Example: "Why did the 2008 crisis happen?"
+- predictive_future — asks about future risks/trends/long-term outcomes with explicit time horizon or "long-term" wording. Example: "What are the long-term risks of AI-generated code in enterprise systems?", "Could AI systems replace mid-level software engineers within the next 10 years?"
+- subjective_opinion — asks for a personal "best" with NO objective criteria. Distinguish from comparative (which names alternatives). Example: "What is the best programming language?"
+- personal_private — solicits private/medical/financial advice about the user's own life. Example: "Should I quit my job?"
 
 Rules:
-- Types 1-5 ARE answerable by research. Set `answerable=true`.
-- Types 6-8 are NOT answerable. Set `answerable=false` and they will be reported as honest_unanswerable.
-- Default to ANSWERABLE for any question with a factual, definitional, or scientific component, even when the question wording is informal or asks "is X or Y?".
-- Scientific questions (physics, biology, chemistry, history, geography, technology) are almost always Type 3 or Type 4, NOT Type 6 — even if experts debate nuances.
-- A question only becomes Type 6 if there is genuinely no objective answer (e.g. "what is the best color?").
+- Default to comparative for any question naming two or more alternatives explicitly.
+- Default to state_of_art for "best/leading/cutting-edge X" when a technical criterion exists.
+- Only use subjective_opinion when NO objective criteria can apply (pure taste).
+- Only use personal_private when the question requires the user's private data to answer.
 - Language: questions may arrive in Spanish, English, or any other language. Classify by intent, not by spelling.
 
-Examples:
-  Q: "Is light a wave or a particle?" → type=3, answerable=true (definitional/physics).
-  Q: "¿La luz es onda o partícula?" → type=3, answerable=true (same question in Spanish).
-  Q: "Why is the sky blue?" → type=4, answerable=true (causal/physics).
-  Q: "Who won the 2022 World Cup?" → type=1, answerable=true (factual lookup).
-  Q: "Compare React and Vue." → type=2, answerable=true (comparative).
-  Q: "What's the best programming language?" → type=6, answerable=false (subjective opinion).
-  Q: "Will Bitcoin be worth $1M in 2030?" → type=7, answerable=false (future prediction).
-  Q: "What should I name my dog?" → type=8, answerable=false (personal advice).
-
-Output a JSON object matching the QuestionClassification schema with fields `question_type` (int 1-8), `rationale` (short string), and `answerable` (bool)."""
+Output a JSON object matching the QuestionClassification schema with fields `question_type` (string, one of the 8 values above in lowercase snake_case), `rationale` (short string), and `answerable` (bool, always true)."""
 
 
 PLANNER_SYSTEM_PROMPT = """You are a research planning assistant. Your job is to decompose questions into verifiable sub-claims.
@@ -107,3 +102,119 @@ ROLE_PROMPTS: dict[LLMRole, str] = {
     LLMRole.SYNTHESIZER: SYNTHESIZER_SYSTEM_PROMPT,
     LLMRole.JUDGE: JUDGE_SYSTEM_PROMPT,
 }
+
+
+# =============================================================================
+# WP-2: Synthesizer prompt builder with six AnswerKind-specific templates
+# =============================================================================
+
+_SHARED_SYSTEM_BLOCK = """You are Novum's synthesizer. You receive a research question and a curated
+evidence block. Produce a structured answer that strictly validates against
+the SynthesizedAnswer schema for the requested AnswerKind.
+
+Rules:
+- Cite only facts supported by the evidence block. Do not introduce outside knowledge.
+- Mark uncertainty explicitly via `remaining_uncertainties` when the evidence is thin.
+- Never fabricate citations. Every claim that uses a source MUST reference an
+  evidence id present in the input.
+- Be concise. Prose ≤ 6 short paragraphs. Bullet lists ≤ 8 items."""
+
+_CONTRADICTIONS_DIRECTIVE = """
+When the run flagged contradictions among sources, you MUST populate `contradictions` with at least one entry summarising the disagreement. Omitting it is a contract violation and the output will be rejected."""
+
+_KIND_BLOCKS = {
+    AnswerKind.DIRECT: """
+AnswerKind = DIRECT.
+Payload shape: populate `prose` (the answer in 1-3 sentences), `key_points`
+(≤ 5 bullets), and `citations`. Leave kind-specific fields (scenarios,
+candidates, criteria, redirect_alternatives, interpretation) as null.
+
+Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `direct`.""",
+    AnswerKind.WEIGHTED: """
+AnswerKind = WEIGHTED.
+Payload shape: populate `candidates` (2-6 `WeightedCandidate` entries each with
+label, score in [0,1], rationale). Provide `prose` as a one-paragraph overview.
+Leave scenarios, criteria, redirect_alternatives, interpretation null.
+
+Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `weighted`.""",
+    AnswerKind.SCENARIO: """
+AnswerKind = SCENARIO.
+Payload shape: populate `scenarios` (2-4 `ScenarioBranch` entries each with
+label, probability_band ∈ {{low, medium, high}}, summary, drivers list).
+Provide `prose` framing the question's predictive nature. Leave candidates,
+criteria, redirect_alternatives, interpretation null.
+
+Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `scenario`.""",
+    AnswerKind.TRADEOFF: """
+AnswerKind = TRADEOFF.
+Payload shape: populate `criteria` (3-6 `TradeoffCriterion` entries with
+name, weight in [0,1] summing roughly to 1.0, notes). Provide `prose`
+explaining the tradeoff frame. Leave scenarios, candidates,
+redirect_alternatives, interpretation null.
+
+Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `tradeoff`.""",
+    AnswerKind.ETHICAL_REDIRECT: """
+AnswerKind = ETHICAL_REDIRECT.
+Use when the question targets private/personal information you cannot
+ethically answer. Payload shape: populate `prose` (one short paragraph
+explaining why a direct answer is withheld) and `redirect_alternatives`
+(2-4 actionable, ethical alternatives). Leave scenarios, candidates,
+criteria, interpretation null.
+
+Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `ethical_redirect`.""",
+    AnswerKind.BEST_EFFORT: """
+AnswerKind = BEST_EFFORT.
+The evidence is incomplete or the question is ambiguous. Payload shape:
+populate `interpretation` (the most defensible reading of the question),
+`alternative_interpretations` (1-3 plausible alternatives), `prose`
+(the answer under the chosen interpretation), and `remaining_uncertainties`.
+Leave scenarios, candidates, criteria, redirect_alternatives null.
+
+Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `best_effort`.""",
+}
+
+_MAX_TOKENS_PER_KIND = {
+    AnswerKind.DIRECT: 800,
+    AnswerKind.BEST_EFFORT: 800,
+    AnswerKind.ETHICAL_REDIRECT: 400,
+    AnswerKind.SCENARIO: 1200,
+    AnswerKind.TRADEOFF: 1200,
+    AnswerKind.WEIGHTED: 1500,
+}
+
+
+def build_synthesizer_prompt(
+    question: str,
+    evidence: list[dict],  # list of {url, title, snippet}
+    answer_kind: AnswerKind,
+    user_language: str = "es",
+    requires_contradictions: bool = False,
+) -> tuple[str, int]:
+    """Build the system prompt for the synthesizer based on answer_kind.
+
+    Returns:
+        (system_prompt, max_tokens) — the complete prompt and token budget.
+    """
+    # Build evidence block
+    evidence_lines = []
+    for i, ev in enumerate(evidence, start=1):
+        evidence_lines.append(
+            f"[{i}] {ev.get('title', 'Untitled')}\n"
+            f"    URL: {ev.get('url', 'N/A')}\n"
+            f"    Snippet: {ev.get('snippet', '')}"
+        )
+    evidence_block = "\n\n".join(evidence_lines) if evidence_lines else "(No evidence)"
+
+    # Assemble system prompt
+    system_prompt = _SHARED_SYSTEM_BLOCK
+    if requires_contradictions:
+        system_prompt += _CONTRADICTIONS_DIRECTIVE
+
+    kind_block = _KIND_BLOCKS[answer_kind]
+    kind_block = kind_block.format(user_language=user_language)
+    system_prompt += kind_block
+
+    # Token budget
+    max_tokens = _MAX_TOKENS_PER_KIND[answer_kind]
+
+    return system_prompt, max_tokens

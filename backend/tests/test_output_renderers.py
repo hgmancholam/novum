@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.output.prose import ProseRenderer
 from app.output.registry import RendererRegistry, renderer_registry
 from app.output.structured import StructuredRenderer
-from app.seams.output import OutputRenderer, RenderContext, RenderedOutput
+from app.seams.output import OutputRenderer, RenderContext
 
 
 def make_context(

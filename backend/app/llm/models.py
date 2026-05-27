@@ -44,13 +44,13 @@ def _unwrap_schema_envelope(cls: type[BaseModel], value: Any) -> Any:
 class QuestionClassification(BaseModel):
     """Output of the classifier (RF-06 question typing).
 
-    ``question_type`` follows the eight-bucket taxonomy from
-    ``docs/understanding-phase/requirement-understanding.md``: types 1-5
-    are answerable by research, types 6-8 must terminate with
-    ``honest_unanswerable``.
+    ``question_type`` is one of the 8 ``QuestionType`` enum values (as a
+    string in lowercase snake_case: factual, comparative, definitional,
+    state_of_art, causal, predictive_future, subjective_opinion,
+    personal_private).
     """
 
-    question_type: int = Field(..., ge=1, le=8)
+    question_type: str
     rationale: str
     answerable: bool
 
@@ -104,6 +104,31 @@ class PlanOutput(BaseModel):
         return _unwrap_schema_envelope(cls, v)
 
 
+class ScenarioBranch(BaseModel):
+    """A scenario branch for predictive/future questions."""
+
+    label: str
+    probability_band: str = Field(..., pattern="^(low|medium|high)$")
+    summary: str
+    drivers: list[str]
+
+
+class WeightedCandidate(BaseModel):
+    """A weighted candidate for comparative questions with disagreement."""
+
+    label: str
+    score: float = Field(..., ge=0.0, le=1.0)
+    rationale: str
+
+
+class TradeoffCriterion(BaseModel):
+    """A tradeoff criterion for subjective opinion questions."""
+
+    name: str
+    weight: float = Field(..., ge=0.0, le=1.0)
+    notes: str
+
+
 class SynthesizedAnswer(BaseModel):
     """Final answer produced by the synthesizer."""
 
@@ -119,10 +144,75 @@ class SynthesizedAnswer(BaseModel):
     # the synthesizer renders one of the six AnswerKind-specific templates.
     answer_kind: AnswerKind | None = Field(default=None)
 
+    # Kind-specific payloads (WP-2) — exactly one populated when answer_kind is set
+    scenarios: list[ScenarioBranch] | None = None  # SCENARIO
+    candidates: list[WeightedCandidate] | None = None  # WEIGHTED
+    criteria: list[TradeoffCriterion] | None = None  # TRADEOFF
+    redirect_alternatives: list[str] | None = None  # ETHICAL_REDIRECT
+    interpretation: str | None = None  # BEST_EFFORT (top guess)
+    alternative_interpretations: list[str] | None = None  # BEST_EFFORT
+
+    # Cross-kind surfacing (G5 / G10) — visible to user
+    contradictions: list[str] | None = None
+    remaining_uncertainties: list[str] | None = None
+
     @model_validator(mode="before")
     @classmethod
     def _unwrap(cls, v: Any) -> Any:
         return _unwrap_schema_envelope(cls, v)
+
+    @model_validator(mode="after")
+    def _validate_kind_specific_fields(self, info) -> SynthesizedAnswer:
+        """Validate that the correct kind-specific field is populated.
+
+        Also enforces G10: when the run has contradictions, the synthesizer
+        must populate the contradictions field.
+        """
+        if self.answer_kind is None:
+            # Back-compat with WP-1 callers
+            return self
+
+        # Map each kind to its required field
+        kind_field_map = {
+            AnswerKind.SCENARIO: "scenarios",
+            AnswerKind.WEIGHTED: "candidates",
+            AnswerKind.TRADEOFF: "criteria",
+            AnswerKind.ETHICAL_REDIRECT: "redirect_alternatives",
+            AnswerKind.BEST_EFFORT: "interpretation",
+            AnswerKind.DIRECT: None,  # Uses prose/key_points/citations
+        }
+
+        # Check that the right field is populated
+        required_field = kind_field_map.get(self.answer_kind)
+        if required_field:
+            if getattr(self, required_field) is None:
+                raise ValueError(
+                    f"answer_kind={self.answer_kind.value} requires field "
+                    f"'{required_field}' to be populated"
+                )
+            # Ensure other kind-specific fields are None
+            for field_name in [
+                "scenarios",
+                "candidates",
+                "criteria",
+                "redirect_alternatives",
+                "interpretation",
+            ]:
+                if field_name != required_field and getattr(self, field_name) is not None:
+                    raise ValueError(
+                        f"answer_kind={self.answer_kind.value} must not populate "
+                        f"'{field_name}'"
+                    )
+
+        # G10: contradiction enforcement
+        requires_contradictions = info.context.get("_requires_contradictions", False)
+        if requires_contradictions and not self.contradictions:
+            raise ValueError(
+                "contradictions required: run surfaced ContradictionDetectedEvent "
+                "but synthesizer omitted them"
+            )
+
+        return self
 
 
 class JudgeVerdict(BaseModel):
