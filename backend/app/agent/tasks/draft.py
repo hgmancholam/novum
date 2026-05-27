@@ -42,6 +42,13 @@ class IssueToClaimMapping(BaseModel):
     claim_ids: list[str] = Field(default_factory=list)
 
 
+class _RawSynthesizerPayload(BaseModel):
+    # instructor >= 1.x rejects ``dict`` as response_model; this permissive
+    # wrapper captures arbitrary keys so the caller can run a second-pass
+    # ``SynthesizedAnswer.model_validate`` with a validation context.
+    model_config = {"extra": "allow"}
+
+
 def _format_evidence_for_claim(state: RunState, claim: SubClaim) -> str:
     items = [e for e in state.evidence if e.claim_id == claim.id]
     if not items:
@@ -117,13 +124,18 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": state.question},
                 ],
-                response_model=dict,  # Get raw dict first
+                response_model=_RawSynthesizerPayload,
                 max_tokens=max_tokens,
             )
 
             # Validate with context
+            payload_dict = (
+                raw_payload.model_dump()
+                if hasattr(raw_payload, "model_dump")
+                else raw_payload
+            )
             result = SynthesizedAnswer.model_validate(
-                raw_payload,
+                payload_dict,
                 context={"_requires_contradictions": requires_contradictions},
             )
 

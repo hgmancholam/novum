@@ -54,9 +54,10 @@ class _LLMStub:
     async def __call__(self, *_args: Any, **kwargs: Any) -> Any:
         model = kwargs["response_model"]
         name = model.__name__
-        # WP-2: draft.py calls synthesizer with response_model=dict and validates manually.
-        # Tests queue under "SynthesizedAnswer"; redirect dict lookups to it.
-        if name == "dict":
+        # WP-2: draft.py calls synthesizer with a permissive Pydantic wrapper
+        # (_RawSynthesizerPayload) and validates manually. Tests queue under
+        # "SynthesizedAnswer"; redirect both legacy "dict" and the wrapper to it.
+        if name in ("dict", "_RawSynthesizerPayload"):
             queue = self._queues.get("SynthesizedAnswer", [])
             if queue:
                 value = queue.pop(0)

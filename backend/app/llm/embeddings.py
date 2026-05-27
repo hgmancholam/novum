@@ -28,7 +28,7 @@ async def embed(
 
     Args:
         texts: List of text strings to embed
-        model: Optional model override (defaults to settings.EMBEDDING_MODEL)
+        model: Optional model override (defaults to settings.embedding_model)
 
     Returns:
         List of numpy arrays, one per input text. Each array has shape (dim,)
@@ -40,7 +40,7 @@ async def embed(
     if not texts:
         return []
 
-    model_id = model or settings.EMBEDDING_MODEL
+    model_id = model or settings.embedding_model
 
     logger.info(
         "embedding_start",
@@ -53,7 +53,7 @@ async def embed(
     response = await aembedding(
         model=model_id,
         input=texts,
-        api_key=settings.OPENAI_API_KEY.get_secret_value() if settings.OPENAI_API_KEY else None,
+        api_key=settings.openai_api_key.get_secret_value() if settings.openai_api_key else None,
     )
 
     embeddings = [np.array(item["embedding"], dtype=np.float32) for item in response.data]
