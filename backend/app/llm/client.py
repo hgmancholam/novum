@@ -36,7 +36,15 @@ litellm.api_key = settings.github_token
 # ``instructor.from_litellm`` and ``litellm.acompletion`` are not fully
 # typed; we accept that opacity at the boundary and re-establish strict
 # typing at the :meth:`LLMClient.call` signature.
-client: Any = instructor.from_litellm(litellm.acompletion)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+#
+# ``Mode.JSON`` forces prompt-based JSON output instead of OpenAI tool
+# calls, which the meta/Llama-* and deepseek/* models served by GitHub
+# Models do not support (they return ``OpenAIException - invalid input
+# error`` when ``tools=[...]`` is present).
+client: Any = instructor.from_litellm(  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    litellm.acompletion,
+    mode=instructor.Mode.JSON,
+)
 
 
 def _has_system_message(messages: list[dict[str, str]]) -> bool:
