@@ -486,3 +486,125 @@ async def test_fork_rejects_cross_run_event(
         await svc.fork_run(
             run_a.id, RunForkRequest(event_id=event_b.id), seeded_user
         )
+
+
+# ---------------------------------------------------------------------------
+# Agent runner wiring (BRD-19 / IP-19 §6.1 — T9.1)
+# ---------------------------------------------------------------------------
+
+
+class _RecordingAgentRunner:
+    """Records every call so tests can assert RunService delegates correctly."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, object]] = []
+        self.await_terminal_raises: BaseException | None = None
+
+    async def start(self, run_id: uuid.UUID) -> None:
+        self.calls.append(("start", run_id))
+
+    def cancel(self, run_id: uuid.UUID) -> bool:
+        self.calls.append(("cancel", run_id))
+        return True
+
+    async def await_terminal(
+        self, run_id: uuid.UUID, timeout: float = 5.0
+    ) -> None:
+        self.calls.append(("await_terminal", run_id))
+        if self.await_terminal_raises is not None:
+            raise self.await_terminal_raises
+
+    async def shutdown(self) -> None:
+        self.calls.append(("shutdown", None))
+
+    def is_running(self, run_id: uuid.UUID) -> bool:  # noqa: ARG002
+        return False
+
+
+@pytest.mark.real_agent_runner
+async def test_create_run_invokes_runner_start(
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _RecordingAgentRunner()
+    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+
+    svc = RunService(sqlite_session)
+    resp = await svc.create_run(_make_create(), seeded_user)
+
+    assert fake.calls == [("start", resp.id)]
+
+
+@pytest.mark.real_agent_runner
+async def test_cancel_run_invokes_runner_cancel(
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _RecordingAgentRunner()
+    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+
+    run = await _create_run(sqlite_session, seeded_user)
+    fake.calls.clear()
+    svc = RunService(sqlite_session)
+    await svc.cancel_run(run.id, seeded_user)
+
+    kinds = [c[0] for c in fake.calls]
+    assert "cancel" in kinds
+    assert fake.calls[-1] == ("cancel", run.id) or ("cancel", run.id) in fake.calls
+
+
+@pytest.mark.real_agent_runner
+async def test_resume_run_awaits_terminal_then_starts(
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _RecordingAgentRunner()
+    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+
+    run = await _create_run(sqlite_session, seeded_user)
+    run.stop_reason = StopReason.ERRORED.value
+    sqlite_session.add(
+        Event(
+            run_id=run.id,
+            step_index=1,
+            type="AgentErrored",
+            payload={
+                "error_type": "LLMError",
+                "error_message": "boom",
+                "recoverable": True,
+            },
+        )
+    )
+    await sqlite_session.commit()
+    fake.calls.clear()
+
+    svc = RunService(sqlite_session)
+    await svc.resume_run(run.id, seeded_user)
+
+    kinds = [c[0] for c in fake.calls]
+    assert kinds[0] == "await_terminal"
+    assert kinds[-1] == "start"
+
+
+@pytest.mark.real_agent_runner
+async def test_resume_run_timeout_propagates_409(
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.exceptions import RunStillTerminatingError
+
+    fake = _RecordingAgentRunner()
+    fake.await_terminal_raises = RunStillTerminatingError("x")
+    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+
+    run = await _create_run(sqlite_session, seeded_user)
+    run.stop_reason = StopReason.ERRORED.value
+    await sqlite_session.commit()
+
+    svc = RunService(sqlite_session)
+    with pytest.raises(RunStillTerminatingError):
+        await svc.resume_run(run.id, seeded_user)

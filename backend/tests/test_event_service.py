@@ -162,3 +162,36 @@ async def test_append_event_default_still_commits(
     await svc.append_event(run.id, QuestionAskedEvent(question="commit too"))
 
     assert commit_calls == 1
+
+
+# ---------------------------------------------------------------------------
+# get_latest_event (IP-19 T2) — supervisor uses this to detect prior STOPPED.
+# ---------------------------------------------------------------------------
+
+
+async def test_get_latest_event_returns_none_for_empty_run(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    run = await _make_run(sqlite_session, seeded_user)
+    svc = EventService(sqlite_session)
+
+    latest = await svc.get_latest_event(run.id)
+
+    assert latest is None
+
+
+async def test_get_latest_event_returns_highest_step_index(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    run = await _make_run(sqlite_session, seeded_user)
+    svc = EventService(sqlite_session)
+
+    await svc.append_event(run.id, QuestionAskedEvent(question="q1"))
+    await svc.append_event(run.id, QuestionAskedEvent(question="q2"))
+    e3 = await svc.append_event(run.id, QuestionAskedEvent(question="q3"))
+
+    latest = await svc.get_latest_event(run.id)
+
+    assert latest is not None
+    assert latest.id == e3.id
+    assert latest.step_index == 3

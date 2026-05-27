@@ -313,3 +313,126 @@ async def test_health_route_registered_exactly_once() -> None:
         r for r in fastapi_app.routes if getattr(r, "path", None) == "/health"
     ]
     assert len(health_paths) == 1
+
+
+# ---------------------------------------------------------------------------
+# Agent runner wiring at the route layer (BRD-19 / IP-19 §6.1 — T10)
+# ---------------------------------------------------------------------------
+
+
+class _RouteRecordingRunner:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, object]] = []
+
+    async def start(self, run_id) -> None:
+        self.calls.append(("start", run_id))
+
+    def cancel(self, run_id) -> bool:
+        self.calls.append(("cancel", run_id))
+        return True
+
+    async def await_terminal(self, run_id, timeout: float = 5.0) -> None:
+        self.calls.append(("await_terminal", run_id))
+
+    async def shutdown(self) -> None:
+        self.calls.append(("shutdown", None))
+
+    def is_running(self, run_id) -> bool:
+        return False
+
+
+@pytest.mark.real_agent_runner
+async def test_post_runs_invokes_runner_start(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _RouteRecordingRunner()
+    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+
+    response = await client.post(
+        "/api/runs",
+        json={
+            "question": "What is the capital of France?",
+            "output_format": "prose",
+            "confidence_threshold": 0.7,
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    run_id = response.json()["id"]
+    assert ("start", __import__("uuid").UUID(run_id)) in fake.calls
+
+
+@pytest.mark.real_agent_runner
+async def test_post_cancel_invokes_runner_cancel(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _RouteRecordingRunner()
+    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+
+    create = await client.post(
+        "/api/runs",
+        json={"question": "What is the capital of France?", "output_format": "prose", "confidence_threshold": 0.7},
+        headers=auth_headers,
+    )
+    run_id = create.json()["id"]
+    fake.calls.clear()
+
+    response = await client.post(f"/api/runs/{run_id}/cancel", headers=auth_headers)
+
+    assert response.status_code == 200
+    kinds = [c[0] for c in fake.calls]
+    assert "cancel" in kinds
+
+
+@pytest.mark.real_agent_runner
+async def test_post_resume_awaits_terminal_then_starts(
+    client: AsyncClient,
+    sqlite_session: AsyncSession,
+    auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.domain.enums import StopReason
+    from app.models import Run
+
+    fake = _RouteRecordingRunner()
+    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+
+    create = await client.post(
+        "/api/runs",
+        json={"question": "What is the capital of France?", "output_format": "prose", "confidence_threshold": 0.7},
+        headers=auth_headers,
+    )
+    run_id = create.json()["id"]
+
+    # Mark errored with an anchor event so resume can locate it.
+    import uuid as _uuid
+
+    run = await sqlite_session.get(Run, _uuid.UUID(run_id))
+    assert run is not None
+    run.stop_reason = StopReason.ERRORED.value
+    sqlite_session.add(
+        Event(
+            run_id=run.id,
+            step_index=1,
+            type="AgentErrored",
+            payload={
+                "error_type": "LLMError",
+                "error_message": "boom",
+                "recoverable": True,
+            },
+        )
+    )
+    await sqlite_session.commit()
+    fake.calls.clear()
+
+    response = await client.post(f"/api/runs/{run_id}/resume", headers=auth_headers)
+
+    assert response.status_code == 200
+    kinds = [c[0] for c in fake.calls]
+    assert kinds[0] == "await_terminal"
+    assert kinds[-1] == "start"

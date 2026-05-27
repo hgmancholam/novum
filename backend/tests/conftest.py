@@ -236,3 +236,43 @@ async def auth_headers(seeded_user: str, sqlite_session: AsyncSession) -> dict[s
         "X-Username": seeded_user,
         "X-Token": str(sqlite_session.info["test_user_token"]),
     }
+
+
+class _NoopAgentRunner:
+    """Drop-in stub for ``AgentRunner`` used by tests that do not opt in.
+
+    Why this exists: ``RunService.create_run`` (BRD-19 / IP-19) calls
+    ``agent_runner.start(run.id)`` which would spawn a real orchestrator
+    task during plain unit tests, hammer GitHub Models, and leak tasks
+    between tests. Tests that need the real runner must mark themselves
+    ``@pytest.mark.real_agent_runner``.
+    """
+
+    async def start(self, run_id: uuid.UUID) -> None:  # noqa: ARG002
+        return None
+
+    def cancel(self, run_id: uuid.UUID) -> bool:  # noqa: ARG002
+        return False
+
+    async def await_terminal(
+        self, run_id: uuid.UUID, timeout: float = 5.0
+    ) -> None:  # noqa: ARG002
+        return None
+
+    async def shutdown(self) -> None:
+        return None
+
+    def is_running(self, run_id: uuid.UUID) -> bool:  # noqa: ARG002
+        return False
+
+
+@pytest.fixture(autouse=True)
+def _noop_agent_runner(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default to a no-op AgentRunner; opt-out with ``real_agent_runner`` marker."""
+    if "real_agent_runner" in request.keywords:
+        return
+    stub = _NoopAgentRunner()
+    monkeypatch.setattr("app.services.run_service.agent_runner", stub, raising=False)
+    monkeypatch.setattr("app.main.agent_runner", stub, raising=False)

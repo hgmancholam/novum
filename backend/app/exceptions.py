@@ -63,3 +63,27 @@ class UnauthorizedError(HTTPException):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized",
         )
+
+
+class RunAlreadyRunningError(HTTPException):
+    """A task for this run is already registered (RF-05 single-writer)."""
+
+    def __init__(self, run_id: str) -> None:
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Run {run_id} is already running",
+        )
+
+
+class RunStillTerminatingError(HTTPException):
+    """Prior task did not settle within the resume grace window (BRD-19 §4.6.1)."""
+
+    def __init__(self, run_id: str, retry_after_seconds: int = 5) -> None:
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "run_still_terminating",
+                "run_id": run_id,
+                "retry_after_seconds": retry_after_seconds,
+            },
+        )

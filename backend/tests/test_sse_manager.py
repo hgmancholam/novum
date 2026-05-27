@@ -78,3 +78,68 @@ def test_reset_drops_all_state(manager: ConnectionManager) -> None:
 
 def test_module_singleton_is_connection_manager_instance() -> None:
     assert isinstance(connection_manager, ConnectionManager)
+
+
+# ---------------------------------------------------------------------------
+# subscribe / unsubscribe / publish (IP-19 T3) — live event fan-out for runner.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_subscribe_returns_bounded_queue(manager: ConnectionManager) -> None:
+    from app.sse.manager import _QUEUE_MAXSIZE
+
+    run_id = uuid4()
+    q = manager.subscribe(run_id)
+    assert q.maxsize == _QUEUE_MAXSIZE
+    assert q.empty()
+
+
+@pytest.mark.asyncio
+async def test_unsubscribe_is_idempotent_and_cleans_empty_bucket(
+    manager: ConnectionManager,
+) -> None:
+    run_id = uuid4()
+    q1 = manager.subscribe(run_id)
+    q2 = manager.subscribe(run_id)
+
+    manager.unsubscribe(run_id, q1)
+    manager.unsubscribe(run_id, q1)  # second call: no-op (already gone)
+    manager.unsubscribe(run_id, q2)
+    # Bucket cleaned up entirely.
+    assert run_id not in manager._subscribers  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_publish_fans_out_to_all_subscribers(
+    manager: ConnectionManager,
+) -> None:
+    run_id = uuid4()
+    q1 = manager.subscribe(run_id)
+    q2 = manager.subscribe(run_id)
+
+    event = {"type": "QuestionAsked", "step_index": 1}
+    await manager.publish(run_id, event)
+
+    assert q1.get_nowait() == event
+    assert q2.get_nowait() == event
+
+
+@pytest.mark.asyncio
+async def test_publish_drops_oldest_when_queue_full(
+    manager: ConnectionManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Shrink the cap so the test stays fast and intent-revealing.
+    monkeypatch.setattr("app.sse.manager._QUEUE_MAXSIZE", 2)
+
+    run_id = uuid4()
+    q = manager.subscribe(run_id)
+
+    await manager.publish(run_id, {"step_index": 1})
+    await manager.publish(run_id, {"step_index": 2})
+    # Queue is now full; publishing again must drop the oldest (step_index=1).
+    await manager.publish(run_id, {"step_index": 3})
+
+    assert q.get_nowait() == {"step_index": 2}
+    assert q.get_nowait() == {"step_index": 3}
+    assert q.empty()

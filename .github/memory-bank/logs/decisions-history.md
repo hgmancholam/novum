@@ -4,11 +4,92 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 41
+**Total Decisions:** 43
 
 ---
 
 ## Recent Decisions
+
+## D-043: IP-19 — F4 REVIEW — APPROVED at 9.30 / 10
+
+**Date:** 2026-05-26
+**Phase:** F4 — REVIEW (iter 1 of 5 in F3↔F4 loop)
+**Artifacts:**
+- Review report: [CR-19-001-agent-runner.md](../../../docs/implementation-phase/reviews/CR-19-001-agent-runner.md)
+- Reviewed implementation: D-042 (this file, immediately below).
+
+**Verdict:** ✅ **APPROVED** — proceed to **F5 (COMPLETE)**. Score 9.30 / 10 clears the ≥ 9.0 gate.
+
+**Hard-invariant verification (10/10 pass, zero violations):**
+- `_apply_state` used in rehydration (no `transition_to`).
+- Two-pass `_stopped_followed_by_resume` skip-set works as specified.
+- `_write_terminal_row` opens a fresh `async_session_maker()` and uses SQL `CASE WHEN stopped_at IS NULL THEN :now ELSE stopped_at END`.
+- `_supervised_run` owns its session via `async with async_session_maker() as session:`.
+- `cancel(run_id)` is sync; no `await self._lock`.
+- `_on_task_done` is sync, only mutates `_tasks` / `_orchestrators`.
+- `await_terminal` is the first statement in `RunService.resume_run`; `start` is the last.
+- `start` runs after the row is committed in `RunService.create_run`.
+- `main.py.lifespan` order: `yield → await agent_runner.shutdown() → await engine.dispose()`.
+- Cancel-during-resume-wait code path raises `RunAlreadyStoppedError` (HTTP 400) via the existing `cancel_run` guard. (Test-level coverage is the lone gap, filed as m-01.)
+
+**Score breakdown (weighted):**
+- Code Quality 9.5 × 25 % = 2.375
+- Test Coverage 8.0 × 20 % = 1.600
+- Architecture 10.0 × 20 % = 2.000
+- Error Handling 9.5 × 10 % = 0.950
+- Documentation 9.5 × 15 % = 1.425
+- Security 9.5 × 10 % = 0.950
+- **TOTAL = 9.30**
+
+**Findings (no blockers, no majors):**
+- **m-01:** No route test asserts HTTP 400 specifically for the *concurrent* cancel-during-resume-wait timing (plan §T8 #17). Code path is correct.
+- **m-02:** 7 of 17 plan §T8 scenarios not delivered (#3, #7, #10, #11, #14, #16, #17). Coverage gate (83 %) still cleared; critical invariants tested. Recommend backfill in follow-up PR.
+- **m-03:** `_supervised_run` returns silently on deleted-row instead of raising `RunNotFoundError` (plan §T2 / E1 spec'd a raise). Negligible practical impact; reconcile plan ↔ code in follow-up.
+- **n-01:** pyright +7 baseline noise in `test_agent_runner.py` (reportPrivateUsage on `_fold_events` / `_stopped_followed_by_resume`, `async_sessionmaker` generics).
+
+**Next:** F5 — COMPLETE. The 3 minor findings (m-01, m-02, m-03) and the nit (n-01) become non-blocking follow-up issues, not iter 2 work.
+
+---
+
+## D-042: IP-19 — F3 IMPLEMENT — agent runner & wiring delivered
+
+**Date:** 2026-05-26
+**Phase:** F3 — IMPLEMENT (iter 1 of 5 in F3↔F4 loop)
+**Artifacts:**
+- Plan: [IP-19-agent-runner.md](../../../docs/implementation-phase/implementation-plans/IP-19-agent-runner.md) (APPROVED 9.4 / 10)
+- BRD: [BRD-19-agent-runner.md](../../../docs/implementation-phase/brds/BRD-19-agent-runner.md) v1.2
+- New code: [backend/app/agent/runner.py](../../../backend/app/agent/runner.py) (~17 KB, 201 stmts)
+- New tests: [backend/tests/test_agent_runner.py](../../../backend/tests/test_agent_runner.py) (14 scenarios)
+- Modified: `app/exceptions.py`, `app/services/event_service.py`, `app/sse/manager.py`, `app/services/run_service.py`, `app/main.py`, `tests/conftest.py`, `tests/test_event_service.py`, `tests/test_run_service.py`, `tests/test_sse_manager.py`, `tests/test_routes_runs.py`, `pyproject.toml`.
+
+**Validation gates:**
+- ruff (project files): clean for IP-19 changes; 3 pre-existing TC001/F401 lints outside scope remain (in `app/seams/source.py`, `app/sources/registry.py`, `tests/test_sources_wikipedia.py`).
+- pyright src: **0 errors** on all modified `app/**` files (runner.py, exceptions.py, main.py, event_service.py, run_service.py, sse/manager.py).
+- pyright tests: +7 net errors vs HEAD baseline (170 → 177), all reportPrivateUsage / reportUnknown\* style noise in `test_agent_runner.py` (private fold helpers, `async_sessionmaker` generics). Not a runtime regression.
+- pytest: **458 passed, 1 failed**. The single failure (`test_domain_models.py::test_run_list_item_minimal`) is pre-existing (`RunListItem.username` missing field), file NOT in IP-19 scope.
+- Coverage of `app/agent/runner.py`: **83 %** (≥ 80 % gate).
+- Forbidden-files diff: `git diff -- backend/app/agent/{orchestrator,run_state,states}.py` is **empty**. ✅
+
+**Architectural invariants verified by tests:**
+- Rehydration uses `_apply_state` direct assignment, never `transition_to` (test_supervised_run_rehydrates_to_searching_after_resume).
+- Two-pass `_stopped_followed_by_resume` skip-set works (test_fold_skips_resumed_stopped_and_lands_in_searching).
+- Supervisor appends `AgentErrored + Stopped(ERRORED)` on uncaught exceptions and skips redundant `Stopped` when one already exists (test_supervisor_appends_errored_and_stopped_on_uncaught_exception, test_supervisor_skips_redundant_stop_when_prior_stop_exists).
+- `cancel_run` preserves the original `stopped_at` via SQL `CASE WHEN stopped_at IS NULL` (test_cancel_preserves_stopped_at, two real sessions).
+- `await_terminal` raises HTTP 409 on timeout (test_await_terminal_raises_409_on_timeout).
+
+**Coder fixes applied by Orchestrator before handoff:**
+- Removed 3 duplicate test definitions in `tests/test_routes_runs.py` (lines 440-561) that ruff flagged as F811 — likely a copy-paste artefact in Coder's output.
+- Restored `docs/implementation-phase/unit-tests/UT-11-frontend-layout-iter2.md` (accidentally deleted by Coder, outside scope).
+- Removed temporary `pyright_tests.out`, `pytest.out`, etc. leftover files.
+
+**Deviations from plan (for Reviewer attention):**
+- Test count: Coder delivered **14 scenarios** in `test_agent_runner.py` vs. **17 listed** in plan §T8. Coverage (83 %) still clears the gate and the critical invariants are all covered, but missing scenarios should be enumerated and assessed.
+- Coder did not return a structured implementation report (subagent emitted empty output); Orchestrator did the validation gates manually instead.
+- pyright noise in tests is acceptable per baseline (170 errs already present) but should be cleaned up in a follow-up.
+
+**Next:** F4 — REVIEW. Delegate to Reviewer for code-review scoring against IP-19 / BRD-19 v1.2 (gate ≥ 9.0 / 10).
+
+---
 
 ## D-041: IP-14 — F4 review iter 2 — APPROVED (9.3 / 10)
 

@@ -111,3 +111,20 @@ class EventService:
     async def get_event(self, event_id: UUID) -> Event | None:
         """Get a single event by ID."""
         return await self.db.get(Event, event_id)
+
+    async def get_latest_event(self, run_id: UUID) -> Event | None:
+        """Return the highest-step_index Event row for ``run_id`` (DESC limit 1).
+
+        Used by the runner supervisor (BRD-19 §4.8) to decide whether the
+        orchestrator already emitted a terminal event before raising. Returns
+        the ORM object, not the SSE-shaped dict, so callers can compare
+        ``event.type == EventType.STOPPED.value`` directly.
+        """
+        query = (
+            select(Event)
+            .where(Event.run_id == run_id)
+            .order_by(Event.step_index.desc())
+            .limit(1)
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
