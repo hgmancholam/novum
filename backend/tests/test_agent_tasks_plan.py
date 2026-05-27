@@ -74,3 +74,29 @@ async def test_revise_plan_attaches_attempt_number(mock_create: AsyncMock) -> No
     assert event.previous_sub_claims == previous
     assert [c.id for c in event.new_sub_claims] == ["c1"]
     assert event.new_sub_claims[0].status == "pending"
+
+
+async def test_create_plan_scales_claim_budget_by_question_type(
+    mock_create: AsyncMock,
+) -> None:
+    """Trivial factual questions request a smaller claim budget than
+    state-of-the-art ones, so the planner does not over-decompose.
+    """
+    from app.domain.enums import QuestionType
+
+    mock_create.return_value = PlanOutput(
+        sub_claims=[SubClaimOutput(id="c1", text="x", rationale="r")],
+        overall_rationale="ok",
+    )
+
+    await plan.create_plan("Trivia?", question_type=QuestionType.FACTUAL)
+    factual_msg = mock_create.call_args.kwargs["messages"][-1]["content"]
+    assert "1-2" in factual_msg
+
+    await plan.create_plan("State?", question_type=QuestionType.STATE_OF_ART)
+    state_msg = mock_create.call_args.kwargs["messages"][-1]["content"]
+    assert "3-6" in state_msg
+
+
+def test_claim_budget_defaults_to_middle_range_when_unknown() -> None:
+    assert plan._claim_budget(None) == (3, 5)

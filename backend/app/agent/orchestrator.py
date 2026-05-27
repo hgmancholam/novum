@@ -149,7 +149,10 @@ class AgentOrchestrator:
             self.state.question = event.normalized_question
 
     async def _handle_planning(self) -> None:
-        event = await create_plan(self.state.question)
+        event = await create_plan(
+            self.state.question,
+            question_type=self.state.question_type,
+        )
         self.state.sub_claims = list(event.sub_claims)
         await self.emit(event)
         self.state.transition_to(AgentState.CRITIQUING)
@@ -172,6 +175,7 @@ class AgentOrchestrator:
             self.state.sub_claims,
             attempt_number=self.state.plan_revision_count,
             critique_issues=None,
+            question_type=self.state.question_type,
         )
         await self.emit(revised)
         self.state.sub_claims = list(revised.new_sub_claims)

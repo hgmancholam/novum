@@ -6,6 +6,7 @@ All three steps share the planner role (O-01). The critic step uses
 
 from __future__ import annotations
 
+from app.domain.enums import QuestionType
 from app.domain.events import (
     PlanCreatedEvent,
     PlanCritiquedEvent,
@@ -14,15 +15,50 @@ from app.domain.events import (
 )
 from app.llm import CritiqueOutput, LLMRole, PlanOutput, llm
 
+# Sub-claim budget per question complexity. Trivial questions (a single
+# fact, a definitional yes/no) collapse to 1-2 claims so the agent
+# does not spin through 14 iterations chasing coverage on a question
+# that has one answer. Aggregate / state-of-the-art questions keep the
+# larger envelope. When the type is unknown we use a conservative
+# middle range.
+CLAIM_BUDGETS: dict[QuestionType, tuple[int, int]] = {
+    QuestionType.FACTUAL: (1, 2),
+    QuestionType.DEFINITIONAL: (1, 2),
+    QuestionType.COMPARATIVE: (2, 4),
+    QuestionType.CAUSAL: (2, 4),
+    QuestionType.STATE_OF_ART: (3, 6),
+    QuestionType.PREDICTIVE_FUTURE: (2, 4),
+    QuestionType.SUBJECTIVE_OPINION: (2, 4),
+    QuestionType.PERSONAL_PRIVATE: (1, 3),
+}
+_DEFAULT_BUDGET: tuple[int, int] = (3, 5)
+
+
+def _claim_budget(question_type: QuestionType | None) -> tuple[int, int]:
+    if question_type is None:
+        return _DEFAULT_BUDGET
+    return CLAIM_BUDGETS.get(question_type, _DEFAULT_BUDGET)
+
 
 def _format_claims(sub_claims: list[SubClaim]) -> str:
     return "\n".join(f"- {c.id}: {c.text}" for c in sub_claims)
 
 
-async def create_plan(question: str) -> PlanCreatedEvent:
-    """Create the initial plan for ``question``."""
+async def create_plan(
+    question: str,
+    question_type: QuestionType | None = None,
+) -> PlanCreatedEvent:
+    """Create the initial plan for ``question``.
+
+    ``question_type`` (when known) is used to scale the number of
+    sub-claims requested from the planner so trivial questions stay
+    short and complex syntheses still get a richer plan.
+    """
+    lo, hi = _claim_budget(question_type)
     user_msg = (
-        f"Decompose the following question into 3-7 verifiable sub-claims.\n\n"
+        f"Decompose the following question into {lo}-{hi} verifiable sub-claims.\n"
+        f"For a trivial single-fact question, prefer the lower bound "
+        f"({lo}); do not pad with adjacent or background claims.\n\n"
         f"Question: {question}\n"
     )
     result = await llm.call(
@@ -63,15 +99,17 @@ async def revise_plan(
     current_claims: list[SubClaim],
     attempt_number: int,
     critique_issues: list[str] | None = None,
+    question_type: QuestionType | None = None,
 ) -> PlanRevisedEvent:
     """Revise the plan after a rejected critique."""
+    lo, hi = _claim_budget(question_type)
     issues_block = "\n".join(f"- {i}" for i in critique_issues) if critique_issues else "(none)"
     user_msg = (
         f"Revise the research plan based on critique feedback.\n\n"
         f"Original question: {question}\n"
         f"Current sub-claims:\n{_format_claims(current_claims)}\n\n"
         f"Critique issues:\n{issues_block}\n\n"
-        f"Return an improved plan."
+        f"Return an improved plan with {lo}-{hi} verifiable sub-claims."
     )
     result = await llm.call(
         role=LLMRole.PLANNER,

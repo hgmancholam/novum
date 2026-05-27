@@ -47,7 +47,11 @@ PLANNER_SYSTEM_PROMPT = """You are a research planning assistant. Your job is to
 Guidelines:
 1. Each sub-claim should be independently verifiable
 2. Sub-claims should be mutually exclusive and collectively exhaustive
-3. Prefer 3-7 sub-claims per question
+3. Scale the number of sub-claims to the question. The user message tells
+   you the target range; respect it. Trivial single-fact questions (e.g.
+   "who won the 2022 World Cup?", "is light a wave or a particle?") need
+   only 1-2 claims. Do not invent adjacent or background claims to pad
+   the plan.
 4. Each sub-claim should be factual, not speculative
 5. Number sub-claims as c1, c2, c3, etc.
 
