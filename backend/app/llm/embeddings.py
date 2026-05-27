@@ -15,6 +15,7 @@ import structlog
 from litellm import aembedding
 
 from app.config import settings
+from app.llm.client import _TOKEN_POOL, _call_with_token_fallback
 
 logger = structlog.get_logger()
 
@@ -48,13 +49,25 @@ async def embed(
         num_texts=len(texts),
     )
 
-    # litellm.aembedding returns a response object with .data = list[dict]
-    # where each dict has {"embedding": list[float], "index": int, ...}
-    response = await aembedding(
-        model=model_id,
-        input=texts,
-        api_key=settings.openai_api_key.get_secret_value() if settings.openai_api_key else None,
-    )
+    # Prefer dedicated OpenAI key when present; otherwise rotate through
+    # the GitHub PAT pool so embeddings benefit from the same per-token
+    # fallback as chat completions.
+    if settings.openai_api_key:
+        response = await aembedding(
+            model=model_id,
+            input=texts,
+            api_key=settings.openai_api_key.get_secret_value(),
+        )
+    else:
+        async def _do(token: str):
+            return await aembedding(
+                model=model_id,
+                input=texts,
+                api_base=settings.llm_api_base,
+                api_key=token,
+            )
+
+        response = await _call_with_token_fallback(_do) if _TOKEN_POOL else await _do(settings.github_token)
 
     embeddings = [np.array(item["embedding"], dtype=np.float32) for item in response.data]
 

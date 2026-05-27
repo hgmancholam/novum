@@ -12,6 +12,7 @@ fallback) with JudgeProviderDegradedEvent emission on degradation.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from itertools import cycle
 from typing import Any, TypeVar, cast
 
@@ -19,6 +20,7 @@ import instructor
 import litellm
 import structlog
 import tiktoken
+from instructor.core import InstructorRetryException
 from litellm.exceptions import APIConnectionError, AuthenticationError, RateLimitError
 from pydantic import BaseModel
 
@@ -79,6 +81,46 @@ _TOKEN_ROTATION = cycle(_TOKEN_POOL)
 def _next_token() -> str:
     """Return the next GitHub PAT from the rotation pool."""
     return cast("str", next(_TOKEN_ROTATION))
+
+
+R = TypeVar("R")
+
+
+def _is_rate_limit(exc: BaseException) -> bool:
+    if isinstance(exc, RateLimitError):
+        return True
+    if isinstance(exc, InstructorRetryException):
+        msg = str(exc)
+        return "RateLimitError" in msg or "Too many requests" in msg or "429" in msg
+    return False
+
+
+async def _call_with_token_fallback(
+    make_call: Callable[[str], Awaitable[R]],
+) -> R:
+    """Try each PAT in the rotation pool, advancing on rate-limit.
+
+    Only rate-limit errors trigger the inner fallback; any other
+    exception propagates immediately so tenacity (or the caller) can
+    decide what to do. Raises the last rate-limit exception only when
+    *all* tokens in the pool have been exhausted.
+    """
+    last_exc: BaseException | None = None
+    for _ in range(len(_TOKEN_POOL)):
+        token = _next_token()
+        try:
+            return await make_call(token)
+        except Exception as exc:
+            if _is_rate_limit(exc):
+                logger.warning(
+                    "llm_token_rate_limited",
+                    token_prefix=token[:15],
+                )
+                last_exc = exc
+                continue
+            raise
+    assert last_exc is not None
+    raise last_exc
 
 
 # WP-5: Track if we've already degraded the judge provider in this run
@@ -152,20 +194,22 @@ class LLMClient:
 
         # Attempt 2: GitHub Models fallback (or primary if judge_provider=="github")
         model = _next_model(LLMRole.JUDGE)  # Use configured judge model (deepseek)
-        token = _next_token()
         logger.info("llm_judge_github_attempt", model=model, fallback=degraded_event is not None)
 
-        result = await client.chat.completions.create(
-            model=model,
-            custom_llm_provider="openai",
-            api_base=settings.llm_api_base,
-            api_key=token,
-            messages=messages,
-            temperature=config.temperature,
-            max_tokens=max_tok,
-            response_model=response_model,
-            max_retries=1,
-        )
+        async def _judge_github(token: str) -> Any:
+            return await client.chat.completions.create(
+                model=model,
+                custom_llm_provider="openai",
+                api_base=settings.llm_api_base,
+                api_key=token,
+                messages=messages,
+                temperature=config.temperature,
+                max_tokens=max_tok,
+                response_model=response_model,
+                max_retries=1,
+            )
+
+        result = await _call_with_token_fallback(_judge_github)
 
         logger.info("llm_judge_github_success", model=model)
         return cast("T", result), degraded_event if not _judge_degraded else None
@@ -241,31 +285,35 @@ class LLMClient:
             )
             return result
 
-        # Standard path for non-judge roles
+        # Standard path for non-judge roles. On per-token rate-limit
+        # we walk the rotation pool inline before letting tenacity wait.
         model = _next_model(role)
-        token = _next_token()
+        effective_max = max_tokens if max_tokens is not None else config.max_tokens
 
-        result = await client.chat.completions.create(
-            model=model,
-            # GitHub Models is OpenAI-SDK-compatible (ai-services.md §1.1),
-            # so we route through litellm's ``openai`` provider with an
-            # explicit ``api_base`` and ``api_key``. The dedicated
-            # ``github`` provider in litellm targets a legacy Azure
-            # endpoint with a different catalog — do not use it.
-            custom_llm_provider="openai",
-            api_base=settings.llm_api_base,
-            api_key=token,
-            messages=messages,
-            temperature=config.temperature,
-            max_tokens=max_tokens if max_tokens is not None else config.max_tokens,
-            response_model=response_model,
-            # Disable Instructor's internal retry loop. We let tenacity
-            # own the retry budget so that every retry attempt re-enters
-            # ``LLMClient.call`` and rotates to the next model in the
-            # role's pool. Without this Instructor burns 3 attempts on
-            # the same model before tenacity ever sees the error.
-            max_retries=1,
-        )
+        async def _make_call(token: str) -> Any:
+            return await client.chat.completions.create(
+                model=model,
+                # GitHub Models is OpenAI-SDK-compatible (ai-services.md §1.1),
+                # so we route through litellm's ``openai`` provider with an
+                # explicit ``api_base`` and ``api_key``. The dedicated
+                # ``github`` provider in litellm targets a legacy Azure
+                # endpoint with a different catalog — do not use it.
+                custom_llm_provider="openai",
+                api_base=settings.llm_api_base,
+                api_key=token,
+                messages=messages,
+                temperature=config.temperature,
+                max_tokens=effective_max,
+                response_model=response_model,
+                # Disable Instructor's internal retry loop. We let tenacity
+                # own the retry budget so that every retry attempt re-enters
+                # ``LLMClient.call`` and rotates to the next model in the
+                # role's pool. Without this Instructor burns 3 attempts on
+                # the same model before tenacity ever sees the error.
+                max_retries=1,
+            )
+
+        result = await _call_with_token_fallback(_make_call)
 
         logger.info(
             "llm_call_complete",
