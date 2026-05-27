@@ -371,6 +371,7 @@ class AgentOrchestrator:
         )
         answer = self.state.draft_answer if surfaces_draft else None
         answer_structured: str | None = None
+        answer_structured_data = None
         answer_kind = self.state.selected_answer_kind if surfaces_draft else None
 
         # BRD-16: render BOTH formats at stop time for client-side switching
@@ -396,9 +397,16 @@ class AgentOrchestrator:
             prose_renderer = renderer_registry.get("prose") or renderer_registry.get_default()
             answer = prose_renderer.render(render_ctx).content
 
-            # Always render structured for instant client-side format switching
+            # Render structured (markdown legacy + typed JSON data for the FE)
             struct_renderer = renderer_registry.get("structured") or renderer_registry.get_default()
-            answer_structured = struct_renderer.render(render_ctx).content
+            structured_output = struct_renderer.render(render_ctx)
+            answer_structured = structured_output.content
+            # The StructuredRenderer puts the typed payload under metadata["data"].
+            if hasattr(struct_renderer, "build_data"):
+                try:
+                    answer_structured_data = struct_renderer.build_data(render_ctx)
+                except Exception:  # pragma: no cover — never block stop on rendering
+                    answer_structured_data = None
 
         if surfaces_draft and answer:
             self.state.final_answer = answer
@@ -449,6 +457,7 @@ class AgentOrchestrator:
                 stop_reason=reason,
                 answer_prose=answer,
                 answer_structured=answer_structured,
+                answer_structured_data=answer_structured_data,
                 answer_kind=answer_kind,
                 stop_rationale=stop_rationale,
                 total_tokens=self.state.total_tokens,

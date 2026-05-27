@@ -25,7 +25,7 @@ import {
 import { CenterPanel } from "@/components/templates";
 import { useRun } from "@/hooks/useRun";
 import { useRunStream, type RunStreamEvent } from "@/hooks/useRunStream";
-import { FORKABLE_EVENTS, type EventType } from "@/types/events";
+import { FORKABLE_EVENTS, type EventType, type StructuredAnswerData } from "@/types/events";
 
 const FORKABLE_SET: ReadonlySet<string> = new Set<string>(FORKABLE_EVENTS);
 const RESUME_EVENT_TYPES: ReadonlySet<EventType> = new Set<EventType>([
@@ -142,6 +142,25 @@ export function CenterPanelContainer() {
         const cutIdx = structured.indexOf(separator);
         return cutIdx === -1 ? structured : structured.slice(0, cutIdx);
       }
+    }
+    return null;
+  }, [events]);
+
+  // RF-10: typed structured payload from the backend; FE renders blocks natively.
+  const answerStructuredData = useMemo<StructuredAnswerData | null>(() => {
+    for (const e of events) {
+      if (e.type !== "Stopped") {
+        continue;
+      }
+      const raw = (e as Record<string, unknown>)["answer_structured_data"];
+      if (raw === null || raw === undefined || typeof raw !== "object") {
+        continue;
+      }
+      const obj = raw as { summary?: unknown; blocks?: unknown };
+      if (typeof obj.summary !== "string" || !Array.isArray(obj.blocks)) {
+        continue;
+      }
+      return obj as unknown as StructuredAnswerData;
     }
     return null;
   }, [events]);
@@ -304,6 +323,7 @@ export function CenterPanelContainer() {
               eventCount={events.length}
               answerProse={answerProse}
               answerStructured={answerStructured}
+              answerStructuredData={answerStructuredData}
               viewFormat={viewFormat}
               onViewFormatChange={setViewFormat}
               sources={sources}

@@ -16,6 +16,7 @@ import { OutcomeBar, GlassSurface } from "@/components/atoms";
 import { FormatSelector } from "@/components/molecules";
 import { cn } from "@/lib/cn";
 import type { Run, RunStatus } from "@/types/run";
+import type { StructuredAnswerData } from "@/types/events";
 
 import { QuestionDisplay } from "./QuestionDisplay";
 import {
@@ -26,6 +27,7 @@ import { RunHeader } from "./RunHeader";
 import { SourcesCard, type SourceEntry } from "./SourcesCard";
 import { StopReasonCard } from "./StopReasonCard";
 import { StructuredAnswer } from "./StructuredAnswer";
+import { StructuredBlocks } from "./StructuredBlocks";
 import { TrustSummary, type JudgeConfidenceMetrics } from "./TrustSummary";
 
 export interface CenterPanelViewProps {
@@ -42,6 +44,8 @@ export interface CenterPanelViewProps {
   answerProse?: string | null | undefined;
   /** Final answer — structured-rendered (BRD-16 enhancement). */
   answerStructured?: string | null | undefined;
+  /** Final answer — typed structured JSON (RF-10). Frontend renders blocks natively. */
+  answerStructuredData?: StructuredAnswerData | null | undefined;
   /** Currently active view format for client-side switching. */
   viewFormat?: string | undefined;
   /** Called when the user clicks a different format button. */
@@ -61,6 +65,7 @@ export function CenterPanelView({
   eventCount,
   answerProse,
   answerStructured,
+  answerStructuredData,
   viewFormat,
   onViewFormatChange,
   sources,
@@ -73,17 +78,25 @@ export function CenterPanelView({
     run.stopReason === "judge_confirmed" &&
     (answerProse !== null && answerProse !== undefined);
 
-  // Determine which content to show based on viewFormat
-  const activeContent: string | null =
-    viewFormat === "structured" && answerStructured
-      ? answerStructured
-      : (answerProse ?? null);
+  const isStructured = viewFormat === "structured";
 
-  // Show format switcher only when both renderings are available
+  // Determine which markdown content to show as fallback (when no JSON data).
+  const activeContent: string | null = isStructured
+    ? (answerStructured ?? answerProse ?? null)
+    : (answerProse ?? null);
+
+  // Show JSON-block view when in structured mode AND backend provided typed data.
+  const showStructuredBlocks =
+    hasAnswer &&
+    isStructured &&
+    answerStructuredData !== null &&
+    answerStructuredData !== undefined;
+
+  // Show format switcher when any structured rendering is available.
   const showFormatSelector =
     hasAnswer &&
-    answerStructured !== null &&
-    answerStructured !== undefined &&
+    ((answerStructured !== null && answerStructured !== undefined) ||
+      (answerStructuredData !== null && answerStructuredData !== undefined)) &&
     onViewFormatChange !== undefined;
 
   return (
@@ -126,15 +139,22 @@ export function CenterPanelView({
                     />
                   </div>
                 ) : null}
-                <StructuredAnswer
-                  content={activeContent}
-                  outputFormat={
-                    (viewFormat ?? run.outputFormat ?? "prose") as
-                      | "prose"
-                      | "structured"
-                  }
-                  data-testid="run-answer"
-                />
+                {showStructuredBlocks ? (
+                  <StructuredBlocks
+                    data={answerStructuredData!}
+                    data-testid="run-answer"
+                  />
+                ) : (
+                  <StructuredAnswer
+                    content={activeContent}
+                    outputFormat={
+                      (viewFormat ?? run.outputFormat ?? "prose") as
+                        | "prose"
+                        | "structured"
+                    }
+                    data-testid="run-answer"
+                  />
+                )}
                 {sources !== undefined && sources.length > 0 ? (
                   <SourcesCard sources={sources} />
                 ) : null}

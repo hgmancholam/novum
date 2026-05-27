@@ -19,6 +19,7 @@ from app.domain.enums import (
     SourceType,
     StopReason,
 )
+from app.domain.structured import StructuredAnswerData
 
 
 class BaseEvent(BaseModel):
@@ -385,6 +386,7 @@ class StoppedEvent(BaseEvent):
     # Answer (if judge_confirmed)
     answer_prose: str | None = None
     answer_structured: str | None = None  # pre-rendered structured format (BRD-16 enhancement)
+    answer_structured_data: StructuredAnswerData | None = None  # JSON structured payload (RF-10)
     answer_sections: list[AnswerSection] | None = None
     citations: list[Citation] | None = None
     answer_kind: AnswerKind | None = None  # RF-17 (required for judge_confirmed per WP-3)

@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-27T10:47:34.519464+00:00
+// Generated: 2026-05-27T15:33:12.754338+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -64,6 +64,63 @@ export type EventType =
 // ---------------------------------------------------------------------------
 
 export const FORKABLE_EVENTS: readonly EventType[] = ["PlanCreated", "AmbiguityDetected", "ContradictionDetected", "JudgeRuled", "Stopped"] as const;
+
+// ---------------------------------------------------------------------------
+// Structured answer payload (RF-10, BRD-16)
+// Source: app/domain/structured.py
+// ---------------------------------------------------------------------------
+
+export interface KeyValueRow {
+  key: string;
+  value: string;
+}
+
+export interface ParagraphBlock {
+  type: "paragraph";
+  text: string;
+}
+
+export interface KeyValueBlock {
+  type: "keyValue";
+  title?: string | null;
+  rows: KeyValueRow[];
+}
+
+export interface StepsBlock {
+  type: "steps";
+  title?: string | null;
+  items: string[];
+}
+
+export interface KeyPointsBlock {
+  type: "keyPoints";
+  title?: string | null;
+  items: string[];
+}
+
+export interface MermaidBlock {
+  type: "mermaid";
+  title?: string | null;
+  diagram: string;
+}
+
+export interface MarkdownBlock {
+  type: "markdown";
+  text: string;
+}
+
+export type StructuredBlock =
+  | ParagraphBlock
+  | KeyValueBlock
+  | StepsBlock
+  | KeyPointsBlock
+  | MermaidBlock
+  | MarkdownBlock;
+
+export interface StructuredAnswerData {
+  summary: string;
+  blocks: StructuredBlock[];
+}
 
 // ---------------------------------------------------------------------------
 // JSON Schema for runtime validation
@@ -1359,6 +1416,172 @@ export const EventSchema = {
       "title": "JudgeRuledEvent",
       "type": "object"
     },
+    "KeyPointsBlock": {
+      "additionalProperties": true,
+      "description": "Unordered list of key points / bullets.",
+      "properties": {
+        "type": {
+          "const": "keyPoints",
+          "default": "keyPoints",
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "items": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "KeyPointsBlock",
+      "type": "object"
+    },
+    "KeyValueBlock": {
+      "additionalProperties": true,
+      "description": "Key/value table \u2014 for facts, attributes, specs.",
+      "properties": {
+        "type": {
+          "const": "keyValue",
+          "default": "keyValue",
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/KeyValueRow"
+          },
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rows"
+      ],
+      "title": "KeyValueBlock",
+      "type": "object"
+    },
+    "KeyValueRow": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "title": "KeyValueRow",
+      "type": "object"
+    },
+    "MarkdownBlock": {
+      "additionalProperties": true,
+      "description": "Fallback for content that is already richly formatted by the LLM.",
+      "properties": {
+        "type": {
+          "const": "markdown",
+          "default": "markdown",
+          "title": "Type",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "MarkdownBlock",
+      "type": "object"
+    },
+    "MermaidBlock": {
+      "additionalProperties": true,
+      "description": "Mermaid diagram source (flowchart, sequence, etc.).",
+      "properties": {
+        "type": {
+          "const": "mermaid",
+          "default": "mermaid",
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "diagram": {
+          "title": "Diagram",
+          "type": "string"
+        }
+      },
+      "required": [
+        "diagram"
+      ],
+      "title": "MermaidBlock",
+      "type": "object"
+    },
+    "ParagraphBlock": {
+      "additionalProperties": true,
+      "description": "A plain prose paragraph rendered as styled text.",
+      "properties": {
+        "type": {
+          "const": "paragraph",
+          "default": "paragraph",
+          "title": "Type",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "ParagraphBlock",
+      "type": "object"
+    },
     "PlanCreatedEvent": {
       "additionalProperties": true,
       "description": "Initial plan with sub-claims decomposition.",
@@ -2277,6 +2500,42 @@ export const EventSchema = {
       "title": "SourceType",
       "type": "string"
     },
+    "StepsBlock": {
+      "additionalProperties": true,
+      "description": "Ordered list of steps / process stages.",
+      "properties": {
+        "type": {
+          "const": "steps",
+          "default": "steps",
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "items": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "StepsBlock",
+      "type": "object"
+    },
     "StopRationale": {
       "additionalProperties": true,
       "description": "Structured 'why we stopped' payload (RF-13 / RF-19, WP-3 G2).\n\nAggregates the four signals the challenge spec expects to see on a\nterminal run: evidence quality, source agreement, novelty (information\ngain), and final confidence \u2014 plus the ceiling actually applied and a\nshort human-readable summary from the judge.",
@@ -2425,6 +2684,17 @@ export const EventSchema = {
           "default": null,
           "title": "Answer Structured"
         },
+        "answer_structured_data": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StructuredAnswerData"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "answer_sections": {
           "anyOf": [
             {
@@ -2506,6 +2776,58 @@ export const EventSchema = {
         "stop_reason"
       ],
       "title": "StoppedEvent",
+      "type": "object"
+    },
+    "StructuredAnswerData": {
+      "additionalProperties": true,
+      "description": "Structured-format answer payload (RF-10).\n\nThe frontend renders each block with native UI components instead of\nparsing markdown. ``summary`` is shown as a headline above the blocks.",
+      "properties": {
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "blocks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "keyPoints": "#/$defs/KeyPointsBlock",
+                "keyValue": "#/$defs/KeyValueBlock",
+                "markdown": "#/$defs/MarkdownBlock",
+                "mermaid": "#/$defs/MermaidBlock",
+                "paragraph": "#/$defs/ParagraphBlock",
+                "steps": "#/$defs/StepsBlock"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ParagraphBlock"
+              },
+              {
+                "$ref": "#/$defs/KeyValueBlock"
+              },
+              {
+                "$ref": "#/$defs/StepsBlock"
+              },
+              {
+                "$ref": "#/$defs/KeyPointsBlock"
+              },
+              {
+                "$ref": "#/$defs/MermaidBlock"
+              },
+              {
+                "$ref": "#/$defs/MarkdownBlock"
+              }
+            ]
+          },
+          "title": "Blocks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "summary"
+      ],
+      "title": "StructuredAnswerData",
       "type": "object"
     },
     "SubClaim": {
