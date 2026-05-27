@@ -15,12 +15,16 @@ import { HistoryList } from "@/components/organisms/HistoryList";
 import { HistoryPanel } from "@/components/templates";
 import { useRunHistory } from "@/hooks/useRunHistory";
 import { useSelectionStore } from "@/stores/selectionStore";
+import { useUserStore } from "@/stores/userStore";
 import type { HistoryFilterValues, RunSummary } from "@/types/history";
 
 export function HistoryPanelContainer() {
   const navigate = useNavigate();
   const selectedRunId = useSelectionStore((s) => s.selectedRunId);
   const setSelectedRunId = useSelectionStore((s) => s.setSelectedRunId);
+
+  const isAuthenticated = useUserStore((s) => s.isAuthenticated);
+  const username = useUserStore((s) => s.user?.username ?? null);
 
   const [filters, setFilters] = useState<HistoryFilterValues>({});
 
@@ -33,7 +37,7 @@ export function HistoryPanelContainer() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useRunHistory();
+  } = useRunHistory(undefined, { enabled: isAuthenticated, username });
 
   const runs: RunSummary[] =
     data?.pages.flatMap((page) => page.items) ?? [];

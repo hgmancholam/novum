@@ -10,6 +10,7 @@ from fastapi import status as http_status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.runner import agent_runner
 from app.domain.enums import EventType, StopReason
 from app.domain.events import (
     FORKABLE_EVENTS,
@@ -52,6 +53,8 @@ class RunService:
         self.db.add(run)
         await self.db.commit()
         await self.db.refresh(run)
+        # BRD-19 §4.4: hand off to the runner so the FSM starts emitting.
+        await agent_runner.start(run.id)
         return RunResponse.model_validate(run)
 
     async def get_run(self, run_id: UUID) -> RunResponse:
@@ -63,18 +66,16 @@ class RunService:
 
     async def list_runs(
         self,
-        username: str,
         limit: int = 20,
         offset: int = 0,
     ) -> list[RunListItem]:
-        """List recent runs for a user (RF-09).
+        """List recent runs for all users (RF-09).
 
         The question is truncated at 100 chars with an ellipsis suffix —
         the history panel (BRD-12) depends on this exact behavior.
         """
         query = (
             select(Run)
-            .where(Run.owner_username == username)
             .order_by(Run.started_at.desc())
             .limit(limit)
             .offset(offset)
@@ -84,6 +85,7 @@ class RunService:
         return [
             RunListItem(
                 id=r.id,
+                username=r.owner_username,
                 question=(
                     r.question[:100] + "..." if len(r.question) > 100 else r.question
                 ),
@@ -147,6 +149,8 @@ class RunService:
         await self.db.refresh(run)
         # Notify any in-flight SSE generators for this run (RF-08 / IP-10 §3 O-05).
         connection_manager.cancel(run_id)
+        # BRD-19 §4.5: flip the orchestrator's cooperative cancel flag.
+        agent_runner.cancel(run_id)
         return RunResponse.model_validate(run)
 
     async def resume_run(self, run_id: UUID, username: str) -> RunResponse:
@@ -161,6 +165,11 @@ class RunService:
         and a single `await self.db.commit()` covers both writes, so a
         failed append leaves `run.stop_reason` untouched (B1 atomicity).
         """
+        # BRD-19 §4.6.1: wait for any in-flight task to settle (5s grace).
+        # Raises RunStillTerminatingError (409) if the prior task does not
+        # finish in time, so we never spawn a second writer concurrently.
+        await agent_runner.await_terminal(run_id, timeout=5.0)
+
         run = await self.db.get(Run, run_id)
         if not run:
             raise RunNotFoundError(str(run_id))
@@ -210,6 +219,8 @@ class RunService:
         run.stopped_at = None
         await self.db.commit()
         await self.db.refresh(run)
+        # BRD-19 §4.6: re-launch the FSM after the ResumedAfter* anchor lands.
+        await agent_runner.start(run_id)
         return RunResponse.model_validate(run)
 
     async def _find_resume_anchor(

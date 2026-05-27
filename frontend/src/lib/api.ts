@@ -91,6 +91,7 @@ export const api = {
 
 export interface RunListItemDto {
   id: string;
+  username: string;
   question: string;
   started_at: string;
   stopped_at: string | null;

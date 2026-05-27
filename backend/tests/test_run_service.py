@@ -99,7 +99,7 @@ async def test_list_runs_truncates_long_questions(
     await sqlite_session.commit()
 
     svc = RunService(sqlite_session)
-    items = await svc.list_runs(seeded_user)
+    items = await svc.list_runs()
     assert len(items) == 1
     assert items[0].question == "x" * 100 + "..."
     assert len(items[0].question) == 103
@@ -110,12 +110,12 @@ async def test_list_runs_does_not_truncate_short_questions(
 ) -> None:
     await _create_run(sqlite_session, seeded_user)
     svc = RunService(sqlite_session)
-    items = await svc.list_runs(seeded_user)
+    items = await svc.list_runs()
     assert len(items) == 1
     assert items[0].question == "What is the capital of France?"
 
 
-async def test_list_runs_scopes_to_username(
+async def test_list_runs_returns_all_users_with_username(
     sqlite_session: AsyncSession, seeded_user: str
 ) -> None:
     # Seed a second user + run.
@@ -128,11 +128,11 @@ async def test_list_runs_scopes_to_username(
     await _create_run(sqlite_session, seeded_user)
 
     svc = RunService(sqlite_session)
-    mine = await svc.list_runs(seeded_user)
-    theirs = await svc.list_runs("bob")
-    assert len(mine) == 1
-    assert len(theirs) == 1
-    assert mine[0].id != theirs[0].id
+    all_items = await svc.list_runs()
+    assert len(all_items) == 2
+
+    usernames = {item.username for item in all_items}
+    assert usernames == {seeded_user, "bob"}
 
 
 # ---------------------------------------------------------------------------

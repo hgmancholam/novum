@@ -46,11 +46,14 @@ export const RunRow = memo(function RunRow({
     >
       <p
         className={cn(
-          "mb-1.5 text-sm font-medium",
+          "mb-0.5 text-sm font-medium",
           isSelected ? "text-[var(--text-primary)]" : "text-[var(--text-primary)]"
         )}
       >
         {truncate(run.question, QUESTION_MAX)}
+      </p>
+      <p className="mb-1.5 text-xs text-(--text-secondary)">
+        {run.username}
       </p>
       <div className="flex items-center justify-between gap-2">
         <StatusBadge

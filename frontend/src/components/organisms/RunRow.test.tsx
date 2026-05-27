@@ -7,6 +7,7 @@ import type { RunSummary } from "@/types/history";
 
 const baseRun: RunSummary = {
   id: "run-1",
+  username: "hgmancholam",
   question: "What is the population of Tokyo in 2024?",
   status: "completed",
   stopReason: "judge_confirmed",
@@ -15,11 +16,12 @@ const baseRun: RunSummary = {
 };
 
 describe("RunRow", () => {
-  it("renders truncated question, status, and relative time", () => {
+  it("renders truncated question, username, status, and relative time", () => {
     render(<RunRow run={baseRun} isSelected={false} onSelect={() => {}} />);
     expect(
       screen.getByText("What is the population of Tokyo in 2024?")
     ).toBeInTheDocument();
+    expect(screen.getByText("hgmancholam")).toBeInTheDocument();
     expect(screen.getByText("Judge confirmed")).toBeInTheDocument();
     expect(screen.getByText(/m ago|just now/)).toBeInTheDocument();
   });

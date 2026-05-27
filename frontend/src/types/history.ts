@@ -11,6 +11,7 @@ export type RunStatus = "running" | "completed" | "stopped";
 
 export interface RunSummary {
   id: string;
+  username: string;
   question: string;
   status: RunStatus;
   stopReason: StopReason | null;

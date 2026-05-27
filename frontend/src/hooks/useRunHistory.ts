@@ -23,6 +23,7 @@ export function mapRun(dto: RunListItemDto): RunSummary {
   }
   return {
     id: dto.id,
+    username: dto.username,
     question: dto.question,
     status,
     stopReason: dto.stop_reason,
@@ -36,9 +37,22 @@ export interface RunHistoryPage {
   nextOffset: number | null;
 }
 
-export function useRunHistory(pageSize: number = PAGE_SIZE) {
+export interface UseRunHistoryOptions {
+  /** Only fetch when true (pass `isAuthenticated` from userStore). */
+  enabled?: boolean;
+  /** Include in queryKey so the cache resets on user change. */
+  username?: string | null;
+}
+
+export function useRunHistory(
+  pageSize: number = PAGE_SIZE,
+  options: UseRunHistoryOptions = {}
+) {
+  const { enabled = true, username = null } = options;
+
   return useInfiniteQuery<RunHistoryPage>({
-    queryKey: ["runs", "history", pageSize],
+    queryKey: ["runs", "history", pageSize, username],
+    enabled,
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       const offset = typeof pageParam === "number" ? pageParam : 0;

@@ -113,4 +113,42 @@ describe("useRunHistory", () => {
       expect(result.current.isError).toBe(true);
     });
   });
+
+  it("does not fetch when enabled is false", async () => {
+    const { result } = renderHook(
+      () => useRunHistory(20, { enabled: false }),
+      { wrapper: makeWrapper() }
+    );
+    // Allow any pending microtasks to settle
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("fetches when username changes (new queryKey triggers re-fetch)", async () => {
+    const page = [dto("a")];
+    // Use a factory so each call gets a fresh Response (body can only be read once)
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(page), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+
+    let username: string | null = "alice";
+    const { result, rerender } = renderHook(
+      () => useRunHistory(20, { enabled: true, username }),
+      { wrapper: makeWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Simulate user switching: new username → new queryKey → new fetch
+    username = "bob";
+    rerender();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  });
 });

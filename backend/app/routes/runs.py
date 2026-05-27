@@ -32,13 +32,13 @@ async def create_run(
 @router.get("", response_model=list[RunListItem])
 async def list_runs(
     db: DbSession,
-    username: CurrentUsername,
+    _username: CurrentUsername,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> list[RunListItem]:
-    """List recent runs for the current user (RF-09)."""
+    """List recent runs for all users — auth required (RF-09)."""
     service = RunService(db)
-    return await service.list_runs(username, limit, offset)
+    return await service.list_runs(limit, offset)
 
 
 @router.get("/{run_id}", response_model=RunResponse)

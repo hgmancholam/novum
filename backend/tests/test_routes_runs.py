@@ -74,6 +74,8 @@ async def test_list_runs_orders_desc_by_started_at(
     assert len(items) == 3
     timestamps = [item["started_at"] for item in items]
     assert timestamps == sorted(timestamps, reverse=True)
+    # Each item must expose the owner username
+    assert all(item["username"] == seeded_user for item in items)
 
 
 # ---------------------------------------------------------------------------
@@ -296,24 +298,6 @@ async def test_fork_endpoint_rejects_cross_run_event(
         headers=auth_headers,
     )
     assert response.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# Events placeholder — 501 (BRD-10 future work)
-# ---------------------------------------------------------------------------
-
-
-async def test_events_placeholder_returns_501(
-    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
-) -> None:
-    create = await client.post(
-        "/api/runs", json=_VALID_BODY, headers=auth_headers
-    )
-    run_id = create.json()["id"]
-
-    response = await client.get(f"/api/runs/{run_id}/events")
-    assert response.status_code == 501
-    assert "BRD-10" in response.json()["detail"]
 
 
 # ---------------------------------------------------------------------------
