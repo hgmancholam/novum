@@ -144,10 +144,38 @@ export function useRunStream(
     const connection = createSSEConnection(path, sseOptions);
     connectionRef.current = connection;
 
+    // The backend emits each event with a named SSE `event:` field matching
+    // its `EventType` (e.g. `PlanCreated`, `ToolCalled`). `EventSource.onmessage`
+    // only fires for unnamed/`message` frames, so non-terminal business events
+    // would be silently dropped without explicit listeners.
+    const NON_TERMINAL_EVENT_TYPES = [
+      "QuestionAsked",
+      "PlanCreated",
+      "PlanCritiqued",
+      "PlanRevised",
+      "ToolCalled",
+      "EvidenceAdded",
+      "ClaimCovered",
+      "ClaimUncoverable",
+      "SourceFailed",
+      "AmbiguityDetected",
+      "ContradictionDetected",
+      "ContradictionResolved",
+      "UserContextChallenged",
+      "JudgeRuled",
+      "ConfidenceMismatch",
+      "AgentErrored",
+      "ResumedAfterError",
+      "ResumedAfterCancel",
+    ] as const;
+
     const teardowns: Array<() => void> = [
       addNamedListener(connection.source, "Stopped", handleTerminal),
       addNamedListener(connection.source, "cancelled", handleTerminal),
       addNamedListener(connection.source, "heartbeat", handleHeartbeat),
+      ...NON_TERMINAL_EVENT_TYPES.map((name) =>
+        addNamedListener(connection.source, name, handleData)
+      ),
     ];
 
     return () => {
