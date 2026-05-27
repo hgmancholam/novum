@@ -5,6 +5,8 @@
  */
 
 import { AppShell, CenterPanel, TracePanel } from "@/components/templates";
+import { TraceEmpty } from "@/components/molecules/TraceEmpty";
+import { TraceHeader } from "@/components/organisms/TraceHeader";
 import { HistoryPanelContainer } from "./HistoryPanelContainer";
 import { NewRunContainer } from "./NewRunContainer";
 
@@ -19,16 +21,8 @@ function CenterStart() {
 function TracePlaceholder() {
   return (
     <TracePanel
-      header={
-        <h2 className="text-sm font-medium text-[var(--text-primary)]">
-          Trace
-        </h2>
-      }
-      body={
-        <p className="text-xs text-[var(--text-secondary)]">
-          The event log will appear here once research starts.
-        </p>
-      }
+      header={<TraceHeader eventCount={0} isStreaming={false} />}
+      body={<TraceEmpty />}
     />
   );
 }

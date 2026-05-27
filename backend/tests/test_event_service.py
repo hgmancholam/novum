@@ -105,3 +105,60 @@ async def test_get_event_returns_none_when_missing(
 
     svc = EventService(sqlite_session)
     assert await svc.get_event(uuid.uuid4()) is None
+
+
+async def test_append_event_no_commit_flushes_but_does_not_commit(
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """IP-15 B0: ``commit=False`` flushes (event.id populated) without committing.
+
+    Counts ``AsyncSession.commit`` invocations via ``monkeypatch`` — it must
+    not be called by ``append_event`` when ``commit=False``, leaving the
+    surrounding transaction open for the caller (``RunService.resume_run``).
+    """
+    run = await _make_run(sqlite_session, seeded_user)
+    svc = EventService(sqlite_session)
+
+    commit_calls = 0
+    original_commit = sqlite_session.commit
+
+    async def _counting_commit() -> None:
+        nonlocal commit_calls
+        commit_calls += 1
+        await original_commit()
+
+    monkeypatch.setattr(sqlite_session, "commit", _counting_commit)
+
+    db_event = await svc.append_event(
+        run.id, QuestionAskedEvent(question="flush only"), commit=False
+    )
+
+    assert db_event.id is not None
+    assert db_event.step_index == 1
+    assert commit_calls == 0
+
+
+async def test_append_event_default_still_commits(
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default ``commit=True`` preserves existing caller contracts (BRD-15 IP B0)."""
+    run = await _make_run(sqlite_session, seeded_user)
+    svc = EventService(sqlite_session)
+
+    commit_calls = 0
+    original_commit = sqlite_session.commit
+
+    async def _counting_commit() -> None:
+        nonlocal commit_calls
+        commit_calls += 1
+        await original_commit()
+
+    monkeypatch.setattr(sqlite_session, "commit", _counting_commit)
+
+    await svc.append_event(run.id, QuestionAskedEvent(question="commit too"))
+
+    assert commit_calls == 1

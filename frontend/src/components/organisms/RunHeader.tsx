@@ -3,7 +3,12 @@
  * Rendered above the body of `CenterPanel`. Pure presentational.
  */
 
-import { ElapsedClock, MetaRow, StatusBadge } from "@/components/molecules";
+import {
+  ElapsedClock,
+  LineageBadge,
+  MetaRow,
+  StatusBadge,
+} from "@/components/molecules";
 import { cn } from "@/lib/cn";
 import type { Run, RunStatus } from "@/types/run";
 
@@ -38,13 +43,16 @@ export function RunHeader({ run, status, className }: RunHeaderProps) {
         />
         {status === "running" ? <ElapsedClock startedAt={run.startedAt} /> : null}
       </div>
-      <MetaRow
-        startedAt={run.startedAt}
-        stoppedAt={run.stoppedAt}
-        outputFormat={run.outputFormat}
-        confidenceThreshold={run.confidenceThreshold}
-        ownerUsername={run.ownerUsername}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <MetaRow
+          startedAt={run.startedAt}
+          stoppedAt={run.stoppedAt}
+          outputFormat={run.outputFormat}
+          confidenceThreshold={run.confidenceThreshold}
+          ownerUsername={run.ownerUsername}
+        />
+        <LineageBadge parentRunId={run.parentRunId} />
+      </div>
     </div>
   );
 }

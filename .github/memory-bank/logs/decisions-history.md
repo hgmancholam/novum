@@ -4,13 +4,173 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 27
+**Total Decisions:** 38
 
 ---
 
 ## Recent Decisions
 
-## D-027: Follow-up — Evidence polarity classifier required for O-04 agreement gate
+## D-038: BRD-15 / IP-15 — Fork & Resume Review Approved, Workflow Closed (F5)
+
+**Date:** 2026-05-26
+**Phase:** F5 (COMPLETE)
+**Author:** Orchestrator Agent
+
+Reviewer scored the implementation **9.73 / 10** on iteration 1 — no rework needed.
+
+**Workflow trace for BRD-15:**
+- F2 (PLAN): IP-15 authored, 2 audit iterations (8.20 → 9.75). See [AUDIT-PLAN-US-15.md](../../../docs/implementation-phase/audits/AUDIT-PLAN-US-15.md).
+- F3 (IMPLEMENT): Coder shipped B0–B6 + T1–T2 + F1–F8 across two sessions. 43 backend tests + 43 frontend tests passing. Backend coverage `event_service.py` 100 %, `run_service.py` 97 % (total 98 %). Documented deviations: `monkeypatch` counter instead of `mocker.spy` (same invariant), pre-existing hanging `test_events_placeholder_returns_501` deselected.
+- F4 (REVIEW): 1 iteration, score **9.73 / 10** (APPROVED, ≥ 9 gate). Report: [CR-15-001-fork-resume.md](../../../docs/implementation-phase/reviews/CR-15-001-fork-resume.md).
+- F5 (COMPLETE): BRD-15 → Implemented, IP-15 → Completed, CR-15-001 logged in knowledge-base-index.
+
+**Quality gates summary:**
+| Gate | Threshold | Actual | Iterations used | Status |
+|---|---|---|---|---|
+| Document Audit (F2) | ≥ 9 | 9.75 | 2 / 3 | PASS |
+| Code Review (F4) | ≥ 9 | 9.73 | 1 / 5 | PASS |
+| Backend coverage on IP-15 services | ≥ 80 % | 98 % | — | PASS |
+| Frontend tests (IP-15) | green | 43 / 43 | — | PASS |
+
+**Non-blocking follow-ups from CR-15-001** (to bundle with BSA's BRD-15 v1.1 reconciliation flagged in earlier D-entries about BRD-15 vs. shipped architecture):
+- `FORK_MODAL_DESCRIPTION` microcopy in `frontend/src/lib/microcopy.ts` says the forked run "replays the trace up to that point" — contradicts IP-15 §1 R-01 (lineage by reference, empty event log). Fix copy in the same PR as BRD-15 v1.1.
+- Pre-existing tooling debt outside IP-15 scope (3 ruff errors, ~56 eslint errors, hanging SSE placeholder test) recorded as separate maintenance items.
+
+BRD-15 closes.
+
+---
+
+## D-037: IP-19 — F2 audit iter 2 — plan revised in-place + BRD-19 amended to v1.2
+
+**Date:** 2026-05-26
+**Phase:** F2 (Orchestrator — apply_audit_feedback) for IP-19
+**Author:** Orchestrator Agent
+
+Revised `docs/implementation-phase/implementation-plans/IP-19-agent-runner.md` in-place to close all 6 audit findings from [AUDIT-PLAN-IP-19.md](../../../docs/implementation-phase/audits/AUDIT-PLAN-IP-19.md) iter 1 (score 7.55, RETURN_TO_ORCHESTRATOR). Also amended BRD-19 to v1.2 (1-line snippet fix in §4.6, no behavioural change). Changes: **B-01** — §T5 terminal `runs` write now uses a fresh `async_session_maker()` session + SQL `UPDATE Run ... SET stopped_at = CASE WHEN stopped_at IS NULL THEN now ELSE stopped_at END`, removing the identity-map staleness risk; T8 #5 mandates two real sessions. **B-02** — §3.1 introduces `_apply_state(state, target)` helper that bypasses `transition_to` during rehydration (private direct assignment); §3.2 adds a two-pass scan computing `_stopped_followed_by_resume(events)` so `STOPPED` is folded as a no-op when immediately followed by a `RESUMED_AFTER_*`. **B-03** — BRD-19 amended to v1.2: §4.6 `resume_run` snippet now shows `await_terminal` as the FIRST statement, matching §4.6.1 narrative; plan §T6 mirrors it verbatim. **B-04** — new §T9.0 adds an autouse `_noop_agent_runner` fixture in `tests/conftest.py` with a `real_agent_runner` opt-in marker, keeping the pre-IP-19 suite green. **M-05** — session lifecycle is now BRD-canonical: `async with async_session_maker() as session:` inside `_supervised_run`; `_on_task_done` callback only mutates the in-memory registry. **M-06** — §3.3 dispatch table rewritten to read SSE-shaped dicts via real payload keys (`payload["target_claim_id"]`, `payload["source_type"]`, `payload["new_sub_claims"]`, etc.) verified against `app/domain/events.py`. **m-07/09/10/11** + **n-12/13** also addressed (cancel sync wording, `_subscribers` init, E11 prose rewritten to assert HTTP 400, `asyncio.shield` caller-cancel doc, FakeOrchestrator `self.state`, T11 delivery path note). Time discipline strengthened in §T8 prelude (`async with asyncio.timeout(...)`, no wallclock > 0.2 s). Effort estimate updated: ~345 LOC impl + ~695 LOC tests. **Next:** resubmit to Auditor for F2 iter 2/3.
+
+---
+
+## D-036: IP-14 — F4 review iter 1 — CHANGES_REQUESTED (8.2 / 10)
+
+**Date:** 2026-05-26
+**Phase:** F4 (Reviewer — review_implementation) for IP-14 (Trace Panel)
+**Author:** Reviewer Agent
+
+Reviewed the frontend Trace Panel implementation against `docs/implementation-phase/implementation-plans/IP-14-trace-panel.md` (Auditor-approved at 9.35/10), `ui-prototype.md` §3.3, BRD-14 corrections, and the architectural rules in `.github/copilot-instructions.md` §3. Report: `docs/implementation-phase/reviews/CR-14-001-trace-panel.md`. **Verdict: CHANGES_REQUESTED — score 8.2 / 10 (threshold 9.0). F3 ↔ F4 iter 1 / 5.** Strengths: `lib/eventVisuals.ts` exhaustive over all 19 `EventType` members (compiler-enforced via `Record<EventType, EventVisual>`); atomic-design layering perfect (`useRunStream` only in `pages/TracePanelContainer.tsx`, mounted on `/runs/:runId` only — HomePage passes `<TraceEmpty/>` directly); tokens-only styling verified by regex (no raw Tailwind palette anywhere in the 8 new components); Lucide-only icons; microcopy verbatim with §7 (`TRACE_EMPTY_MESSAGE`, `PLAN_PREVIEW_STEPS`, "Jump to latest"); `JudgeRuled` seeded into `expandedEventIds` via `EXPANDED_BY_DEFAULT`; sticky-bottom IntersectionObserver implemented as planned with `data-sticky`/`data-complete` test affordances; TypeScript clean (0 errors). Blocking issues (must fix to reach ≥ 9): **B-01** `EventPayloadViewer` empty-object branch renders nothing for `value={}` — the top-level `Object.entries({}).map` short-circuits before reaching the `ObjectValue` `{}` placeholder; real runtime bug (causes the failing `renders an empty object placeholder` unit test). **B-02** `EventNode.test.tsx` a11y test fails because `<li>` is rendered without `<ol>`/`<ul>` parent in the harness; test-setup defect, not a product bug, but still a failing test under L-002. **B-03** `frontend/src/components/organisms/TraceTimeline.test.tsx` is **missing entirely** — the most behavior-rich file in the change set (expansion state, IntersectionObserver sticky-bottom, `JudgeRuled` seeding, T1b conditional, `JumpToLatestPill` overlay) has zero unit coverage; required by IP-14 §4 task #14 and §8. **B-04** `frontend/src/pages/TracePanelContainer.test.tsx` is **missing entirely** — required by IP-14 §4 task #15 (mock `useRunStream`, T1b→T2→T3 transitions, live-indicator toggling). Non-blocking suggestions: convert outer `EventNode` `<button>` to `<div role="button">` before BRD-15 (else nested-button violation when `ForkButton` lands); replace `<div>`-in-`<pre>` nesting in `EventPayloadViewer` with a styled `<div>`; add `// TODO(ui-prototype §1)` next to `TONE_COLOR` (info/judge/decision currently all collapse to `--accent`); defensively reset `expandedKeys` on `runId` change. Per-criterion: Code Quality 8.5, Test Coverage 5.0 (dominant deduction), Architecture 9.5, Documentation 9.0, Security 9.5, Performance 8.5. Vitest: 346/348 passing; TypeScript: 0 errors. Plan returns to Coder for iter 2/5.
+
+---
+
+## D-035: IP-19 — F2 audit iter 1 — RETURN_TO_ORCHESTRATOR (7.55 / 10)
+
+**Date:** 2026-05-26
+**Phase:** F2 (Auditor — audit_plan) for IP-19
+**Author:** Auditor Agent
+
+Audited `docs/implementation-phase/implementation-plans/IP-19-agent-runner.md` (iter 1) against BRD-19 v1.1 and the real backend code. Report at `docs/implementation-phase/audits/AUDIT-PLAN-IP-19.md`. **Verdict: ⚠️ RETURN_TO_ORCHESTRATOR — score 7.55 / 10 (threshold 9.00). audit_iter_F2 = 1/3.** Carry-over closure: N-01 ✅ CLOSED (T2 adds `EventService.get_latest_event` with correct DESC + LIMIT 1 SQL, supervisor uses it in §4.8 #2); N-02 ✅ CLOSED (T4 docstring spells out `run_id in _tasks AND not _tasks[run_id].done()`); N-03 ⚠️ PARTIAL (E11 + test #17 added, but the prose says "second cancel forwarded to orchestrator" when `RunService.cancel_run` actually raises `RunAlreadyStoppedError` HTTP 400 first — must rewrite E11). Three BLOCKERs identified: **B-01** emit-callback `if run.stopped_at is None` reads stale identity-map data (single-session, `expire_on_commit=False`) — overwrites the user's `T0` set by `cancel_run` running in a different HTTP session; breaks US-19.7 / E10 / F-04. Fix: `session.refresh(run, ...)` or fresh session or SQL `WHERE stopped_at IS NULL`. **B-02** rehydration dispatch uses `transition_to` semantics but `INIT → CRITIQUING` (PLAN_CREATED row) is illegal per `states.py:24` (TRANSITIONS[INIT] = {PLANNING, STOPPED, ERRORED}); and `STOPPED → SEARCHING` post-resume is also illegal (TRANSITIONS[STOPPED] = ∅); fold must use direct assignment to `state.current_state` and a two-pass look-ahead for `STOPPED + RESUMED_AFTER_*` pairs. **B-03** plan §T6 places `await_terminal` at the TOP of `resume_run`, BRD-19 §4.6 places it AFTER the final commit — contradictory; plan must reconcile or amend BRD. Three MAJORs: **B-04** wiring `agent_runner.start` into `RunService.create_run` (T6) without an autouse no-op fake in `tests/conftest.py` will break the existing test suite (real LLM tasks spawn in every test). **M-05** session lifecycle is double-specified (BRD §4.4 `async with`, plan §T4 + §9 `_on_task_done` schedules `aclose`). **M-06** `EventService.get_events` returns SSE-shaped dicts not pydantic events; dispatch table accesses `event.sub_claims` / `event.tool` etc. and uses wrong field names (real: `target_claim_id`, `source_type`). Plus 4 MINORs (cancel() sync-vs-lock wording, STOPPED dispatch-order weak guard, ConnectionManager `_subscribers` init missing, asyncio.shield caller-cancel unspecified) and 2 NITs (T8 #15 capture mechanism, T11 delivery path). Code citations verified: `orchestrator.py:49`, `run_state.py:91-94`, `states.py:24`, `run_service.py:134-149`, `event_service.py` shape, `database.py:18` `expire_on_commit=False`. Top-3 must-fix: B-01, B-02, B-03. Plan returns to Orchestrator for iter 2/3.
+
+---
+
+## D-034: BRD-19 — F1 audit iter 2 — APPROVED (9.20 / 10)
+
+**Date:** 2026-05-26
+**Phase:** F1 (Auditor — audit_documents) for BRD-19 v1.1
+**Author:** Auditor Agent
+
+Re-audited `docs/implementation-phase/brds/BRD-19-agent-runner.md` v1.1 against the v1 audit report. Report at `docs/implementation-phase/audits/BRD-19-audit-v2.md`. **Verdict: ✅ APPROVED — score 9.20 / 10 (threshold 9.00). F1 closes; hand off to Orchestrator for F2.** Closure: F-01..F-10 all CLOSED (F-03 closed in intent — see N-01). All 4 open questions resolved in BRD body (Q1 delta §4.9, Q2 locked to SEARCHING with data-flows lines 279–280 cited and verified, Q3 systemd `--workers 1` cited and verified at infrastructure.md:108, Q4 verbatim shutdown commitment present). Cross-doc citations verified against real source: `orchestrator.py:49` signature exact, `data-flows-and-diagrams.md:279-280` exact match, `infrastructure.md:108` exact match, `sse/manager.py` confirmed has no `publish`/`subscribe` today (justifies §4.9 delta). Three new minor/nit findings recorded as non-blocking: **N-01 [MINOR]** — `event_service.get_latest_event(run_id)` does not exist; real API has only `get_events` (ASC, default limit=100) and `get_event(event_id)` — must be resolved in F2 plan either by adding the method or using a direct DESC query inside the runner. **N-02 [NIT]** — `is_running()` micro-window between `task.done()` and `_on_task_done`; docstring should specify `run_id in _tasks and not _tasks[run_id].done()`. **N-03 [MINOR]** — cancel-during-resume-wait: a cancel arriving while `resume_run` awaits `await_terminal` produces an inconsistent row vs FSM state and silently loses the second cancel; needs E11 or a UI-side disable. None of N-01/02/03 block approval. BRD-19 v1.1 is ready for Orchestrator F2 (implementation plan).
+
+---
+
+## D-033: BRD-19 v1.1 — Audit feedback applied (F1 iter 2/3)
+
+**Date:** 2026-05-26
+**Phase:** F1 (BSA — apply_audit_feedback) for BRD-19
+**Author:** BSA Agent
+
+Revised `docs/implementation-phase/brds/BRD-19-agent-runner.md` in-place to v1.1, addressing every finding in `docs/implementation-phase/audits/BRD-19-audit-v1.md` (score 8.10 → target ≥ 9.0). All 3 must-fix findings closed: (F-01) §4.3 / §4.5 step 5 / §11 DoD now match the real `AgentOrchestrator(state, emit, stopping_policy)` signature; "modifying orchestrator.py" added explicitly to §10. (F-02) New §4.6.1 picks contract (a): `resume_run` calls `agent_runner.await_terminal(run_id, timeout=5.0)` before `start`; timeout maps to HTTP 409 `run_still_terminating`; new US-19.6 + edge case E9. (F-03) §4.8 reframed — orchestrator's own top-level `except Exception` is primary path; supervisor is last-resort safety net that calls `event_service.get_latest_event` and skips emission if a `StoppedEvent` already exists. All 4 open questions resolved in writing: (Q1) publish/subscribe is a delta documented inside BRD-19 §4.9, no BRD-10 amendment filed; (Q2) resume target state locked to `SEARCHING` — grounded in `data-flows-and-diagrams.md` lines 279–280 (`ResumingAfterCancel -> Searching`, `ResumingAfterError -> Searching`); (Q3) `WEB_CONCURRENCY` deferred to `infrastructure.md` §Supervisor (`--workers 1` systemd pin); (Q4) shutdown leaves `stop_reason = NULL`, runs resumable, no startup sweep (data-flows doc does NOT cover process shutdown — default committed in writing). Minor findings addressed: F-04 `stopped_at` set only when NULL + US-19.7 + edge case E10; F-05 §2 RF-02 row acknowledges `cancel_run` as secondary idempotent writer; F-06 §7 NFR table splits create (N=0) vs resume (N≤50, N≤500) latency budgets; F-07 RF-04 row added to §2 traceability; F-08 §10 contains verbatim shutdown commitment + explicit "no startup sweep" bullet; F-09 test case `start for deleted row (E1)` added in §6.1; F-10 §4.8 #3 clarifies `is_running()` returns False immediately. Changelog appended at end of BRD documenting per-finding closure. Awaiting re-audit by Auditor.
+
+---
+
+## D-032: BRD-19 — F1 audit iter 1 — RETURN_TO_BSA (8.10 / 10)
+
+**Date:** 2026-05-26
+**Phase:** F1 (Auditor — audit sub-loop) for BRD-19
+**Author:** Auditor Agent
+
+Audited `docs/implementation-phase/brds/BRD-19-agent-runner.md`. Report: `docs/implementation-phase/audits/BRD-19-audit-v1.md`. Score **8.10 / 10** (below 9.0 threshold) → **RETURN_TO_BSA**, `audit_iter_F1 = 1 → 2`. Three must-fix findings: (F-01 BLOCKER) §4.3 / §4.5 step 5 / §11 DoD bullet 6 reference a non-existent `initial_state` parameter and `on_event` callback name — actual `AgentOrchestrator.__init__(state, emit, stopping_policy)` already accepts a pre-built `RunState`, so the proposed "non-breaking parameter addition" is unnecessary and would itself violate BRD-19 §10 "Out of Scope". (F-02 MAJOR) cancel↔resume race window is unspecified — if a user resumes within hundreds of ms of a cancel, the prior task is still registered and `start()` raises `RunAlreadyRunningError`; no US/edge case covers it. (F-03 MAJOR) §4.8 #2 supervisor outer `except Exception` would double-emit `AgentErroredEvent` + `StoppedEvent` because orchestrator.py:108 already catches all non-CancelledError exceptions via `_handle_error`. Four open questions classified: #1 (publish ownership), #2 (resume target state), #3 (WEB_CONCURRENCY guard) all DEFERRABLE; #4 (quiet-shutdown event) collapses into a minor §10 wording fix. Minor findings: stopped_at overwrite by emit callback (F-04), RF-04 missing from §2 traceability (F-07), explicit "no startup sweep" in §10 (F-08).
+
+---
+
+## D-031: BRD-19 — Agent Runner & Wiring authored
+
+**Date:** 2026-05-26
+**Phase:** F1 (BSA — analyze) for BRD-19
+**Author:** BSA Agent
+
+Authored `docs/implementation-phase/brds/BRD-19-agent-runner.md`. Closes the runtime gap surfaced by D-030: `POST /api/runs` currently inserts a row and returns without launching the orchestrator, so no events / LLM calls ever fire and SSE stays silent. BRD-19 introduces a new `app/agent/runner.py` module (`AgentRunner` + module-level singleton mirroring `connection_manager`), an `emit` callback that persists via `EventService` + publishes via `connection_manager` + writes terminal `stop_reason` on the `runs` row, state rehydration from the event log on `start()`, in-process task registry guarded by `anyio.Lock` with single-writer-per-run enforcement (`RunAlreadyRunningError`, RF-05), three two-line wiring changes in `RunService` (`create_run`/`cancel_run`/`resume_run`), and a `lifespan` shutdown hook that cancels active tasks before `engine.dispose()`. 5 user stories (US-19.1..19.5) with INVEST Gherkin. Out of scope: LangGraph, distributed locks, FSM changes, SSE protocol changes. Open questions logged at end of BRD: BRD-10 amendment scope for `publish/subscribe`, resume target state, worker-count startup guard, shutdown event emission.
+
+---
+
+## D-030: Agent worker / restart-after-resume — deferred follow-up
+
+**Date:** 2026-05-26
+**Phase:** Follow-up (surfaced during BRD-15 / IP-15 F2 audit iter 1)
+**Author:** Orchestrator Agent
+
+IP-15 ships the **state transition** for resume (clear `stop_reason` + append `ResumedAfterError`/`ResumedAfterCancel`) but **not** the agent restart that RF-11 mandates (“continues from there”). The codebase has no task queue or worker registry yet — `architecture.md` §782 references an in-process task registry but the corresponding BRD has not been authored. Until it lands, a resumed run will sit silent.
+
+**Decision:** record an explicit follow-up BRD (“Agent worker / task registry”) so the resume contract becomes end-to-end. IP-15 handles the UX gap defensively with:
+1. Inline notice next to the live dot post-resume (microcopy pinned in `frontend/src/lib/microcopy.ts`).
+2. `ResearchingBanner` suppression until at least one post-resume event arrives.
+3. Vitest case `CenterPanelContainer shows post-resume notice and no ResearchingBanner until agent emits` locks the contract.
+
+No immediate code change beyond IP-15. The microcopy is the flip-switch for the future worker BRD.
+
+---
+
+## D-029: BRD-15 vs. shipped architecture — reconciliation request to BSA
+
+**Date:** 2026-05-26
+**Phase:** Follow-up (surfaced during IP-15 authoring)
+**Author:** Orchestrator Agent
+
+BRD-15 §4 (drafted before BRD-01/02/03/10 landed) contradicts the implemented architecture in three places:
+
+1. **Fork model** — BRD-15 §4.3 copies events `1..fork_at_step` into the new run and appends a synthetic `ForkCreated` event. Reality: `runs.parent_run_id` + `runs.forked_at_event_id` (UUID FK) store lineage **by reference**; no events are copied; `EventType` does not include `ForkCreated`. Locked by BRD-01 (schema) and BRD-02 (`FORKABLE_EVENTS = {PLAN_CREATED, AMBIGUITY_DETECTED, CONTRADICTION_DETECTED, JUDGE_RULED, STOPPED}` — also tested by `test_forkable_events_exact_membership`).
+2. **Fork request shape** — BRD-15 §4.4 uses `{ step_index: int }`. Reality: `RunForkRequest { event_id: UUID }` is the live contract on `POST /api/runs/{id}/fork`.
+3. **Resume contract** — BRD-15 implies resume does not emit an event (mirroring the current buggy `RunService.resume_run`). Reality: `architecture.md` §events and RF-11 require `ResumedAfterError` / `ResumedAfterCancel` to be appended atomically with the status clear.
+
+**Decision:** IP-15 binds to the architecture (§1 reconciliation table). BSA should produce **BRD-15 v1.1** that rewrites §4 around (a) lineage-by-reference, (b) `event_id` request shape, (c) the required `ResumedAfter*` event emission with the `resume_point: str` field populated as `f"after_step_{anchor.step_index}"`. The IP is approved 9.75/10 by the Auditor with the divergence explicitly recognized as correct.
+
+---
+
+## D-028: BRD-15 / IP-15 — Fork & Resume Implementation Plan APPROVED at audit iter 2
+
+**Date:** 2026-05-26
+**Phase:** F2 (PLAN — Implementation Plan audit sub-loop)
+**Author:** Orchestrator Agent
+
+**Workflow trace so far for BRD-15:**
+- F2 (PLAN): IP-15 authored by Orchestrator, 1 plan iteration (in-place revision after audit feedback).
+- F2.S3 sub-loop (AUDIT): 2 iterations.
+  - Iter 1: audit_score **8.20 / 10**, RETURNED with 5 actionable items — (1) populate required `resume_point: str`; (2) promote `append_event(commit=False)` from risk to task; (3) close agent-restart-after-resume gap; (4) pin anchor lookup by event type; (5) cite SSE replay-on-connect contract or add REST fallback.
+  - Iter 2: audit_score **9.75 / 10**, APPROVED — all 5 items closed in place (new task B0; B1 anchors by `EventType.AGENT_ERRORED` / `EventType.STOPPED` + payload filter; resume_point populated; §9 deferral with three UI deliverables; SSE §stream.py L73–155 cited).
+
+**Quality gates:**
+| Gate | Threshold | Actual | Iterations | Status |
+|---|---|---|---|---|
+| Document Audit (F2) | ≥ 9 | 9.75 | 2 / 3 | PASS |
+
+Report: [AUDIT-PLAN-US-15.md](../../../docs/implementation-phase/audits/AUDIT-PLAN-US-15.md). Plan: [IP-15-fork-resume.md](../../../docs/implementation-phase/implementation-plans/IP-15-fork-resume.md).
+
+**Non-blocking nits to forward to Coder (do not delay F3):**
+1. One-line code comment in B2/B3 justifying the 404 collapse for cross-run forks.
+2. Prefer `mocker.spy(event_service.db, "commit")` over full `AsyncSession` patching in `test_event_service_append_no_commit`.
+3. Create `frontend/src/lib/microcopy.ts` if absent.
+4. (This entry already satisfies the auditor's nit #4 — the agent-worker follow-up is now D-030, not just a hand-off note.)
+
+Proceeding to F3 (IMPLEMENT) with Coder agent.
+
+---
 
 **Date:** 2026-05-26
 **Phase:** Follow-up (post BRD-09 F5)

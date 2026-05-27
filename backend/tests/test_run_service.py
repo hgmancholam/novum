@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -195,6 +198,16 @@ async def test_resume_clears_stop_state(
     run = await _create_run(sqlite_session, seeded_user)
     svc = RunService(sqlite_session)
     await svc.cancel_run(run.id, seeded_user)
+    # IP-15: resume requires an anchor `Stopped(user_cancelled)` event.
+    sqlite_session.add(
+        Event(
+            run_id=run.id,
+            step_index=1,
+            type="Stopped",
+            payload={"stop_reason": StopReason.USER_CANCELLED.value},
+        )
+    )
+    await sqlite_session.commit()
 
     resp = await svc.resume_run(run.id, seeded_user)
     assert resp.stop_reason is None
@@ -227,6 +240,19 @@ async def test_resume_accepts_errored_state(
 ) -> None:
     run = await _create_run(sqlite_session, seeded_user)
     run.stop_reason = StopReason.ERRORED.value
+    # IP-15: resume requires an anchor `AgentErrored` event.
+    sqlite_session.add(
+        Event(
+            run_id=run.id,
+            step_index=1,
+            type="AgentErrored",
+            payload={
+                "error_type": "LLMError",
+                "error_message": "boom",
+                "recoverable": True,
+            },
+        )
+    )
     await sqlite_session.commit()
 
     svc = RunService(sqlite_session)
@@ -291,3 +317,172 @@ async def test_fork_sets_parent_and_event(
     assert resp.parent_run_id == run.id
     assert resp.forked_at_event_id == forkable_event.id
     assert resp.id != run.id
+
+
+# ---------------------------------------------------------------------------
+# IP-15 — resume emits the canonical ResumedAfter* event (RF-11) and the
+# fork endpoint rejects cross-run events. See
+# docs/implementation-phase/implementation-plans/IP-15-fork-resume.md §6.
+# ---------------------------------------------------------------------------
+
+
+async def _seed_errored_run(session: AsyncSession, username: str) -> tuple[Run, Event]:
+    """Run with an `AgentErrored` event at step 5 and stop_reason=errored."""
+    run = await _create_run(session, username)
+    anchor = Event(
+        run_id=run.id,
+        step_index=5,
+        type="AgentErrored",
+        payload={
+            "error_type": "LLMError",
+            "error_message": "rate limited",
+            "recoverable": True,
+        },
+    )
+    session.add(anchor)
+    run.stop_reason = StopReason.ERRORED.value
+    run.stopped_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(anchor)
+    return run, anchor
+
+
+async def _seed_cancelled_run(session: AsyncSession, username: str) -> tuple[Run, Event]:
+    """Run with a `Stopped(user_cancelled)` event at step 4 and stop_reason=user_cancelled."""
+    run = await _create_run(session, username)
+    anchor = Event(
+        run_id=run.id,
+        step_index=4,
+        type="Stopped",
+        payload={"stop_reason": StopReason.USER_CANCELLED.value},
+    )
+    session.add(anchor)
+    run.stop_reason = StopReason.USER_CANCELLED.value
+    run.stopped_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(anchor)
+    return run, anchor
+
+
+async def _latest_event(session: AsyncSession, run_id: uuid.UUID) -> Event | None:
+    import sqlalchemy as sa
+
+    query = (
+        sa.select(Event)
+        .where(Event.run_id == run_id)
+        .order_by(Event.step_index.desc())
+        .limit(1)
+    )
+    result = await session.execute(query)
+    return result.scalar_one_or_none()
+
+
+async def test_resume_errored_emits_ResumedAfterError_with_anchor(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """IP-15 B1: ResumedAfterError points at the latest AgentErrored event."""
+    run, anchor = await _seed_errored_run(sqlite_session, seeded_user)
+
+    svc = RunService(sqlite_session)
+    resp = await svc.resume_run(run.id, seeded_user)
+
+    assert resp.stop_reason is None
+    assert resp.stopped_at is None
+
+    latest = await _latest_event(sqlite_session, run.id)
+    assert latest is not None
+    assert latest.type == "ResumedAfterError"
+    assert latest.parent_event_id == anchor.id
+    assert latest.step_index == anchor.step_index + 1
+    assert latest.payload["original_error_event_id"] == str(anchor.id)
+    assert latest.payload["resume_point"] == f"after_step_{anchor.step_index}"
+
+
+async def test_resume_cancelled_emits_ResumedAfterCancel_with_anchor(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """IP-15 B1: ResumedAfterCancel points at the Stopped(user_cancelled) event."""
+    run, anchor = await _seed_cancelled_run(sqlite_session, seeded_user)
+
+    svc = RunService(sqlite_session)
+    resp = await svc.resume_run(run.id, seeded_user)
+
+    assert resp.stop_reason is None
+    assert resp.stopped_at is None
+
+    latest = await _latest_event(sqlite_session, run.id)
+    assert latest is not None
+    assert latest.type == "ResumedAfterCancel"
+    assert latest.parent_event_id == anchor.id
+    assert latest.payload["cancel_event_id"] == str(anchor.id)
+    assert latest.payload["resume_point"] == f"after_step_{anchor.step_index}"
+
+
+async def test_resume_raises_500_when_anchor_event_missing(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """IP-15 B1: corrupt state (errored without AgentErrored) → 500, status unchanged."""
+    from fastapi import HTTPException
+
+    run = await _create_run(sqlite_session, seeded_user)
+    run.stop_reason = StopReason.ERRORED.value
+    run.stopped_at = datetime.now(UTC)
+    await sqlite_session.commit()
+
+    svc = RunService(sqlite_session)
+    with pytest.raises(HTTPException) as excinfo:
+        await svc.resume_run(run.id, seeded_user)
+    assert excinfo.value.status_code == 500
+
+    await sqlite_session.refresh(run)
+    assert run.stop_reason == StopReason.ERRORED.value
+    assert run.stopped_at is not None
+
+
+async def test_resume_is_atomic_when_append_fails(
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """IP-15 B1: if append_event raises, run.stop_reason is unchanged after rollback."""
+    from app.services import run_service as run_service_module
+
+    run, _ = await _seed_errored_run(sqlite_session, seeded_user)
+
+    async def _boom(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("flush boom")
+
+    monkeypatch.setattr(
+        run_service_module.EventService, "append_event", _boom
+    )
+
+    svc = RunService(sqlite_session)
+    with pytest.raises(RuntimeError):
+        await svc.resume_run(run.id, seeded_user)
+
+    # Rollback the failed transaction so we can re-query.
+    await sqlite_session.rollback()
+    await sqlite_session.refresh(run)
+    assert run.stop_reason == StopReason.ERRORED.value
+
+
+async def test_fork_rejects_cross_run_event(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """IP-15 B2: forking run A with an event of run B → EventNotFoundError (404)."""
+    run_a = await _create_run(sqlite_session, seeded_user)
+    run_b = await _create_run(sqlite_session, seeded_user)
+    event_b = Event(
+        run_id=run_b.id,
+        step_index=1,
+        type="PlanCreated",
+        payload={"sub_claims": [], "rationale": "r"},
+    )
+    sqlite_session.add(event_b)
+    await sqlite_session.commit()
+
+    svc = RunService(sqlite_session)
+    with pytest.raises(EventNotFoundError):
+        await svc.fork_run(
+            run_a.id, RunForkRequest(event_id=event_b.id), seeded_user
+        )

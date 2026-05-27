@@ -31,11 +31,19 @@ class EventService:
         run_id: UUID,
         event: BaseEvent,
         parent_event_id: UUID | None = None,
+        *,
+        commit: bool = True,
     ) -> Event:
         """Append an event to a run's event log.
 
         Computes the next `step_index` as `max(step_index) + 1` for the
         run (or 1 if no prior events).
+
+        When ``commit=False`` the caller is responsible for committing
+        the surrounding transaction — only ``flush()`` + ``refresh()`` run
+        here. This lets a single transaction bundle an event append with
+        a row mutation (e.g. ``RunService.resume_run`` clearing
+        ``stop_reason`` atomically with the ``ResumedAfter*`` event).
         """
         query = (
             select(Event.step_index)
@@ -47,7 +55,7 @@ class EventService:
         last_index = result.scalar()
         next_index = (last_index or 0) + 1
 
-        payload = event.model_dump(exclude=set(_ENVELOPE_KEYS))
+        payload = event.model_dump(mode="json", exclude=set(_ENVELOPE_KEYS))
         event_type = payload.get("type") or getattr(event, "type", None)
         db_event = Event(
             run_id=run_id,
@@ -57,8 +65,12 @@ class EventService:
             payload=payload,
         )
         self.db.add(db_event)
-        await self.db.commit()
-        await self.db.refresh(db_event)
+        if commit:
+            await self.db.commit()
+            await self.db.refresh(db_event)
+        else:
+            await self.db.flush()
+            await self.db.refresh(db_event)
         return db_event
 
     async def get_events(

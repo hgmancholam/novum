@@ -187,7 +187,10 @@ async def test_cancel_endpoint_sets_user_cancelled(
 
 
 async def test_resume_endpoint_clears_stop_state(
-    client: AsyncClient, seeded_user: str, auth_headers: dict[str, str]
+    client: AsyncClient,
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    auth_headers: dict[str, str],
 ) -> None:
     create = await client.post(
         "/api/runs", json=_VALID_BODY, headers=auth_headers
@@ -196,6 +199,16 @@ async def test_resume_endpoint_clears_stop_state(
     await client.post(
         f"/api/runs/{run_id}/cancel", headers=auth_headers
     )
+    # IP-15: resume requires an anchor `Stopped(user_cancelled)` event.
+    sqlite_session.add(
+        Event(
+            run_id=uuid.UUID(run_id),
+            step_index=1,
+            type="Stopped",
+            payload={"stop_reason": "user_cancelled"},
+        )
+    )
+    await sqlite_session.commit()
 
     response = await client.post(
         f"/api/runs/{run_id}/resume", headers=auth_headers
@@ -204,6 +217,85 @@ async def test_resume_endpoint_clears_stop_state(
     data = response.json()
     assert data["stop_reason"] is None
     assert data["stopped_at"] is None
+
+
+async def test_resume_endpoint_appends_resume_event(
+    client: AsyncClient,
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    auth_headers: dict[str, str],
+) -> None:
+    """IP-15 B6: resume appends a ResumedAfterCancel event with parent + payload."""
+    import sqlalchemy as sa
+
+    create = await client.post(
+        "/api/runs", json=_VALID_BODY, headers=auth_headers
+    )
+    run_id = create.json()["id"]
+    await client.post(
+        f"/api/runs/{run_id}/cancel", headers=auth_headers
+    )
+    anchor = Event(
+        run_id=uuid.UUID(run_id),
+        step_index=3,
+        type="Stopped",
+        payload={"stop_reason": "user_cancelled"},
+    )
+    sqlite_session.add(anchor)
+    await sqlite_session.commit()
+    await sqlite_session.refresh(anchor)
+
+    response = await client.post(
+        f"/api/runs/{run_id}/resume", headers=auth_headers
+    )
+    assert response.status_code == 200
+
+    query = (
+        sa.select(Event)
+        .where(Event.run_id == uuid.UUID(run_id))
+        .order_by(Event.step_index.desc())
+        .limit(1)
+    )
+    result = await sqlite_session.execute(query)
+    latest = result.scalar_one()
+    assert latest.type == "ResumedAfterCancel"
+    assert latest.parent_event_id == anchor.id
+    assert latest.step_index == 4
+    assert latest.payload["cancel_event_id"] == str(anchor.id)
+    assert latest.payload["resume_point"] == "after_step_3"
+
+
+async def test_fork_endpoint_rejects_cross_run_event(
+    client: AsyncClient,
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    auth_headers: dict[str, str],
+) -> None:
+    """IP-15 B2: forking with an event that belongs to a different run → 404."""
+    create_a = await client.post(
+        "/api/runs", json=_VALID_BODY, headers=auth_headers
+    )
+    create_b = await client.post(
+        "/api/runs", json=_VALID_BODY, headers=auth_headers
+    )
+    run_a = create_a.json()["id"]
+    run_b = create_b.json()["id"]
+
+    event_b = Event(
+        run_id=uuid.UUID(run_b),
+        step_index=1,
+        type="PlanCreated",
+        payload={"sub_claims": [], "rationale": "r"},
+    )
+    sqlite_session.add(event_b)
+    await sqlite_session.commit()
+
+    response = await client.post(
+        f"/api/runs/{run_a}/fork",
+        json={"event_id": str(event_b.id)},
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------

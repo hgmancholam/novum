@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-26T20:22:51.411386+00:00
+// Generated: 2026-05-27T02:35:26.691878+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -55,6 +55,12 @@ export type EventType =
   | "ResumedAfterError"
   | "ResumedAfterCancel"
   | "Stopped";
+
+// ---------------------------------------------------------------------------
+// Forkable events (RF-03): user-selectable branch points.
+// ---------------------------------------------------------------------------
+
+export const FORKABLE_EVENTS: readonly EventType[] = ["PlanCreated", "AmbiguityDetected", "ContradictionDetected", "JudgeRuled", "Stopped"] as const;
 
 // ---------------------------------------------------------------------------
 // JSON Schema for runtime validation

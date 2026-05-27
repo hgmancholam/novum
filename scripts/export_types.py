@@ -29,7 +29,7 @@ from app.domain.enums import (  # noqa: E402
     SourceType,
     StopReason,
 )
-from app.domain.events import Event  # noqa: E402
+from app.domain.events import FORKABLE_EVENTS, Event  # noqa: E402
 
 _OUTPUT_PATH = (
     Path(__file__).resolve().parent.parent / "frontend" / "src" / "types" / "events.ts"
@@ -69,6 +69,17 @@ def _build_output() -> str:
     lines.append("")
     for name, values in enums:
         lines.append(_render_enum(name, values))
+
+    lines.append("// ---------------------------------------------------------------------------")
+    lines.append("// Forkable events (RF-03): user-selectable branch points.")
+    lines.append("// ---------------------------------------------------------------------------")
+    lines.append("")
+    forkable = [e.value for e in EventType if e in FORKABLE_EVENTS]
+    forkable_literals = ", ".join(f'"{v}"' for v in forkable)
+    lines.append(
+        f"export const FORKABLE_EVENTS: readonly EventType[] = [{forkable_literals}] as const;"
+    )
+    lines.append("")
 
     lines.append("// ---------------------------------------------------------------------------")
     lines.append("// JSON Schema for runtime validation")

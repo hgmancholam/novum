@@ -39,14 +39,52 @@ describe("ActionBar", () => {
     expect(screen.getByTestId("cancel-button")).toBeDisabled();
   });
 
-  it("renders the Fork button disabled with the BRD-15 tooltip", () => {
+  it("renders the Fork button disabled when there are no forkable events", () => {
     setup();
     const fork = screen.getByTestId("fork-button");
     expect(fork).toBeDisabled();
     expect(fork).toHaveAttribute(
       "title",
-      "Select a step from the trace (coming soon)"
+      "No forkable points yet — wait for the agent to reach a plan or contradiction."
     );
+    expect(screen.queryByTestId("fork-count")).not.toBeInTheDocument();
+  });
+
+  it("enables Fork when forkableEventCount > 0 and an onFork handler is provided", () => {
+    const onFork = vi.fn();
+    render(
+      <ActionBar
+        status="stopped"
+        onCancel={vi.fn()}
+        isCancelling={false}
+        onFork={onFork}
+        forkableEventCount={3}
+      />
+    );
+    const fork = screen.getByTestId("fork-button");
+    expect(fork).not.toBeDisabled();
+    expect(fork).toHaveAttribute("title", "Fork from a decision point");
+    expect(screen.getByTestId("fork-count")).toHaveTextContent("3");
+    fireEvent.click(fork);
+    expect(onFork).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the post-resume notice when showPostResumeNotice is true", () => {
+    render(
+      <ActionBar
+        status="running"
+        onCancel={vi.fn()}
+        isCancelling={false}
+        showPostResumeNotice
+      />
+    );
+    const notice = screen.getByTestId("post-resume-notice");
+    expect(notice).toHaveTextContent(/Resume recorded/);
+  });
+
+  it("does not render the post-resume notice by default", () => {
+    setup();
+    expect(screen.queryByTestId("post-resume-notice")).not.toBeInTheDocument();
   });
 
   it("shows a 'Live' indicator while running and 'Stopped' otherwise", () => {

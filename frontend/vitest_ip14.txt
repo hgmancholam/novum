@@ -1,0 +1,168 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Users/HarolGiovannyManchol/source/repos/novum/frontend[39m
+
+ [32mΓ£ô[39m src/stores/userStore.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 52[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks/useRunStream.test.tsx [2m([22m[2m13 tests[22m[2m)[22m[90m 252[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/ActionBar.test.tsx [2m([22m[2m13 tests[22m[2m)[22m[33m 1124[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m ActionBar[2m > [22mhas no accessibility violations [33m658[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/ForkModal.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 1496[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m ForkModal[2m > [22mhas no accessibility violations [33m1000[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/QuestionForm.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 1619[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m QuestionForm[2m > [22mdisables the submit button until the question is long enough [33m323[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m QuestionForm[2m > [22mincludes trimmed userContext when the context disclosure is opened [33m634[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/HistoryList.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 1948[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m HistoryList[2m > [22mL1 ΓÇö shows empty state with a CTA when no runs [33m861[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m HistoryList[2m > [22mhas no a11y violations in the populated state [33m593[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks/useRunHistory.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 482[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks/useRun.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 811[2mms[22m[39m
+ [32mΓ£ô[39m src/pages/NewRunContainer.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 1151[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m NewRunContainer[2m > [22msubmits the question and navigates to /runs/:id on success [33m365[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m NewRunContainer[2m > [22mseeds the textarea when a suggestion is picked [33m593[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/format.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/HistoryFilters.test.tsx [2m([22m[2m13 tests[22m[2m)[22m[33m 1765[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m HistoryFilters[2m > [22mtoggles status pill on click [33m755[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m HistoryFilters[2m > [22mhas no a11y violations [33m377[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/ElapsedClock.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[90m 196[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/UsernameModal.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 1372[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m UsernameModal[2m > [22mdoes not render Cancel when unauthenticated (no guest mode) [33m509[2mms[22m[39m
+ [31mΓ¥»[39m src/components/molecules/EventNode.test.tsx [2m([22m[2m7 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1429[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m EventNode[2m > [22mtoggles aria-expanded and calls onToggle with the event key [33m656[2mms[22m[39m
+[31m   [31m├ù[31m EventNode[2m > [22mhas no accessibility violations[33m 494[2mms[22m[31m[39m
+[31m     ΓåÆ expect(received).toHaveNoViolations(expected)
+
+Expected the HTML found at $('li') to have no violations:
+
+<li data-testid="event-node" data-event-type="PlanCreated" data-expanded="true" data-decision="true" class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--bg-tertiary)] p-2 text-xs shadow-sm">
+
+Received:
+
+"<li> elements must be contained in a <ul> or <ol> (listitem)"
+
+Fix any of the following:
+  List item does not have a <ul>, <ol> parent element
+
+You can find more information on this issue here: 
+https://dequeuniversity.com/rules/axe/4.10/listitem?application=axeAPI[39m
+ [32mΓ£ô[39m src/hooks/useCreateRun.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 341[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/UsernameModalContainer.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 1243[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m UsernameModalContainer[2m > [22mhas no a11y violations when visible [33m983[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/ConfidenceBar.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 1266[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m ConfidenceBar[2m > [22msets aria-valuenow on the progressbar [33m554[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m ConfidenceBar[2m > [22mhas no a11y violations [33m315[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/clipboard.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 169[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/StatusBadge.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[33m 1146[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m StatusBadge[2m > [22mhas no a11y violations [33m812[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/eventVisuals.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [31mΓ¥»[39m src/components/atoms/EventPayloadViewer.test.tsx [2m([22m[2m7 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1187[2mms[22m[39m
+[31m   [31m├ù[31m EventPayloadViewer[2m > [22mrenders an empty object placeholder[90m 30[2mms[22m[31m[39m
+[31m     ΓåÆ [2mexpect([22m[31melement[31m[2m).toHaveTextContent()[22m
+
+Expected element to have text content:
+[32m  {}[31m
+Received:
+[31m[31m[39m
+   [33m[2mΓ£ô[22m[39m EventPayloadViewer[2m > [22mhas no accessibility violations [33m924[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/auth.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/RunRow.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 1256[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m RunRow[2m > [22mhas no a11y violations [33m966[2mms[22m[39m
+ [32mΓ£ô[39m src/components/atoms/Button.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 1283[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m Button[2m > [22mrenders children with default variant and size [33m760[2mms[22m[39m
+ [32mΓ£ô[39m src/components/templates/AppShell.test.tsx [2m([22m[2m17 tests[22m[2m)[22m[33m 2184[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m AppShell[2m > [22mrenders all three slots on desktop [33m328[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m AppShell[2m > [22mhas no a11y violations on desktop [33m991[2mms[22m[39m
+ [32mΓ£ô[39m src/stores/selectionStore.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/pages/CenterPanelContainer.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 1949[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m CenterPanelContainer[2m > [22mrenders the question and the Researching banner for a running run [33m749[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/CenterPanelView.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 684[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m CenterPanelView[2m > [22mrenders the question and the Researching banner while running [33m608[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/RunHeader.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 240[2mms[22m[39m
+ [32mΓ£ô[39m src/types/run.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/components/atoms/ForkableEventRow.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 743[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m ForkableEventRow[2m > [22mhas no accessibility violations [33m523[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/StopReasonCard.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 1124[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m StopReasonCard[2m > [22mhas no accessibility violations for every variant [33m906[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/TraceHeader.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 822[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m TraceHeader[2m > [22mrenders the 'Trace' title [33m491[2mms[22m[39m
+ [32mΓ£ô[39m src/components/atoms/Badge.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 705[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m Badge[2m > [22mhas no a11y violations [33m442[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks/useLoginModal.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 129[2mms[22m[39m
+ [32mΓ£ô[39m src/components/atoms/OutcomeBar.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 740[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m OutcomeBar[2m > [22mhas no accessibility violations [33m511[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/TrustSummary.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 993[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m TrustSummary[2m > [22mhas no accessibility violations [33m766[2mms[22m[39m
+ [32mΓ£ô[39m src/main.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 200[2mms[22m[39m
+ [32mΓ£ô[39m src/components/atoms/Spinner.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 983[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m Spinner[2m > [22mrenders with role=status [33m493[2mms[22m[39m
+ [32mΓ£ô[39m src/components/atoms/Logo.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 1024[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m Logo[2m > [22mrenders the mark with default accessible name [33m664[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/LineageBadge.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 713[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m LineageBadge[2m > [22mhas no accessibility violations [33m582[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/MetaRow.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 167[2mms[22m[39m
+ [32mΓ£ô[39m src/components/atoms/EventIcon.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[90m 131[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/SuggestionChips.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 930[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m SuggestionChips[2m > [22mrenders the 3 default suggestions [33m671[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/PlanPreview.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 738[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m PlanPreview[2m > [22mrenders all six prototype steps in order [33m517[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/ResearchingBanner.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 597[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m ResearchingBanner[2m > [22mhas no accessibility violations [33m472[2mms[22m[39m
+ [32mΓ£ô[39m src/components/atoms/JumpToLatestPill.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 715[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m JumpToLatestPill[2m > [22mhas no accessibility violations [33m589[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/NotFoundCard.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 654[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m NotFoundCard[2m > [22mrenders the not-found microcopy with the runId [33m633[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/TypeDisclosure.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 1112[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m TypeDisclosure[2m > [22mhas no accessibility violations [33m905[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/QuestionDisplay.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 780[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m QuestionDisplay[2m > [22mrenders the question text inside a heading [33m610[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/TraceEmpty.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 742[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m TraceEmpty[2m > [22mhas no accessibility violations [33m573[2mms[22m[39m
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ» Failed Tests 2 ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+
+ FAIL  src/components/atoms/EventPayloadViewer.test.tsx > EventPayloadViewer > renders an empty object placeholder
+Error: expect(element).toHaveTextContent()
+
+Expected element to have text content:
+  {}
+Received:
+
+ Γ¥» src/components/atoms/EventPayloadViewer.test.tsx:31:56
+     29|   it("renders an empty object placeholder", () => {
+     30|     render(<EventPayloadViewer value={{}} />);
+     31|     expect(screen.getByTestId("event-payload-viewer")).toHaveTextConteΓÇª
+       |                                                        ^
+     32|   });
+     33| 
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1/2]ΓÄ»
+
+ FAIL  src/components/molecules/EventNode.test.tsx > EventNode > has no accessibility violations
+Error: expect(received).toHaveNoViolations(expected)
+
+Expected the HTML found at $('li') to have no violations:
+
+<li data-testid="event-node" data-event-type="PlanCreated" data-expanded="true" data-decision="true" class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--bg-tertiary)] p-2 text-xs shadow-sm">
+
+Received:
+
+"<li> elements must be contained in a <ul> or <ol> (listitem)"
+
+Fix any of the following:
+  List item does not have a <ul>, <ol> parent element
+
+You can find more information on this issue here: 
+https://dequeuniversity.com/rules/axe/4.10/listitem?application=axeAPI
+ Γ¥» src/components/molecules/EventNode.test.tsx:99:34
+     97|       <EventNode event={makeEvent()} expanded={true} onToggle={() => {ΓÇª
+     98|     );
+     99|     expect(await axe(container)).toHaveNoViolations();
+       |                                  ^
+    100|   });
+    101| });
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[2/2]ΓÄ»
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m49 passed[39m[22m[90m (51)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m346 passed[39m[22m[90m (348)[39m
+[2m   Start at [22m 21:59:15
+[2m   Duration [22m 116.41s[2m (transform 6.77s, setup 189.01s, collect 184.92s, tests 41.47s, environment 752.49s, prepare 39.44s)[22m
+

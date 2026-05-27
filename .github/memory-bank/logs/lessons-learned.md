@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-26
-**Total Lessons:** 13
+**Total Lessons:** 14
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,7 @@
 
 ## Recent Lessons
 
+- **L-014:** A Working FSM + a Working SSE Stream Do Not Imply a Working Product — the Runtime Bridge is its Own BRD (2026-05-26)
 - **L-013:** `...init` Spread in `fetch()` Options Must Come Before `headers`/`body` (2026-05-26)
 - **L-012:** Float-Boundary Tests for Strict-`>` Thresholds Must Use Exact IEEE-754 Values (2026-05-26)
 - **L-011:** Drive Interval-Backed Components from a Prop in Tests, not from Fake Timers (2026-05-26)

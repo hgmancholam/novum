@@ -2,7 +2,7 @@
 
 **Document ID:** BRD-15
 **Version:** 1.0
-**Status:** Draft
+**Status:** Implemented (CR-15-001 — 9.73/10, 2026-05-26) · reconciliation v1.1 owed (see D-029/D-031)
 **Author:** BSA Agent
 **Date:** 2026-05-26
 **Implementation Order:** 16 of 19

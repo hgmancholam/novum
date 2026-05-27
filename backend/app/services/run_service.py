@@ -5,11 +5,17 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
+from fastapi import HTTPException
+from fastapi import status as http_status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.enums import StopReason
-from app.domain.events import FORKABLE_EVENTS
+from app.domain.enums import EventType, StopReason
+from app.domain.events import (
+    FORKABLE_EVENTS,
+    ResumedAfterCancelEvent,
+    ResumedAfterErrorEvent,
+)
 from app.domain.run import RunCreate, RunForkRequest, RunListItem, RunResponse
 from app.exceptions import (
     EventNotFoundError,
@@ -19,6 +25,7 @@ from app.exceptions import (
     RunStillRunningError,
 )
 from app.models import Event, Run
+from app.services.event_service import EventService
 from app.sse.manager import connection_manager
 
 # Stop reasons that can be resumed (RF-11).
@@ -102,6 +109,11 @@ class RunService:
         if not event:
             raise EventNotFoundError(str(data.event_id))
 
+        # Cross-run guard (IP-15 B2): collapse to 404 so callers cannot probe
+        # event IDs across runs to enumerate the event log.
+        if event.run_id != run_id:
+            raise EventNotFoundError(str(data.event_id))
+
         forkable_values = {e.value for e in FORKABLE_EVENTS}
         if event.type not in forkable_values:
             raise RunNotForkableError(str(data.event_id))
@@ -142,6 +154,12 @@ class RunService:
 
         Only `user_cancelled` and `errored` runs are resumable;
         honest stops and `judge_confirmed` are terminal.
+
+        Emits the canonical `ResumedAfterError` / `ResumedAfterCancel` event
+        (architecture.md §events) atomically with the `stop_reason` clear:
+        the event is appended via `EventService.append_event(commit=False)`
+        and a single `await self.db.commit()` covers both writes, so a
+        failed append leaves `run.stop_reason` untouched (B1 atomicity).
         """
         run = await self.db.get(Run, run_id)
         if not run:
@@ -150,11 +168,80 @@ class RunService:
         if run.stop_reason is None:
             raise RunStillRunningError(str(run_id))
 
-        if run.stop_reason not in _RESUMABLE:
+        prior_stop_reason = run.stop_reason
+        if prior_stop_reason not in _RESUMABLE:
             raise RunAlreadyStoppedError(str(run_id))
+
+        # Locate the resume anchor by event TYPE (not recency) so the
+        # invariant is grounded in the event log, not in clock skew.
+        anchor = await self._find_resume_anchor(run_id, prior_stop_reason)
+        if anchor is None:
+            # Corrupt state: a run marked errored/user_cancelled with no
+            # matching anchor event. Refuse to silently clear status.
+            raise HTTPException(
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="resume anchor event not found",
+            )
+
+        event_service = EventService(self.db)
+        resume_event: ResumedAfterErrorEvent | ResumedAfterCancelEvent
+        match prior_stop_reason:
+            case StopReason.ERRORED.value:
+                resume_event = ResumedAfterErrorEvent(
+                    original_error_event_id=anchor.id,
+                    resume_point=f"after_step_{anchor.step_index}",
+                )
+            case StopReason.USER_CANCELLED.value:
+                resume_event = ResumedAfterCancelEvent(
+                    cancel_event_id=anchor.id,
+                    resume_point=f"after_step_{anchor.step_index}",
+                )
+            case _:  # pragma: no cover — guarded by _RESUMABLE check above
+                raise RunAlreadyStoppedError(str(run_id))
+
+        await event_service.append_event(
+            run_id,
+            resume_event,
+            parent_event_id=anchor.id,
+            commit=False,
+        )
 
         run.stop_reason = None
         run.stopped_at = None
         await self.db.commit()
         await self.db.refresh(run)
         return RunResponse.model_validate(run)
+
+    async def _find_resume_anchor(
+        self, run_id: UUID, prior_stop_reason: str
+    ) -> Event | None:
+        """Locate the canonical anchor event for a resume (RF-11)."""
+        if prior_stop_reason == StopReason.ERRORED.value:
+            query = (
+                select(Event)
+                .where(Event.run_id == run_id)
+                .where(Event.type == EventType.AGENT_ERRORED.value)
+                .order_by(Event.step_index.desc())
+                .limit(1)
+            )
+            result = await self.db.execute(query)
+            return result.scalar_one_or_none()
+        if prior_stop_reason == StopReason.USER_CANCELLED.value:
+            # Filter the `stop_reason` key in Python to stay portable across
+            # JSONB (Postgres) and JSON (SQLite, test) — a small fetch is
+            # acceptable since `Stopped` events are at most one per run.
+            query = (
+                select(Event)
+                .where(Event.run_id == run_id)
+                .where(Event.type == EventType.STOPPED.value)
+                .order_by(Event.step_index.desc())
+            )
+            result = await self.db.execute(query)
+            for candidate in result.scalars():
+                if (
+                    candidate.payload.get("stop_reason")
+                    == StopReason.USER_CANCELLED.value
+                ):
+                    return candidate
+            return None
+        return None  # pragma: no cover — guarded upstream

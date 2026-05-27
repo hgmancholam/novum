@@ -6,8 +6,41 @@ import type { ReactNode } from "react";
 
 import { CenterPanelContainer } from "./CenterPanelContainer";
 import type { RunResponseDto } from "@/lib/api";
+import type {
+  RunStreamEvent,
+  UseRunStreamResult,
+} from "@/hooks/useRunStream";
 
 const RUN_ID = "00000000-0000-0000-0000-000000000001";
+
+// Mock `useRunStream` so the SSE/EventSource layer is out of scope for these
+// page-level tests. Individual tests override the returned events list via
+// `streamMock.mockReturnValueOnce({...})`.
+const streamMock = vi.fn<() => UseRunStreamResult>(() => emptyStream());
+
+vi.mock("@/hooks/useRunStream", () => ({
+  useRunStream: () => streamMock(),
+}));
+
+function emptyStream(): UseRunStreamResult {
+  return {
+    events: [],
+    isConnected: false,
+    isComplete: false,
+    lastEventId: null,
+    error: null,
+    reconnect: vi.fn(),
+    close: vi.fn(),
+  };
+}
+
+function streamWith(events: RunStreamEvent[]): UseRunStreamResult {
+  return {
+    ...emptyStream(),
+    events,
+    isComplete: true,
+  };
+}
 
 function makeDto(overrides: Partial<RunResponseDto> = {}): RunResponseDto {
   return {
@@ -53,6 +86,8 @@ const fetchMock = vi.fn();
 
 beforeEach(() => {
   fetchMock.mockReset();
+  streamMock.mockReset();
+  streamMock.mockImplementation(() => emptyStream());
   vi.stubGlobal("fetch", fetchMock);
   localStorage.setItem("novum_username", "alice");
   localStorage.setItem("novum_token", "secret-token");
@@ -161,5 +196,129 @@ describe("CenterPanelContainer", () => {
       );
     });
     expect(screen.queryByTestId("researching-banner")).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // IP-15 — fork & resume wiring
+  // -------------------------------------------------------------------------
+
+  it("renders the ForkModal for a terminal run with forkable events (IP-15 F6)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        makeDto({
+          stop_reason: "judge_confirmed",
+          stopped_at: "2026-05-26T00:05:00Z",
+        })
+      )
+    );
+    streamMock.mockImplementation(() =>
+      streamWith([
+        { id: "evt-a", type: "PlanCreated", step_index: 1 },
+        { id: "evt-b", type: "ToolCalled", step_index: 2 },
+        { id: "evt-c", type: "JudgeRuled", step_index: 7 },
+      ])
+    );
+
+    renderWithRouter(<CenterPanelContainer />);
+    await waitFor(() => {
+      expect(screen.getByTestId("fork-count")).toHaveTextContent("2");
+    });
+    fireEvent.click(screen.getByTestId("fork-button"));
+    expect(screen.getByTestId("fork-modal")).toBeInTheDocument();
+    const rows = screen.getAllByTestId("forkable-event-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveAttribute("data-event-type", "PlanCreated");
+    expect(rows[1]).toHaveAttribute("data-event-type", "JudgeRuled");
+  });
+
+  it("wires fork flow and posts the right event_id (IP-15 F6)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        makeDto({
+          stop_reason: "judge_confirmed",
+          stopped_at: "2026-05-26T00:05:00Z",
+        })
+      )
+    );
+    streamMock.mockImplementation(() =>
+      streamWith([
+        { id: "evt-plan", type: "PlanCreated", step_index: 1 },
+      ])
+    );
+
+    renderWithRouter(<CenterPanelContainer />);
+    await waitFor(() => {
+      expect(screen.getByTestId("fork-button")).not.toBeDisabled();
+    });
+
+    // Capture the POST /fork request.
+    const forkedId = "00000000-0000-0000-0000-0000000000ff";
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        makeDto({
+          id: forkedId,
+          parent_run_id: RUN_ID,
+          forked_at_event_id: "evt-plan",
+        })
+      )
+    );
+    // Subsequent invalidation refetches (after fork onSuccess).
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        makeDto({
+          stop_reason: "judge_confirmed",
+          stopped_at: "2026-05-26T00:05:00Z",
+        })
+      )
+    );
+
+    fireEvent.click(screen.getByTestId("fork-button"));
+    fireEvent.click(screen.getByTestId("fork-from-button"));
+
+    await waitFor(() => {
+      const forkCall = fetchMock.mock.calls.find(([url]) => {
+        return (
+          typeof url === "string" && url.includes(`/api/runs/${RUN_ID}/fork`)
+        );
+      });
+      expect(forkCall).toBeDefined();
+      const init = forkCall?.[1] as RequestInit | undefined;
+      const body: unknown =
+        typeof init?.body === "string" ? JSON.parse(init.body) : init?.body;
+      expect(body).toEqual({ event_id: "evt-plan" });
+    });
+  });
+
+  it("shows the post-resume notice and hides ResearchingBanner until a new event arrives (IP-15 §9)", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(makeDto()));
+    streamMock.mockImplementation(() =>
+      streamWith([
+        { id: "evt-stop", type: "Stopped", step_index: 3 },
+        { id: "evt-resume", type: "ResumedAfterCancel", step_index: 4 },
+      ])
+    );
+
+    renderWithRouter(<CenterPanelContainer />);
+    await waitFor(() => {
+      expect(screen.getByTestId("post-resume-notice")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("researching-banner")).not.toBeInTheDocument();
+  });
+
+  it("re-shows the ResearchingBanner once an agent event arrives past the resume anchor (IP-15 §9)", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(makeDto()));
+    streamMock.mockImplementation(() =>
+      streamWith([
+        { id: "evt-stop", type: "Stopped", step_index: 3 },
+        { id: "evt-resume", type: "ResumedAfterCancel", step_index: 4 },
+        { id: "evt-tool", type: "ToolCalled", step_index: 5 },
+      ])
+    );
+
+    renderWithRouter(<CenterPanelContainer />);
+    await waitFor(() => {
+      expect(screen.getByTestId("researching-banner")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("post-resume-notice")).not.toBeInTheDocument();
   });
 });

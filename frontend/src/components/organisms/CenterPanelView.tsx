@@ -25,10 +25,18 @@ import { TrustSummary } from "./TrustSummary";
 export interface CenterPanelViewProps {
   run: Run;
   status: RunStatus;
+  /** When true, do not render the `ResearchingBanner` even if the run is
+   *  running (IP-15 F6: post-resume agent restart is deferred). */
+  suppressResearchingBanner?: boolean | undefined;
   className?: string | undefined;
 }
 
-export function CenterPanelView({ run, status, className }: CenterPanelViewProps) {
+export function CenterPanelView({
+  run,
+  status,
+  suppressResearchingBanner = false,
+  className,
+}: CenterPanelViewProps) {
   const isTerminal = status === "stopped" && run.stopReason !== null;
 
   return (
@@ -43,7 +51,7 @@ export function CenterPanelView({ run, status, className }: CenterPanelViewProps
       <RunHeader run={run} status={status} />
       <QuestionDisplay question={run.question} />
 
-      {status === "running" ? (
+      {status === "running" && !suppressResearchingBanner ? (
         <ResearchingBanner startedAt={run.startedAt} />
       ) : isTerminal && run.stopReason !== null ? (
         <div className="flex flex-col gap-3">

@@ -1,0 +1,11 @@
+...........................................                              [100%]
+
+---------- coverage: platform win32, python 3.12.10-final-0 ----------
+Name                            Stmts   Miss  Cover   Missing
+-------------------------------------------------------------
+app\services\event_service.py      33      0   100%
+app\services\run_service.py        99      3    97%   106, 166, 246
+-------------------------------------------------------------
+TOTAL                             132      3    98%
+
+43 passed, 1 deselected in 3.37s
