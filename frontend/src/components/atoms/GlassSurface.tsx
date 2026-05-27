@@ -17,21 +17,25 @@
  * Polymorphic via the `as` prop (defaults to `div`).
  */
 
-import { forwardRef, type ElementType, type ReactNode } from "react";
+import {
+  forwardRef,
+  type ElementType,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
 import { cn } from "@/lib/cn";
 
 export type GlassVariant = "subtle" | "default" | "strong";
 export type GlassElevation = "none" | "sm" | "md" | "lg" | "glow";
 export type GlassRadius = "none" | "sm" | "md" | "lg" | "xl";
 
-export interface GlassSurfaceProps {
+export interface GlassSurfaceProps extends HTMLAttributes<HTMLElement> {
   variant?: GlassVariant;
   elevation?: GlassElevation;
   radius?: GlassRadius;
   as?: ElementType;
   className?: string | undefined;
   children?: ReactNode;
-  [key: string]: unknown;
 }
 
 const variantStyles: Record<GlassVariant, string> = {
