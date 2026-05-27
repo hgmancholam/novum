@@ -27,6 +27,12 @@ Checklist-driven audit of a Business Requirements Document (BRD) against the pro
 - The BSA must apply changes to the **same** `BRD-XX-<slug>.md` across every audit iteration. No `-v2`, no new date, no new slug.
 - If a revised BRD appears under a different filename, treat it as a process violation and report it under §4 of the audit report; do not score the new file.
 
+## Audit Report File (Single File, In-Place)
+
+- Output path: `docs/implementation-phase/audits/AUDIT-BRD-XX.md` (no date, no iter suffix).
+- On iter 1 → **create** the file with the Status Header + `## Iter 1 — {date}` section.
+- On iter 2 / 3 → **open** the existing file and **append** a `## Iter N — {date}` section that begins with a *Resolution of Iter N-1 findings* table. Refresh the Status Header at the top. Never overwrite or delete prior Iter sections.
+
 ## Checklist
 
 ### 1. Requirements Coverage (30%)
@@ -73,7 +79,7 @@ Compute the weighted score per the Auditor's scoring table. Round to one decimal
 | < 7.0 | MAJOR GAPS |
 
 ## Output
-A markdown report saved to `docs/implementation-phase/audits/AUDIT-BRD-XX-{iter}-{date}.md` using the Auditor report template.
+A markdown report saved to `docs/implementation-phase/audits/AUDIT-BRD-XX.md` (single file per BRD, edited in place; one `## Iter N` section appended per audit iteration) using the Auditor report template.
 
 ## Common Failure Patterns (auto-deduct)
 - BRD does not cite a single RF number → Requirements Coverage capped at 4/10.

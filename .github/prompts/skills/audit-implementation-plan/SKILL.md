@@ -32,6 +32,12 @@ Checklist-driven audit of an Implementation Plan against the parent User Story, 
 - The Orchestrator must apply changes to the **same** `PLAN-US-XX-<slug>.md` across every audit iteration. No `-v2`, no new date, no new slug.
 - If a revised plan appears under a different filename, treat it as a process violation and report it under §4 of the audit report; do not score the new file.
 
+## Audit Report File (Single File, In-Place)
+
+- Output path: `docs/implementation-phase/audits/AUDIT-PLAN-US-XX.md` (no date, no iter suffix).
+- On iter 1 → **create** the file with the Status Header + `## Iter 1 — {date}` section.
+- On iter 2 / 3 → **open** the existing file and **append** a `## Iter N — {date}` section that begins with a *Resolution of Iter N-1 findings* table. Refresh the Status Header at the top. Never overwrite or delete prior Iter sections.
+
 ## Checklist
 
 ### 1. Requirements Coverage (30%)
@@ -85,7 +91,7 @@ Same weighted scoring as the Auditor agent. Round to one decimal.
 | < 7.0 | MAJOR GAPS |
 
 ## Output
-A markdown report saved to `docs/implementation-phase/audits/AUDIT-PLAN-US-XX-{iter}-{date}.md`.
+A markdown report saved to `docs/implementation-phase/audits/AUDIT-PLAN-US-XX.md` (single file per plan, edited in place; one `## Iter N` section appended per audit iteration).
 
 ## Common Failure Patterns (auto-deduct)
 - One or more tasks introduce a state with no outgoing transition for a known outcome → Blind-Path Absence reduced by 3 points per occurrence.

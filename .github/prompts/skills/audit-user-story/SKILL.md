@@ -27,6 +27,12 @@ Checklist-driven audit of a User Story against the INVEST criteria, Gherkin acce
 - The BSA must apply changes to the **same** `US-XX-<slug>.md` across every audit iteration. No `-v2`, no new date, no new slug.
 - If a revised User Story appears under a different filename, treat it as a process violation and report it under §4 of the audit report.
 
+## Audit Report File (Single File, In-Place)
+
+- Output path: `docs/implementation-phase/audits/AUDIT-US-XX.md` (no date, no iter suffix).
+- On iter 1 → **create** the file with the Status Header + `## Iter 1 — {date}` section.
+- On iter 2 / 3 → **open** the existing file and **append** a `## Iter N — {date}` section that begins with a *Resolution of Iter N-1 findings* table. Refresh the Status Header at the top. Never overwrite or delete prior Iter sections.
+
 ## Checklist
 
 ### 1. Requirements Coverage (30%)
@@ -77,7 +83,7 @@ Same weighted scoring as the Auditor agent. Round to one decimal.
 | < 7.0 | MAJOR GAPS |
 
 ## Output
-A markdown report saved to `docs/implementation-phase/audits/AUDIT-US-XX-{iter}-{date}.md`.
+A markdown report saved to `docs/implementation-phase/audits/AUDIT-US-XX.md` (single file per User Story, edited in place; one `## Iter N` section appended per audit iteration).
 
 ## Common Failure Patterns (auto-deduct)
 - Acceptance criteria not in Gherkin → Acceptance Criteria capped at 5/10.

@@ -35,7 +35,7 @@ During **F1.S6 — apply_audit_feedback**, the BSA MUST modify the **existing** 
   - User Story → keep `docs/implementation-phase/user-stories/US-XX-<slug>.md`
 - Use file-edit tools (string replacement / patch), not file-create tools.
 - Never add suffixes like `-v2`, `-revised`, or a new date to the filename.
-- The only versioned artifact per iteration is the audit report (`AUDIT-*-{iter}-{date}.md`), which is owned by the Auditor.
+- The only versioned artifact per audit iteration is the consolidated audit report (`AUDIT-{BRD|US}-XX.md`), which is owned by the Auditor and edited in place (one file per artifact, one `## Iter N` section appended per iteration).
 - After the revision, re-submit the SAME files to the Auditor for the next audit iteration.
 
 ## Mandatory Protocols

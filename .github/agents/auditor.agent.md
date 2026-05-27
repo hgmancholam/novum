@@ -155,28 +155,51 @@ For ANY artifact under audit, verify (each violation reduces the **Blind-Path Ab
 
 ## Audit Report Template
 
-### Naming Convention
+### Naming Convention (Single File per Artifact — In-Place)
+
+There is exactly **one** audit report per audited artifact, regardless of how many audit iterations run. The file is edited in place across iterations; a new `## Iter N` section is **appended** for each pass.
 
 | Artifact audited | Report file |
 |---|---|
-| BRD `BRD-XX-...` | `AUDIT-BRD-XX-{iteration}-{YYYY-MM-DD}.md` |
-| User Story `US-XX-...` | `AUDIT-US-XX-{iteration}-{YYYY-MM-DD}.md` |
-| Plan `PLAN-US-XX-...` | `AUDIT-PLAN-US-XX-{iteration}-{YYYY-MM-DD}.md` |
+| BRD `BRD-XX-...` | `AUDIT-BRD-XX.md` |
+| User Story `US-XX-...` | `AUDIT-US-XX.md` |
+| Plan `PLAN-US-XX-...` | `AUDIT-PLAN-US-XX.md` |
 
 Location: `docs/implementation-phase/audits/`
+
+**Rules:**
+
+- The filename has **no date** and **no iteration suffix**. Same name across iter 1 / 2 / 3.
+- On iter 1 the Auditor **creates** the file with the Status Header + `## Iter 1` section.
+- On iter 2 and iter 3 the Auditor **opens the existing file** and **appends** a `## Iter 2` / `## Iter 3` section. Previous iteration sections are NOT deleted or edited.
+- The Status Header at the top is the only block that gets overwritten each iteration (it reflects the latest verdict).
+- If a file with the old per-iteration naming (`AUDIT-*-{N}-{date}.md`) exists, leave it untouched and start the consolidated file fresh.
 
 ### Report Template
 
 ```markdown
 # Audit Report — {artifact_id}
 
+<!-- STATUS HEADER — overwritten on every iteration -->
 **Artifact:** {BRD-XX | US-XX | PLAN-US-XX}
-**Audit Iteration:** {1-3}
 **Phase:** {F1 | F2}
-**Date:** {YYYY-MM-DD}
 **Auditor:** Auditor Agent
+**Latest Iteration:** {1-3}
+**Latest Date:** {YYYY-MM-DD}
+**Latest Score:** {X.XX/10}
+**Latest Verdict:** {✅ APPROVED | ⚠️ NEEDS REVISION | 🚨 MAJOR GAPS}
+**Iteration Log:**
+| Iter | Date | Score | Verdict |
+|---|---|---|---|
+| 1 | YYYY-MM-DD | X.XX | ✅/⚠️/🚨 |
+| 2 | … | … | … |
+| 3 | … | … | … |
 
-## 1. Score Summary
+---
+
+## Iter 1 — {YYYY-MM-DD}
+
+### 1. Score Summary
 
 | Criterion | Score | Weight | Weighted |
 |---|---|---|---|
@@ -187,18 +210,17 @@ Location: `docs/implementation-phase/audits/`
 | Consistency w/ docs | X/10 | 10% | X.XX |
 | **TOTAL** | | | **X.XX/10** |
 
-## 2. Verdict
+### 2. Verdict
 
 {✅ APPROVED (≥9) | ⚠️ NEEDS REVISION (7-8) | 🚨 MAJOR GAPS (<7)}
 
-## 3. Requirements Coverage Matrix
+### 3. Requirements Coverage Matrix
 
 | RF | Covered? | Where (section/line) | Notes |
 |---|---|---|---|
 | RF-01 | ✅/⚠️/❌ | … | … |
-| … | … | … | … |
 
-## 4. Blind-Path Findings
+### 4. Blind-Path Findings
 
 For each finding:
 - **Location:** {file#section or step}
@@ -207,21 +229,41 @@ For each finding:
 - **Severity:** {critical | major | minor}
 - **Fix recommendation:** …
 
-## 5. Required Changes (if not approved)
+### 5. Required Changes (if not approved)
 
 1. [ ] Change 1 — {section/line reference}
 2. [ ] Change 2 — …
 
-## 6. Positive Highlights
+### 6. Positive Highlights
 
 - …
 
-## 7. Next Step
+### 7. Next Step
 
 - If APPROVED → proceed to {F2 | F3}.
 - If NEEDS REVISION → return to {BSA | Orchestrator}; audit_iter incremented to {N+1}.
 - If audit_iter ≥ 3 → escalate to F6 (manual review).
+
+---
+
+<!-- On iter 2 / iter 3, append a new "## Iter N — {date}" section below, repeating sections 1–7.
+     The Iter N section should also include a "### 0. Resolution of Iter (N-1) findings"
+     subsection that ticks/unticks each prior Required Change. -->
 ```
+
+### Iter 2 / Iter 3 extra block (appended)
+
+Each subsequent `## Iter N` section MUST start with:
+
+```markdown
+### 0. Resolution of Iter {N-1} findings
+
+| Prior change | Status | Evidence |
+|---|---|---|
+| Change 1 from Iter {N-1} §5 | ✅ done / ⚠️ partial / ❌ not addressed | path#section |
+```
+
+This makes it trivial to see, on escalation, whether the producing agent actually applied the previous feedback.
 
 ## Audit Process
 
@@ -242,8 +284,9 @@ Use the **Scoring Criteria** table. Cite specific document sections and RF numbe
 Every failure adds a finding in §4 of the report and reduces the Blind-Path Absence score proportionally.
 
 ### Step 5 — Emit verdict and report
-- Save the report under `docs/implementation-phase/audits/`.
-- Communicate the verdict back to the producing agent (BSA or Orchestrator) with the list of Required Changes.
+- On **iter 1**: create `docs/implementation-phase/audits/AUDIT-{BRD|US|PLAN-US}-XX.md` with the Status Header + `## Iter 1` section.
+- On **iter 2 / 3**: open the **existing** report file and **append** a new `## Iter N — {date}` section (starting with the *Resolution of Iter N-1 findings* block). Do **not** create a new file. Do **not** modify previous Iter sections. Refresh the Status Header at the top.
+- Communicate the verdict back to the producing agent (BSA or Orchestrator) with the list of Required Changes, citing the in-place path of the audited artifact.
 - Update the memory bank.
 
 ## Communication Style
