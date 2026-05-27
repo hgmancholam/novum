@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.agent.tasks.analyze import analyze_evidence
-from app.agent.tasks.classify import classify_question
+from app.agent.tasks.classify import classify_question, detect_empty_comparative
 from app.agent.tasks.draft import (
     draft_answer,
     evaluate_with_judge,
@@ -21,6 +21,7 @@ __all__ = (
     "AnswerKindInputs",
     "analyze_evidence",
     "classify_question",
+    "detect_empty_comparative",
     "create_plan",
     "critique_plan",
     "draft_answer",

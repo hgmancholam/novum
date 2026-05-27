@@ -1,16 +1,16 @@
 {
-  "answer_kind": "best_effort",
-  "prose": "Under the interpretation that 'best' refers to general-purpose suitability, Python offers strong ecosystem support and readability.",
-  "key_points": [],
-  "citations": [],
-  "interpretation": "Best general-purpose language for modern application development",
-  "alternative_interpretations": [
-    "Best for performance-critical systems (would favor Rust or C++)",
-    "Best for learning programming (would favor JavaScript or Python)",
-    "Best for enterprise stability (would favor Java or C#)"
-  ],
-  "remaining_uncertainties": [
-    "User's domain (web, systems, ML, etc.)",
-    "Team constraints and existing infrastructure"
-  ]
+    "answer_kind": "best_effort",
+    "prose": "Under the interpretation that 'best' refers to general-purpose suitability, Python offers strong ecosystem support and readability.",
+    "key_points": [],
+    "citations": [],
+    "interpretation": "Best general-purpose language for modern application development",
+    "alternative_interpretations": [
+        "Best for performance-critical systems (would favor Rust or C++)",
+        "Best for learning programming (would favor JavaScript or Python)",
+        "Best for enterprise stability (would favor Java or C#)"
+    ],
+    "remaining_uncertainties": [
+        "User's domain (web, systems, ML, etc.)",
+        "Team constraints and existing infrastructure"
+    ]
 }

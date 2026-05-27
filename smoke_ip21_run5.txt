@@ -1,0 +1,121 @@
+Registered: smoke-ip21-1779883906
+
+=== Q1: What is the capital of Japan?... ===
+  run_id=f01cda66-0072-4fe4-afda-45916c13a223
+  stop_reason=judge_confirmed answer_kind=direct expected=direct OK (79.0s)
+
+=== Q2: Is PostgreSQL or MongoDB better for a small SaaS application... ===
+  run_id=eefb6878-ae5b-47c4-84a8-5ae01ae6c96e
+  stop_reason=stopped_by_budget answer_kind=direct expected=weighted MISMATCH (361.5s)
+
+=== Q3: What is the best programming language?... ===
+  run_id=4a6762ba-a50d-450b-bfe4-4f1cf65ad7ad
+  stop_reason=judge_confirmed answer_kind=tradeoff expected=best_effort MISMATCH (432.4s)
+
+=== Q4: Is intermittent fasting healthy?... ===
+  retry 1/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  run_id=93aabede-b846-41f8-bd77-6417b3883e7a
+  stop_reason=stopped_by_budget answer_kind=tradeoff expected=weighted MISMATCH (536.8s)
+
+=== Q5: What are the long-term risks of AI-generated code in enterpr... ===
+  run_id=6cec3163-6ff5-4752-b91f-46a3250f2a1e
+  retry 1/3 after ReadError: 
+  retry 2/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  retry 3/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  CLIENT_ERROR (ConnectError: [Errno 11001] getaddrinfo failed) (1351.7s)
+
+=== Q6: Should a high-scale AI platform use event-driven architectur... ===
+  retry 1/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  retry 2/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  retry 3/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  CLIENT_ERROR (ConnectError: [Errno 11001] getaddrinfo failed) (18.3s)
+
+=== Q7: What is the most promising approach for long-term memory in ... ===
+  retry 1/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  retry 2/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  retry 3/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  CLIENT_ERROR (ConnectError: [Errno 11001] getaddrinfo failed) (20.1s)
+
+=== Q8: Could AI systems realistically replace mid-level software en... ===
+  retry 1/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  retry 2/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  retry 3/3 after ConnectError: [Errno 11001] getaddrinfo failed
+  CLIENT_ERROR (ConnectError: [Errno 11001] getaddrinfo failed) (9.0s)
+
+=== SUMMARY ===
+[
+  {
+    "tag": "Q1",
+    "run_id": "f01cda66-0072-4fe4-afda-45916c13a223",
+    "stop_reason": "judge_confirmed",
+    "answer_kind": "direct",
+    "expected": "direct",
+    "match": "OK",
+    "elapsed_s": 79.0
+  },
+  {
+    "tag": "Q2",
+    "run_id": "eefb6878-ae5b-47c4-84a8-5ae01ae6c96e",
+    "stop_reason": "stopped_by_budget",
+    "answer_kind": "direct",
+    "expected": "weighted",
+    "match": "MISMATCH",
+    "elapsed_s": 361.5
+  },
+  {
+    "tag": "Q3",
+    "run_id": "4a6762ba-a50d-450b-bfe4-4f1cf65ad7ad",
+    "stop_reason": "judge_confirmed",
+    "answer_kind": "tradeoff",
+    "expected": "best_effort",
+    "match": "MISMATCH",
+    "elapsed_s": 432.4
+  },
+  {
+    "tag": "Q4",
+    "run_id": "93aabede-b846-41f8-bd77-6417b3883e7a",
+    "stop_reason": "stopped_by_budget",
+    "answer_kind": "tradeoff",
+    "expected": "weighted",
+    "match": "MISMATCH",
+    "elapsed_s": 536.8
+  },
+  {
+    "tag": "Q5",
+    "run_id": null,
+    "stop_reason": "client_error",
+    "answer_kind": null,
+    "expected": "scenario",
+    "match": "CLIENT_ERROR",
+    "elapsed_s": 1351.7
+  },
+  {
+    "tag": "Q6",
+    "run_id": null,
+    "stop_reason": "client_error",
+    "answer_kind": null,
+    "expected": "weighted",
+    "match": "CLIENT_ERROR",
+    "elapsed_s": 18.3
+  },
+  {
+    "tag": "Q7",
+    "run_id": null,
+    "stop_reason": "client_error",
+    "answer_kind": null,
+    "expected": "weighted",
+    "match": "CLIENT_ERROR",
+    "elapsed_s": 20.1
+  },
+  {
+    "tag": "Q8",
+    "run_id": null,
+    "stop_reason": "client_error",
+    "answer_kind": null,
+    "expected": "scenario",
+    "match": "CLIENT_ERROR",
+    "elapsed_s": 9.0
+  }
+]
+
+Matches: 1/8

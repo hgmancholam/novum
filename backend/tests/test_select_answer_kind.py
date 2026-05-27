@@ -123,7 +123,9 @@ def test_causal_below_direct_threshold_falls_through_to_best_effort() -> None:
         (QuestionType.PREDICTIVE_FUTURE, AnswerKind.SCENARIO),
         (QuestionType.SUBJECTIVE_OPINION, AnswerKind.TRADEOFF),
         (QuestionType.FACTUAL, AnswerKind.DIRECT),
-        (QuestionType.COMPARATIVE, AnswerKind.DIRECT),
+        # COMPARATIVE always routes to WEIGHTED per IP-21 §0.8 (rows 2 & 6):
+        # comparisons are inherently tradeoff framings, even when sources agree.
+        (QuestionType.COMPARATIVE, AnswerKind.WEIGHTED),
         (QuestionType.DEFINITIONAL, AnswerKind.DIRECT),
         (QuestionType.STATE_OF_ART, AnswerKind.DIRECT),
         (QuestionType.CAUSAL, AnswerKind.DIRECT),

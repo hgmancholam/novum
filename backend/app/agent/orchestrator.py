@@ -19,6 +19,7 @@ from app.agent.tasks import (
     classify_question,
     create_plan,
     critique_plan,
+    detect_empty_comparative,
     draft_answer,
     evaluate_with_judge,
     execute_search_round,
@@ -125,7 +126,13 @@ class AgentOrchestrator:
         return self.state.stop_reason or StopReason.ERRORED
 
     async def _detect_question_type(self) -> bool:
-        """Classify question type (WP-1 always returns a type, no short-circuit)."""
+        """Classify question type (WP-1 always returns a type, no short-circuit).
+
+        WP-2 G9: also runs the empty-comparative detector and emits
+        ``AmbiguityDetectedEvent`` for underspecified comparatives so that
+        ``draft.py`` derives ``ambiguity_flag=True`` and the resolver routes
+        the run to ``BEST_EFFORT`` per §0.8 row 3.
+        """
         mapped, _ = await classify_question(self.state.question)
         if mapped is None:
             # Defensive: classifier should never return None post-WP-1.
@@ -133,6 +140,20 @@ class AgentOrchestrator:
             from app.domain.enums import QuestionType
             mapped = QuestionType.FACTUAL
         self.state.question_type = mapped
+
+        try:
+            ambiguity_event = await detect_empty_comparative(
+                self.state.question, mapped
+            )
+        except Exception as exc:  # noqa: BLE001 - non-critical step
+            logger.warning(
+                "detect_empty_comparative_failed",
+                error=str(exc),
+                run_id=str(self.state.run_id),
+            )
+            ambiguity_event = None
+        if ambiguity_event is not None:
+            await self.emit(ambiguity_event)
         return True
 
     async def _normalize_question(self) -> None:

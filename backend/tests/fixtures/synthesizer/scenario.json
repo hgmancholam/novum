@@ -1,26 +1,26 @@
 {
-  "answer_kind": "scenario",
-  "prose": "The long-term impact of AI-generated code in enterprise systems depends on adoption patterns and quality control mechanisms.",
-  "key_points": [],
-  "citations": [],
-  "scenarios": [
-    {
-      "label": "Optimistic",
-      "probability_band": "medium",
-      "summary": "AI tools accelerate development cycles and reduce bugs through rigorous testing integration",
-      "drivers": [
-        "Mature AI code review tools",
-        "Strong QA frameworks"
-      ]
-    },
-    {
-      "label": "Pessimistic",
-      "probability_band": "medium",
-      "summary": "Unchecked AI-generated code introduces subtle bugs and security vulnerabilities",
-      "drivers": [
-        "Lack of validation infrastructure",
-        "Over-reliance on untested outputs"
-      ]
-    }
-  ]
+    "answer_kind": "scenario",
+    "prose": "The long-term impact of AI-generated code in enterprise systems depends on adoption patterns and quality control mechanisms.",
+    "key_points": [],
+    "citations": [],
+    "scenarios": [
+        {
+            "label": "Optimistic",
+            "probability_band": "medium",
+            "summary": "AI tools accelerate development cycles and reduce bugs through rigorous testing integration",
+            "drivers": [
+                "Mature AI code review tools",
+                "Strong QA frameworks"
+            ]
+        },
+        {
+            "label": "Pessimistic",
+            "probability_band": "medium",
+            "summary": "Unchecked AI-generated code introduces subtle bugs and security vulnerabilities",
+            "drivers": [
+                "Lack of validation infrastructure",
+                "Over-reliance on untested outputs"
+            ]
+        }
+    ]
 }
