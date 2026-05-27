@@ -79,6 +79,17 @@ export function useRunStream(
     setReconnectTick((n) => n + 1);
   }, []);
 
+  // Reset all per-run state when `runId` changes so the events list, resume
+  // cursor and terminal flags do not leak across runs when the user navigates
+  // between them.
+  useEffect(() => {
+    lastEventIdRef.current = null;
+    setEvents([]);
+    setLastEventId(null);
+    setIsComplete(false);
+    setError(null);
+  }, [runId]);
+
   useEffect(() => {
     if (!enabled || runId === undefined || runId.length === 0) {
       return;
