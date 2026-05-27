@@ -142,3 +142,61 @@ Positive on what is present:
 5. Re-run `npx vitest run --coverage`, `npx tsc --noEmit`, `npx eslint .` — all must be green and coverage ≥ 80 % on each new file.
 
 Next gate: F4 iteration 2 of 5.
+
+---
+
+
+## Iter 2
+
+**Date:** 2026-05-26
+**Iteration:** 2 / 5
+**Outcome:** APPROVED
+
+### Verification of iter-1 blockers
+
+| # | Blocker | Verified | Notes |
+|---|---|---|---|
+| B-01 | `EventPayloadViewer` empty-object render | ✅ | [EventPayloadViewer.tsx#L172-L181](../../../frontend/src/components/atoms/EventPayloadViewer.tsx#L172-L181) now branches on `isEmptyObject` and renders the `"{}"` placeholder before `entries.map`. The previously failing unit test passes. |
+| B-02 | `EventNode` axe `listitem` violation | ✅ | [EventNode.test.tsx#L97-L103](../../../frontend/src/components/molecules/EventNode.test.tsx#L97-L103) wraps the render in `<ol>…</ol>`; component markup unchanged, which is the correct minimal fix (the `<li>` is always rendered inside an `<ol>` at runtime via `TraceTimeline`). |
+| B-03 | Missing `TraceTimeline.test.tsx` | ✅ | New file with 10 specs. Covers: T1b PlanPreview gating with empty events and with only `QuestionAsked` (AC-05); `JudgeRuled` arrives pre-expanded (AC-06); toggle expand/collapse (AC-03); sticky auto-scroll via stubbed `IntersectionObserver` + `scrollIntoView` spy; `JumpToLatestPill` appears only when `!sticky && !isComplete` and clicking it restores sticky (AC-07); deltaMs/stepIndex propagation; jest-axe clean. `IntersectionObserver` is stubbed via `vi.stubGlobal` per L-011 (no fake timers). |
+| B-04 | Missing `TracePanelContainer.test.tsx` | ✅ | New file with 5 specs. Mocks `useRunStream` via `vi.mock`. Asserts T1a (no `runId` → `TraceEmpty`, hook called with `enabled:false`, no SSE indicator), T1b (single QuestionAsked → PlanPreview + live indicator), T2 (full timeline + live indicator), T3 (live indicator hidden when `isComplete`), plus jest-axe (AC-09, AC-10). |
+| B-05 | Coverage ≥ 80 % and zero failures | ✅ | `npx tsc --noEmit` clean. `npx vitest run` → **53 files / 363 tests, 0 failures** (was 2 failed / 348). Coverage on every IP-14 file ≥ 80 % line and branch: `eventVisuals.ts` 100/100, `EventIcon.tsx` 100/100, `EventPayloadViewer.tsx` 89.67/88.23, `JumpToLatestPill.tsx` 100/100, `EventNode.tsx` 97.29/100, `PlanPreview.tsx` 100/100, `TraceEmpty.tsx` 100/100, `TraceHeader.tsx` 100/100, `TraceTimeline.tsx` 94.7/89.28, `TracePanelContainer.tsx` 92.39/86.48 (coder report stated 100/100 — minor discrepancy, still above the L-002 gate). |
+
+### Re-score (iter 2)
+
+| Criterion | Iter 1 | Iter 2 | Weight | Weighted |
+|---|---:|---:|---:|---:|
+| Code Quality | 8.5 | 9.3 | 25 % | 2.325 |
+| Test Coverage | 5.0 | 9.5 | 20 % | 1.900 |
+| Architecture Compliance | 9.5 | 9.5 | 20 % | 1.900 |
+| Documentation | 9.0 | 9.0 | 15 % | 1.350 |
+| Security | 9.5 | 9.5 | 10 % | 0.950 |
+| Performance | 8.5 | 8.5 | 10 % | 0.850 |
+| **TOTAL** | **8.2** | **9.3** | | **9.275 → 9.3 / 10** |
+
+Code Quality: +0.8 (empty-object bug resolved, no new code smells introduced).
+Test Coverage: +4.5 (two missing test files added with strong AC alignment; all 363 tests pass; per-file coverage gate met).
+Other criteria unchanged — no implementation regressions introduced.
+
+### Compliance verification (selected ACs, refreshed)
+
+| AC | Iter 1 | Iter 2 |
+|---|---|---|
+| AC-02 sticky auto-scroll | ⚠️ untested | ✅ asserted in `TraceTimeline.test.tsx` (IO sentinel intersecting → `scrollIntoView` called on new event; `data-sticky="true"`). |
+| AC-05 T1b PlanPreview gating | ⚠️ untested | ✅ two specs (empty events; only QuestionAsked) plus negative case once non-question events arrive. |
+| AC-06 `JudgeRuled` arrives expanded | ⚠️ untested | ✅ `data-expanded="true"` asserted on the JudgeRuled node + its payload viewer visible without user toggle. |
+| AC-07 sticky-when-at-bottom + Jump pill | ⚠️ untested | ✅ both directions covered (pill hidden while sticky / shown when not sticky / hidden when complete / clicking restores sticky). |
+| AC-09 live indicator off in T3 | ✅ | ✅ explicit container spec. |
+| AC-10 container only subscribes with `runId` | ✅ | ✅ explicit container spec asserts `enabled:false` on T1a and `enabled:true` on T1b/T2/T3. |
+
+### Residual non-blocking suggestions (carried over from iter 1, still applicable)
+
+- Convert `EventNode`'s outer `<button>` to `<div role="button" tabIndex={0}>` before BRD-15 lands a `ForkButton` inside `event-fork-slot` (nested-button violation risk).
+- Replace `<div>`-in-`<pre>` nesting in `EventPayloadViewer` with a `<div className="font-mono whitespace-pre-wrap">` for strictly valid HTML.
+- Add a `// TODO(ui-prototype §1)` near `TONE_COLOR` where `info`/`judge`/`decision` collapse to `--accent`.
+- Reset `expandedKeys` in `TraceTimeline` on upstream `runId` change (defensive; not exploitable today).
+- Minor reporting drift: coder reported `TracePanelContainer.tsx` coverage as 100/100 but the actual vitest report shows 92.39/86.48. Still above the L-002 gate; flag for future report accuracy.
+
+### Verdict
+
+**APPROVED** — score **9.3 / 10 ≥ 9.0** gate. All five iter-1 blockers (B-01 through B-05) are resolved with verifiable evidence in the files cited above. Proceed to F5 (COMPLETE).

@@ -44,6 +44,7 @@
 | IP-13 | BRD-13 Center Panel | 2026-05-26 | Completed | [IP-13](../../../docs/implementation-phase/implementation-plans/IP-13-center-panel.md) |
 | IP-13-iter2 | BRD-13 Center Panel — UX Completion | 2026-05-27 | Completed | [IP-13 iter 2](../../../docs/implementation-phase/implementation-plans/IP-13-center-panel-iter2.md) |
 | IP-09 | BRD-09 Stopping Signal Policy | 2026-05-26 | Completed | [IP-09](../../../docs/implementation-phase/implementation-plans/IP-09-stopping-signals.md) |
+| IP-14 | BRD-14 Trace Panel | 2026-05-26 | Completed | [IP-14](../../../docs/implementation-phase/implementation-plans/IP-14-trace-panel.md) |
 | IP-15 | BRD-15 Fork & Resume from Events | 2026-05-26 | Completed | [IP-15](../../../docs/implementation-phase/implementation-plans/IP-15-fork-resume.md) |
 
 ---
@@ -66,7 +67,7 @@
 | BRD-11 | Frontend Setup & Layout Shell | 2026-05-26 | Draft | [BRD-11](../../../docs/implementation-phase/brds/BRD-11-frontend-layout.md) |
 | BRD-12 | History Panel (Left Sidebar) | 2026-05-26 | Draft | [BRD-12](../../../docs/implementation-phase/brds/BRD-12-history-panel.md) |
 | BRD-13 | Center Panel (Question & Answer) | 2026-05-26 | Implemented | [BRD-13](../../../docs/implementation-phase/brds/BRD-13-center-panel.md) |
-| BRD-14 | Trace Panel (Right Sidebar) | 2026-05-26 | Draft | [BRD-14](../../../docs/implementation-phase/brds/BRD-14-trace-panel.md) |
+| BRD-14 | Trace Panel (Right Sidebar) | 2026-05-26 | Implemented | [BRD-14](../../../docs/implementation-phase/brds/BRD-14-trace-panel.md) |
 | BRD-15 | Fork & Resume from Events | 2026-05-26 | Implemented | [BRD-15](../../../docs/implementation-phase/brds/BRD-15-fork-resume.md) |
 | BRD-16 | Output Format Renderers | 2026-05-26 | Draft | [BRD-16](../../../docs/implementation-phase/brds/BRD-16-output-renderers.md) |
 | BRD-17 | Testing Strategy & Calibration Eval | 2026-05-26 | Draft | [BRD-17](../../../docs/implementation-phase/brds/BRD-17-testing-strategy.md) |
