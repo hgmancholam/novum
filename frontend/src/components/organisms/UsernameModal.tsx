@@ -7,7 +7,7 @@
 
 import { useState, type SyntheticEvent } from "react";
 
-import { Button } from "@/components/atoms";
+import { Button, GlassSurface } from "@/components/atoms";
 import { useUserStore } from "@/stores/userStore";
 
 export interface UsernameModalProps {
@@ -53,9 +53,12 @@ export function UsernameModal({ isOpen, onClose }: UsernameModalProps) {
       data-testid="username-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-scrim)]"
     >
-      <div
+      <GlassSurface
         data-testid="username-modal-surface"
-        className="w-full max-w-md rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--bg-secondary)] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+        variant="strong"
+        elevation="lg"
+        radius="lg"
+        className="w-full max-w-md p-6"
       >
         <h2
           id="username-modal-title"
@@ -124,7 +127,7 @@ export function UsernameModal({ isOpen, onClose }: UsernameModalProps) {
             </Button>
           </div>
         </form>
-      </div>
+      </GlassSurface>
     </div>
   );
 }

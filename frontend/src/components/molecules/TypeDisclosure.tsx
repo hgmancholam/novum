@@ -37,8 +37,7 @@ export function TypeDisclosure({ className }: TypeDisclosureProps) {
       data-testid="type-disclosure"
       aria-labelledby="type-disclosure-title"
       className={cn(
-        "rounded-[var(--radius-md)] border border-[var(--glass-border)]",
-        "bg-[var(--glass-bg)] p-4 text-sm",
+        "glass-subtle rounded-[var(--radius-md)] p-4 text-sm",
         className
       )}
     >

@@ -20,7 +20,7 @@ export interface MetaRowProps {
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
+    <span className="glass-subtle inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
       {children}
     </span>
   );

@@ -5,7 +5,7 @@
  * No data fetching. Pure presentational.
  */
 
-import { Spinner } from "@/components/atoms";
+import { GlassSurface, Spinner } from "@/components/atoms";
 import { ElapsedClock } from "@/components/molecules";
 import { cn } from "@/lib/cn";
 
@@ -22,13 +22,15 @@ export function ResearchingBanner({
   label = "Researching\u2026",
 }: ResearchingBannerProps) {
   return (
-    <div
+    <GlassSurface
       role="status"
       aria-live="polite"
       data-testid="researching-banner"
+      variant="subtle"
+      elevation="sm"
+      radius="md"
       className={cn(
-        "mx-auto mt-6 flex w-full max-w-3xl items-center gap-3 rounded-[var(--radius-md)]",
-        "border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-3",
+        "mx-auto mt-6 flex w-full max-w-3xl items-center gap-3 px-4 py-3",
         "text-sm text-[var(--text-secondary)]",
         className
       )}
@@ -36,6 +38,6 @@ export function ResearchingBanner({
       <Spinner size="sm" label={label} />
       <span className="flex-1">{label}</span>
       {startedAt !== undefined ? <ElapsedClock startedAt={startedAt} /> : null}
-    </div>
+    </GlassSurface>
   );
 }

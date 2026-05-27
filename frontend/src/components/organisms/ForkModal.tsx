@@ -11,7 +11,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { Button, ForkableEventRow } from "@/components/atoms";
+import { Button, ForkableEventRow, GlassSurface } from "@/components/atoms";
 import { cn } from "@/lib/cn";
 import {
   FORK_MODAL_DESCRIPTION,
@@ -82,12 +82,15 @@ export function ForkModal({
       )}
       onClick={onClose}
     >
-      <div
+      <GlassSurface
         data-testid="fork-modal-surface"
+        variant="strong"
+        elevation="lg"
+        radius="lg"
         onClick={(e) => {
           e.stopPropagation();
         }}
-        className="w-full max-w-lg rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--bg-secondary)] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+        className="w-full max-w-lg p-6"
       >
         <h2
           id="fork-modal-title"
@@ -150,7 +153,7 @@ export function ForkModal({
             Close
           </Button>
         </div>
-      </div>
+      </GlassSurface>
     </div>
   );
 }

@@ -5,6 +5,7 @@
 
 import { Link } from "react-router-dom";
 
+import { GlassSurface } from "@/components/atoms";
 import { cn } from "@/lib/cn";
 
 export interface NotFoundCardProps {
@@ -14,12 +15,14 @@ export interface NotFoundCardProps {
 
 export function NotFoundCard({ runId, className }: NotFoundCardProps) {
   return (
-    <div
+    <GlassSurface
       role="status"
       data-testid="not-found-card"
+      variant="default"
+      elevation="md"
+      radius="md"
       className={cn(
-        "mx-auto mt-10 w-full max-w-2xl rounded-[var(--radius-md)] border",
-        "border-[var(--glass-border)] bg-[var(--bg-secondary)] p-6 text-center",
+        "mx-auto mt-10 w-full max-w-2xl p-6 text-center",
         className
       )}
     >
@@ -47,6 +50,6 @@ export function NotFoundCard({ runId, className }: NotFoundCardProps) {
           Start a new research
         </Link>
       </p>
-    </div>
+    </GlassSurface>
   );
 }

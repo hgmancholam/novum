@@ -27,8 +27,7 @@ export function PlanPreview({ className }: PlanPreviewProps) {
       data-testid="plan-preview"
       aria-label="Plan preview"
       className={cn(
-        "rounded-[var(--radius-md)] border border-[var(--glass-border)]",
-        "bg-[var(--glass-bg)] p-3",
+        "glass-subtle rounded-[var(--radius-md)] p-3",
         className
       )}
     >

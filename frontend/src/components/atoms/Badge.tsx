@@ -22,7 +22,7 @@ export interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, string> = {
   default:
-    "bg-[var(--glass-bg)] text-[var(--text-primary)] border border-[var(--glass-border)]",
+    "glass-subtle text-[var(--text-primary)]",
   success:
     "bg-[color-mix(in_srgb,var(--semantic-success)_18%,transparent)] text-[var(--semantic-success)] border border-[color-mix(in_srgb,var(--semantic-success)_40%,transparent)]",
   warning:

@@ -20,11 +20,10 @@ export function JumpToLatestPill({ onClick, className }: JumpToLatestPillProps) 
       data-testid="jump-to-latest-pill"
       aria-label="Jump to latest"
       className={cn(
+        "glass",
         "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs",
-        "border border-[var(--glass-border)] bg-[var(--glass-bg)]",
         "text-[var(--accent)]",
-        "backdrop-blur-[20px] backdrop-saturate-[180%]",
-        "shadow-md hover:bg-[var(--bg-tertiary)]",
+        "shadow-[var(--shadow-md)] hover:bg-[var(--bg-tertiary)]",
         "transition-colors",
         className
       )}
