@@ -26,14 +26,30 @@ def calculate_coverage(state: RunState) -> float:
 
 
 def calculate_agreement(evidence: list[EvidenceItem]) -> float:
-    """C_agreement: confidence-weighted ratio of supporting evidence."""
+    """C_agreement: confidence-weighted ratio of non-contradicting evidence.
+
+    V1 polarity is not yet classified per snippet (search.py emits all
+    evidence as ``neutral``). Treat ``neutral`` as tacit support when no
+    contradicting evidence exists for the same body: retrieval that
+    returns N sources without explicit dissent is evidence that the
+    claim is uncontroversial, not that the evidence is mute.
+
+    Formula: ``(supports + neutral) / (supports + neutral + contradicts)``
+    weighted by per-item confidence. Returns 0.0 only when the body is
+    empty or fully contradicting.
+    """
     if not evidence:
         return 0.0
-    total_weight = sum(e.confidence for e in evidence)
-    if total_weight == 0.0:
+    aligning_weight = sum(
+        e.confidence for e in evidence if e.polarity in ("supports", "neutral")
+    )
+    contradicting_weight = sum(
+        e.confidence for e in evidence if e.polarity == "contradicts"
+    )
+    denom = aligning_weight + contradicting_weight
+    if denom == 0.0:
         return 0.0
-    support_weight = sum(e.confidence for e in evidence if e.polarity == "supports")
-    return support_weight / total_weight
+    return aligning_weight / denom
 
 
 def _extract_domain(url: str) -> str:
