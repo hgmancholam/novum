@@ -1,6 +1,8 @@
 # UI Prototype — Novum
 
 > Companion to `requirement-understanding.md`. Defines the visual and interaction surface of the V1 build. Reading order: §1 (stack and aesthetic) → §2 (layout) → §3 (state inventory per panel) → §4 (routes) → §5 (RF coverage) → §6 (non-goals) → §7 (microcopy) → §8 (atomic-design architecture) → §9 (technical UI decisions) → §10 (defense).
+>
+> **Visual design language** (colors, typography, depth, motion, interactive treatments) is owned by [`ui-design.md`](./ui-design.md). This file (`ui-prototype.md`) owns: layout (§2), panel states (§3), routes (§4), microcopy (§7), atomic-design architecture (§8), technical decisions (§9). When in conflict, `ui-design.md` wins for look-and-feel; `ui-prototype.md` wins for structure and behavior.
 
 The build target is **L2 — UI with product intent**: layout, hierarchy and consistency cared for, but no design-system bloat, no decorative animations, no dark-mode toggle to flip. UI is treated as the surface of the trust contract — if a trace cannot be read, the system does not exist for the user.
 
@@ -24,90 +26,73 @@ The build target is **L2 — UI with product intent**: layout, hierarchy and con
 | HTTP | Native `fetch` + a thin `lib/api.ts` wrapper |
 | SSE | Native `EventSource` wrapped in `lib/sse.ts` |
 
-### 1.2 Aesthetic — Apple-inspired dark, premium, restrained
+### 1.2 Aesthetic — Slate Aurora (dark, premium, gradient-backed)
 
-Minimalist, refined, generous whitespace, clear typographic hierarchy, soft micro-interactions. **No** decorative gradients beyond the brand accent. **No** illustrations. **No** light-mode toggle in V1.
+> **The visual design language (colors, typography, depth, motion, interactive treatments) lives in [`ui-design.md`](./ui-design.md).** This section summarizes it; that document is authoritative.
 
-### 1.3 Color tokens (CSS custom properties in `:root`)
+Minimalist, refined, generous whitespace, clear typographic hierarchy, soft micro-interactions. The base canvas is **deep slate with a fixed radial gradient** (indigo at top-center, violet at bottom-right) — never solid black. **No** decorative illustrations. **No** light-mode toggle in V1. A single **warm token** (amber) is reserved for trust-critical UI (confirmed answers, headline confidence).
 
-```css
-:root {
-  --bg-primary:   #0a0a0a;
-  --bg-secondary: #111111;
-  --bg-tertiary:  #1a1a1a;
+### 1.3 Color tokens — see [`ui-design.md` §2](./ui-design.md#2-color-system)
 
-  --glass-bg:     rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.08);
+Authoritative tokens, gradient definition and semantic palette are defined in `ui-design.md` §2. Components **never** hardcode hex values — always reference tokens via `var(--token)` or Tailwind arbitrary-value syntax bound to the CSS variables.
 
-  --accent:       #007AFF;
-  --accent-hover: #0051d5;
+Token families (full values in `ui-design.md` §2):
 
-  --text-primary:   #f5f5f7;
-  --text-secondary: #86868b;
-  --text-muted:     #48484a;
+- `--bg-primary | --bg-secondary | --bg-tertiary | --bg-elevated` — slate surfaces
+- `--bg-gradient` — fixed radial gradient applied to `<body>`
+- `--glass-bg | --glass-border | --glass-hover` — glass surfaces
+- `--accent | --accent-hover | --accent-soft | --accent-glow` — indigo (primary CTA)
+- `--warm | --warm-soft | --warm-glow` — amber (trust highlight only)
+- `--text-primary | --text-secondary | --text-muted | --text-disabled` — slate-tinted text
+- `--semantic-success | --semantic-warning | --semantic-danger | --semantic-neutral | --semantic-error` — stop_reason palette (RF-02)
+- `--overlay-scrim` — modal backdrop (tinted slate)
+- `--radius-sm | --radius-md | --radius-lg | --radius-xl` — 8 / 12 / 16 / 24 px
 
-  /* semantic for stop reasons */
-  --semantic-success: #34c759;  /* judge_confirmed */
-  --semantic-warning: #ff9f0a;  /* honest_*, stopped_by_budget */
-  --semantic-danger:  #ff453a;  /* errored */
-  --semantic-neutral: #8e8e93;  /* user_cancelled */
-  --semantic-error:   #ff453a;  /* inline form errors (alias of danger) */
+### 1.4 Typography — see [`ui-design.md` §3](./ui-design.md#3-typography)
 
-  /* overlays */
-  --overlay-scrim: rgba(0, 0, 0, 0.5);  /* modal backdrop scrim */
-
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-xl: 24px;
-}
-```
-
-Components **never** hardcode hex values. Always reference tokens (directly or via Tailwind's arbitrary-value syntax bound to the CSS variables).
-
-### 1.4 Typography
-
-- **Primary:** `DM Sans` (Google Fonts), weights 300 / 400 / 500 / 600.
+- **Primary:** `Inter` (variable, weights 300–700) with stylistic sets `cv02 cv03 cv04 cv11`. Fallback: `DM Sans`.
 - **Mono:** `JetBrains Mono` for event payloads, code blocks in answers, and the JSON viewer.
-- Sizes: body 15px · history-row 13px · timestamps 11px · headings scale (h1 24, h2 18, h3 15).
-- Line-height: 1.6 for prose answers · 1.4 for UI elements.
+- Type scale, line-heights and tracking values: `ui-design.md` §3.2.
+- Negative letter-spacing on display/heading sizes for crisp dark headings.
 
-### 1.5 Visual effects (used sparingly)
+### 1.5 Visual effects — see [`ui-design.md` §4 and §6](./ui-design.md#4-depth-and-elevation)
 
 - **Glassmorphism** on the three panel containers and on modals: `backdrop-filter: blur(20px) saturate(180%)` over `var(--glass-bg)` with `1px solid var(--glass-border)`.
-- **Soft shadow** on elevated surfaces (modal, expanded payload): `box-shadow: 0 8px 32px rgba(0,0,0,0.4)`.
-- **No hard borders.** Always `var(--glass-border)`.
-- **`border-radius`** minimum 12px on interactive elements; panels and modals use `--radius-lg` (20px).
+- **Three elevation shadows** + `--shadow-glow` (indigo) + `--shadow-warm` (amber, used once per confirmed run). Full definitions in `ui-design.md` §4.
+- **No hard borders.** Always `var(--glass-border)` at 8–12% opacity.
+- **`border-radius`** minimum 12 px on interactive elements; panels and modals use `--radius-xl` (24 px).
 
-### 1.6 Animation policy (Motion)
+### 1.6 Animation policy (Motion) — see [`ui-design.md` §5](./ui-design.md#5-motion)
 
-All animations route through `motion/react`. Durations strictly between **100 ms and 300 ms**, never above 400 ms.
+All animations route through `motion/react`. Durations strictly between **100 ms and 300 ms**, never above 400 ms (single exception: one-shot 600 ms warm pulse on the confirmed-answer card mount).
 
 | Element | Animation | Duration |
 |---|---|---|
 | New event node in trace | `opacity 0→1`, `y 8→0`, `easeOut` | 200 ms |
 | New row in history | same as above | 200 ms |
-| Run-row hover | bg transition | 150 ms |
-| Send button hover | `scale 1→1.05` | 100 ms |
-| Send button click | `scale 1.05→0.95→1` | 80 ms |
+| Run-row hover | bg transition + lift to `--shadow-md` | 150 ms |
+| Primary button hover | bg shift + `translateY(-1px)` + `--shadow-glow` | 150 ms |
+| Primary button press | `translateY(0)` + `scale(0.98)` | 100 ms |
+| Send button micro-bounce | `scale 1.05→0.95→1` (spring easing) | 80 ms |
 | Modal enter | `opacity 0→1` + `scale 0.96→1` | 200 ms |
 | `RunningIndicator` dots | CSS keyframes bounce, staggered 0 / 0.2 / 0.4 s | loop |
 | Center panel state switch | crossfade 150 ms | — |
 | Advanced controls reveal | `height auto` + fade | 200 ms |
 | Stagger between sibling rows on initial load | 60 ms | — |
+| Confirmed-answer card mount | fade + one-shot `--shadow-warm` pulse | 600 ms |
 
-### 1.7 Custom scrollbar (global)
+Easing tokens (`--ease-out`, `--ease-in-out`, `--ease-spring`) and `prefers-reduced-motion` handling: `ui-design.md` §5.1 and §5.2.
+
+### 1.7 Custom scrollbar (global) — see [`ui-design.md` §6.6](./ui-design.md#6-interactive-treatments)
 
 ```css
-::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
+::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.25); }
 ```
 
 ### 1.8 Accessibility floor
@@ -134,7 +119,7 @@ viewBox 32×32 (monochrome, currentColor)
 6  12 18  22..30   (cx / x · y baseline = 16)
 ```
 
-- **Files:** `frontend/public/logo-mark.svg` (mark only), `frontend/public/logo.svg` (mark + DM Sans wordmark, viewBox 140×32), `frontend/public/favicon.svg` (mark on `--bg-primary` rounded square).
+- **Files:** `frontend/public/logo-mark.svg` (mark only), `frontend/public/logo.svg` (mark + Inter wordmark, viewBox 140×32), `frontend/public/favicon.svg` (mark on `--bg-primary` rounded square).
 - **Atom:** `Logo` (`components/atoms/Logo.tsx`) renders the mark inline so it inherits `currentColor` and respects token-based theming. Props: `size` (default 24), `withWordmark` (default false), `title` (default *"Novum"*; empty string marks it decorative).
 - **Color rule:** monochrome, always `currentColor`. **Never** colored with `--accent` — the accent is reserved for user actions, not for the brand.
 - **Placements:** favicon, `LoginModal` header (M1 / M1-deep), `MobileTopBar` center label (next to the *"Novum"* wordmark text per §7.10), and the empty-history Skeleton header at very large viewports (V2 only — not required for V1).
@@ -147,7 +132,7 @@ All non-brand icons come from **Lucide React** (already declared in §1.1). No o
 | Rule | Value |
 |---|---|
 | Family | Lucide React, one consistent family across the entire UI |
-| Stroke width | `strokeWidth={1.5}` (matches DM Sans 400 stem weight) |
+| Stroke width | `strokeWidth={1.5}` (matches Inter 400 stem weight) |
 | Allowed sizes | 14 · 16 · 20 · 24 px (no intermediate values) |
 | Color | `currentColor` driven by parent text token; never hardcoded hex |
 | Semantic color | Only on icons that already carry result semantics (`StatusIcon`, `StopReasonBadge`, `OutcomeBar`), via `--semantic-*` tokens |
