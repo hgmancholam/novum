@@ -348,7 +348,7 @@ async def test_post_runs_invokes_runner_start(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = _RouteRecordingRunner()
-    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+    monkeypatch.setattr("app.agent.runner.agent_runner", fake)
 
     response = await client.post(
         "/api/runs",
@@ -372,7 +372,7 @@ async def test_post_cancel_invokes_runner_cancel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = _RouteRecordingRunner()
-    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+    monkeypatch.setattr("app.agent.runner.agent_runner", fake)
 
     create = await client.post(
         "/api/runs",
@@ -400,7 +400,7 @@ async def test_post_resume_awaits_terminal_then_starts(
     from app.models import Run
 
     fake = _RouteRecordingRunner()
-    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+    monkeypatch.setattr("app.agent.runner.agent_runner", fake)
 
     create = await client.post(
         "/api/runs",

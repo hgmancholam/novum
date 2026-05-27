@@ -528,7 +528,7 @@ async def test_create_run_invokes_runner_start(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = _RecordingAgentRunner()
-    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+    monkeypatch.setattr("app.agent.runner.agent_runner", fake)
 
     svc = RunService(sqlite_session)
     resp = await svc.create_run(_make_create(), seeded_user)
@@ -543,7 +543,7 @@ async def test_cancel_run_invokes_runner_cancel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = _RecordingAgentRunner()
-    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+    monkeypatch.setattr("app.agent.runner.agent_runner", fake)
 
     run = await _create_run(sqlite_session, seeded_user)
     fake.calls.clear()
@@ -562,7 +562,7 @@ async def test_resume_run_awaits_terminal_then_starts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = _RecordingAgentRunner()
-    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+    monkeypatch.setattr("app.agent.runner.agent_runner", fake)
 
     run = await _create_run(sqlite_session, seeded_user)
     run.stop_reason = StopReason.ERRORED.value
@@ -599,7 +599,7 @@ async def test_resume_run_timeout_propagates_409(
 
     fake = _RecordingAgentRunner()
     fake.await_terminal_raises = RunStillTerminatingError("x")
-    monkeypatch.setattr("app.services.run_service.agent_runner", fake)
+    monkeypatch.setattr("app.agent.runner.agent_runner", fake)
 
     run = await _create_run(sqlite_session, seeded_user)
     run.stop_reason = StopReason.ERRORED.value

@@ -10,7 +10,9 @@ from fastapi import status as http_status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.runner import agent_runner
+# NOTE: `agent_runner` is imported lazily inside the methods that use it to
+# break the circular import chain  app.agent.runner → app.services.event_service
+# → app.services.__init__ → app.services.run_service → app.agent.runner.
 from app.domain.enums import EventType, StopReason
 from app.domain.events import (
     FORKABLE_EVENTS,
@@ -54,6 +56,8 @@ class RunService:
         await self.db.commit()
         await self.db.refresh(run)
         # BRD-19 §4.4: hand off to the runner so the FSM starts emitting.
+        from app.agent.runner import agent_runner
+
         await agent_runner.start(run.id)
         return RunResponse.model_validate(run)
 
@@ -150,6 +154,8 @@ class RunService:
         # Notify any in-flight SSE generators for this run (RF-08 / IP-10 §3 O-05).
         connection_manager.cancel(run_id)
         # BRD-19 §4.5: flip the orchestrator's cooperative cancel flag.
+        from app.agent.runner import agent_runner
+
         agent_runner.cancel(run_id)
         return RunResponse.model_validate(run)
 
@@ -168,6 +174,8 @@ class RunService:
         # BRD-19 §4.6.1: wait for any in-flight task to settle (5s grace).
         # Raises RunStillTerminatingError (409) if the prior task does not
         # finish in time, so we never spawn a second writer concurrently.
+        from app.agent.runner import agent_runner
+
         await agent_runner.await_terminal(run_id, timeout=5.0)
 
         run = await self.db.get(Run, run_id)

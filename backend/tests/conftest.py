@@ -274,5 +274,5 @@ def _noop_agent_runner(
     if "real_agent_runner" in request.keywords:
         return
     stub = _NoopAgentRunner()
-    monkeypatch.setattr("app.services.run_service.agent_runner", stub, raising=False)
+    monkeypatch.setattr("app.agent.runner.agent_runner", stub, raising=False)
     monkeypatch.setattr("app.main.agent_runner", stub, raising=False)
