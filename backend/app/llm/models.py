@@ -7,7 +7,36 @@ returns. Each model is bound to one of the four LLM roles defined in
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, model_validator
+
+
+def _unwrap_schema_envelope(cls: type[BaseModel], value: Any) -> Any:
+    """Defensive unwrap for the "model echoes JSON Schema" failure mode.
+
+    Some GitHub Models endpoints (Llama-4-Maverick, gpt-4o-mini under
+    Instructor ``Mode.JSON``) occasionally return the schema definition
+    wrapped around the actual data, e.g.::
+
+        {"type": "object", "title": "X",
+         "properties": {"prose": "...", "key_points": [...]},
+         "required": [...]}
+
+    instead of the expected ``{"prose": "...", "key_points": [...]}``.
+    When we detect that envelope (``properties`` is a dict containing at
+    least one of the model's declared fields) we unwrap it before
+    Pydantic validation runs. Otherwise pass-through.
+    """
+    if not isinstance(value, dict):
+        return value
+    inner = value.get("properties")
+    if not isinstance(inner, dict):
+        return value
+    expected = set(cls.model_fields.keys())
+    if expected & set(inner.keys()):
+        return inner
+    return value
 
 
 class QuestionClassification(BaseModel):
@@ -22,6 +51,11 @@ class QuestionClassification(BaseModel):
     question_type: int = Field(..., ge=1, le=8)
     rationale: str
     answerable: bool
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap(cls, v: Any) -> Any:
+        return _unwrap_schema_envelope(cls, v)
 
 
 class QuestionNormalization(BaseModel):
@@ -40,6 +74,11 @@ class QuestionNormalization(BaseModel):
         description="BCP-47-style code, e.g. 'es', 'en', 'pt'",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap(cls, v: Any) -> Any:
+        return _unwrap_schema_envelope(cls, v)
+
 
 class SubClaimOutput(BaseModel):
     """A single sub-claim emitted by the planner."""
@@ -57,6 +96,11 @@ class PlanOutput(BaseModel):
         ..., description="How these claims answer the question"
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap(cls, v: Any) -> Any:
+        return _unwrap_schema_envelope(cls, v)
+
 
 class SynthesizedAnswer(BaseModel):
     """Final answer produced by the synthesizer."""
@@ -70,6 +114,11 @@ class SynthesizedAnswer(BaseModel):
         default_factory=list, description="Known gaps in the evidence"
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap(cls, v: Any) -> Any:
+        return _unwrap_schema_envelope(cls, v)
+
 
 class JudgeVerdict(BaseModel):
     """Verdict from the cross-family judge (RF-12, RF-15)."""
@@ -79,6 +128,11 @@ class JudgeVerdict(BaseModel):
     rationale: str = Field(..., description="Explanation of the verdict")
     improvements: list[str] = Field(default_factory=list)
     factual_errors: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap(cls, v: Any) -> Any:
+        return _unwrap_schema_envelope(cls, v)
 
 
 class CritiqueOutput(BaseModel):
@@ -91,3 +145,8 @@ class CritiqueOutput(BaseModel):
         default_factory=list,
         description="Actionable revisions (only used if acceptable=False)",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap(cls, v: Any) -> Any:
+        return _unwrap_schema_envelope(cls, v)

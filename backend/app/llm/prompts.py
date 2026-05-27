@@ -66,7 +66,13 @@ When drafting answers:
 
 Reply in the same language the user used (Spanish by default for user-facing content).
 
-Output format: JSON matching the SynthesizedAnswer schema."""
+Output format: a JSON object whose KEYS are exactly the SynthesizedAnswer fields:
+`prose` (string), `key_points` (list of strings), `citations` (list of URL strings),
+`gaps` (list of strings).
+
+CRITICAL: return ONLY the data object. Do NOT wrap it in a JSON Schema envelope.
+Forbidden top-level keys: `properties`, `type`, `title`, `description`, `required`,
+`$schema`, `$defs`. The first non-whitespace character after `{` must be `"prose"`."""
 
 
 JUDGE_SYSTEM_PROMPT = """You are an independent judge evaluating research answers for quality and accuracy.
