@@ -70,3 +70,22 @@ export function createSSEConnection(
 export function parseSSEEvent<T>(event: MessageEvent): T {
   return JSON.parse(event.data as string) as T;
 }
+
+/**
+ * Attach a typed listener for a named SSE event (e.g. "Stopped", "heartbeat",
+ * "cancelled"). Returns a teardown that removes the listener.
+ *
+ * The native `EventSource.addEventListener` returns void, so callers had to
+ * track removals themselves. This helper centralises that pattern.
+ */
+export function addNamedListener(
+  source: EventSource,
+  eventName: string,
+  handler: (event: MessageEvent) => void
+): () => void {
+  const listener = handler as EventListener;
+  source.addEventListener(eventName, listener);
+  return () => {
+    source.removeEventListener(eventName, listener);
+  };
+}

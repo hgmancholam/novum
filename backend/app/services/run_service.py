@@ -19,6 +19,7 @@ from app.exceptions import (
     RunStillRunningError,
 )
 from app.models import Event, Run
+from app.sse.manager import connection_manager
 
 # Stop reasons that can be resumed (RF-11).
 _RESUMABLE: frozenset[str] = frozenset(
@@ -132,6 +133,8 @@ class RunService:
         run.stopped_at = datetime.now(UTC)
         await self.db.commit()
         await self.db.refresh(run)
+        # Notify any in-flight SSE generators for this run (RF-08 / IP-10 §3 O-05).
+        connection_manager.cancel(run_id)
         return RunResponse.model_validate(run)
 
     async def resume_run(self, run_id: UUID, username: str) -> RunResponse:

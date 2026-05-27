@@ -4,11 +4,58 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-26
-**Total Decisions:** 25
+**Total Decisions:** 26
 
 ---
 
 ## Recent Decisions
+
+## D-026: BRD-10 / IP-10 — SSE Streaming & Resume Implemented and Approved (F2 → F5)
+
+**Date:** 2026-05-26
+**Phase:** F2 → F3 → F4 → F5 (single-iteration happy path)
+**Author:** Orchestrator Agent
+
+Full workflow executed from F2 onward for BRD-10 (SSE Streaming & Resume) covering RF-08.
+
+**Quality gates:**
+| Gate | Threshold | Actual | Iterations | Status |
+|---|---|---|---|---|
+| Plan Audit (F2) | ≥ 9 | 9.25 | 1 / 3 | PASS |
+| Code Review (F4) | ≥ 9 | 9.5 | 1 / 5 | PASS |
+
+**Artifacts produced:**
+- Plan: `docs/implementation-phase/implementation-plans/IP-10-sse-streaming.md`
+- Audit: `docs/implementation-phase/audits/AUDIT-PLAN-US-10.md`
+- Review: `docs/implementation-phase/reviews/REVIEW-US-10-iter-1.md`
+
+**Binding overrides on BRD-10 §4 (applied in IP-10 §3, all honored by Coder):**
+- **O-01**: `frontend/src/lib/sse.ts` kept function-based; only `addNamedListener` appended (no class rewrite — preserves existing `useRun.ts` / MSW-mocked tests).
+- **O-02**: SSE resume reads `?last_event_id=` query (primary) + `Last-Event-ID` header (fallback for non-browser clients). Native `EventSource` cannot set custom headers.
+- **O-04**: `event_stream` polls every 0.25 s; heartbeat measured in ticks (`HEARTBEAT_TICKS = 60`) — deterministic in tests.
+- **O-05**: stream emits synthetic `event: cancelled` frame on `connection_manager.is_cancelled` to close the gap before the FSM appends `Stopped{user_cancelled}`.
+- **O-07**: SSE route stays public-by-URL (no `CurrentUsername` dep) — consistent with `GET /api/runs/{id}` (RF-05).
+
+**Surface (production):**
+- `backend/app/sse/{__init__,manager,stream}.py` (new package).
+- `backend/app/routes/events.py` rewritten (was HTTP-501 stub).
+- `backend/app/services/run_service.py::cancel_run` — one-line `connection_manager.cancel(run_id)` after commit.
+- `frontend/src/hooks/useRunStream.ts` (new hook on top of existing `lib/sse.ts`).
+- `frontend/src/lib/sse.ts` (+`addNamedListener` helper).
+
+**Tests added: 45.**
+- Backend: `test_sse_manager.py` (8), `test_sse_stream.py` (14), `test_routes_events.py` (9), `test_run_service.py` (+1).
+- Frontend: `useRunStream.test.tsx` (13).
+- All 12 acceptance criteria (IP-10 §6 AC-01..AC-12) covered by named tests.
+
+**Architectural compliance:**
+- No new event types, no Alembic migration, no new env vars.
+- Event log remains append-only (SSE is a read-only projection).
+- `ConnectionManager` is an in-process singleton (RF-05 single-worker precondition; not abstracted behind a Protocol — not a seam).
+- `stop_reason` enum untouched.
+- L-001 (English-only) and L-008 (`API_URL` prefix via `createSSEConnection`) both honored.
+
+---
 
 ## D-025: BRD-09 / IP-09 — Stopping Signal Policy Plan Approved (F2)
 

@@ -167,6 +167,23 @@ async def test_cancel_missing_run_raises_404(sqlite_session: AsyncSession) -> No
         await svc.cancel_run(uuid.uuid4(), "testuser")
 
 
+async def test_cancel_run_signals_connection_manager(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """RF-08 / IP-10 AC-09: cancel_run flips the in-process SSE cancel flag."""
+    from app.sse.manager import connection_manager
+
+    connection_manager.reset()
+    run = await _create_run(sqlite_session, seeded_user)
+    assert connection_manager.is_cancelled(run.id) is False
+
+    svc = RunService(sqlite_session)
+    await svc.cancel_run(run.id, seeded_user)
+
+    assert connection_manager.is_cancelled(run.id) is True
+    connection_manager.reset()
+
+
 # ---------------------------------------------------------------------------
 # resume_run (AC-05)
 # ---------------------------------------------------------------------------
