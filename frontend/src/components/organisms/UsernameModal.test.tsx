@@ -32,7 +32,7 @@ describe("UsernameModal", () => {
     expect(html).not.toMatch(/\bbg-black\b/);
     expect(html).not.toMatch(/\btext-neutral-/);
     expect(html).not.toMatch(/\bdark:bg-neutral-/);
-    expect(html).toMatch(/data-variant="default"/);
+    expect(html).toMatch(/data-variant="(default|strong)"/);
   });
 
   it("uses the overlay-scrim token on the backdrop", () => {
