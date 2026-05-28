@@ -148,11 +148,27 @@ _SHARED_SYSTEM_BLOCK = """You are Novum's synthesizer. You receive a research qu
 evidence block. Produce a structured answer that strictly validates against
 the SynthesizedAnswer schema for the requested AnswerKind.
 
+What `prose` MUST be:
+- The substantive ANSWER to the question, grounded in the EVIDENCE block below.
+- Lead with the finding/assessment in the first sentence. State what the
+  evidence shows, then justify it.
+- Reference evidence by its [n] id inline (e.g. "...adoption is accelerating [3][7]").
+
+What `prose` MUST NOT be:
+- A meta-introduction describing how you will analyse the question.
+- Forbidden openings (or close paraphrases): "This analysis will consider…",
+  "The question of whether…", "To answer this…", "In this response…",
+  "Let us examine…", "This response explores…".
+- A restatement of the question without a substantive claim.
+- An empty framing followed only by a sources table.
+
 Rules:
-- Cite only facts supported by the evidence block. Do not introduce outside knowledge.
-- Mark uncertainty explicitly via `remaining_uncertainties` when the evidence is thin.
-- Never fabricate citations. Every claim that uses a source MUST reference an
-  evidence id present in the input.
+- Cite only facts supported by the EVIDENCE block. Do not introduce outside knowledge.
+- If the evidence is genuinely insufficient to answer, say so explicitly in
+  `prose` (one short paragraph) and populate `remaining_uncertainties`. Do
+  NOT default to a framing paragraph.
+- Never fabricate citations. Every [n] reference in prose MUST exist in the
+  EVIDENCE block and that URL MUST appear in `citations`.
 - Be concise. Prose ≤ 6 short paragraphs. Bullet lists ≤ 8 items."""
 
 _CONTRADICTIONS_DIRECTIVE = """
@@ -169,23 +185,30 @@ Reply in {user_language}. Output MUST validate against the SynthesizedAnswer sch
     AnswerKind.WEIGHTED: """
 AnswerKind = WEIGHTED.
 Payload shape: populate `candidates` (2-6 `WeightedCandidate` entries each with
-label, score in [0,1], rationale). Provide `prose` as a one-paragraph overview.
-Leave scenarios, criteria, redirect_alternatives, interpretation null.
+label, score in [0,1], rationale). `prose` MUST be a substantive one-paragraph
+answer that names the leading candidate(s) and the decisive evidence — NOT a
+generic overview of the question. Leave scenarios, criteria,
+redirect_alternatives, interpretation null.
 
 Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `weighted`.""",
     AnswerKind.SCENARIO: """
 AnswerKind = SCENARIO.
 Payload shape: populate `scenarios` (2-4 `ScenarioBranch` entries each with
 label, probability_band ∈ {{low, medium, high}}, summary, drivers list).
-Provide `prose` framing the question's predictive nature. Leave candidates,
-criteria, redirect_alternatives, interpretation null.
+`prose` MUST be a substantive synthesis: state the most likely outcome (or
+range of outcomes), cite the evidence [n] that supports it, and call out
+the key drivers and uncertainties. Do NOT use `prose` to "frame" the
+predictive nature of the question — the user already knows it is predictive.
+Leave candidates, criteria, redirect_alternatives, interpretation null.
 
 Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `scenario`.""",
     AnswerKind.TRADEOFF: """
 AnswerKind = TRADEOFF.
 Payload shape: populate `criteria` (3-6 `TradeoffCriterion` entries with
-name, weight in [0,1] summing roughly to 1.0, notes). Provide `prose`
-explaining the tradeoff frame. Leave scenarios, candidates,
+name, weight in [0,1] summing roughly to 1.0, notes). `prose` MUST be a
+substantive answer that identifies the dominant tradeoff and the
+evidence-backed recommendation under stated weights — NOT a generic
+explanation of the tradeoff frame. Leave scenarios, candidates,
 redirect_alternatives, interpretation null.
 
 Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `tradeoff`.""",
@@ -239,7 +262,9 @@ def build_synthesizer_prompt(
             f"    URL: {ev.get('url', 'N/A')}\n"
             f"    Snippet: {ev.get('snippet', '')}"
         )
-    "\n\n".join(evidence_lines) if evidence_lines else "(No evidence)"
+    evidence_block = (
+        "\n\n".join(evidence_lines) if evidence_lines else "(No evidence)"
+    )
 
     # Assemble system prompt
     system_prompt = _SHARED_SYSTEM_BLOCK
@@ -249,6 +274,15 @@ def build_synthesizer_prompt(
     kind_block = _KIND_BLOCKS[answer_kind]
     kind_block = kind_block.format(user_language=user_language)
     system_prompt += kind_block
+
+    # Question + evidence are appended to the system prompt so the model has
+    # the grounding context before the user turn (which only echoes the
+    # question). Without this the synthesizer produced framing paragraphs
+    # instead of substantive answers.
+    system_prompt += (
+        f"\n\n=== QUESTION ===\n{question}\n\n"
+        f"=== EVIDENCE ===\n{evidence_block}\n"
+    )
 
     # Token budget
     max_tokens = _MAX_TOKENS_PER_KIND[answer_kind]
