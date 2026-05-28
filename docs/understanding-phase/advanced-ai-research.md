@@ -2,7 +2,7 @@
 
 This document describes the **exact research plan Novum executes for every
 question**, in the order events are emitted. It is grounded in the current
-codebase (post IP-23) and the requirements catalogue (RF-01..RF-19). Anything
+codebase (post IP-25) and the requirements catalogue (RF-01..RF-19). Anything
 not listed here is deliberately not implemented in V1 — see "What Novum does
 NOT do" at the bottom.
 
@@ -12,6 +12,19 @@ The contract is simple:
 - The UI right panel mirrors those events 1:1 (no live LLM regeneration on read — RF-08).
 - The run is **fully replayable**: opening it twice shows identical output.
 - Stopping is a **first-class success outcome**, not an error (RF-02).
+- **Not every run executes the same pipeline.** Post IP-25, the orchestrator
+  routes each question to one of **three lanes** (FAST / STANDARD / DEEP)
+  based on the output of CLASSIFYING. Lanes share the same events, the same
+  stopping enum, the same confidence formula and the same seams — but they
+  compose different strategies and have different per-lane stopping
+  checkpoints. See Phase 1.6 for the routing rules and Phase 2 onward for
+  each lane's flow.
+
+> **Design source.** This document is the *implementation-aligned* view.
+> The strategic rationale for the 3-lane decision lives in
+> [building-the-plan.md](building-the-plan.md). The phased rollout (Phase 0
+> = parallel search fix, Phases A–F = lane architecture) lives in
+> [IP-25](../implementation-phase/implementation-plans/IP-25-three-lane-research-flow.md).
 
 ---
 
@@ -100,13 +113,74 @@ For Q3 ("best programming language"), this is what pushes the run to
 `AnswerKind=best_effort` with a 0.70 ceiling — the system **acknowledges the
 question is ill-posed** rather than pretending to answer it.
 
+## 1.6 Lane routing (`RouteSelected`)
+
+The three dimensions emitted by CLASSIFYING (1.1 + 1.2 + 1.3) are the input
+to a **deterministic** lane selector. No new LLM call is made: the selector
+is pure Python in `app/agent/lane_router.py::select_lane`.
+
+| Lane | Trigger | Typical questions |
+|---|---|---|
+| **FAST** | `complexity_hint == trivial` Y `question_type ∈ {direct, definitional}` Y `temporal_sensitivity != real_time` | "Capital of Japan?", "What is CRISPR?" |
+| **DEEP** | `complexity_hint == deep` Y (`question_type ∈ {causal, scenario, predictive_future, best_effort}` O ambiguity detected by §1.5 resolver) | "Why did X fail?", "What would happen if Y?" |
+| **STANDARD** | Everything else (default) | Comparative, weighted, state-of-art, complex direct |
+
+**Safety rule:** `question_type == predictive_future` forces
+`complexity_hint >= standard` regardless of the classifier output (no
+valid trivial prediction exists).
+
+The orchestrator emits a `RouteSelected` event with `lane`, `reason`, and
+the three Self-Ask dimensions that justified the decision, then dispatches
+to the lane handler. The event is additive (RF-03) and surfaced in the UI
+trace panel.
+
 ---
 
-# Phase 2 — Building the Plan (`PLANNING`)
+# Phase 2 — Lane FAST (trivial factual lookups)
+
+For `lane == FAST`. Target: 2 LLM calls, ≤ 15 s wall-clock.
+
+## 2.1 Single combined search
+
+One `ToolCalled` round with the original question as query — no sub-claim
+decomposition. Wikipedia + Tavily fire **in parallel** (top-3 each).
+
+## 2.2 Short synthesizer
+
+The synthesizer produces a 1–2 sentence answer with inline citations
+(`FAST_SYNTH_PROMPT`). No structured `AnswerKind` shape beyond `direct`.
+
+## 2.3 Mini-judge
+
+A short structured LLM call (`FAST_MINI_JUDGE_PROMPT`) returns
+`MiniJudgeVerdict { ok: bool, j_score: float, reason: str }`. This is
+**not** the full DeepSeek judge — it is a degraded CoVe-style check focused
+on *do the citations exist, do they support the claim, is there an obvious
+between-source contradiction*.
+
+## 2.4 Stopping evaluator
+
+Two outcomes:
+
+- `S_effective ≥ 0.85` Y `mini_judge.ok == True` → `stop_reason = judge_confirmed`.
+- Otherwise → emit `LaneEscalated { from_lane: FAST, to_lane: STANDARD, reason }`
+  and continue into the STANDARD pipeline starting at Phase 3. Escalation is
+  **transparent** — the user never sees a failure, only the eventual
+  STANDARD result. Confidence reported reflects the STANDARD run.
+
+Skips relative to STANDARD: no `CRITIQUING`, no sub-claims, no
+deep-fetch, no re-decomposition, no full judge.
+
+---
+
+# Phase 3 — Lane STANDARD: Plan (`PLANNING`)
+
+For `lane == STANDARD` (default path). Reused by FAST after escalation.
+The planner LLM emits a `PlanCreated` event with:
 
 The planner LLM emits a `PlanCreated` event with:
 
-## 2.1 Sub-claim decomposition
+## 3.1 Sub-claim decomposition
 
 The main question is split into 2–7 verifiable sub-claims. Each sub-claim is
 something a source can directly support or contradict.
@@ -123,7 +197,7 @@ sub_claims:
   - Team maturity is a stronger predictor than architecture style
 ```
 
-## 2.2 Query hygiene (IP-23 WP-4)
+## 3.2 Query hygiene (IP-23 WP-4)
 
 Each sub-claim gets a search query that obeys four hygiene clauses:
 
@@ -134,13 +208,13 @@ Each sub-claim gets a search query that obeys four hygiene clauses:
 
 `query_length_tokens` is emitted per query — visible in the trace.
 
-## 2.3 Source routing by temporal sensitivity (IP-23 WP-1)
+## 3.3 Source routing by temporal sensitivity (IP-23 WP-1)
 
 - `static` / `slow_changing` → Wikipedia + Semantic Scholar + OpenAlex first, Tavily second.
 - `volatile` / `real_time` → Tavily first with `search_depth="advanced"` and `days` filter; Wikipedia + Semantic Scholar + OpenAlex second.
 - Semantic Scholar's and OpenAlex's recency filter is mapped from `days` to a `year` range (neither API has a day-level filter).
 
-## 2.4 Source routing by question type (commit C5, 2026-05-28)
+## 3.4 Source routing by question type (commit C5, 2026-05-28)
 
 On top of temporal routing, the planner appends the **academic pair**
 `["semantic_scholar", "openalex"]` to `preferred_sources` when **all three**
@@ -154,7 +228,18 @@ hold:
 This keeps Semantic Scholar / OpenAlex quota for the questions that
 actually benefit from peer-reviewed evidence and avoids burning it on
 `FACTUAL` or `DEFINITIONAL` queries.
-## 2.5 Plan self-critique (`CRITIQUING`)
+
+## 3.5 Abductive hypotheses (DEEP only, IP-25 Phase D)
+
+When `lane == DEEP` **or** `question_type ∈ {causal, scenario, predictive_future, best_effort}`,
+the planner additionally emits **2–4 competing hypotheses** in a
+`HypothesesGenerated` event. Each `Hypothesis` carries `id`, `text`,
+`priority` and a starting `verdict = "pending"`. These are the targets of
+the ReAct loop (Phase 5b) and, for `AnswerKind == scenario`, the skeleton of
+the final output — one scenario per confirmed hypothesis with its
+independent confidence.
+
+## 3.6 Plan self-critique (`CRITIQUING`)
 
 Before any external call is made, the LLM critiques its own plan:
 
@@ -167,11 +252,13 @@ budget.
 
 ---
 
-# Phase 3 — Gathering Evidence (`SEARCHING`)
+# Phase 4 — Gathering Evidence (`SEARCHING`)
 
-For each sub-claim, in order:
+For each pending sub-claim. **Searches across claims execute in parallel**
+(IP-25 Phase 0, `asyncio.gather` in `execute_search_round`). Within a single
+claim the source cascade runs sequentially.
 
-## 3.1 Four heterogeneous Sources (RF-04)
+## 4.1 Four heterogeneous Sources (RF-04)
 
 - **Tavily** web search — `search_depth="advanced"`, with `days` filter from §2.3.
 - **Wikipedia** — encyclopedic baseline, second Source plugin.
@@ -192,7 +279,7 @@ Semantic Scholar and OpenAlex hosts (`*.semanticscholar.org`,
 tier table below — evidence from these sources lands at ×1.30 on coverage
 and diversity.
 
-### 3.1.1 Citation-weighted ranking inside academic sources (commit C6, 2026-05-28)
+### 4.1.1 Citation-weighted ranking inside academic sources (commit C6, 2026-05-28)
 
 Semantic Scholar and OpenAlex share a `_citation_bump` helper that lifts
 well-cited works in the result list **without overriding search-engine
@@ -208,7 +295,7 @@ final_score = clamp(base_relevance + bump(citation_count), 0, 1)
   cannot override a top-ranked topical hit. The seam contract
   `relevance_score ∈ [0, 1]` is preserved.
 
-## 3.2 What we capture per URL
+## 4.2 What we capture per URL
 
 Each `SourceResult` records:
 
@@ -216,7 +303,16 @@ Each `SourceResult` records:
 - `source_published_date` (when the page declares one)
 - The host, normalised for tier classification
 
-## 3.3 Authority tier classification (IP-23 WP-3)
+## 4.3 Adaptive query reformulation (IP-25 Phase 0)
+
+If **every** Tavily result for a claim returns `relevance_score < 0.3`, the
+source fires a **single** reformulated query that concatenates the claim
+text with the first 40 chars of the original question. This emits a
+`QueryReformulated` event with `original_query`, `reformulated_query`,
+`target_claim_id`, and `reason = "low_relevance"`. Capped at one
+reformulation per claim per round — no loop.
+
+## 4.4 Authority tier classification (IP-23 WP-3)
 
 Every result is classified into one of four tiers by host pattern:
 
@@ -251,12 +347,12 @@ Rules live in
 [backend/app/agent/sources_authority/tiers.py](../../backend/app/agent/sources_authority/tiers.py)
 and are first-match-wins.
 
-## 3.4 Tool call accounting
+## 4.5 Tool call accounting
 
 Every external call emits a `ToolCalled` event with provider, latency, status
-and tokens (where applicable). These feed the budget signals in §6.
+and tokens (where applicable). These feed the budget signals in §7.
 
-## 3.5 LLM call routing
+## 4.6 LLM call routing
 
 All LLM calls go through `app/llm/client.py::call`, which:
 
@@ -267,15 +363,15 @@ All LLM calls go through `app/llm/client.py::call`, which:
 
 ---
 
-# Phase 4 — Analysing Evidence (`ANALYZING`)
+# Phase 5 — Analysing Evidence (`ANALYZING`)
 
-## 4.1 Per-claim indexing
+## 5.1 Per-claim indexing
 
 Each piece of evidence is attached to a specific sub-claim. The
 `question_index` ensures isolation between runs — evidence from run A never
 contaminates run B.
 
-## 4.2 Evidence aggregation
+## 5.2 Evidence aggregation
 
 `AnalyzedEvidence` events fold:
 
@@ -285,9 +381,64 @@ contaminates run B.
 - `source_published_date`
 - The sub-claim it supports or contradicts
 
+## 5.3 Dynamic re-decomposition (STANDARD only, IP-25 Phase B)
+
+After `S_raw` is computed (Phase 6) and **before** synthesizing, the
+orchestrator may invoke one extra planner pass when:
+
+- `state.redecomposition_count < state.max_redecomposition` (default 1), Y
+- `S_raw < confidence_threshold + 0.10` (the answer is borderline).
+
+`identify_plan_gaps` asks the planner *"given the original question, the
+current sub-claims and the evidence summary, which angles are not yet
+covered?"* and returns up to 3 short gap descriptions. These become new
+`SubClaim` entries appended to `state.sub_claims`, a
+`PlanGapsDetected` event is emitted, and the FSM transitions
+`ANALYZING → SEARCHING` for the extra round. Cap of 1 extra round per run.
+
+This closes the main gap vs. ReAct (static plan) **without** introducing a
+reasoning loop in STANDARD.
+
+## 5.4 Echo chamber penalty (IP-25 Phase 0)
+
+When ≥ 3 sources for the same claim have non-null
+`source_published_date`, all fall within a 7-day window, AND
+`C_agreement == 1.0`, `C_diversity` is multiplied by **0.85** and an
+`EchoChamberDetected` event is emitted with `claim_id`, `n_sources` and
+`date_window_days`. This penalises unanimous agreement that traces back to a
+single news cycle propagating across outlets.
+
+## 5.5 Lane DEEP — ReAct sub-FSM (replaces 5.3 when `lane == DEEP`)
+
+For `lane == DEEP`, after the abductive hypotheses (§3.5) and one
+initial parallel search round, the orchestrator enters a **ReAct loop**
+(`app/agent/react/loop.py`) instead of the static decompose→analyse→synth
+flow.
+
+Each step emits three events:
+
+- `AgentThought { step, thought }` — LLM call with the running history.
+- `AgentAction { step, action_type, args }` — structured output of a
+  **closed enum** of actions: `search`, `deep_fetch`, `evaluate_hypothesis`,
+  `finish`. Anything else is rejected and re-prompted (step does not count).
+- `AgentObservation { step, result_summary, tokens }` — result of the action
+  via the existing `Source` seam.
+
+`evaluate_hypothesis(hypothesis_id, verdict)` updates a hypothesis to
+`confirmed` / `refuted` and emits `HypothesisEvaluated` with the supporting
+`evidence_ids[]`.
+
+**Guardrails:**
+
+- Hard cap `max_react_steps = 8` (no exceptions).
+- History summarised by the synthesizer when token count exceeds 15 000
+  (keeps last 4 steps verbatim, summarises the rest, emits
+  `HistorySummarized`).
+- Stopping evaluated **after every observation** — see Phase 7.5.
+
 ---
 
-# Phase 5 — Structural Confidence (`S_raw`)
+# Phase 6 — Structural Confidence (`S_raw`)
 
 Confidence is **not** asked to the LLM. It is computed from the evidence shape
 (RF-12). Four components, each in `[0, 1]`:
@@ -303,78 +454,119 @@ Then:
 
 1. `S_raw = weighted_sum(C_coverage, C_diversity, C_agreement, C_no_conflict)`
 2. `S_raw` is multiplied per-evidence by `AuthorityTier` multiplier (only on coverage + diversity).
-3. **Stale-citation penalty** (× 0.85 on `kind_ceiling["direct"]`) if citations are older than the temporal sensitivity threshold from §1.3.
-4. `S_effective = S_raw × kind_ceiling[AnswerKind]` — caps confidence by what the question type can legitimately deliver.
+3. **Echo chamber penalty** (§5.4) may multiply `C_diversity` by 0.85.
+4. **Stale-citation penalty** (× 0.85 on `kind_ceiling["direct"]`) if citations are older than the temporal sensitivity threshold from §1.3.
+5. `S_effective = S_raw × kind_ceiling[AnswerKind]` — caps confidence by what the question type can legitimately deliver.
 
 `S_effective` is the **structural** half of the final score. The other half is
-the judge's verdict (§8).
+the judge's verdict (§9).
 
 ---
 
-# Phase 6 — Stopping Signals (per round, RF-02)
+# Phase 7 — Stopping Signals (RF-02)
 
-After analysis and confidence are updated, the orchestrator checks every
-configured `StoppingSignal` plugin:
+Stopping is evaluated **after every round** — where "round" is
+lane-specific:
 
-1. **`BudgetExhaustedSignal`** — `max_rounds`, `max_searches`, `max_tokens` from §1.2.
+| Lane | Round = |
+|---|---|
+| FAST | one pass after `mini_judge` |
+| STANDARD | one full Search → Analyze → Synth → Judge cycle |
+| DEEP | each ReAct `AgentObservation` and each CoVe pass |
+
+The orchestrator iterates every configured `StoppingSignal` plugin in
+priority order. Three categories:
+
+## 7.1 Hard global signals (all lanes)
+
+1. **`BudgetExhaustedSignal`** — `max_rounds`, `max_searches`, `max_tokens`, `max_seconds_wall_clock` from §1.2.
 2. **`UserCancelledSignal`** — the FE asked us to stop.
-3. **`JudgeSignal`** — fires when the judge LLM returns `verdict == "approve"`
-   (priority 40, set in §8). Maps to `STOP{JUDGE_CONFIRMED}`.
+3. **`JudgeSignal`** — fires when the judge returns `verdict == "approve"`. Maps to `STOP{JUDGE_CONFIRMED}`.
 
-> **Threshold unification (commit C2, 2026-05-28).** There is no longer a
-> separate `ConfidenceThresholdSignal` gating on `min(S, J) >= threshold`.
-> The `confidence_threshold` is passed into the judge prompt and **the judge
-> LLM applies it itself** when choosing approve vs reject. This eliminates
-> the bug where a judge `approve` could still be vetoed by the structural
-> score, double-applying the same rule.
+## 7.2 Anti-stall signal (STANDARD + DEEP, IP-25 Phase B)
 
-If **none** fire, the orchestrator schedules another round of `SEARCHING` →
-`ANALYZING`. If any fires, we move to `SYNTHESIZING`.
+**`NoProgressSignal`** fires when `len(confidence_history) >= 3` AND
+`confidence_history[-1] - confidence_history[-3] < 0.05`. It does not kill
+the run — it forces a transition to `SYNTHESIZING` with the current
+evidence and emits `NoProgressDetected { delta_3rounds, current_confidence }`.
+Prevents the "20 minutes without progress" scenario.
 
-The stop is mapped to one of **four** enum values (post 2026-05-27 amendment):
+## 7.3 Early-exit checkpoints (skip costly downstream steps)
+
+These checkpoints short-circuit work that would be wasted given strong
+evidence. Evaluated with a small safety margin (`threshold + 0.05`) to avoid
+cutting marginal cases.
+
+| Checkpoint | Lane | Where | Condition | Skips |
+|---|---|---|---|---|
+| `S_after_retrieval_high` | STANDARD | After parallel retrieval, before re-decomp | `S_raw ≥ 0.85` Y `n_sources ≥ 3` Y `C_no_conflict == 1.0` | Re-decomposition (§5.3) |
+| `judge_first_pass_strong` | STANDARD | After first judge, before deep-fetch | `judge.verdict == approve` Y `final_confidence ≥ threshold + 0.05` Y `shallow_claims == []` | Deep-fetch and re-judge |
+| `hypothesis_decisively_supported` | DEEP | After each `AgentObservation` | 1 hypothesis `confirmed` Y `S_effective ≥ threshold` Y rest refuted | Terminates ReAct early → `judge_confirmed` |
+| `hypotheses_all_refuted` | DEEP | Inside ReAct loop | All hypotheses `refuted` with `primary_authoritative` evidence | Terminates ReAct → `stopped_by_budget` + `best_effort` |
+| `cove_no_contradictions` | DEEP | After first CoVe pass | 0 contradictions Y `j_score ≥ threshold` | CoVe re-draft |
+
+## 7.4 Hard caps (no-confidence-dependent floor)
+
+| Cap | Default | Lane(s) | On reach |
+|---|---|---|---|
+| `max_redecomposition` | 1 (STANDARD), 2 (DEEP) | STANDARD | Force synthesis with current evidence |
+| `max_judge_attempts` | 2 (STANDARD), 3 (DEEP) | STANDARD, DEEP | Invoke `draft_best_effort_fallback` |
+| `max_deep_fetch_per_run` | 2 (STANDARD), 3 (DEEP) | STANDARD, DEEP | Accept shallow evidence |
+| `max_react_steps` | 8 | DEEP | Force synthesis with ReAct history |
+| `max_cove_rounds` | 1 | DEEP | Accept draft without further verification |
+
+## 7.5 The four `stop_reason` enum values
+
+All lanes terminate in one of:
 
 - `judge_confirmed`
 - `stopped_by_budget`
 - `user_cancelled`
 - `errored`
 
-A `stopped_by_budget` with low confidence is still a **success** — the user
-sees the partial findings, the confidence number, and the reason. We never
-fabricate certainty to "finish".
+> **Why no `honest_*` values.** The earlier enum had `honest_contradiction`,
+> `honest_unanswerable` and `honest_ambiguous`. They were removed in WP-3
+> (always-answer refactor). Honest finals are now expressed as
+> `stopped_by_budget` with `answer_kind = best_effort` and a descriptive
+> `stop_rationale`. The UI distinguishes the case via the best-effort badge.
 
 ---
 
-# Phase 7 — Drafting an Answer (`SYNTHESIZING`)
+# Phase 8 — Drafting an Answer (`SYNTHESIZING`)
 
-The synthesizer LLM emits a `DraftSynthesized` event:
+The synthesizer LLM (`openai/gpt-5`) emits a `DraftSynthesized` event.
 
-## 7.1 Shape follows `AnswerKind`
+## 8.1 Shape follows `AnswerKind`
 
 - `direct` → short paragraph, single citation cluster.
 - `comparative` → two-column tradeoff with shared dimensions.
 - `weighted` → criteria-weighted table.
 - `best_effort` → explicit acknowledgement of ambiguity + best-attempt sketch.
-- `scenario` → multiple labelled scenarios with stated assumptions.
+- `scenario` → multiple labelled scenarios with stated assumptions. In DEEP,
+  the skeleton is the list of `Hypothesis.verdict == confirmed` from §3.5.
 
 The shape is enforced by a Pydantic `StructuredAnswerData` model — the LLM
 cannot return free-form prose when a structured shape is required.
 
-## 7.2 Citations inline
+## 8.2 Citations inline
 
 Every claim in the draft carries citations attached to specific
 `AnalyzedEvidence` ids. The FE renders them as inline chips.
 
-## 7.3 Language
+## 8.3 Language
 
 The draft is generated in the **user's language** (Spanish by default for this
 project). Internal prompts, identifiers and logs stay in English.
 
 ---
 
-# Phase 8 — Judging the Draft (`JUDGING`)
+# Phase 9 — Judging the Draft (`JUDGING`)
 
-A **second, independent LLM** (Anthropic Haiku — RF-19) verifies the draft.
-This is the verifier model the literature recommends.
+A verifier LLM — in production today `deepseek/DeepSeek-V3-0324`, a
+**different family** from the synthesizer's `openai/gpt-5` — verifies the
+draft. The provider routing supports swapping per-role to
+`anthropic/claude-sonnet-4-6` or `google/gemini-2.5-flash` via env vars when
+stronger independence is needed (see `ai-services.md`).
 
 The `JudgeRuled` event carries a structured `JudgeVerdict`:
 
@@ -386,7 +578,7 @@ The `JudgeRuled` event carries a structured `JudgeVerdict`:
 | `supported_but_shallow_claim_ids[]` | Claims supported only by snippets — candidates for deep-fetch |
 | `j_score` | Judge confidence in [0, 1] |
 
-## 8.1 Final confidence (logged, not gating)
+## 9.1 Final confidence (logged, not gating)
 
 ```
 final_confidence = min(S_effective, J)
@@ -398,9 +590,9 @@ supports.
 
 Since commit C2 (2026-05-28), `final_confidence` is **recorded as a metric
 on the `Stopped` event and shown in the UI**, but it is **not** re-checked
-as a stopping gate — the judge LLM owns the approve/reject call (§6).
+as a stopping gate — the judge LLM owns the approve/reject call (§7).
 
-## 8.2 Judge-cap best-effort fallback (commit C3, 2026-05-28)
+## 9.2 Judge-cap best-effort fallback (commit C3, 2026-05-28)
 
 The judge can reject a draft. When that happens the orchestrator loops back
 to `ANALYZING` (or `SEARCHING` if deep-fetch §9 applies) and re-drafts. To
@@ -420,15 +612,38 @@ it invokes `draft_best_effort_fallback(state)`, which:
 The run then terminates as `STOPPED_BY_BUDGET` **with an honest
 best-effort answer**, not a silent failure.
 
+## 9.3 Explicit CoVe in DEEP (IP-25 Phase F)
+
+For `lane == DEEP` only, after the first `JudgeRuled` the orchestrator runs
+a **literal CoVe pass** — not the implicit verification the judge already
+performs, but a separate cycle:
+
+1. The synthesizer (`gpt-5`) generates **3 verification questions**
+   targeting specific claims in the draft. Emits
+   `VerificationQuestionsGenerated { questions[] }`.
+2. For each question, the **judge** (DeepSeek-V3 — different family from the
+   synthesizer) runs a small directed search via the `Source` seam and
+   returns whether the new evidence contradicts the draft.
+3. If ≥ 1 question detects contradiction AND `cove_rounds < max_cove_rounds`
+   (default 1), `CoveContradictionDetected` is emitted and the synthesizer
+   re-drafts with the contradicting evidence as context. Loop bounded by
+   `max_cove_rounds`.
+4. The judge verdict on the final draft is the one persisted on the
+   `Stopped` event.
+
+Rationale: the DEEP draft comes from a ReAct loop, not from pre-decomposed
+sub-claims, so per-claim coverage is not guaranteed by construction the
+way it is in STANDARD. CoVe restores that guarantee.
+
 ---
 
-# Phase 9 — Deep-Fetch Escalation (conditional, IP-23 WP-2)
+# Phase 10 — Deep-Fetch Escalation (conditional, IP-23 WP-2)
 
 If the judge marks any claim as `supported_but_shallow`:
 
 1. `maybe_deep_fetch` checks the deep-fetch budget from §1.2.
 2. For each shallow claim, fetch the **full page text** of its citation URL via `Source.fetch_full(url)`.
-3. Emit a `DeepFetchPerformed` event (event type #25, additive).
+3. Emit a `DeepFetchPerformed` event (additive).
 4. Replace the snippet with the full text in the evidence index.
 5. Transition `JUDGING → ANALYZING` (not `SEARCHING` — the URL is already known; another search round would waste budget).
 6. Recompute confidence, re-draft, re-judge.
@@ -438,9 +653,9 @@ the lower confidence — honest is preferred over fabricated depth.
 
 ---
 
-# Phase 10 — Stopping and Replay
+# Phase 11 — Stopping and Replay
 
-## 10.1 The terminal event
+## 11.1 The terminal event
 
 The `Stopped` event carries everything needed to render the final view:
 
@@ -451,12 +666,12 @@ The `Stopped` event carries everything needed to render the final view:
 - `final_confidence`
 - `total_tokens`, `total_duration_seconds`
 
-## 10.2 Determinism (RF-08)
+## 11.2 Determinism (RF-08)
 
 Reading a stopped run never re-invokes the LLM. The FE renders directly from
 the event log. Two visits, identical output.
 
-## 10.3 Fork and resume
+## 11.3 Fork and resume
 
 A run can be **forked from any past event** (append-only — the original is
 never mutated). This is the "Runs Must Be Re-examinable" requirement: try a
@@ -470,14 +685,34 @@ These run continuously throughout the pipeline:
 
 | Guarantee | Mechanism |
 |---|---|
-| **Append-only audit log** | `events` table, ~25 event types, additive schema (`extra="allow"`) |
+| **Append-only audit log** | `events` table, ~36 event types post IP-25, additive schema (`extra="allow"`) |
 | **SSE resume** | `Last-Event-ID`, 15 s heartbeat |
 | **Read determinism** | No LLM on read paths |
 | **Replay safety** | Fork/resume append; never mutate |
-| **Trust surface** | FE renders every RF-13 signal (sources, tiers, confidence, dates) |
+| **Trust surface** | FE renders every RF-13 signal (sources, tiers, confidence, dates, lane, hypotheses, ReAct steps) |
 | **Single-writer per run** | In-process advisory lock; `uvicorn --workers 1` |
 | **N-PAT rotation** | `GITHUB_TOKENS` env, round-robin per call |
 | **Provider quota fail-fast** | `LLMProviderQuotaExhausted` skips retry budget |
+| **Parallel search within a round** | `asyncio.gather` over pending claims (IP-25 Phase 0) |
+| **Lane isolation** | Each lane has its own state-machine path but shares the `Source` / `StoppingSignal` / `OutputRenderer` seams |
+
+## Event taxonomy (post IP-25)
+
+The 11 events added by IP-25, all additive (RF-03):
+
+| Event | Lane(s) | Phase reference |
+|---|---|---|
+| `RouteSelected` | all | §1.6 |
+| `LaneEscalated` | FAST → STANDARD | §2.4 |
+| `QueryReformulated` | all | §4.3 |
+| `EchoChamberDetected` | all | §5.4 |
+| `PlanGapsDetected` | STANDARD | §5.3 |
+| `NoProgressDetected` | STANDARD + DEEP | §7.2 |
+| `HypothesesGenerated` | DEEP + best-effort/scenario | §3.5 |
+| `AgentThought` / `AgentAction` / `AgentObservation` | DEEP | §5.5 |
+| `HypothesisEvaluated` | DEEP | §5.5 |
+| `HistorySummarized` | DEEP | §5.5 |
+| `VerificationQuestionsGenerated` / `CoveContradictionDetected` | DEEP | §9.3 |
 
 ---
 
@@ -485,26 +720,30 @@ These run continuously throughout the pipeline:
 
 | Requirement | How Novum implements it |
 |---|---|
-| **Decide when enough evidence is collected** | §6 stopping signals + §8 judge + §5 structural confidence (`min(S, J)`) |
+| **Decide when enough evidence is collected** | §7 stopping signals (hard + anti-stall + early-exit checkpoints) + §9 judge + §6 structural confidence (`min(S, J)`) |
 | **Every run fully inspectable** | §0 event log + FE trust surface (RF-13) |
-| **Runs re-examinable and re-attemptable** | §10.3 fork from any past event |
-| **Handle messy reality** | §1.3 temporal sensitivity + §1.5 ambiguity resolver + §5 conflict component + `best_effort` ceiling + `stopped_by_budget` as success |
+| **Runs re-examinable and re-attemptable** | §11.3 fork from any past event |
+| **Handle messy reality** | §1.3 temporal sensitivity + §1.5 ambiguity resolver + §6 conflict component + `best_effort` ceiling + `stopped_by_budget` as success |
+| **Match strategy to question shape** | §1.6 lane routing + per-lane composition (FAST = decomp + mini-CoVe; STANDARD = decomp + re-decomp + judge; DEEP = abductive + ReAct + explicit CoVe) |
 
 ---
 
 # What Novum Does NOT Do (V1)
 
-To keep the system honest, we list what is deliberately absent:
+To keep the system honest, we list what is deliberately absent **after IP-25**:
 
 | Capability | Status | Reason |
 |---|---|---|
 | **Vector DB / embeddings / semantic retrieval** | ❌ | Four Source plugins (Tavily + Wikipedia + Semantic Scholar + OpenAlex) provide enough heterogeneity for the assignment scope. |
 | **RAG over private corpora** | ❌ | Out of scope; no document ingestion pipeline. |
-| **Abductive hypothesis generation** | ❌ | Deep-fetch is reactive (escalates on judge feedback), not generative. |
-| **Adaptive query reformulation mid-run** | ❌ | Queries are decided at plan time and not rewritten based on intermediate findings. |
+| **Abductive hypothesis generation** | ✅ | Implemented in DEEP and for `causal/scenario/predictive_future/best_effort` (§3.5). |
+| **Adaptive query reformulation mid-run** | ✅ | Low-relevance reformulation per claim per round (§4.3). Cap: 1 per claim per round. |
+| **Adaptive plan (re-decomposition based on intermediate findings)** | ✅ | STANDARD re-decomp (§5.3), DEEP ReAct loop (§5.5). |
+| **Explicit CoVe (separate from the judge)** | ✅ | DEEP only (§9.3). FAST has a mini-CoVe degraded version. STANDARD relies on the judge for verification. |
 | **Long-term memory across runs** | ❌ | Each run is isolated. Memory across runs would break read determinism. |
 | **Knowledge graph construction** | ❌ | Out of V1 scope. |
-| **Multi-agent debate** | ❌ | One planner, one synthesizer, one judge. No adversarial agents. |
+| **Multi-agent debate** | ❌ | One planner, one synthesizer, one judge. Adversarial agents not justified for the cost. |
+| **Tree-of-Thoughts** | ❌ | Quadratic cost not justified; ReAct + abductive hypotheses covers the multi-path exploration case. |
 | **Real-time browser navigation** | ❌ | We fetch URLs (deep-fetch) but do not interact with pages. |
 | **Distributed execution** | ❌ | Single server, single worker (RF-05). |
 
@@ -515,6 +754,8 @@ and the architecture phase.
 
 # Architecture Pointers
 
+- Strategy rationale (3-lane decision): [building-the-plan.md](building-the-plan.md)
+- Phased rollout (Phase 0 → F): [IP-25](../implementation-phase/implementation-plans/IP-25-three-lane-research-flow.md)
 - FSM and event taxonomy: [architecture.md](../technical-phase/architecture.md)
 - LLM role assignments: [ai-services.md](../technical-phase/ai-services.md)
 - Confidence formula: [confidence-calculation.md](confidence-calculation.md)

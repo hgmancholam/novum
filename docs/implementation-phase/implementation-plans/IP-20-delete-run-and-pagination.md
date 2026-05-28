@@ -1,6 +1,6 @@
-# Implementation Plan — PLAN-US-20: Delete Finished Run & History Pagination
+# Implementation Plan — IP-20: Delete Finished Run & History Pagination
 
-**Plan ID:** PLAN-US-20
+**Plan ID:** IP-20
 **Parent BRD:** [BRD-20 v1.1](../brds/BRD-20-delete-run-and-pagination.md)
 **Parent User Stories:** [US-20-A](../user-stories/US-20-A-delete-finished-run.md), [US-20-B](../user-stories/US-20-B-history-pagination.md)
 **Date:** 2026-05-27

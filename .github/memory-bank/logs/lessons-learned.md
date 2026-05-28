@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-28
-**Total Lessons:** 23
+**Total Lessons:** 27
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,190 @@
 ---
 
 ## Recent Lessons
+
+## L-027 — SourceResult schema has `content`/`snippet`, never `text` or `authority_tier`
+**Date:** 2026-05-28 (origin: IP-25 Phase E iter 1 review — Coder accessed `result.text` which doesn't exist on SourceResult. Fixed in iter 2 with `result.content or result.snippet` pattern).
+
+**Rule:** The `SourceResult` Pydantic model ([seams/source.py](backend/app/seams/source.py#L23-L31)) has exactly these fields:
+```python
+url: str
+title: str
+snippet: str           # ← Short excerpt
+content: str | None    # ← Full text (if fetched)
+relevance_score: float | None
+published_date: str | None
+```
+
+**Common bugs:**
+- Accessing `result.text` → AttributeError (no such field)
+- Accessing `result.authority_tier` → AttributeError (authority is computed post-search, not part of SourceResult)
+- Passing `source_published_date` or `authority_tier` to `EvidenceAddedEvent` from a `SourceResult` object
+
+**Correct patterns:**
+```python
+# For short text: use snippet
+text = result.snippet
+
+# For long text: prefer content, fallback to snippet
+text = result.content or result.snippet
+
+# For EvidenceAddedEvent: only pass SourceResult fields that exist
+await emit(EvidenceAddedEvent(
+    source_url=result.url,
+    source_title=result.title,
+    extracted_text=(result.content or result.snippet)[:500],
+    # ❌ DO NOT: source_published_date=result.published_date (wrong type)
+    # ❌ DO NOT: authority_tier=result.authority_tier (doesn't exist)
+))
+```
+
+**Why this trips people up:**
+- In natural language, "text" is the obvious field name for textual content.
+- The field split (`snippet` vs `content`) reflects Source plugin implementation: `search()` returns short snippets, `fetch_full()` populates `content`.
+- LLM plans may hallucinate extra fields like `authority_tier` that sound plausible but don't exist in SourceResult (they're computed separately in the confidence layer).
+
+**Symptoms:**
+- AttributeError: 'SourceResult' object has no attribute 'text'
+- AttributeError: 'SourceResult' object has no attribute 'authority_tier'
+- Pydantic ValidationError when emitting EvidenceAddedEvent with wrong field types
+
+**Mitigation:**
+- Always consult `backend/app/seams/source.py` SourceResult schema before accessing fields
+- In reviews, verify any SourceResult field access against the schema
+- When mocking SourceResult in tests, use real field names to catch bugs early
+
+**Reference:**
+- IP-25 Phase E iter 1 review: [REVIEW-IP-25-Phase-E.md](docs/implementation-phase/reviews/REVIEW-IP-25-Phase-E.md#C1) lines 61-92
+- Fixed in iter 2: [loop.py#L318](backend/app/agent/react/loop.py#L318), [#L379](backend/app/agent/react/loop.py#L379)
+
+---
+
+## L-026 — Always verify event kwargs match Pydantic schema before emitting
+**Date:** 2026-05-28 (origin: IP-25 Phase E iter 1 fixes — Coder emitted `EvidenceAddedEvent` with bogus `source_published_date` and `authority_tier` fields that don't exist on SourceResult. Tests passed with mocks but would fail in production).
+
+**Rule:** Before calling `emit(SomeEvent(...))`, cross-reference the event's Pydantic schema definition in `backend/app/domain/events.py` to verify:
+1. All required fields are provided
+2. All provided fields exist in the schema
+3. Field types match (e.g., `datetime | None`, not `str | None`)
+4. Source of data has the field (e.g., don't pass `SourceResult.authority_tier` — it doesn't exist)
+
+**Common bugs:**
+- Passing extra fields that sound plausible but aren't in the schema (e.g., `source_published_date` when the schema expects no such kwarg)
+- Passing fields from an upstream object that doesn't have them (e.g., passing `result.authority_tier` when SourceResult lacks that field)
+- Tests pass because mocks accept arbitrary kwargs, but production crashes on real objects
+
+**Correct pattern:**
+```python
+# 1. Read the event schema first
+class EvidenceAddedEvent(BaseEvent):
+    source_type: SourceType
+    source_url: str
+    source_title: str
+    extracted_text: str
+    polarity: EvidencePolarity
+    target_claim_id: str
+    confidence: float
+    source_published_date: datetime | None = None  # ← Optional
+    authority_tier: AuthorityTier | None = None    # ← Optional
+
+# 2. Emit with only valid fields from your source object
+await emit(
+    EvidenceAddedEvent(
+        source_type=source_type,
+        source_url=result.url,          # ← SourceResult has .url
+        source_title=result.title,      # ← SourceResult has .title
+        extracted_text=(result.content or result.snippet)[:500],  # ← Valid fields
+        polarity=EvidencePolarity.SUPPORTS,
+        target_claim_id="react_search",
+        confidence=0.7,
+        # ❌ DO NOT add source_published_date or authority_tier here
+        # unless you're computing them separately (not available on SourceResult)
+    )
+)
+```
+
+**Why this trips people up:**
+- Pydantic's `extra="allow"` on BaseEvent means extra kwargs are silently accepted at **event creation** but cause validation errors when **persisting to DB** or **regenerating frontend types**.
+- Mocks in tests don't enforce schema, so tests pass even with wrong kwargs.
+- LLM code generation may infer plausible-sounding fields that don't exist.
+
+**Symptoms:**
+- Tests pass locally but fail in integration with real objects
+- ValidationError when persisting events to database
+- Frontend types mismatch after regenerating from backend schema
+
+**Mitigation:**
+- Add a review step: "Verify event kwargs match schema definition"
+- In tests, prefer using real Pydantic models over mocks when possible
+- In reviews, cross-check every `emit(Event(...))` call against `events.py` schema
+
+**Reference:**
+- IP-25 Phase E iter 1 additional fixes: Corrected `EvidenceAddedEvent` calls in [loop.py#L331-339](backend/app/agent/react/loop.py#L331) and [#L396-404](backend/app/agent/react/loop.py#L396)
+- See L-027 for SourceResult field reference
+
+---
+
+## L-025 — When a plan specifies enum-based conditionals, verify the values exist in the correct enum (QuestionType vs AnswerKind)
+**Date:** 2026-05-28 (origin: IP-25 Phase D iter 1 review — plan §6.2 T-25-D-04 said `state.question_type in {CAUSAL, SCENARIO, PREDICTIVE_FUTURE, BEST_EFFORT}` but SCENARIO and BEST_EFFORT are `AnswerKind` values, not `QuestionType` values. Coder correctly split the condition into `question_type in {CAUSAL, PREDICTIVE_FUTURE} OR selected_answer_kind in {SCENARIO, BEST_EFFORT}` by consulting `domain/enums.py`).
+
+**Rule:** Before implementing an enum-based conditional from a plan, **verify every enum value exists in the claimed enum**. The domain model may have multiple orthogonal enums (QuestionType, AnswerKind, StopReason, Lane) and specs can conflate them.
+
+**Pattern**
+- Read `backend/app/domain/enums.py` to see available values per enum.
+- If the plan says `question_type in {A, B, C}`, grep enums.py for `class QuestionType` and verify A, B, C are listed.
+- If values span multiple enums, split the condition across axes (e.g., `question_type in {X} OR answer_kind in {Y}`).
+
+**Why this trips people up**
+- "Causal" and "scenario" sound semantically related, so it's natural to assume they're in the same enum.
+- A plan author may sketch pseudo-code without checking the actual types.
+- The spec may evolve: SCENARIO was initially a question type in early design, then migrated to AnswerKind during the "always answer" refactor.
+
+**Symptoms to watch for**
+- `AttributeError: type object 'QuestionType' has no attribute 'SCENARIO'` at runtime.
+- Pyright errors about unknown enum members at import time (if you're lucky).
+- Trigger condition that never fires because the values don't exist where you're checking.
+
+**Mitigation**
+- Always consult `backend/app/domain/enums.py` before implementing enum conditionals.
+- When a spec mentions multiple values, validate they're all in the same enum OR split the logic.
+- In reviews, flag any enum-based condition and verify against enums.py (see REVIEW-IP-25-Phase-D.md §"Correct deviation from plan").
+
+**Reference commits**
+- IP-25 Phase D iter 1: Coder correctly fixed plan bug by splitting SCENARIO/BEST_EFFORT into `selected_answer_kind` check.
+- Review report: `docs/implementation-phase/reviews/REVIEW-IP-25-Phase-D.md` Architecture Compliance §"Positive highlight".
+
+---
+
+## L-024 — pyright type narrowing requires the narrowed type to be imported
+**Date:** 2026-05-28 (origin: IP-25 Phase C iter 2 → 3 — 27 pyright errors in `fast.py` all traced to missing `from app.seams.source import SourceResult`. After `isinstance(results, BaseException)` check at line 101, pyright should narrow `results: list[list[SourceResult]]` but without the import, the name `SourceResult` is unknown, so all downstream `result.url`, `result.title`, `result.snippet` accesses become `reportUnknownMemberType` errors).
+
+**Rule:** When you write `isinstance(x, SomeType)` or match-case type narrowing, pyright needs `SomeType` to be in scope (imported or defined locally). If the type comes from a protocol method return annotation (e.g., `Source.search() -> list[SourceResult]`), **you still need to import the type explicitly** for narrowing to work, even though the runtime doesn't require it.
+
+**Pattern**
+- Protocol-based APIs: If a protocol method like `Source.search()` returns `list[SourceResult]`, the *caller* must import `SourceResult` for type narrowing to work, even though the protocol itself imports it.
+- Fix: Add `from app.seams.source import SourceResult` alongside other imports.
+- Symptom: Cascade of `reportUnknownMemberType` / `reportUnknownArgumentType` errors on a variable you *know* is correctly typed at runtime.
+
+**Why this trips people up**
+- The code runs fine (Python's duck typing doesn't care about the import).
+- The protocol definition has the type, so it *feels* like it should be available transitively.
+- Pyright's type narrowing is a compile-time analysis feature — it requires the name to be in the current scope.
+
+**Symptoms to watch for**
+- Many `reportUnknownMemberType` errors clustered around a variable whose type you control.
+- The variable's type is correct per the function signature but pyright doesn't recognize member access.
+- A single missing import causes 10+ downstream errors.
+
+**Mitigation**
+- Run pyright incrementally during development (`python -m pyright <file>`), not just at pre-commit.
+- When you see cascading unknown-member errors, check if the type name is imported.
+- For protocol-based seams, import both the protocol (`Source`) *and* the data types it returns (`SourceResult`).
+
+**Reference commits**
+- IP-25 Phase C Fix PC5 (iter 2→3): Added `from app.seams.source import SourceResult` → 27 errors → 0.
+- Review report: `docs/implementation-phase/reviews/REVIEW-IP-25-Phase-C.md` iter 2 + 3.
+
+---
 
 ## L-023 — A bounded additive bump cannot differentiate samples whose base score already sits at the clamp ceiling
 **Date:** 2026-05-28 (origin: C6 citation-weighted ranking — first run of the new tests for `semantic_scholar` and `openalex` failed with `assert 1.0 > 1.0` because both the cited and uncited fixtures landed at rank 0, where base `relevance_score = max(0.1, 1.0 - 0*0.05) = 1.0`. The +0.30 citation bump was clipped by `min(1.0, base + bump)` and the cited result tied the uncited one).
