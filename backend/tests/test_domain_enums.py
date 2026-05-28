@@ -83,8 +83,8 @@ def test_output_format_values() -> None:
 
 
 def test_event_type_has_exactly_31_values() -> None:
-    """IP-25 Phase F: 31 + 6 + 2 + 1 (DraftSynthesized, PR-3) = 40 events."""
-    assert len(EventType) == 40
+    """IP-25 Phase F + PR-3 + IP-26 meta-judge: 40 + 3 = 43 events."""
+    assert len(EventType) == 43
 
 
 def test_event_type_values() -> None:
@@ -129,6 +129,9 @@ def test_event_type_values() -> None:
         "HistorySummarized",
         "VerificationQuestionsGenerated",
         "CoveContradictionDetected",
+        "MetaStopVerdict",
+        "AdversarialObjectionsGenerated",
+        "DirectedSubclaimsFromObjections",
     }
     assert {v.value for v in EventType} == expected
 

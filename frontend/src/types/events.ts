@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-28T21:00:47.924024+00:00
+// Generated: 2026-05-28T21:48:47.841886+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -74,6 +74,9 @@ export type EventType =
   | "VerificationQuestionsGenerated"
   | "CoveContradictionDetected"
   | "DraftSynthesized"
+  | "MetaStopVerdict"
+  | "AdversarialObjectionsGenerated"
+  | "DirectedSubclaimsFromObjections"
   | "AgentErrored"
   | "ResumedAfterError"
   | "ResumedAfterCancel"
@@ -190,6 +193,117 @@ export interface StructuredAnswerData {
 
 export const EventSchema = {
   "$defs": {
+    "AdversarialCompletenessVerdict": {
+      "additionalProperties": true,
+      "description": "Result of the adversarial completeness pass.\n\nExactly three objections must be produced. ``all_answered`` is derived\nfrom the objection status list and persisted for the trace UX.",
+      "properties": {
+        "objections": {
+          "items": {
+            "$ref": "#/$defs/Objection"
+          },
+          "title": "Objections",
+          "type": "array"
+        },
+        "all_answered": {
+          "default": false,
+          "title": "All Answered",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "objections"
+      ],
+      "title": "AdversarialCompletenessVerdict",
+      "type": "object"
+    },
+    "AdversarialObjectionsGeneratedEvent": {
+      "additionalProperties": true,
+      "description": "Three-objection adversarial completeness pass (BRD-26 \u00a74.2 / \u00a74.5).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "AdversarialObjectionsGenerated",
+          "default": "AdversarialObjectionsGenerated",
+          "title": "Type",
+          "type": "string"
+        },
+        "lane": {
+          "$ref": "#/$defs/Lane"
+        },
+        "verdict": {
+          "$ref": "#/$defs/AdversarialCompletenessVerdict"
+        }
+      },
+      "required": [
+        "lane",
+        "verdict"
+      ],
+      "title": "AdversarialObjectionsGeneratedEvent",
+      "type": "object"
+    },
     "AgentActionEvent": {
       "additionalProperties": true,
       "description": "Agent action selection in ReAct loop (IP-25 Phase E).",
@@ -1597,6 +1711,107 @@ export const EventSchema = {
       "title": "DeepFetchPerformedEvent",
       "type": "object"
     },
+    "DirectedSubclaimsFromObjectionsEvent": {
+      "additionalProperties": true,
+      "description": "New sub-claims minted from unanswered objections (BRD-26 \u00a74.10).\n\nFirst implementation slice ONLY emits this event from a follow-up\ncommit \u2014 kept here so the enum/union/map are stable end-to-end.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "DirectedSubclaimsFromObjections",
+          "default": "DirectedSubclaimsFromObjections",
+          "title": "Type",
+          "type": "string"
+        },
+        "lane": {
+          "$ref": "#/$defs/Lane"
+        },
+        "objection_texts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Objection Texts",
+          "type": "array"
+        },
+        "new_subclaim_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "New Subclaim Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "lane",
+        "objection_texts",
+        "new_subclaim_ids"
+      ],
+      "title": "DirectedSubclaimsFromObjectionsEvent",
+      "type": "object"
+    },
     "DraftSynthesizedEvent": {
       "additionalProperties": true,
       "description": "Final draft emitted by the synthesizer (PR-3 Mejora 3.2, RF-03).\n\nEmitted after every successful synthesis (STANDARD/DEEP/CoVe) so the\nevent log captures the draft + ``answer_kind`` independently of the\neventual ``JudgeRuled``/``Stopped`` events. Without this the FAST lane\nand budget-stopped DEEP runs reach ``Stopped`` with no audit trail of\nthe draft itself.",
@@ -2818,6 +3033,123 @@ export const EventSchema = {
       "title": "MermaidBlock",
       "type": "object"
     },
+    "MetaStopVerdictEvent": {
+      "additionalProperties": true,
+      "description": "Meta-judge \"Value of Continuation\" verdict (BRD-26 \u00a74.2, \u00a74.4).\n\nEmitted right after ``JudgeRuled`` on STANDARD/DEEP when the judge\nrejected (or low-confidence) and another round is still budget-feasible.\nDecision drives the orchestrator: ``stop_best_effort`` triggers a\nbest-effort draft + ``STOPPED_BY_BUDGET`` stop; ``stop`` confirms;\n``continue`` keeps the loop alive.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "MetaStopVerdict",
+          "default": "MetaStopVerdict",
+          "title": "Type",
+          "type": "string"
+        },
+        "lane": {
+          "$ref": "#/$defs/Lane"
+        },
+        "hook": {
+          "default": "after_judge",
+          "enum": [
+            "after_judge",
+            "after_react_observation",
+            "after_cove"
+          ],
+          "title": "Hook",
+          "type": "string"
+        },
+        "verdict": {
+          "$ref": "#/$defs/ValueOfContinuationVerdict"
+        },
+        "confidence_at_check": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence At Check",
+          "type": "number"
+        },
+        "rounds_used": {
+          "minimum": 0,
+          "title": "Rounds Used",
+          "type": "integer"
+        },
+        "rounds_remaining": {
+          "minimum": 0,
+          "title": "Rounds Remaining",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "lane",
+        "verdict",
+        "confidence_at_check",
+        "rounds_used",
+        "rounds_remaining"
+      ],
+      "title": "MetaStopVerdictEvent",
+      "type": "object"
+    },
     "NoProgressDetectedEvent": {
       "additionalProperties": true,
       "description": "Confidence plateau detected (IP-25 Phase B).\n\nEmitted when confidence has not improved by at least 0.05 over the\nlast 3 judge rounds. Forces transition to SYNTHESIZING to avoid\nwasted search cycles.",
@@ -2906,6 +3238,53 @@ export const EventSchema = {
         "current_confidence"
       ],
       "title": "NoProgressDetectedEvent",
+      "type": "object"
+    },
+    "Objection": {
+      "additionalProperties": true,
+      "description": "A single skeptical objection produced by the adversarial reviewer.",
+      "properties": {
+        "text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "answered_by_evidence",
+            "unanswered_needs_search",
+            "unanswered_no_search_possible"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "evidence_ids_answering": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Evidence Ids Answering",
+          "type": "array"
+        },
+        "suggested_query": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested Query"
+        }
+      },
+      "required": [
+        "text",
+        "status"
+      ],
+      "title": "Objection",
       "type": "object"
     },
     "ParagraphBlock": {
@@ -5070,6 +5449,52 @@ export const EventSchema = {
       "title": "UserContextChallengedEvent",
       "type": "object"
     },
+    "ValueOfContinuationVerdict": {
+      "additionalProperties": true,
+      "description": "LLM-produced answer to: 'Is another research round worth it?'",
+      "properties": {
+        "decision": {
+          "enum": [
+            "stop",
+            "continue",
+            "stop_best_effort"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "expected_delta_s": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Expected Delta S",
+          "type": "number"
+        },
+        "next_action_hypothesis": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Action Hypothesis"
+        },
+        "reason": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "expected_delta_s",
+        "reason"
+      ],
+      "title": "ValueOfContinuationVerdict",
+      "type": "object"
+    },
     "VerificationQuestionsGeneratedEvent": {
       "additionalProperties": true,
       "description": "Verification questions generated for CoVe (IP-25 Phase F).",
@@ -5161,6 +5586,7 @@ export const EventSchema = {
   },
   "discriminator": {
     "mapping": {
+      "AdversarialObjectionsGenerated": "#/$defs/AdversarialObjectionsGeneratedEvent",
       "AgentAction": "#/$defs/AgentActionEvent",
       "AgentErrored": "#/$defs/AgentErroredEvent",
       "AgentObservation": "#/$defs/AgentObservationEvent",
@@ -5173,6 +5599,7 @@ export const EventSchema = {
       "ContradictionResolved": "#/$defs/ContradictionResolvedEvent",
       "CoveContradictionDetected": "#/$defs/CoveContradictionDetectedEvent",
       "DeepFetchPerformed": "#/$defs/DeepFetchPerformedEvent",
+      "DirectedSubclaimsFromObjections": "#/$defs/DirectedSubclaimsFromObjectionsEvent",
       "DraftSynthesized": "#/$defs/DraftSynthesizedEvent",
       "EchoChamberDetected": "#/$defs/EchoChamberDetectedEvent",
       "EvidenceAdded": "#/$defs/EvidenceAddedEvent",
@@ -5182,6 +5609,7 @@ export const EventSchema = {
       "JudgeProviderDegraded": "#/$defs/JudgeProviderDegradedEvent",
       "JudgeRuled": "#/$defs/JudgeRuledEvent",
       "LaneEscalated": "#/$defs/LaneEscalatedEvent",
+      "MetaStopVerdict": "#/$defs/MetaStopVerdictEvent",
       "NoProgressDetected": "#/$defs/NoProgressDetectedEvent",
       "PlanCreated": "#/$defs/PlanCreatedEvent",
       "PlanCritiqued": "#/$defs/PlanCritiquedEvent",
@@ -5302,6 +5730,15 @@ export const EventSchema = {
       "$ref": "#/$defs/DraftSynthesizedEvent"
     },
     {
+      "$ref": "#/$defs/MetaStopVerdictEvent"
+    },
+    {
+      "$ref": "#/$defs/AdversarialObjectionsGeneratedEvent"
+    },
+    {
+      "$ref": "#/$defs/DirectedSubclaimsFromObjectionsEvent"
+    },
+    {
       "$ref": "#/$defs/JudgeRuledEvent"
     },
     {
@@ -5370,6 +5807,9 @@ export const EventSchema = {
 //   | VerificationQuestionsGeneratedEvent
 //   | CoveContradictionDetectedEvent
 //   | DraftSynthesizedEvent
+//   | MetaStopVerdictEvent
+//   | AdversarialObjectionsGeneratedEvent
+//   | DirectedSubclaimsFromObjectionsEvent
 //   | AgentErroredEvent
 //   | ResumedAfterErrorEvent
 //   | ResumedAfterCancelEvent

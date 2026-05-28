@@ -209,11 +209,67 @@ Output a JSON object with:
 Be strict but fair. A good FAST lane answer should be concise, accurate, and well-cited."""
 
 
+# =============================================================================
+# IP Área 6 (BRD-26): Meta-judge prompts
+# =============================================================================
+
+META_JUDGE_VOC_PROMPT = """You decide whether one more research round is worth running.
+You do NOT decide if the draft is correct -- that is the judge's job, already done.
+
+Your input is provided in the user turn and contains:
+- The original question, AnswerKind and lane
+- Sub-claims, current evidence count and authority-tier mix
+- Current structural confidence S_effective and judge score J
+- Rounds already executed and rounds remaining in the budget
+- The last judge verdict (approve/reject + short rationale)
+
+Return a structured ValueOfContinuationVerdict with these fields:
+- decision: one of "stop", "continue", "stop_best_effort"
+- expected_delta_s: realistic estimate in [0, 1] of how much S_effective
+  would move if one more round ran
+- next_action_hypothesis: a CONCRETE query you would search next, or null
+  if you cannot name one
+- reason: one short English sentence (<= 200 chars)
+
+Decision rules (apply in order):
+1. If you cannot name a concrete next_action_hypothesis -> decision="stop_best_effort".
+2. If expected_delta_s < 0.03 -> decision="stop_best_effort".
+3. If S_effective >= threshold AND the judge approved -> decision="stop".
+4. Otherwise -> decision="continue".
+
+Be conservative: prefer "stop_best_effort" over fabricating a next action.
+"""
+
+
+META_JUDGE_ADVERSARIAL_PROMPT = """You are a skeptical reviewer of a research draft.
+Generate EXACTLY 3 objections that a serious, fair-minded skeptic could raise
+against the draft.
+
+For each objection, classify status as exactly one of:
+- "answered_by_evidence": the existing cited evidence already addresses the
+  objection. Provide the evidence ids (UUIDs) that answer it in
+  ``evidence_ids_answering``.
+- "unanswered_needs_search": a new search could answer the objection.
+  Provide ``suggested_query`` (<= 6 tokens, no quotes).
+- "unanswered_no_search_possible": the objection is real but no available
+  public source can decide it (e.g. requires non-public data, future event,
+  private opinion).
+
+The 3 objections must be DIFFERENT in nature. Prefer objections about:
+(a) missing entity or perspective, (b) staleness / temporal scope,
+(c) source independence and echo-chamber risk, (d) ambiguity of the claim
+itself.
+
+Return a structured AdversarialCompletenessVerdict.
+"""
+
+
 ROLE_PROMPTS: dict[LLMRole, str] = {
     LLMRole.CLASSIFIER: CLASSIFIER_SYSTEM_PROMPT,
     LLMRole.PLANNER: PLANNER_SYSTEM_PROMPT,
     LLMRole.SYNTHESIZER: SYNTHESIZER_SYSTEM_PROMPT,
     LLMRole.JUDGE: JUDGE_SYSTEM_PROMPT,
+    LLMRole.META_JUDGE: META_JUDGE_VOC_PROMPT,
 }
 
 

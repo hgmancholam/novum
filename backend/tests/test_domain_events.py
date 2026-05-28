@@ -35,6 +35,7 @@ from app.domain.events import (
     ContradictionSource,
     CoveContradictionDetectedEvent,
     DeepFetchPerformedEvent,
+    DirectedSubclaimsFromObjectionsEvent,
     DraftSynthesizedEvent,
     EchoChamberDetectedEvent,
     Event,
@@ -45,6 +46,8 @@ from app.domain.events import (
     JudgeProviderDegradedEvent,
     JudgeRuledEvent,
     LaneEscalatedEvent,
+    AdversarialObjectionsGeneratedEvent,
+    MetaStopVerdictEvent,
     NoProgressDetectedEvent,
     PlanCreatedEvent,
     PlanCritiquedEvent,
@@ -368,6 +371,37 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
                 "key_point_count": 3,
                 "source": "standard",
             }
+        case EventType.META_STOP_VERDICT:
+            extra = {
+                "lane": "standard",
+                "hook": "after_judge",
+                "verdict": {
+                    "decision": "continue",
+                    "expected_delta_s": 0.07,
+                    "next_action_hypothesis": "search treaty wording",
+                    "reason": "missing primary source",
+                },
+                "confidence_at_check": 0.62,
+                "rounds_used": 2,
+                "rounds_remaining": 3,
+            }
+        case EventType.ADVERSARIAL_OBJECTIONS_GENERATED:
+            extra = {
+                "lane": "standard",
+                "verdict": {
+                    "objections": [
+                        {"text": "stale source", "status": "unanswered_needs_search", "evidence_ids_answering": [], "suggested_query": "2025 update"},
+                        {"text": "echo chamber", "status": "unanswered_no_search_possible", "evidence_ids_answering": [], "suggested_query": None},
+                        {"text": "ambiguous", "status": "answered_by_evidence", "evidence_ids_answering": [], "suggested_query": None},
+                    ],
+                },
+            }
+        case EventType.DIRECTED_SUBCLAIMS_FROM_OBJECTIONS:
+            extra = {
+                "lane": "standard",
+                "objection_texts": ["stale source", "echo chamber"],
+                "new_subclaim_ids": [],
+            }
     base.update(extra)
     return base
 
@@ -413,6 +447,9 @@ _EXPECTED_CLASS: dict[EventType, type] = {
     EventType.VERIFICATION_QUESTIONS_GENERATED: VerificationQuestionsGeneratedEvent,
     EventType.COVE_CONTRADICTION_DETECTED: CoveContradictionDetectedEvent,
     EventType.DRAFT_SYNTHESIZED: DraftSynthesizedEvent,
+    EventType.META_STOP_VERDICT: MetaStopVerdictEvent,
+    EventType.ADVERSARIAL_OBJECTIONS_GENERATED: AdversarialObjectionsGeneratedEvent,
+    EventType.DIRECTED_SUBCLAIMS_FROM_OBJECTIONS: DirectedSubclaimsFromObjectionsEvent,
 }
 
 
@@ -452,8 +489,8 @@ def test_extra_fields_preserved_in_model_extra() -> None:
 
 
 def test_event_type_enum_has_22_values() -> None:
-    """AC-04: 40 event types (PR-3 added DraftSynthesized)."""
-    assert len(EventType) == 40
+    """AC-04: 43 event types (IP-26 meta-judge adds 3)."""
+    assert len(EventType) == 43
 
 
 def test_forkable_events_exact_membership() -> None:
@@ -470,12 +507,12 @@ def test_forkable_events_exact_membership() -> None:
 def test_event_type_map_covers_every_event_type() -> None:
     """Every ``EventType`` value must map to a concrete class."""
     assert set(EVENT_TYPE_MAP.keys()) == {v.value for v in EventType}
-    assert len(EVENT_TYPE_MAP) == 40
+    assert len(EVENT_TYPE_MAP) == 43
 
 
 def test_event_type_map_values_are_unique_classes() -> None:
     classes = list(EVENT_TYPE_MAP.values())
-    assert len(set(classes)) == len(classes) == 40
+    assert len(set(classes)) == len(classes) == 43
 
 
 # ---------------------------------------------------------------------------

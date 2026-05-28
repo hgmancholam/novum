@@ -156,6 +156,12 @@ class EventType(StrEnum):
     # PR-3 Mejora 3.2: auditability of the final draft before judging.
     DRAFT_SYNTHESIZED = "DraftSynthesized"
 
+    # IP Área 6 (BRD-26): reflective meta-judge — Value of Continuation +
+    # Adversarial Completeness. Three additive events, never gate FAST.
+    META_STOP_VERDICT = "MetaStopVerdict"
+    ADVERSARIAL_OBJECTIONS_GENERATED = "AdversarialObjectionsGenerated"
+    DIRECTED_SUBCLAIMS_FROM_OBJECTIONS = "DirectedSubclaimsFromObjections"
+
     # Error & Recovery
     AGENT_ERRORED = "AgentErrored"
     RESUMED_AFTER_ERROR = "ResumedAfterError"

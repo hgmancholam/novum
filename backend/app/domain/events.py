@@ -25,6 +25,10 @@ from app.domain.enums import (
 )
 from app.domain.hypothesis import Hypothesis
 from app.domain.structured import StructuredAnswerData
+from app.domain.meta_stop import (
+    AdversarialCompletenessVerdict,
+    ValueOfContinuationVerdict,
+)
 
 
 class BaseEvent(BaseModel):
@@ -485,6 +489,55 @@ class DraftSynthesizedEvent(BaseEvent):
     source: Literal["standard", "deep_react", "deep_cove", "fast"] = "standard"
 
 
+# =============================================================================
+# IP Área 6 (BRD-26): Reflective Meta-Judge Events
+# =============================================================================
+
+
+class MetaStopVerdictEvent(BaseEvent):
+    """Meta-judge "Value of Continuation" verdict (BRD-26 §4.2, §4.4).
+
+    Emitted right after ``JudgeRuled`` on STANDARD/DEEP when the judge
+    rejected (or low-confidence) and another round is still budget-feasible.
+    Decision drives the orchestrator: ``stop_best_effort`` triggers a
+    best-effort draft + ``STOPPED_BY_BUDGET`` stop; ``stop`` confirms;
+    ``continue`` keeps the loop alive.
+    """
+
+    type: Literal[EventType.META_STOP_VERDICT] = EventType.META_STOP_VERDICT
+    lane: Lane
+    hook: Literal["after_judge", "after_react_observation", "after_cove"] = "after_judge"
+    verdict: ValueOfContinuationVerdict
+    confidence_at_check: float = Field(ge=0.0, le=1.0)
+    rounds_used: int = Field(ge=0)
+    rounds_remaining: int = Field(ge=0)
+
+
+class AdversarialObjectionsGeneratedEvent(BaseEvent):
+    """Three-objection adversarial completeness pass (BRD-26 §4.2 / §4.5)."""
+
+    type: Literal[EventType.ADVERSARIAL_OBJECTIONS_GENERATED] = (
+        EventType.ADVERSARIAL_OBJECTIONS_GENERATED
+    )
+    lane: Lane
+    verdict: AdversarialCompletenessVerdict
+
+
+class DirectedSubclaimsFromObjectionsEvent(BaseEvent):
+    """New sub-claims minted from unanswered objections (BRD-26 §4.10).
+
+    First implementation slice ONLY emits this event from a follow-up
+    commit — kept here so the enum/union/map are stable end-to-end.
+    """
+
+    type: Literal[EventType.DIRECTED_SUBCLAIMS_FROM_OBJECTIONS] = (
+        EventType.DIRECTED_SUBCLAIMS_FROM_OBJECTIONS
+    )
+    lane: Lane
+    objection_texts: list[str]
+    new_subclaim_ids: list[UUID]
+
+
 class JudgeRuledEvent(BaseEvent):
     """Judge LLM evaluation (RF-12, WP-3 G5 C_kind_appropriateness, WP-5 extensions)."""
 
@@ -660,7 +713,7 @@ class StoppedEvent(BaseEvent):
 
 
 Event = Annotated[
-    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | HypothesesGeneratedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | DeepFetchPerformedEvent | QueryReformulatedEvent | EchoChamberDetectedEvent | RouteSelectedEvent | PlanGapsDetectedEvent | NoProgressDetectedEvent | LaneEscalatedEvent | AgentThoughtEvent | AgentActionEvent | AgentObservationEvent | HypothesisEvaluatedEvent | HistorySummarizedEvent | VerificationQuestionsGeneratedEvent | CoveContradictionDetectedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | DraftSynthesizedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
+    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | HypothesesGeneratedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | DeepFetchPerformedEvent | QueryReformulatedEvent | EchoChamberDetectedEvent | RouteSelectedEvent | PlanGapsDetectedEvent | NoProgressDetectedEvent | LaneEscalatedEvent | AgentThoughtEvent | AgentActionEvent | AgentObservationEvent | HypothesisEvaluatedEvent | HistorySummarizedEvent | VerificationQuestionsGeneratedEvent | CoveContradictionDetectedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | DraftSynthesizedEvent | MetaStopVerdictEvent | AdversarialObjectionsGeneratedEvent | DirectedSubclaimsFromObjectionsEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
     Field(discriminator="type"),
 ]
 
@@ -699,6 +752,9 @@ EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
     EventType.USER_CONTEXT_CHALLENGED: UserContextChallengedEvent,
     EventType.PRIOR_RUN_HINT_REPLAYED: PriorRunHintReplayedEvent,
     EventType.DRAFT_SYNTHESIZED: DraftSynthesizedEvent,
+    EventType.META_STOP_VERDICT: MetaStopVerdictEvent,
+    EventType.ADVERSARIAL_OBJECTIONS_GENERATED: AdversarialObjectionsGeneratedEvent,
+    EventType.DIRECTED_SUBCLAIMS_FROM_OBJECTIONS: DirectedSubclaimsFromObjectionsEvent,
     EventType.JUDGE_RULED: JudgeRuledEvent,
     EventType.CONFIDENCE_MISMATCH: ConfidenceMismatchEvent,
     EventType.SATURATION_DETECTED: SaturationDetectedEvent,

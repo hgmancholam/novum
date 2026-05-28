@@ -19,12 +19,19 @@ from app.config import settings
 
 
 class LLMRole(StrEnum):
-    """The four LLM roles in the Novum research agent (RF-06, RF-12, RF-15)."""
+    """The four LLM roles in the Novum research agent (RF-06, RF-12, RF-15).
+
+    IP Área 6 (BRD-26) adds ``META_JUDGE`` which reuses the JUDGE model
+    family by default — it answers a different epistemic question
+    ("is one more round worth it?") so reusing the family does not
+    re-introduce judge/synthesizer entanglement.
+    """
 
     CLASSIFIER = "classifier"
     PLANNER = "planner"
     SYNTHESIZER = "synthesizer"
     JUDGE = "judge"
+    META_JUDGE = "meta_judge"
 
 
 class RoleConfig(NamedTuple):
@@ -85,3 +92,10 @@ ROLE_CONFIGS: dict[LLMRole, RoleConfig] = {
         description="Cross-family judge for answer evaluation (RF-15)",
     ),
 }
+
+# IP Área 6 (BRD-26 §4.3): META_JUDGE reuses the JUDGE config by default.
+# A per-deployment override can swap the model pool by setting the env
+# vars consumed by ``settings.llm_model_judge_pool``.
+ROLE_CONFIGS[LLMRole.META_JUDGE] = ROLE_CONFIGS[LLMRole.JUDGE]._replace(
+    description="Meta-judge: Value-of-Continuation + Adversarial Completeness (BRD-26)",
+)
