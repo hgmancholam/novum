@@ -221,6 +221,26 @@ def test_fold_terminal_stopped_without_resume_stays_stopped() -> None:
     assert state.stop_reason == StopReason.JUDGE_CONFIRMED
 
 
+def test_fold_restores_question_type_from_classified_event() -> None:
+    """Regression: resumed runs must rehydrate question_type or DRAFTING fails."""
+    from app.domain.enums import QuestionType
+
+    run_id = uuid4()
+    state = RunState(run_id=run_id, question="Q", output_format=OutputFormat.PROSE)
+    events = [
+        {"type": EventType.QUESTION_ASKED.value, "step_index": 1, "question": "Q"},
+        {
+            "type": EventType.QUESTION_CLASSIFIED.value,
+            "step_index": 2,
+            "question_type": QuestionType.FACTUAL.value,
+            "classifier_confidence": 0.95,
+        },
+    ]
+    _fold_events(state, events)
+
+    assert state.question_type == QuestionType.FACTUAL
+
+
 # ---------------------------------------------------------------------------
 # AgentRunner.start
 # ---------------------------------------------------------------------------

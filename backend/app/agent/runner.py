@@ -108,6 +108,17 @@ def _fold_events(state: RunState, events: list[dict[str, Any]]) -> None:
                 # Initial event; nothing to fold (state.question is the input).
                 pass
             case EventType.QUESTION_CLASSIFIED.value:
+                # Restore question_type so resumed runs can reach DRAFTING
+                # without re-running the classifier (which only fires on a
+                # fresh INIT). Missing/invalid values keep state.question_type
+                # as None and let the orchestrator surface the failure.
+                qt_str = ev.get("question_type")
+                if isinstance(qt_str, str):
+                    from app.domain.enums import QuestionType
+                    try:
+                        state.question_type = QuestionType(qt_str)
+                    except ValueError:
+                        pass
                 # BRD-22 Task 4.9: Fold complexity_hint from classifier
                 complexity_hint_str = ev.get("complexity_hint")
                 if complexity_hint_str:
@@ -117,6 +128,14 @@ def _fold_events(state: RunState, events: list[dict[str, Any]]) -> None:
                     # Replay tolerates missing field (pre-BRD-22 traces)
                     from app.domain.enums import ComplexityHint
                     state.complexity_hint = ComplexityHint.STANDARD
+                # BRD-23 WP-1: fold temporal_sensitivity if present (tolerate absence)
+                temporal_str = ev.get("temporal_sensitivity")
+                if temporal_str:
+                    from app.domain.enums import TemporalSensitivity
+                    try:
+                        state.temporal_sensitivity = TemporalSensitivity(temporal_str)
+                    except ValueError:
+                        pass
             case EventType.PLAN_CREATED.value:
                 state.sub_claims = [
                     SubClaim.model_validate(c) for c in ev.get("sub_claims", [])
@@ -128,6 +147,14 @@ def _fold_events(state: RunState, events: list[dict[str, Any]]) -> None:
                     state.complexity_hint = ComplexityHint(complexity_hint_str)
                 state.expected_experts = ev.get("expected_experts") or []
                 state.preferred_sources = ev.get("preferred_sources") or []
+                # BRD-23 WP-1: fold temporal_sensitivity if present (tolerate absence)
+                temporal_str = ev.get("temporal_sensitivity")
+                if temporal_str:
+                    from app.domain.enums import TemporalSensitivity
+                    try:
+                        state.temporal_sensitivity = TemporalSensitivity(temporal_str)
+                    except ValueError:
+                        pass
 
                 # BRD-22 Task 4.9: Recompute critique_passes_target from budget table
                 from app.agent.tasks.plan import _claim_budget
@@ -150,7 +177,29 @@ def _fold_events(state: RunState, events: list[dict[str, Any]]) -> None:
             case EventType.TOOL_CALLED.value:
                 if ev.get("source_type"):
                     state.search_count += 1
+                # BRD-23 WP-1: fold latest tavily_days_filter (tolerate absence)
+                tdf = ev.get("tavily_days_filter")
+                if isinstance(tdf, int):
+                    state.tavily_days_filter = tdf
             case EventType.EVIDENCE_ADDED.value:
+                published = ev.get("source_published_date")
+                published_dt = None
+                if isinstance(published, str):
+                    from datetime import datetime as _dt
+                    try:
+                        published_dt = _dt.fromisoformat(published.replace("Z", "+00:00"))
+                    except ValueError:
+                        published_dt = None
+                elif isinstance(published, datetime):
+                    published_dt = published
+                tier_raw = ev.get("authority_tier")
+                tier_val = None
+                if isinstance(tier_raw, str):
+                    from app.domain.enums import AuthorityTier
+                    try:
+                        tier_val = AuthorityTier(tier_raw)
+                    except ValueError:
+                        tier_val = None
                 state.add_evidence(
                     EvidenceItem(
                         claim_id=ev["target_claim_id"],
@@ -159,6 +208,8 @@ def _fold_events(state: RunState, events: list[dict[str, Any]]) -> None:
                         text=ev["extracted_text"],
                         polarity=ev["polarity"],
                         confidence=ev["confidence"],
+                        source_published_date=published_dt,
+                        authority_tier=tier_val,
                     )
                 )
             case EventType.CLAIM_COVERED.value:
@@ -167,6 +218,12 @@ def _fold_events(state: RunState, events: list[dict[str, Any]]) -> None:
                 state.mark_claim_uncoverable(ev["claim_id"])
             case EventType.SOURCE_FAILED.value:
                 state.failed_sources.append(ev["source_type"])
+            case EventType.DEEP_FETCH_PERFORMED.value:
+                # BRD-23 WP-2: replay tolerates without mutating evidence
+                # text (the live in-memory copy was already updated when
+                # the event was emitted; replay only counts the event for
+                # budget recomputation via state.events).
+                pass
             case EventType.AMBIGUITY_DETECTED.value:
                 state.has_ambiguity = True
             case EventType.CONTRADICTION_DETECTED.value:
