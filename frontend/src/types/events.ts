@@ -80,6 +80,18 @@ export type AuthorityTier =
   | "low_signal";
 
 // ---------------------------------------------------------------------------
+// RunStreamEvent (IP-24) — shared type for SSE events consumed by feed/organisms
+// Moved from @/hooks/useRunStream to satisfy Atomic Design §8.1 (B2 fix)
+// ---------------------------------------------------------------------------
+
+export interface RunStreamEvent {
+  type: string;
+  step_index?: number;
+  timestamp_ms?: number;
+  [key: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
 // Forkable events (RF-03): user-selectable branch points.
 // ---------------------------------------------------------------------------
 

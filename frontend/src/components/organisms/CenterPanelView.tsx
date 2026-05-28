@@ -5,8 +5,8 @@
  *   1. `OutcomeBar`  — 4 px colored strip on terminal states (C6-C10)
  *   2. `RunHeader`   — status badge + meta chips + elapsed clock
  *   3. `QuestionDisplay`
- *   4. running?       → `ResearchingBanner` (with elapsed clock)
- *      terminal?      → `TrustSummary` + `StopReasonCard`
+ *   4. running?       → `RunFeed` (live feed, IP-24)
+ *      terminal?      → `RunFeed` (collapsed) + `TrustSummary` + `StopReasonCard`
  *
  * Pure presentational. The page-level `CenterPanelContainer` provides data
  * via `useRun` and renders this view inside the `templates/CenterPanel` body.
@@ -16,30 +16,27 @@ import { OutcomeBar, GlassSurface } from "@/components/atoms";
 import { FormatSelector } from "@/components/molecules";
 import { cn } from "@/lib/cn";
 import type { Run, RunStatus } from "@/types/run";
-import type { StructuredAnswerData } from "@/types/events";
+import type { StructuredAnswerData, RunStreamEvent } from "@/types/events";
+import {
+  isAnimateAnswerEnabled,
+  hasAnswerBeenAnimated,
+  markAnswerAnimated,
+} from "@/lib/answerAnimation";
 
 import { QuestionDisplay } from "./QuestionDisplay";
-import {
-  ResearchingBanner,
-  type ResearchingBannerLatestEvent,
-} from "./ResearchingBanner";
 import { RunHeader } from "./RunHeader";
 import { SourcesCard, type SourceEntry } from "./SourcesCard";
 import { StopReasonCard } from "./StopReasonCard";
 import { StructuredAnswer } from "./StructuredAnswer";
 import { StructuredBlocks } from "./StructuredBlocks";
 import { TrustSummary, type JudgeConfidenceMetrics } from "./TrustSummary";
+import { RunFeed } from "./RunFeed";
 
 export interface CenterPanelViewProps {
   run: Run;
   status: RunStatus;
-  /** When true, do not render the `ResearchingBanner` even if the run is
-   *  running (IP-15 F6: post-resume agent restart is deferred). */
-  suppressResearchingBanner?: boolean | undefined;
-  /** Most recent event emitted by the agent — drives the banner activity copy. */
-  latestEvent?: ResearchingBannerLatestEvent | undefined;
-  /** Total events received so far — drives the banner meta line. */
-  eventCount?: number | undefined;
+  /** Stream events for RunFeed (IP-24). */
+  events?: readonly RunStreamEvent[] | undefined;
   /** Final answer — prose-rendered (BRD-16). */
   answerProse?: string | null | undefined;
   /** Final answer — structured-rendered (BRD-16 enhancement). */
@@ -54,15 +51,15 @@ export interface CenterPanelViewProps {
   sources?: readonly SourceEntry[] | undefined;
   /** Confidence metrics from the JudgeRuled event (RF-12). */
   judgeConfidence?: JudgeConfidenceMetrics | null | undefined;
+  /** IP-15 §9: hide feed when in post-resume limbo (until new agent work). */
+  showPostResumeNotice?: boolean | undefined;
   className?: string | undefined;
 }
 
 export function CenterPanelView({
   run,
   status,
-  suppressResearchingBanner = false,
-  latestEvent,
-  eventCount,
+  events,
   answerProse,
   answerStructured,
   answerStructuredData,
@@ -70,6 +67,7 @@ export function CenterPanelView({
   onViewFormatChange,
   sources,
   judgeConfidence,
+  showPostResumeNotice = false,
   className,
 }: CenterPanelViewProps) {
   const isTerminal = status === "stopped" && run.stopReason !== null;
@@ -77,6 +75,16 @@ export function CenterPanelView({
     isTerminal &&
     run.stopReason === "judge_confirmed" &&
     (answerProse !== null && answerProse !== undefined);
+
+  // IP-24 Phase 3.5: Determine if answer should animate
+  const shouldAnimate =
+    isAnimateAnswerEnabled() && hasAnswer && !hasAnswerBeenAnimated(run.id);
+
+  // Mark as animated when typing completes (via effect in future)
+  // For now, mark immediately to prevent re-animation on this page load
+  if (shouldAnimate && hasAnswer) {
+    markAnswerAnimated(run.id);
+  }
 
   const isStructured = viewFormat === "structured";
 
@@ -118,13 +126,15 @@ export function CenterPanelView({
         <RunHeader run={run} status={status} />
         <QuestionDisplay question={run.question} />
 
-        {status === "running" && !suppressResearchingBanner ? (
-          <ResearchingBanner
-            startedAt={run.startedAt}
-            latestEvent={latestEvent}
-            eventCount={eventCount}
-          />
-        ) : isTerminal && run.stopReason !== null ? (
+        {/* IP-24: RunFeed replaces ResearchingBanner */}
+        {/* IP-15 §9: hide feed during post-resume limbo */}
+        {events !== undefined &&
+        events.length > 0 &&
+        !showPostResumeNotice ? (
+          <RunFeed events={events} isComplete={isTerminal} />
+        ) : null}
+
+        {isTerminal && run.stopReason !== null ? (
           <div className="flex flex-col gap-3">
             {hasAnswer && activeContent !== null ? (
               <>
@@ -142,11 +152,13 @@ export function CenterPanelView({
                 {showStructuredBlocks ? (
                   <StructuredBlocks
                     data={answerStructuredData!}
+                    animate={shouldAnimate}
                     data-testid="run-answer"
                   />
                 ) : (
                   <StructuredAnswer
                     content={activeContent}
+                    animate={shouldAnimate}
                     outputFormat={
                       (viewFormat ?? run.outputFormat ?? "prose") as
                         | "prose"

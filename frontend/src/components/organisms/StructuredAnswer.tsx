@@ -6,6 +6,8 @@
  * - Mermaid diagram blocks rendered as styled code (syntax-highlighted)
  * - Markdown tables rendered natively
  * - Standard prose rendering for all other content
+ *
+ * IP-24 Phase 3.5: Supports optional typewriter animation via `animate` prop.
  */
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -13,6 +15,8 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/cn";
+import { useTypewriter } from "@/lib/useTypewriter";
+import { BlinkingCursor } from "@/components/atoms";
 import type { OutputFormat } from "@/types/events";
 
 export interface StructuredAnswerProps {
@@ -25,6 +29,8 @@ export interface StructuredAnswerProps {
         word_count?: number | undefined;
       }
     | undefined;
+  /** IP-24 Phase 3.5: Enable typewriter animation (default false). */
+  animate?: boolean;
   className?: string | undefined;
 }
 
@@ -82,13 +88,30 @@ export function StructuredAnswer({
   content,
   outputFormat,
   metadata,
+  animate = false,
   className,
 }: StructuredAnswerProps) {
+  const { displayed, isTyping, skip } = useTypewriter({
+    text: content,
+    enabled: animate,
+  });
+
   const hasMetadata =
     metadata !== undefined &&
     (metadata.sections !== undefined ||
       metadata.source_count !== undefined ||
       metadata.word_count !== undefined);
+
+  function handleSkip(
+    e:
+      | React.MouseEvent<HTMLDivElement>
+      | React.KeyboardEvent<HTMLDivElement>
+  ): void {
+    if (isTyping) {
+      e.stopPropagation();
+      skip();
+    }
+  }
 
   return (
     <section
@@ -127,6 +150,15 @@ export function StructuredAnswer({
           prose-table:text-[var(--text-primary)]
           prose-th:text-[var(--text-primary)]
           prose-td:text-[var(--text-primary)]"
+        role="button"
+        tabIndex={isTyping ? 0 : -1}
+        onClick={handleSkip}
+        onKeyDown={(e) => {
+          if (isTyping && (e.key === "Escape" || e.key === " ")) {
+            handleSkip(e);
+          }
+        }}
+        style={{ cursor: isTyping ? "pointer" : "default" }}
       >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
@@ -135,8 +167,9 @@ export function StructuredAnswer({
             code: CodeBlock as any,
           }}
         >
-          {content}
+          {displayed}
         </ReactMarkdown>
+        {isTyping ? <BlinkingCursor /> : null}
       </div>
     </section>
   );

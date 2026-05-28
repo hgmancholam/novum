@@ -24,3 +24,12 @@ export type { LineageBadgeProps } from "./LineageBadge";
 export { FormatSelector } from "./FormatSelector";
 export type { FormatSelectorProps } from "./FormatSelector";
 export { Toaster } from "./Toaster";
+// IP-24 Phase 2
+export { FeedStep } from "./FeedStep";
+export type { FeedStepProps } from "./FeedStep";
+export { SearchStepCard } from "./SearchStepCard";
+export type { SearchStepCardProps, SearchSource } from "./SearchStepCard";
+export { PlanStepCard } from "./PlanStepCard";
+export type { PlanStepCardProps, SubClaim } from "./PlanStepCard";
+export { JudgeVerdictCard } from "./JudgeVerdictCard";
+export type { JudgeVerdictCardProps } from "./JudgeVerdictCard";

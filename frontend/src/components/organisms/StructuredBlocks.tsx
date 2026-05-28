@@ -7,6 +7,9 @@
  *
  * No markdown parsing on the read path — markdown is only used inside
  * the `markdown` block (fallback for already-formatted LLM content).
+ *
+ * IP-24 Phase 3.5: Supports optional typewriter animation on the first
+ * block via `animate` prop. Rest revealed instantly after typewriter finishes.
  */
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -14,6 +17,8 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/cn";
+import { useTypewriter } from "@/lib/useTypewriter";
+import { BlinkingCursor } from "@/components/atoms";
 import type {
   KeyPointsBlock,
   KeyValueBlock,
@@ -27,10 +32,41 @@ import type {
 
 export interface StructuredBlocksProps {
   data: StructuredAnswerData;
+  /** IP-24 Phase 3.5: Enable typewriter animation on first block (default false). */
+  animate?: boolean;
   className?: string | undefined;
 }
 
-export function StructuredBlocks({ data, className }: StructuredBlocksProps) {
+function extractFirstBlockText(blocks: StructuredBlock[]): string {
+  const first = blocks[0];
+  if (!first) return "";
+  if (first.type === "paragraph") return first.text;
+  if (first.type === "markdown") return first.text;
+  return "";
+}
+
+export function StructuredBlocks({
+  data,
+  animate = false,
+  className,
+}: StructuredBlocksProps) {
+  const firstBlockText = extractFirstBlockText(data.blocks);
+  const { displayed, isTyping, skip } = useTypewriter({
+    text: firstBlockText,
+    enabled: animate && firstBlockText.length > 0,
+  });
+
+  function handleSkip(
+    e:
+      | React.MouseEvent<HTMLElement>
+      | React.KeyboardEvent<HTMLElement>
+  ): void {
+    if (isTyping) {
+      e.stopPropagation();
+      skip();
+    }
+  }
+
   return (
     <section
       data-testid="structured-blocks"
@@ -40,6 +76,15 @@ export function StructuredBlocks({ data, className }: StructuredBlocksProps) {
         "bg-(--bg-secondary) p-5",
         className
       )}
+      role={isTyping ? "button" : undefined}
+      tabIndex={isTyping ? 0 : -1}
+      onClick={handleSkip}
+      onKeyDown={(e) => {
+        if (isTyping && (e.key === "Escape" || e.key === " ")) {
+          handleSkip(e);
+        }
+      }}
+      style={{ cursor: isTyping ? "pointer" : "default" }}
     >
       {data.summary ? (
         <p
@@ -51,9 +96,46 @@ export function StructuredBlocks({ data, className }: StructuredBlocksProps) {
       ) : null}
       {data.blocks.length > 0 ? (
         <div className="flex flex-col gap-3">
-          {data.blocks.map((block, idx) => (
-            <BlockRenderer key={idx} block={block} />
-          ))}
+          {data.blocks.map((block, idx) => {
+            // First block: use typewriter text if animating
+            if (idx === 0 && animate && isTyping && firstBlockText.length > 0) {
+              if (block.type === "paragraph") {
+                return (
+                  <p
+                    key={idx}
+                    data-testid="block-paragraph"
+                    className="text-sm leading-relaxed text-(--text-primary)"
+                  >
+                    {displayed}
+                    <BlinkingCursor />
+                  </p>
+                );
+              }
+              if (block.type === "markdown") {
+                return (
+                  <div
+                    key={idx}
+                    data-testid="block-markdown"
+                    className="prose prose-sm max-w-none
+                      prose-headings:text-(--text-primary)
+                      prose-p:text-(--text-primary)
+                      prose-li:text-(--text-primary)
+                      prose-a:text-(--accent-primary)
+                      prose-table:text-(--text-primary)
+                      prose-th:text-(--text-primary)
+                      prose-td:text-(--text-primary)"
+                  >
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {displayed}
+                    </ReactMarkdown>
+                    <BlinkingCursor />
+                  </div>
+                );
+              }
+            }
+            // All other blocks: render normally
+            return <BlockRenderer key={idx} block={block} />;
+          })}
         </div>
       ) : null}
     </section>

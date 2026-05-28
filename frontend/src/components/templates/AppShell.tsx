@@ -14,7 +14,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Menu, PanelRight } from "lucide-react";
+import { Menu, PanelRight, Workflow } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Logo } from "@/components/atoms";
 import { IdentitySlot } from "@/components/molecules";
@@ -158,6 +158,13 @@ function TopBar({
         </span>
       </div>
       <div className="flex items-center gap-2">
+        <a
+          href="/how-we-work"
+          className="hidden items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-(--text-secondary) transition-colors hover:bg-(--glass-bg) hover:text-(--text-primary) sm:inline-flex"
+        >
+          <Workflow className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+          How do we work?
+        </a>
         <IdentitySlot />
         {showRightToggle ? (
           <button
@@ -181,6 +188,8 @@ export function AppShell({ left, center, right, forceBreakpoint }: AppShellProps
   const openLeftPanel = useSelectionStore((s) => s.openLeftPanel);
   const openRightPanel = useSelectionStore((s) => s.openRightPanel);
   const closePanels = useSelectionStore((s) => s.closePanels);
+  // IP-24 Phase 5: Trace panel collapse state
+  const isTracePanelCollapsed = useSelectionStore((s) => s.isTracePanelCollapsed);
 
   const showLeftAsDrawer = breakpoint !== "desktop";
   const showRightAsDrawer = breakpoint === "mobile";
@@ -220,7 +229,12 @@ export function AppShell({ left, center, right, forceBreakpoint }: AppShellProps
           aria-label="Trace"
           className={cn(
             "h-full flex-shrink-0 border-l border-[var(--glass-border)]",
-            breakpoint === "tablet" ? "w-[320px]" : "w-[360px]"
+            // IP-24 Phase 5: Narrow width when collapsed
+            isTracePanelCollapsed
+              ? "w-10"
+              : breakpoint === "tablet"
+                ? "w-[320px]"
+                : "w-[360px]"
           )}
         >
           {right}

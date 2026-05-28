@@ -3,12 +3,50 @@
 > Chronological log of all decisions made during the Novum development.
 > Each decision follows the decision record template.
 
-**Last Updated:** 2026-05-27
-**Total Decisions:** 53
+**Last Updated:** 2026-05-28
+**Total Decisions:** 54
 
 ---
 
 ## Recent Decisions
+
+## D-IP24-DONE: IP-24 (Live Center Feed — Claude-style) — COMPLETE
+**Date:** 2026-05-28
+**Phase:** F3+F4 closeout (final test fixes + docs)
+**Artifacts:** [IP-24](../../../docs/implementation-phase/implementation-plans/IP-24-live-center-feed.md)
+
+### Outcome
+COMPLETE. All 586 frontend tests green (1 pre-existing UsernameModal failure out of scope). ESLint 0, tsc 0. IP-24 replaces `ResearchingBanner` with a Claude-style live feed, adds collapsible trace panel, and frontend-only answer typewriter.
+
+### Key decisions (D1–D7 from IP-24)
+1. **ToolCalled grouping** — consecutive `EvidenceAdded` / `SourceFailed` / `DeepFetchPerformed` with matching `target_claim_id` append to one `SearchStepCard` until interrupted.
+2. **Post-completion feed** — stays above answer, **collapsed by default** (header: *"Reasoning trace (N steps · Xs)"*), localStorage key `novum_run_feed_collapsed`.
+3. **TracePanel collapse** — parallel right panel gains collapse toggle, narrows to 40 px rail, localStorage key `novum_trace_panel_collapsed`.
+4. **Language policy** — feed microcopy in English; final answer keeps user language (backend prompt).
+5. **Motion** — Motion v12 chevron rotation (200 ms), FeedStep fade-in (150 ms), spinner on active icon.
+6. **Feed tokens** — `--feed-search: #22d3ee` (cyan for external: Tool/Evidence/DeepFetch); `--accent` for internal (Plan/Judge).
+7. **Answer animation** — **frontend-only typewriter** (no backend streaming). Adaptive speed (60/150/250 chars/s). Skip on click / Esc / Space / scroll / document.hidden / prefers-reduced-motion. No re-animate on replay (localStorage `novum_answered_runs`). Global toggle `novum_animate_answer` (default true). Real backend token streaming deferred.
+
+### New files (13 TypeScript modules + 13 tests)
+**Atoms (5):** `FeedRail`, `FeedStepIcon`, `SourceLinkRow`, `CollapseToggleButton`, `BlinkingCursor`.
+**Molecules (4):** `FeedStep`, `SearchStepCard`, `PlanStepCard`, `JudgeVerdictCard`.
+**Organism (1):** `RunFeed`.
+**Libs (3):** `feedGrouping.ts` (pure grouping logic), `useTypewriter.ts` (rAF loop + adaptive speed), `answerAnimation.ts` (localStorage persistence).
+
+### Modified files (10)
+`index.css`, `microcopy.ts`, `eventLabels.ts`, `selectionStore.ts`, `CenterPanelView.tsx`, `CenterPanelView.test.tsx`, `StructuredAnswer.tsx`, `StructuredBlocks.tsx`, `CenterPanelContainer.tsx`, `TracePanel.tsx` (or `AppShell.tsx`).
+
+### Hook bug fixed (useTypewriter.ts)
+**Issue:** `skip()` function closed over stale `text` prop; effect dependency list included `skip`, causing infinite re-renders.
+**Fix (2 lines):** `textRef.current = text;` (line 47) + `setDisplayed(textRef.current);` (line 53) + removed `skip` from deps array (line 123). One-line WHY comments added per instructions.
+
+### Test harness fix (useTypewriter.test.ts)
+Fake timers + controllable `requestAnimationFrame` mock via manual `advanceFrames` helper. `skip()` tests use `act()` + immediate assertions (React state updates are synchronous within act). Visibility-change test dispatches event inside `act()`.
+
+### Next action
+Phase 7 docs written (this entry + ui-prototype.md §3 C3' + §7 microcopy). Phases 0–5 complete. All IP-24 tests green. Ready for commit.
+
+---
 
 ## D-IP23-PHASE2-DONE: IP-23 Phase 2 (WP-1 Temporal Sensitivity) — COMPLETE
 **Date:** 2026-05-28

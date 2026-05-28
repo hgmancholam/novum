@@ -25,8 +25,8 @@ import {
 } from "@/components/organisms";
 import { CenterPanel } from "@/components/templates";
 import { useRun } from "@/hooks/useRun";
-import { useRunStream, type RunStreamEvent } from "@/hooks/useRunStream";
-import { FORKABLE_EVENTS, type EventType, type StructuredAnswerData } from "@/types/events";
+import { useRunStream } from "@/hooks/useRunStream";
+import { FORKABLE_EVENTS, type EventType, type StructuredAnswerData, type RunStreamEvent } from "@/types/events";
 
 const FORKABLE_SET: ReadonlySet<string> = new Set<string>(FORKABLE_EVENTS);
 const RESUME_EVENT_TYPES: ReadonlySet<EventType> = new Set<EventType>([
@@ -355,9 +355,7 @@ export function CenterPanelContainer() {
             <CenterPanelView
               run={run}
               status={status}
-              suppressResearchingBanner={showPostResumeNotice}
-              latestEvent={events.at(-1)}
-              eventCount={events.length}
+              events={events}
               answerProse={answerProse}
               answerStructured={answerStructured}
               answerStructuredData={answerStructuredData}
@@ -365,6 +363,7 @@ export function CenterPanelContainer() {
               onViewFormatChange={setViewFormat}
               sources={sources}
               judgeConfidence={judgeConfidence}
+              showPostResumeNotice={showPostResumeNotice}
             />
             {resumeError !== null ? (
               <p

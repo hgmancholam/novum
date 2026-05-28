@@ -82,3 +82,53 @@ export function getEventActivity(type: string | undefined): string {
   }
   return EVENT_ACTIVITIES[type as EventType] ?? "Working on it";
 }
+
+/**
+ * Enhanced narrative for feed display (IP-24) — returns a richer natural-language
+ * phrase than EVENT_ACTIVITIES. Falls back to getEventActivity for unmapped types.
+ *
+ * Uses `Record<string, unknown>` to avoid coupling to backend event payload shape.
+ */
+export function getEventNarrative(
+  type: EventType,
+  payload: Record<string, unknown>,
+): string {
+  switch (type) {
+    case "ToolCalled": {
+      const query = payload["query"];
+      if (typeof query === "string" && query.length > 0) {
+        return `Searched the web for "${query}"`;
+      }
+      return "Searched the web";
+    }
+    case "EvidenceAdded": {
+      const title = payload["source_title"];
+      const url = payload["source_url"];
+      if (typeof title === "string" && typeof url === "string") {
+        try {
+          const hostname = new URL(url).hostname.replace(/^www\./, "");
+          return `Read "${title}" (${hostname})`;
+        } catch {
+          return `Read "${title}"`;
+        }
+      }
+      return "Read a source";
+    }
+    case "JudgeRuled": {
+      const confidence = payload["final_confidence"];
+      if (typeof confidence === "number") {
+        return `Judge verdict: confidence ${confidence.toFixed(2)}`;
+      }
+      return "Judge ruled on the answer";
+    }
+    case "Stopped": {
+      const stopReason = payload["stop_reason"];
+      if (typeof stopReason === "string") {
+        return `Wrapped up — ${stopReason}`;
+      }
+      return "Wrapped up";
+    }
+    default:
+      return getEventActivity(type);
+  }
+}

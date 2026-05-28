@@ -6,10 +6,8 @@ import type { ReactNode } from "react";
 
 import { CenterPanelContainer } from "./CenterPanelContainer";
 import type { RunResponseDto } from "@/lib/api";
-import type {
-  RunStreamEvent,
-  UseRunStreamResult,
-} from "@/hooks/useRunStream";
+import type { RunStreamEvent } from "@/types/events";
+import type { UseRunStreamResult } from "@/hooks/useRunStream";
 
 const RUN_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -92,6 +90,9 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   localStorage.setItem("novum_username", "alice");
   localStorage.setItem("novum_token", "secret-token");
+
+  // Mock scrollIntoView for RunFeed (IP-24)
+  Element.prototype.scrollIntoView = vi.fn();
 });
 
 afterEach(() => {
@@ -111,8 +112,31 @@ describe("CenterPanelContainer", () => {
     expect(screen.getByTestId("center-loading")).toBeInTheDocument();
   });
 
-  it("renders the question and the Researching banner for a running run", async () => {
+  it("renders the question and the RunFeed for a running run (IP-24)", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(makeDto()));
+    
+    // Mock stream with minimal events for RunFeed
+    streamMock.mockImplementation(() =>
+      streamWith([
+        {
+          id: "evt-001",
+          type: "ToolCalled",
+          timestamp_ms: Date.now(),
+          payload: { query: "dark matter", tool_name: "web_search" },
+        },
+        {
+          id: "evt-002",
+          type: "EvidenceAdded",
+          timestamp_ms: Date.now() + 1000,
+          payload: {
+            source_url: "https://example.com/article",
+            source_title: "Understanding Dark Matter",
+            chunk_count: 2,
+          },
+        },
+      ])
+    );
+
     renderWithRouter(<CenterPanelContainer />);
     await waitFor(() => {
       expect(screen.getByTestId("center-panel-view")).toBeInTheDocument();
@@ -120,7 +144,7 @@ describe("CenterPanelContainer", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "What is dark matter?"
     );
-    expect(screen.getByTestId("researching-banner")).toBeInTheDocument();
+    expect(screen.getByTestId("run-feed")).toBeInTheDocument();
   });
 
   it("renders the StopReasonCard for a terminal run", async () => {
@@ -184,8 +208,9 @@ describe("CenterPanelContainer", () => {
     ); // refetch
 
     renderWithRouter(<CenterPanelContainer />);
+    // Wait for the run to load (IP-24: no feed rendered without events)
     await waitFor(() => {
-      expect(screen.getByTestId("researching-banner")).toBeInTheDocument();
+      expect(screen.getByTestId("question-display")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("cancel-button"));
@@ -196,7 +221,7 @@ describe("CenterPanelContainer", () => {
         "user_cancelled"
       );
     });
-    expect(screen.queryByTestId("researching-banner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("run-feed")).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -290,7 +315,7 @@ describe("CenterPanelContainer", () => {
     });
   });
 
-  it("shows the post-resume notice and hides ResearchingBanner until a new event arrives (IP-15 §9)", async () => {
+  it("shows the post-resume notice and hides RunFeed until a new event arrives (IP-15 §9, IP-24)", async () => {
     fetchMock.mockResolvedValue(jsonResponse(makeDto()));
     streamMock.mockImplementation(() =>
       streamWith([
@@ -303,10 +328,10 @@ describe("CenterPanelContainer", () => {
     await waitFor(() => {
       expect(screen.getByTestId("post-resume-notice")).toBeInTheDocument();
     });
-    expect(screen.queryByTestId("researching-banner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("run-feed")).not.toBeInTheDocument();
   });
 
-  it("re-shows the ResearchingBanner once an agent event arrives past the resume anchor (IP-15 §9)", async () => {
+  it("re-shows the RunFeed once an agent event arrives past the resume anchor (IP-15 §9, IP-24)", async () => {
     fetchMock.mockResolvedValue(jsonResponse(makeDto()));
     streamMock.mockImplementation(() =>
       streamWith([
@@ -318,7 +343,7 @@ describe("CenterPanelContainer", () => {
 
     renderWithRouter(<CenterPanelContainer />);
     await waitFor(() => {
-      expect(screen.getByTestId("researching-banner")).toBeInTheDocument();
+      expect(screen.getByTestId("run-feed")).toBeInTheDocument();
     });
     expect(screen.queryByTestId("post-resume-notice")).not.toBeInTheDocument();
   });

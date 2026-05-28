@@ -22,9 +22,15 @@ const server = setupServer(
   })
 );
 
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+beforeAll(() => {
+  server.listen();
+});
+afterEach(() => {
+  server.resetHandlers();
+});
+afterAll(() => {
+  server.close();
+});
 
 function renderWithQueryClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({

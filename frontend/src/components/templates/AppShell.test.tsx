@@ -12,6 +12,7 @@ function resetStore(): void {
     selectedEventId: null,
     leftPanelOpen: false,
     rightPanelOpen: false,
+    isTracePanelCollapsed: false,
   });
   useUserStore.setState({
     user: null,

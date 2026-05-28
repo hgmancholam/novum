@@ -40,3 +40,6 @@ export { StructuredBlocks } from "./StructuredBlocks";
 export type { StructuredBlocksProps } from "./StructuredBlocks";
 export { SourcesCard } from "./SourcesCard";
 export type { SourcesCardProps, SourceEntry } from "./SourcesCard";
+// IP-24 Phase 3
+export { RunFeed } from "./RunFeed";
+export type { RunFeedProps } from "./RunFeed";

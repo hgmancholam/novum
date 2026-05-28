@@ -27,3 +27,21 @@ export const RATE_LIMIT_MODAL_HINT =
   "Pick a different provider from the header chip, or wait for the quota window to reset and try again.";
 
 export const RATE_LIMIT_MODAL_CLOSE = "Got it";
+
+// Feed microcopy (IP-24)
+export const FEED_LET_ME_SEARCH = "Let me search for {query}…";
+export const FEED_LET_ME_FETCH = "Let me read this page…";
+export const FEED_LET_ME_THINK = "Let me work this through…";
+export const FEED_SEARCHED_WEB = "Searched the web";
+export const FEED_FETCHED_PAGE = "Fetched the page";
+export const FEED_DONE = "Done";
+export const FEED_TOGGLE_COLLAPSE = "Collapse reasoning";
+export const FEED_TOGGLE_EXPAND = "Expand reasoning";
+export const TRACE_PANEL_COLLAPSE = "Collapse trace";
+export const TRACE_PANEL_EXPAND = "Expand trace";
+export const ANSWER_SKIP_HINT = "Click to skip";
+export const ANSWER_ANIMATE_TOGGLE = "Animate answer";
+
+export function FEED_RESULTS_COUNT(n: number): string {
+  return n === 1 ? "1 result" : `${n.toString()} results`;
+}

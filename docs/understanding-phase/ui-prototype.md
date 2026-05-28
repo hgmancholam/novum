@@ -256,6 +256,24 @@ The three-panel layout has three independent state machines (history, center, tr
 | **C12** | Diff mode | L6 fires `compare` | Replaces C1–C10 entirely. Three tabs: `Timeline` (default) / `Evidence` / `Outcome`. Close button (`✕`) reverts URL and state. |
 | **C13** | Not found | URL `/runs/<bad_id>` returns 404 | Centered: *"Run not found"* + link back to home. |
 
+#### 3.2.0 Live Run Feed (IP-24)
+
+**C3' — Live Run Feed states**: The center body in C4/C5/C6–C10 renders a `RunFeed` organism (Claude-style feed) that replaces the legacy `ResearchingBanner`. Three states:
+
+| Sub-state | When | Render |
+|---|---|---|
+| **C3'-running** | `isComplete=false`, events streaming | Vertical feed with `FeedRail` (active tone), live-updating event cards (`SearchStepCard`, `PlanStepCard`, `JudgeVerdictCard`, generic `FeedStep`). `ToolCalled` groups consecutive `EvidenceAdded` / `SourceFailed` / `DeepFetchPerformed` with matching `target_claim_id` into one `SearchStepCard` with inline source rows (favicon + title + hostname). Last step marked active (spinner). Sticky-bottom autoscroll with `JumpToLatestPill` when user scrolls up. No collapse toggle. |
+| **C3'-completed-collapsed** | `isComplete=true`, default post-run | Feed collapses behind a sticky header: *"Reasoning trace ({N} steps · {elapsed}s)"* + `CollapseToggleButton`. Toggle state persisted in `localStorage` key `novum_run_feed_collapsed` (default `true`). Click toggle → expands to C3'-completed-expanded. Renders above `TrustSummary` + answer in C6–C10. |
+| **C3'-completed-expanded** | `isComplete=true`, user expanded | Full feed visible (same render as C3'-running but frozen, rail neutral tone, no active step). Collapse toggle at top. Renders above answer. |
+
+**localStorage keys introduced (IP-24):**
+- `novum_run_feed_collapsed` (string `"0"` / `"1"`, default `"1"` after completion)
+- `novum_trace_panel_collapsed` (string `"0"` / `"1"`, default `"0"`)
+- `novum_answered_runs` (JSON array of run IDs, capped at 500, tracks which runs have had answer animated)
+- `novum_animate_answer` (string `"0"` / `"1"`, global toggle, default `"1"`)
+
+**Answer animation (IP-24):** When `isComplete && hasAnswer && !hasAnswerBeenAnimated(runId) && isAnimateAnswerEnabled()`, the final answer animates in character-by-character via frontend-only `useTypewriter` hook. Adaptive speed: 60 cps (< 500 chars), 150 cps (500–1500), 250 cps (≥ 1500). Skip on click / Esc / Space / scroll / `document.hidden` / `prefers-reduced-motion`. `BlinkingCursor` appended while typing. No re-animate on replay.
+
 #### 3.2.1 Contextual fork CTAs in C7
 
 | Sub-reason | CTA text | Form pre-fill on fork |
@@ -581,6 +599,24 @@ When a question is rejected on submit, the rejection banner reads:
 | `ForkContextCard` header | *"Forking from <event_type> at step <n>"* with collapse `▾` / expand `▸` |
 | `ForkContextCard` body (per event_type) | `PlanCreated`: shows the plan's claims list · `JudgeRuled`: shows `sufficient`, `confidence`, `S`, `J`, and the judge's one-line rationale · `ContradictionDetected`: shows the two positions and their sources · `AmbiguityDetected`: shows the detected interpretations · `Stopped`: shows `stop_reason` and the final summary |
 | Relative time formatter (`lib/format.ts`) | < 60s *"just now"* · < 60m *"<n>m ago"* · < 24h *"<n>h ago"* · < 7d *"<n>d ago"* · same year *"MMM D"* · else *"MMM D, YYYY"*. Tooltip shows ISO 8601 absolute. |
+
+### 7.7' Live Run Feed microcopy (IP-24)
+
+| Surface | String |
+|---|---|
+| `FEED_LET_ME_SEARCH` | *"Let me search for {query}…"* |
+| `FEED_LET_ME_FETCH` | *"Let me read this page…"* |
+| `FEED_LET_ME_THINK` | *"Let me work this through…"* |
+| `FEED_SEARCHED_WEB` | *"Searched the web"* |
+| `FEED_FETCHED_PAGE` | *"Fetched the page"* |
+| `FEED_DONE` | *"Done"* |
+| `FEED_RESULTS_COUNT(n)` | `n === 1 ? "1 result" : "${n} results"` (function) |
+| `FEED_TOGGLE_COLLAPSE` | *"Collapse reasoning"* |
+| `FEED_TOGGLE_EXPAND` | *"Expand reasoning"* |
+| `TRACE_PANEL_COLLAPSE` | *"Collapse trace"* |
+| `TRACE_PANEL_EXPAND` | *"Expand trace"* |
+| `ANSWER_SKIP_HINT` | *"Click to skip"* (shown during typewriter animation) |
+| `ANSWER_ANIMATE_TOGGLE` | *"Animate answer"* (global toggle label) |
 
 ### 7.8 Sticky TL;DR (structured answers, C6)
 

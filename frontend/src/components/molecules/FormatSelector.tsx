@@ -60,7 +60,9 @@ export function FormatSelector({
         <button
           key={format.name}
           type="button"
-          onClick={() => onChange(format.name)}
+          onClick={() => {
+            onChange(format.name);
+          }}
           aria-pressed={value === format.name}
           className={cn(
             "rounded-lg px-4 py-2 text-sm font-medium transition-colors",

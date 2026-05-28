@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { CenterPanelView } from "./CenterPanelView";
@@ -24,12 +24,26 @@ function makeRun(overrides: Partial<Run> = {}): Run {
 }
 
 describe("CenterPanelView", () => {
-  it("renders the question and the Researching banner while running", () => {
-    render(<CenterPanelView run={makeRun()} status="running" />);
+  beforeEach(() => {
+    // Mock scrollIntoView for RunFeed (IP-24)
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+  it("renders the question and the RunFeed while running (IP-24)", () => {
+    const mockEvents = [
+      {
+        type: "ToolCalled",
+        step_index: 1,
+        query: "test query",
+        timestamp_ms: 1000,
+      },
+    ];
+    render(
+      <CenterPanelView run={makeRun()} status="running" events={mockEvents} />
+    );
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "Is the Earth round?"
     );
-    expect(screen.getByTestId("researching-banner")).toBeInTheDocument();
+    expect(screen.getByTestId("run-feed")).toBeInTheDocument();
     expect(screen.queryByTestId("stop-reason-card")).not.toBeInTheDocument();
   });
 
@@ -43,13 +57,13 @@ describe("CenterPanelView", () => {
       "data-reason",
       "judge_confirmed"
     );
-    expect(screen.queryByTestId("researching-banner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("run-feed")).not.toBeInTheDocument();
   });
 
   it("renders only the question when status=stopped but stop_reason is null", () => {
     const run = makeRun({ stoppedAt: "2026-05-26T00:05:00Z", stopReason: null });
     render(<CenterPanelView run={run} status="stopped" />);
     expect(screen.queryByTestId("stop-reason-card")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("researching-banner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("run-feed")).not.toBeInTheDocument();
   });
 });

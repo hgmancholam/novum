@@ -7,6 +7,8 @@
  * On HomePage there is no `runId`; HomePage mounts `<TraceEmpty/>` directly
  * inside `TracePanel` and does NOT use this container. Per
  * `eslint.config.js`, only `pages/` may call `useRun*` hooks.
+ *
+ * IP-24 Phase 5: Supports trace panel collapse via selectionStore.
  */
 
 import { useParams } from "react-router-dom";
@@ -16,6 +18,7 @@ import { TraceHeader } from "@/components/organisms/TraceHeader";
 import { TraceTimeline } from "@/components/organisms/TraceTimeline";
 import { TracePanel } from "@/components/templates";
 import { useRunStream } from "@/hooks/useRunStream";
+import { useSelectionStore } from "@/stores/selectionStore";
 
 export function TracePanelContainer() {
   const { runId } = useParams<{ runId: string }>();
@@ -26,15 +29,24 @@ export function TracePanelContainer() {
 
   const isStreaming = isConnected && !isComplete;
 
+  // IP-24 Phase 5: Collapse state
+  const isCollapsed = useSelectionStore((s) => s.isTracePanelCollapsed);
+  const toggleCollapse = useSelectionStore((s) => s.toggleTracePanelCollapsed);
+
   return (
     <TracePanel
       header={
-        <TraceHeader eventCount={events.length} isStreaming={isStreaming} />
+        <TraceHeader
+          eventCount={events.length}
+          isStreaming={isStreaming}
+          isCollapsed={isCollapsed}
+          onToggleCollapse={toggleCollapse}
+        />
       }
       body={
         runId === undefined || runId.length === 0 ? (
           <TraceEmpty />
-        ) : (
+        ) : isCollapsed ? null : (
           <TraceTimeline events={events} isComplete={isComplete} />
         )
       }

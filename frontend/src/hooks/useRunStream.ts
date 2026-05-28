@@ -22,12 +22,9 @@ import {
   parseSSEEvent,
   type SSEConnection,
 } from "@/lib/sse";
+import type { RunStreamEvent } from "@/types/events";
 
-export interface RunStreamEvent {
-  type: string;
-  step_index?: number;
-  [key: string]: unknown;
-}
+export type { RunStreamEvent } from "@/types/events";
 
 export interface UseRunStreamOptions {
   runId: string | undefined;
