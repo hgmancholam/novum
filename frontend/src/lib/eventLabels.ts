@@ -72,6 +72,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   HistorySummarized: "History summarized",
   VerificationQuestionsGenerated: "Verification questions",
   CoveContradictionDetected: "Contradiction detected",
+  DraftSynthesized: "Draft ready",
 };
 
 export const EVENT_ACTIVITIES: Record<EventType, string> = {
@@ -114,6 +115,7 @@ export const EVENT_ACTIVITIES: Record<EventType, string> = {
   HistorySummarized: "Summarizing reasoning history",
   VerificationQuestionsGenerated: "Generating verification questions",
   CoveContradictionDetected: "Verifying the draft answer",
+  DraftSynthesized: "Drafting the answer",
 };
 
 export function getEventLabel(type: string): string {

@@ -153,6 +153,9 @@ class EventType(StrEnum):
     VERIFICATION_QUESTIONS_GENERATED = "VerificationQuestionsGenerated"
     COVE_CONTRADICTION_DETECTED = "CoveContradictionDetected"
 
+    # PR-3 Mejora 3.2: auditability of the final draft before judging.
+    DRAFT_SYNTHESIZED = "DraftSynthesized"
+
     # Error & Recovery
     AGENT_ERRORED = "AgentErrored"
     RESUMED_AFTER_ERROR = "ResumedAfterError"

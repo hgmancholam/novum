@@ -35,6 +35,7 @@ from app.domain.events import (
     ContradictionSource,
     CoveContradictionDetectedEvent,
     DeepFetchPerformedEvent,
+    DraftSynthesizedEvent,
     EchoChamberDetectedEvent,
     Event,
     EvidenceAddedEvent,
@@ -359,6 +360,14 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
                 "question": "Did Tokyo become capital in 1868?",
                 "contradicting_evidence": "Tokyo became de facto capital in 1868 but was not officially designated until 1943.",
             }
+        case EventType.DRAFT_SYNTHESIZED:
+            extra = {
+                "prose": "Sample draft prose.",
+                "answer_kind": "direct",
+                "citation_count": 2,
+                "key_point_count": 3,
+                "source": "standard",
+            }
     base.update(extra)
     return base
 
@@ -403,6 +412,7 @@ _EXPECTED_CLASS: dict[EventType, type] = {
     EventType.HISTORY_SUMMARIZED: HistorySummarizedEvent,
     EventType.VERIFICATION_QUESTIONS_GENERATED: VerificationQuestionsGeneratedEvent,
     EventType.COVE_CONTRADICTION_DETECTED: CoveContradictionDetectedEvent,
+    EventType.DRAFT_SYNTHESIZED: DraftSynthesizedEvent,
 }
 
 
@@ -442,8 +452,8 @@ def test_extra_fields_preserved_in_model_extra() -> None:
 
 
 def test_event_type_enum_has_22_values() -> None:
-    """AC-04 (IP-25 Phase F): there are exactly 39 event types."""
-    assert len(EventType) == 39
+    """AC-04: 40 event types (PR-3 added DraftSynthesized)."""
+    assert len(EventType) == 40
 
 
 def test_forkable_events_exact_membership() -> None:
@@ -460,12 +470,12 @@ def test_forkable_events_exact_membership() -> None:
 def test_event_type_map_covers_every_event_type() -> None:
     """Every ``EventType`` value must map to a concrete class."""
     assert set(EVENT_TYPE_MAP.keys()) == {v.value for v in EventType}
-    assert len(EVENT_TYPE_MAP) == 39
+    assert len(EVENT_TYPE_MAP) == 40
 
 
 def test_event_type_map_values_are_unique_classes() -> None:
     classes = list(EVENT_TYPE_MAP.values())
-    assert len(set(classes)) == len(classes) == 39
+    assert len(set(classes)) == len(classes) == 40
 
 
 # ---------------------------------------------------------------------------

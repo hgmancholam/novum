@@ -467,6 +467,24 @@ class PriorRunHintReplayedEvent(BaseEvent):
 # =============================================================================
 
 
+class DraftSynthesizedEvent(BaseEvent):
+    """Final draft emitted by the synthesizer (PR-3 Mejora 3.2, RF-03).
+
+    Emitted after every successful synthesis (STANDARD/DEEP/CoVe) so the
+    event log captures the draft + ``answer_kind`` independently of the
+    eventual ``JudgeRuled``/``Stopped`` events. Without this the FAST lane
+    and budget-stopped DEEP runs reach ``Stopped`` with no audit trail of
+    the draft itself.
+    """
+
+    type: Literal[EventType.DRAFT_SYNTHESIZED] = EventType.DRAFT_SYNTHESIZED
+    prose: str
+    answer_kind: AnswerKind | None = None
+    citation_count: int = 0
+    key_point_count: int = 0
+    source: Literal["standard", "deep_react", "deep_cove", "fast"] = "standard"
+
+
 class JudgeRuledEvent(BaseEvent):
     """Judge LLM evaluation (RF-12, WP-3 G5 C_kind_appropriateness, WP-5 extensions)."""
 
@@ -642,7 +660,7 @@ class StoppedEvent(BaseEvent):
 
 
 Event = Annotated[
-    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | HypothesesGeneratedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | DeepFetchPerformedEvent | QueryReformulatedEvent | EchoChamberDetectedEvent | RouteSelectedEvent | PlanGapsDetectedEvent | NoProgressDetectedEvent | LaneEscalatedEvent | AgentThoughtEvent | AgentActionEvent | AgentObservationEvent | HypothesisEvaluatedEvent | HistorySummarizedEvent | VerificationQuestionsGeneratedEvent | CoveContradictionDetectedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
+    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | HypothesesGeneratedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | DeepFetchPerformedEvent | QueryReformulatedEvent | EchoChamberDetectedEvent | RouteSelectedEvent | PlanGapsDetectedEvent | NoProgressDetectedEvent | LaneEscalatedEvent | AgentThoughtEvent | AgentActionEvent | AgentObservationEvent | HypothesisEvaluatedEvent | HistorySummarizedEvent | VerificationQuestionsGeneratedEvent | CoveContradictionDetectedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | DraftSynthesizedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
     Field(discriminator="type"),
 ]
 
@@ -680,6 +698,7 @@ EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
     EventType.CONTRADICTION_RESOLVED: ContradictionResolvedEvent,
     EventType.USER_CONTEXT_CHALLENGED: UserContextChallengedEvent,
     EventType.PRIOR_RUN_HINT_REPLAYED: PriorRunHintReplayedEvent,
+    EventType.DRAFT_SYNTHESIZED: DraftSynthesizedEvent,
     EventType.JUDGE_RULED: JudgeRuledEvent,
     EventType.CONFIDENCE_MISMATCH: ConfidenceMismatchEvent,
     EventType.SATURATION_DETECTED: SaturationDetectedEvent,

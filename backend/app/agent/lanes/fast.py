@@ -210,9 +210,23 @@ async def execute_fast_lane(
     if mini_judge_result.ok and S_effective >= _FAST_S_THRESHOLD:
         # Success — finalize and return JUDGE_CONFIRMED
         state.draft_answer = synth_result.prose
+        state.draft_payload = synth_result
         state.final_answer = synth_result.prose
         state.last_judge_confidence = mini_judge_result.j_score
         state.last_structural_confidence = S_effective
+
+        # PR-3 Mejora 3.2: emit DraftSynthesized for audit trail (RF-03).
+        from app.domain.events import DraftSynthesizedEvent
+
+        await emit(
+            DraftSynthesizedEvent(
+                prose=synth_result.prose,
+                answer_kind=synth_result.answer_kind,
+                citation_count=len(synth_result.citations),
+                key_point_count=len(synth_result.key_points),
+                source="fast",
+            )
+        )
 
         logger.info(
             "fast_lane_success",

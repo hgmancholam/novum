@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-28T16:16:30.661431+00:00
+// Generated: 2026-05-28T21:00:47.924024+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -73,6 +73,7 @@ export type EventType =
   | "HistorySummarized"
   | "VerificationQuestionsGenerated"
   | "CoveContradictionDetected"
+  | "DraftSynthesized"
   | "AgentErrored"
   | "ResumedAfterError"
   | "ResumedAfterCancel"
@@ -1594,6 +1595,123 @@ export const EventSchema = {
         "success"
       ],
       "title": "DeepFetchPerformedEvent",
+      "type": "object"
+    },
+    "DraftSynthesizedEvent": {
+      "additionalProperties": true,
+      "description": "Final draft emitted by the synthesizer (PR-3 Mejora 3.2, RF-03).\n\nEmitted after every successful synthesis (STANDARD/DEEP/CoVe) so the\nevent log captures the draft + ``answer_kind`` independently of the\neventual ``JudgeRuled``/``Stopped`` events. Without this the FAST lane\nand budget-stopped DEEP runs reach ``Stopped`` with no audit trail of\nthe draft itself.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "DraftSynthesized",
+          "default": "DraftSynthesized",
+          "title": "Type",
+          "type": "string"
+        },
+        "prose": {
+          "title": "Prose",
+          "type": "string"
+        },
+        "answer_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnswerKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "citation_count": {
+          "default": 0,
+          "title": "Citation Count",
+          "type": "integer"
+        },
+        "key_point_count": {
+          "default": 0,
+          "title": "Key Point Count",
+          "type": "integer"
+        },
+        "source": {
+          "default": "standard",
+          "enum": [
+            "standard",
+            "deep_react",
+            "deep_cove",
+            "fast"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prose"
+      ],
+      "title": "DraftSynthesizedEvent",
       "type": "object"
     },
     "EchoChamberDetectedEvent": {
@@ -4402,6 +4520,22 @@ export const EventSchema = {
           ],
           "default": null,
           "title": "Confidence"
+        },
+        "confidence_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "judge",
+                "structural"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence Kind"
         }
       },
       "required": [
@@ -5039,6 +5173,7 @@ export const EventSchema = {
       "ContradictionResolved": "#/$defs/ContradictionResolvedEvent",
       "CoveContradictionDetected": "#/$defs/CoveContradictionDetectedEvent",
       "DeepFetchPerformed": "#/$defs/DeepFetchPerformedEvent",
+      "DraftSynthesized": "#/$defs/DraftSynthesizedEvent",
       "EchoChamberDetected": "#/$defs/EchoChamberDetectedEvent",
       "EvidenceAdded": "#/$defs/EvidenceAddedEvent",
       "HistorySummarized": "#/$defs/HistorySummarizedEvent",
@@ -5164,6 +5299,9 @@ export const EventSchema = {
       "$ref": "#/$defs/PriorRunHintReplayedEvent"
     },
     {
+      "$ref": "#/$defs/DraftSynthesizedEvent"
+    },
+    {
       "$ref": "#/$defs/JudgeRuledEvent"
     },
     {
@@ -5231,6 +5369,7 @@ export const EventSchema = {
 //   | HistorySummarizedEvent
 //   | VerificationQuestionsGeneratedEvent
 //   | CoveContradictionDetectedEvent
+//   | DraftSynthesizedEvent
 //   | AgentErroredEvent
 //   | ResumedAfterErrorEvent
 //   | ResumedAfterCancelEvent

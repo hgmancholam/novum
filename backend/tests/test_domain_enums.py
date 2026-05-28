@@ -83,8 +83,8 @@ def test_output_format_values() -> None:
 
 
 def test_event_type_has_exactly_31_values() -> None:
-    """IP-25 Phase F: 31 + 6 (HypothesesGenerated + 5 ReAct) + 2 (CoVe) = 39 events."""
-    assert len(EventType) == 39
+    """IP-25 Phase F: 31 + 6 + 2 + 1 (DraftSynthesized, PR-3) = 40 events."""
+    assert len(EventType) == 40
 
 
 def test_event_type_values() -> None:
@@ -111,6 +111,7 @@ def test_event_type_values() -> None:
         "ResumedAfterError",
         "ResumedAfterCancel",
         "Stopped",
+        "DraftSynthesized",
         "SaturationDetected",
         "JudgeProviderDegraded",
         "DeepFetchPerformed",

@@ -13,8 +13,13 @@ import structlog
 from app.agent.react.loop import run_react_loop
 from app.agent.run_state import RunState
 from app.agent.tasks.hypotheses import generate_hypotheses
-from app.domain.enums import StopReason
-from app.domain.events import BaseEvent, HypothesesGeneratedEvent
+from app.agent.tasks.select_answer_kind import AnswerKindInputs, select_answer_kind
+from app.domain.enums import AnswerKind, QuestionType, StopReason
+from app.domain.events import (
+    BaseEvent,
+    DraftSynthesizedEvent,
+    HypothesesGeneratedEvent,
+)
 from app.llm import LLMRole, llm
 from app.llm.models import SynthesizedAnswer
 
@@ -103,6 +108,15 @@ async def execute_deep_lane(
         draft_text = draft.prose
         state.draft_answer = draft_text
         state.draft_payload = draft
+        await emit(
+            DraftSynthesizedEvent(
+                prose=draft.prose,
+                answer_kind=draft.answer_kind,
+                citation_count=len(draft.citations),
+                key_point_count=len(draft.key_points),
+                source="deep_react",
+            )
+        )
 
         # Phase F: Chain-of-Verification (CoVe)
         logger.info(
@@ -165,6 +179,15 @@ async def execute_deep_lane(
             draft_text = redraft.prose
             state.draft_answer = draft_text
             state.draft_payload = redraft
+            await emit(
+                DraftSynthesizedEvent(
+                    prose=redraft.prose,
+                    answer_kind=redraft.answer_kind,
+                    citation_count=len(redraft.citations),
+                    key_point_count=len(redraft.key_points),
+                    source="deep_cove",
+                )
+            )
 
             logger.info(
                 "deep_lane_cove_redraft_complete",
@@ -241,48 +264,58 @@ async def execute_deep_lane(
         state.draft_answer = draft.prose
         state.draft_payload = draft
         state.final_answer = draft.prose
+        await emit(
+            DraftSynthesizedEvent(
+                prose=draft.prose,
+                answer_kind=draft.answer_kind,
+                citation_count=len(draft.citations),
+                key_point_count=len(draft.key_points),
+                source="deep_react",
+            )
+        )
 
     return react_result
 
 
 async def _synthesize_with_react_history(state: RunState) -> SynthesizedAnswer:
-    """Synthesize answer using ReAct history as context."""
-    # Build context from react_history
-    history_context = "\n".join(
-        f"Step {step.step}: {step.thought}\nAction: {step.action.type}\nResult: {step.observation[:200]}..."
-        for step in state.react_history
-        if step.step >= 0  # Exclude synthetic summary steps (step=-1)
-    )
+    """Synthesize answer using ReAct history as context.
 
-    hypotheses_context = "\n".join(
-        f"- [{h.verdict.upper()}] {h.text}"
-        for h in state.hypotheses
-    )
+    PR-3 Mejora 3.1: route through ``build_synthesizer_prompt`` with an
+    ``answer_kind`` selected by the deterministic resolver, instead of the
+    minimalistic ``FAST_SYNTH_PROMPT``. ReAct observations are folded into
+    the evidence list so they reach the synthesizer in the same shape as
+    STANDARD-lane evidence (URL/title/snippet) plus a synthetic ReAct entry
+    that preserves the step-by-step trail.
+    """
+    from app.llm.prompts import build_synthesizer_prompt
 
-    from app.llm.prompts import FAST_SYNTH_PROMPT
+    answer_kind = _select_deep_answer_kind(state)
+
+    evidence_list = _build_deep_evidence_list(state)
+    hypotheses_list = _build_hypotheses_list(state)
+
+    system_prompt, max_tokens = build_synthesizer_prompt(
+        question=state.question,
+        evidence=evidence_list,
+        answer_kind=answer_kind,
+        user_language="es",
+        hypotheses=hypotheses_list,
+    )
 
     synth_response = await llm.call(
         role=LLMRole.SYNTHESIZER,
         messages=[
-            {
-                "role": "system",
-                "content": FAST_SYNTH_PROMPT.format(
-                    question=state.question,
-                    evidence="See ReAct loop history below",
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Question: {state.question}\n\n"
-                    f"Hypotheses:\n{hypotheses_context}\n\n"
-                    f"ReAct History:\n{history_context}\n\n"
-                    f"Synthesize a concise answer (2-3 sentences)."
-                ),
-            },
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": state.question},
         ],
         response_model=SynthesizedAnswer,
+        max_tokens=max_tokens,
     )
+
+    # Stamp the resolver-chosen kind so downstream renderers and audit events
+    # see a consistent answer_kind even when the model omits it.
+    if synth_response.answer_kind is None:
+        synth_response.answer_kind = answer_kind
 
     return synth_response
 
@@ -300,41 +333,107 @@ async def _synthesize_with_contradictions(
     Returns:
         New synthesized answer addressing contradictions
     """
-    # Build context from react_history
-    history_context = "\n".join(
-        f"Step {step.step}: {step.thought}\nAction: {step.action.type}\nResult: {step.observation[:200]}..."
-        for step in state.react_history
-        if step.step >= 0  # Exclude synthetic summary steps (step=-1)
-    )
+    from app.llm.prompts import build_synthesizer_prompt
 
-    hypotheses_context = "\n".join(
-        f"- [{h.verdict.upper()}] {h.text}" for h in state.hypotheses
-    )
+    answer_kind = _select_deep_answer_kind(state, contradictions_present=True)
 
-    from app.llm.prompts import FAST_SYNTH_PROMPT
+    evidence_list = _build_deep_evidence_list(state)
+    # Append contradictions as an extra synthetic evidence item so the
+    # synthesizer surfaces them in the resulting prose.
+    evidence_list.append(
+        {
+            "url": "internal://cove/contradictions",
+            "title": "Verification contradictions",
+            "snippet": contradiction_context,
+        }
+    )
+    hypotheses_list = _build_hypotheses_list(state)
+
+    system_prompt, max_tokens = build_synthesizer_prompt(
+        question=state.question,
+        evidence=evidence_list,
+        answer_kind=answer_kind,
+        user_language="es",
+        requires_contradictions=True,
+        hypotheses=hypotheses_list,
+    )
 
     synth_response = await llm.call(
         role=LLMRole.SYNTHESIZER,
         messages=[
-            {
-                "role": "system",
-                "content": FAST_SYNTH_PROMPT.format(
-                    question=state.question,
-                    evidence="See ReAct loop history and verification contradictions below",
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Question: {state.question}\n\n"
-                    f"Hypotheses:\n{hypotheses_context}\n\n"
-                    f"ReAct History:\n{history_context}\n\n"
-                    f"CONTRADICTIONS DETECTED:\n{contradiction_context}\n\n"
-                    f"Synthesize a revised answer (2-3 sentences) that addresses the contradictions."
-                ),
-            },
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": state.question},
         ],
         response_model=SynthesizedAnswer,
+        max_tokens=max_tokens,
     )
 
+    if synth_response.answer_kind is None:
+        synth_response.answer_kind = answer_kind
+
     return synth_response
+
+
+def _build_deep_evidence_list(state: RunState) -> list[dict]:
+    """Format state.evidence + the ReAct trail as synthesizer evidence rows."""
+    items: list[dict] = [
+        {
+            "url": e.source_url,
+            "title": e.source_title,
+            "snippet": e.text,
+        }
+        for e in state.evidence
+    ]
+    history_lines = [
+        f"Step {step.step}: {step.thought} | Action: {step.action.type} "
+        f"| Result: {step.observation[:200]}"
+        for step in state.react_history
+        if step.step >= 0
+    ]
+    if history_lines:
+        items.append(
+            {
+                "url": "internal://react/history",
+                "title": "ReAct loop trace",
+                "snippet": "\n".join(history_lines),
+            }
+        )
+    return items
+
+
+def _build_hypotheses_list(state: RunState) -> list[dict] | None:
+    if not state.hypotheses:
+        return None
+    return [
+        {"text": h.text, "priority": h.priority} for h in state.hypotheses
+    ]
+
+
+def _select_deep_answer_kind(
+    state: RunState,
+    *,
+    contradictions_present: bool = False,
+) -> AnswerKind:
+    """Pick the DEEP-lane answer kind via the shared deterministic resolver.
+
+    Hypothesis coverage drives ``coverage``: it counts the fraction of
+    hypotheses whose verdict is no longer ``pending``. Agreement is lowered
+    when CoVe contradictions surfaced so the resolver leans toward
+    ``BEST_EFFORT``/``WEIGHTED`` instead of ``DIRECT``.
+    """
+    question_type = state.question_type or QuestionType.STATE_OF_ART
+    total_hypotheses = len(state.hypotheses) or 0
+    resolved = sum(
+        1 for h in state.hypotheses if h.verdict in ("confirmed", "refuted")
+    )
+    coverage = (resolved / total_hypotheses) if total_hypotheses else 0.0
+    agreement = 0.4 if contradictions_present else 0.8
+    return select_answer_kind(
+        AnswerKindInputs(
+            question_type=question_type,
+            structural_confidence=state.last_structural_confidence or 0.0,
+            coverage=coverage,
+            agreement=agreement,
+            ambiguity_flag=state.has_ambiguity,
+        )
+    )

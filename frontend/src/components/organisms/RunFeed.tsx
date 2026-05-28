@@ -162,15 +162,14 @@ function mapStepToView(step: FeedStepData): StepView {
       const passed = (payload.passed as boolean | undefined) ?? false;
       const rawFinalConfidence = payload.final_confidence as number | undefined;
       const finalConfidence = rawFinalConfidence ?? null;
+      const threshold = (payload.threshold as number | undefined) ?? 0.7;
+      const rationale = (payload.rationale as string | undefined) ?? "";
+      const verdict = passed ? "Confirmed" : "Retry suggested";
       const confidenceStr =
         finalConfidence === null
           ? "—"
           : `${(finalConfidence * 100).toFixed(0)}%`;
       const detail = `Verdict: ${verdict} · confidence ${confidenceStr} (threshold ${(threshold * 100).toFixed(0)}%).`;
-      const threshold = (payload.threshold as number | undefined) ?? 0.7;
-      const rationale = (payload.rationale as string | undefined) ?? "";
-      const verdict = passed ? "Confirmed" : "Retry suggested";
-      const detail = `Verdict: ${verdict} · confidence ${(finalConfidence * 100).toFixed(0)}% (threshold ${(threshold * 100).toFixed(0)}%).`;
       const children: ReactNode =
         rationale.length > 0 ? (
           <p className="mt-1 text-[12px] italic text-[var(--text-muted)]">

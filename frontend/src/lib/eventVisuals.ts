@@ -100,6 +100,7 @@ export const EVENT_VISUALS: Record<EventType, EventVisual> = {
   HistorySummarized:                { Icon: BookText,             tone: "neutral" },
   VerificationQuestionsGenerated:   { Icon: ShieldCheck,          tone: "info" },
   CoveContradictionDetected:        { Icon: AlertOctagon,         tone: "warn" },
+  DraftSynthesized:                 { Icon: FilePen,              tone: "info" },
 };
 
 const FALLBACK_VISUAL: EventVisual = { Icon: Flag, tone: "neutral" };

@@ -506,6 +506,22 @@ class AgentOrchestrator:
 
     async def _handle_drafting(self) -> None:
         await draft_answer(self.state)
+        # PR-3 Mejora 3.2: emit DraftSynthesized after every STANDARD draft so
+        # the event log records the draft + answer_kind independently of the
+        # subsequent JudgeRuled / Stopped events (RF-03 auditability).
+        payload = self.state.draft_payload
+        if payload is not None:
+            from app.domain.events import DraftSynthesizedEvent
+
+            await self.emit(
+                DraftSynthesizedEvent(
+                    prose=payload.prose,
+                    answer_kind=payload.answer_kind,
+                    citation_count=len(payload.citations),
+                    key_point_count=len(payload.key_points),
+                    source="standard",
+                )
+            )
         self.state.transition_to(AgentState.JUDGING)
 
     async def _handle_judging(self) -> None:
