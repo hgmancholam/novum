@@ -20,7 +20,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Button, ProviderSelect } from "@/components/atoms";
 import { cn } from "@/lib/cn";
 import {
-  getStoredProvider,
+  DEFAULT_PROVIDER,
   setStoredProvider,
   type LlmProviderName,
 } from "@/lib/providers";
@@ -84,10 +84,12 @@ export function QuestionForm({
     useState<ThresholdPreset>("standard");
   const [customThreshold, setCustomThreshold] = useState<number>(0.7);
   const [localError, setLocalError] = useState<string | null>(null);
-  // Provider selection — initialised lazily from localStorage on first
-  // render so SSR-safe and so we don't blow away the user's prior choice.
+  // Provider selection — every new question form starts on the project
+  // default (Anthropic Claude). The user can still switch per-run; the
+  // selection is persisted to localStorage but no longer rehydrated so
+  // each new question lands on the recommended model.
   const [llmProvider, setLlmProvider] = useState<LlmProviderName>(
-    () => getStoredProvider()
+    () => DEFAULT_PROVIDER
   );
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);

@@ -129,10 +129,10 @@ async def test_list_runs_keyset_preserves_llm_provider(
     assert page.items[0].llm_provider == "google"
 
 
-async def test_list_runs_keyset_owner_scoped_excludes_other_users(
+async def test_list_runs_keyset_includes_all_users_by_default(
     sqlite_session: AsyncSession, seeded_user: str
 ) -> None:
-    """BRD-20 AC-09: list MUST NOT contain runs belonging to other users."""
+    """Default call (no username) returns runs from every owner."""
     from app.models import User
 
     other = User(username="bob", token_hash="y" * 64)
@@ -142,9 +142,11 @@ async def test_list_runs_keyset_owner_scoped_excludes_other_users(
     await _create_run(sqlite_session, seeded_user)
 
     svc = RunService(sqlite_session)
-    page = await svc.list_runs_keyset(seeded_user)
-    assert len(page.items) == 1
-    assert page.items[0].username == seeded_user
+    page = await svc.list_runs_keyset()
+    assert {item.username for item in page.items} == {"bob", seeded_user}
+
+    scoped = await svc.list_runs_keyset(seeded_user)
+    assert {item.username for item in scoped.items} == {seeded_user}
 
 
 async def test_list_runs_keyset_orders_started_at_desc_id_desc(
@@ -598,6 +600,38 @@ async def test_fork_sets_parent_and_event(
     assert resp.parent_run_id == run.id
     assert resp.forked_at_event_id == forkable_event.id
     assert resp.id != run.id
+
+
+async def test_fork_starts_the_agent_runner(
+    sqlite_session: AsyncSession,
+    seeded_user: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Forked runs must hand off to ``agent_runner.start`` (symmetry with
+    ``create_run`` / ``resume_run``). Without this the row exists but the
+    FSM never executes and no events are ever emitted.
+    """
+    from unittest.mock import AsyncMock
+
+    run = await _create_run(sqlite_session, seeded_user)
+    forkable_event = Event(
+        run_id=run.id,
+        step_index=1,
+        type="PlanCreated",
+        payload={"sub_claims": [], "rationale": "r"},
+    )
+    sqlite_session.add(forkable_event)
+    await sqlite_session.commit()
+
+    start_mock = AsyncMock()
+    monkeypatch.setattr("app.agent.runner.agent_runner.start", start_mock)
+
+    svc = RunService(sqlite_session)
+    resp = await svc.fork_run(
+        run.id, RunForkRequest(event_id=forkable_event.id), seeded_user
+    )
+
+    start_mock.assert_awaited_once_with(resp.id)
 
 
 # ---------------------------------------------------------------------------

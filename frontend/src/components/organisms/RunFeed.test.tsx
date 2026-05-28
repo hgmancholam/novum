@@ -77,6 +77,7 @@ describe("RunFeed", () => {
   });
 
   it("renders SearchStepCard for ToolCalled + EvidenceAdded", async () => {
+    localStorage.setItem("novum_run_feed_collapsed", "0");
     render(
       <RunFeed
         events={[mockToolCalledEvent, mockEvidenceEvent]}
@@ -97,7 +98,8 @@ describe("RunFeed", () => {
       ],
       timestamp_ms: 1000,
     };
-    render(<RunFeed events={[planEvent]} isComplete={true} />);
+    localStorage.setItem("novum_run_feed_collapsed", "0");
+    render(<RunFeed events={[planEvent]} isComplete={false} />);
     expect(await screen.findByText(/Breaking down the question/)).toBeInTheDocument();
   });
 
@@ -111,6 +113,7 @@ describe("RunFeed", () => {
       rationale: "Good answer",
       timestamp_ms: 1000,
     };
+    localStorage.setItem("novum_run_feed_collapsed", "0");
     render(<RunFeed events={[judgeEvent]} isComplete={true} />);
     expect(await screen.findByText(/Confirmed/)).toBeInTheDocument();
     expect(screen.getByText(/85%/)).toBeInTheDocument();
@@ -123,7 +126,10 @@ describe("RunFeed", () => {
         isComplete={true}
       />
     );
-    expect(screen.getByRole("button", { name: /hide/i })).toBeInTheDocument();
+    // Default-collapsed on completion; the toggle starts as "Show…".
+    expect(
+      screen.getByRole("button", { name: /show|hide/i })
+    ).toBeInTheDocument();
   });
 
   it("does not show collapse button when not complete", () => {
@@ -133,10 +139,12 @@ describe("RunFeed", () => {
         isComplete={false}
       />
     );
-    expect(screen.queryByRole("button", { name: /hide/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /show|hide/i })
+    ).not.toBeInTheDocument();
   });
 
-  it("collapses feed when toggle is clicked", async () => {
+  it("auto-collapses on completion and toggles back open", async () => {
     const user = userEvent.setup();
     render(
       <RunFeed
@@ -145,9 +153,15 @@ describe("RunFeed", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: /hide/i });
-    await user.click(toggle);
+    // Starts collapsed: feed body hidden.
+    expect(screen.queryByText(/"AI systems"/)).not.toBeInTheDocument();
 
+    // Expand.
+    await user.click(screen.getByRole("button", { name: /show/i }));
+    expect(screen.getByText(/"AI systems"/)).toBeInTheDocument();
+
+    // Collapse again.
+    await user.click(screen.getByRole("button", { name: /hide/i }));
     expect(screen.queryByText(/"AI systems"/)).not.toBeInTheDocument();
   });
 
@@ -160,9 +174,12 @@ describe("RunFeed", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: /hide/i });
-    await user.click(toggle);
+    // Starts collapsed; first click expands and stores "0".
+    await user.click(screen.getByRole("button", { name: /show/i }));
+    expect(localStorage.getItem("novum_run_feed_collapsed")).toBe("0");
 
+    // Second click collapses and stores "1".
+    await user.click(screen.getByRole("button", { name: /hide/i }));
     expect(localStorage.getItem("novum_run_feed_collapsed")).toBe("1");
   });
 

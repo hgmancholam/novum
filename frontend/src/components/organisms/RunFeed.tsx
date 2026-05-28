@@ -40,8 +40,10 @@ const FEED_COLLAPSED_KEY = "novum_run_feed_collapsed";
 
 function getInitialCollapsed(isComplete: boolean): boolean {
   if (!isComplete) return false;
+  // When the run finishes, default to collapsed so the answer panel takes
+  // focus. The user can still expand it; "0" means "explicitly expanded".
   try {
-    return localStorage.getItem(FEED_COLLAPSED_KEY) === "1";
+    return localStorage.getItem(FEED_COLLAPSED_KEY) !== "0";
   } catch {
     return true;
   }

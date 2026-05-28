@@ -41,9 +41,14 @@ async def list_runs(
     limit: int = Query(20, ge=1, le=100),
     cursor: str | None = Query(None),
 ) -> RunListPage:
-    """Owner-scoped keyset list of runs (BRD-20 AC-07..AC-12, RF-09)."""
+    """Keyset list of runs across all users (RF-05 public history).
+
+    Auth is still required so anonymous traffic cannot scrape the feed,
+    but the result is not filtered by ``username``.
+    """
+    _ = username
     service = RunService(db)
-    return await service.list_runs_keyset(username, limit, cursor)
+    return await service.list_runs_keyset(None, limit, cursor)
 
 
 @router.get("/{run_id}", response_model=RunResponse)

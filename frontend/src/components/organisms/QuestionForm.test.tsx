@@ -46,7 +46,7 @@ describe("QuestionForm", () => {
       userContext: null,
       outputFormat: "structured",
       confidenceThreshold: 0.6,
-      llmProvider: "github",
+      llmProvider: "anthropic",
     });
   });
 
@@ -110,26 +110,26 @@ describe("QuestionForm", () => {
     expect(results).toHaveNoViolations();
   });
 
-  it("defaults the provider to github and submits the chosen value", () => {
+  it("defaults the provider to anthropic and submits the chosen value", () => {
     const { onSubmit } = setup();
     const select = screen.getByTestId("provider-select") as HTMLSelectElement;
-    expect(select.value).toBe("github");
+    expect(select.value).toBe("anthropic");
 
-    fireEvent.change(select, { target: { value: "anthropic" } });
+    fireEvent.change(select, { target: { value: "openai" } });
     fireEvent.change(screen.getByLabelText(/your question/i), {
       target: { value: "What is event sourcing?" },
     });
     fireEvent.click(screen.getByTestId("submit-question"));
     expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ llmProvider: "anthropic" })
+      expect.objectContaining({ llmProvider: "openai" })
     );
-    expect(window.localStorage.getItem("novum:llm_provider")).toBe("anthropic");
+    expect(window.localStorage.getItem("novum:llm_provider")).toBe("openai");
   });
 
-  it("hydrates the selected provider from localStorage", () => {
+  it("always starts on the default provider even with a stored value", () => {
     window.localStorage.setItem("novum:llm_provider", "openai");
     setup();
     const select = screen.getByTestId("provider-select") as HTMLSelectElement;
-    expect(select.value).toBe("openai");
+    expect(select.value).toBe("anthropic");
   });
 });

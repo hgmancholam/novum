@@ -115,25 +115,24 @@ class RunService:
 
     async def list_runs_keyset(
         self,
-        username: str,
+        username: str | None = None,
         limit: int = 20,
         cursor: str | None = None,
     ) -> RunListPage:
-        """Owner-scoped keyset page over ``(started_at DESC, id DESC)``.
+        """Keyset page over ``(started_at DESC, id DESC)``.
 
-        BRD-20 §4.4 / §4.5:
-        - Filters ``WHERE owner_username = :username``.
-        - When ``cursor`` is set, restricts to rows strictly older than
-          the tuple it encodes.
-        - Fetches ``limit + 1`` rows to compute ``has_more`` cheaply.
-        - ``next_cursor`` is ``None`` iff ``has_more`` is ``False``.
+        Returns runs from all users (history is shared across the single
+        server, consistent with RF-05 public-by-URL). When ``username`` is
+        provided the result is filtered to that owner, kept for callers
+        that still want an owner-scoped view.
         """
         query = (
             select(Run)
-            .where(Run.owner_username == username)
             .order_by(Run.started_at.desc(), Run.id.desc())
             .limit(limit + 1)
         )
+        if username is not None:
+            query = query.where(Run.owner_username == username)
         if cursor is not None:
             cur_ts, cur_id = _decode_cursor(cursor)
             # Tuple keyset: (started_at, id) < (cur_ts, cur_id) under DESC,DESC.
@@ -234,6 +233,13 @@ class RunService:
         self.db.add(forked)
         await self.db.commit()
         await self.db.refresh(forked)
+        # Symmetric with create_run / resume_run: hand off to the runner so
+        # the forked FSM actually executes. Without this the row exists but
+        # never produces events (IP-15 R-01 lineage is by reference; the
+        # forked run starts with an empty event log and runs fresh).
+        from app.agent.runner import agent_runner
+
+        await agent_runner.start(forked.id)
         return RunResponse.model_validate(forked)
 
     async def cancel_run(self, run_id: UUID, username: str) -> RunResponse:

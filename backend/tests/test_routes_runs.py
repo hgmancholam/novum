@@ -114,17 +114,16 @@ async def test_list_runs_invalid_cursor_returns_400(
     assert response.json()["detail"] == "Invalid cursor"
 
 
-async def test_list_runs_excludes_other_users(
+async def test_list_runs_includes_all_users(
     client: AsyncClient,
     sqlite_session: AsyncSession,
     seeded_user: str,
     auth_headers: dict[str, str],
 ) -> None:
-    """BRD-20 AC-09: list is owner-scoped."""
+    """History is shared across users (RF-05 public-by-URL)."""
     from app.models import User
     from app.services.auth_service import AuthService
 
-    # Seed another user via the service so the X-Token is hash-matched.
     auth = AuthService(sqlite_session)
     _, bob_token = await auth.register("bob")
     headers2 = {"X-Username": "bob", "X-Token": bob_token}
@@ -133,8 +132,8 @@ async def test_list_runs_excludes_other_users(
     await client.post("/api/runs", json=_VALID_BODY, headers=auth_headers)
 
     body = (await client.get("/api/runs", headers=auth_headers)).json()
-    assert len(body["items"]) == 1
-    assert body["items"][0]["username"] == seeded_user
+    usernames = {item["username"] for item in body["items"]}
+    assert {seeded_user, "bob"} <= usernames
     _ = User  # silence unused-import lint
 
 

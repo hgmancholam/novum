@@ -17,7 +17,7 @@ export const PROVIDER_LABELS: Record<LlmProviderName, string> = {
   google: "Google Gemini",
 };
 
-export const DEFAULT_PROVIDER: LlmProviderName = "github";
+export const DEFAULT_PROVIDER: LlmProviderName = "anthropic";
 const STORAGE_KEY = "novum:llm_provider";
 
 export interface ProviderInfo {
