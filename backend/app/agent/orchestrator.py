@@ -565,10 +565,25 @@ class AgentOrchestrator:
                 confidence=self.state.last_judge_confidence,
             )
         elif reason == StopReason.STOPPED_BY_BUDGET:
+            # Two distinct paths terminate as STOPPED_BY_BUDGET (enum stable,
+            # RF-02): the search-round cap and the judge-attempts cap. The
+            # summary disambiguates them so the UI does not mislead the user
+            # with "search limit" when the judge cap actually fired.
+            if self.state.judge_attempts >= self.state.max_judge_attempts:
+                budget_summary = (
+                    f"Judge rejected the draft after "
+                    f"{self.state.judge_attempts} attempts"
+                )
+                budget_signal = "judge_cap"
+            else:
+                budget_summary = (
+                    f"Reached search limit ({self.state.search_count} rounds)"
+                )
+                budget_signal = "budget"
             stop_rationale = StopRationale(
                 reason=reason,
-                triggering_signal="budget",
-                summary=f"Reached search limit ({self.state.search_count} rounds)",
+                triggering_signal=budget_signal,
+                summary=budget_summary,
                 confidence=self.state.last_judge_confidence,
             )
         elif reason == StopReason.USER_CANCELLED:
