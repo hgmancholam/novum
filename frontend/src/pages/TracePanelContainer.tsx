@@ -35,6 +35,7 @@ export function TracePanelContainer() {
 
   return (
     <TracePanel
+      isCollapsed={isCollapsed}
       header={
         <TraceHeader
           eventCount={events.length}

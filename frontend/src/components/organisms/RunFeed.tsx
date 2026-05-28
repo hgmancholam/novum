@@ -25,7 +25,12 @@ import {
   type SubClaim,
 } from "@/components/molecules";
 import { FeedRail, JumpToLatestPill, CollapseToggleButton } from "@/components/atoms";
-import { FEED_TOGGLE_COLLAPSE, FEED_TOGGLE_EXPAND } from "@/lib/microcopy";
+import {
+  FEED_TOGGLE_COLLAPSE,
+  FEED_TOGGLE_EXPAND,
+  FEED_REASONING_TRACE,
+} from "@/lib/microcopy";
+import { useIdleReassurance } from "@/lib/idleMessages";
 import { cn } from "@/lib/cn";
 
 export interface RunFeedProps {
@@ -111,10 +116,6 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
     persistCollapsed(newValue);
   }
 
-  if (steps.length === 0) {
-    return null;
-  }
-
   // Calculate total duration - explicitly type as number for strictNullChecks compliance
   const lastEvent = events[events.length - 1];
   const firstEvent = events[0];
@@ -123,6 +124,15 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
   const totalSeconds = events.length > 0
     ? Math.round((lastTimestamp - firstTimestamp) / 1000)
     : 0;
+
+  const idleMessage = useIdleReassurance(
+    !isComplete && events.length > 0,
+    lastTimestamp > 0 ? lastTimestamp : null,
+  );
+
+  if (steps.length === 0) {
+    return null;
+  }
 
   return (
     <div
@@ -134,7 +144,7 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
       {isComplete && events.length > 0 ? (
         <div className="sticky top-0 z-20 bg-[var(--bg-primary)] border-b border-[var(--glass-border)] px-4 py-2 flex items-center justify-between">
           <h3 className="text-sm font-medium text-[var(--text-secondary)]">
-            Reasoning trace ({steps.length} steps · {totalSeconds}s)
+            {FEED_REASONING_TRACE(steps.length, totalSeconds)}
           </h3>
           <CollapseToggleButton
             isCollapsed={isCollapsed}
@@ -158,6 +168,14 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
               />
             ))}
           </ol>
+          {idleMessage !== null ? (
+            <p
+              data-testid="feed-idle-message"
+              className="mt-2 pl-12 text-xs italic text-[var(--text-muted)] animate-pulse"
+            >
+              {idleMessage}
+            </p>
+          ) : null}
           <div ref={bottomRef} />
         </div>
       ) : null}
@@ -239,8 +257,8 @@ function FeedStepRenderer({ step, isLast }: FeedStepRendererProps) {
       return (
         <FeedStep
           type="Stopped"
-          title="Done"
-          summary={`Stop reason: ${stopReason}`}
+          title="Terminé"
+          summary={`Motivo: ${stopReason}`}
           isActive={step.isActive}
           deltaMs={step.deltaMs}
           isLast={isLast}
@@ -251,8 +269,8 @@ function FeedStepRenderer({ step, isLast }: FeedStepRendererProps) {
       return (
         <FeedStep
           type="AmbiguityDetected"
-          title="Ambiguity detected"
-          summary="The question has multiple interpretations"
+          title="Detecté una ambigüedad"
+          summary="La pregunta tiene varias interpretaciones posibles"
           isActive={step.isActive}
           deltaMs={step.deltaMs}
           isLast={isLast}
@@ -263,8 +281,8 @@ function FeedStepRenderer({ step, isLast }: FeedStepRendererProps) {
       return (
         <FeedStep
           type="ContradictionDetected"
-          title="Contradiction spotted"
-          summary="Sources disagree on key facts"
+          title="Encontré información contradictoria"
+          summary="Las fuentes no coinciden en datos clave"
           isActive={step.isActive}
           deltaMs={step.deltaMs}
           isLast={isLast}
@@ -276,7 +294,7 @@ function FeedStepRenderer({ step, isLast }: FeedStepRendererProps) {
       return (
         <FeedStep
           type="QuestionAsked"
-          title={(step.payload.type as string) ?? "Unknown event"}
+          title={(step.payload.type as string) ?? "Evento desconocido"}
           {...(step.isActive !== undefined ? { isActive: step.isActive } : {})}
           {...(step.deltaMs !== undefined ? { deltaMs: step.deltaMs } : {})}
           isLast={isLast}

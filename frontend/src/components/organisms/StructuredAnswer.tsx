@@ -31,6 +31,8 @@ export interface StructuredAnswerProps {
     | undefined;
   /** IP-24 Phase 3.5: Enable typewriter animation (default false). */
   animate?: boolean;
+  /** Fires when the typewriter finishes revealing the answer. */
+  onAnimationComplete?: (() => void) | undefined;
   className?: string | undefined;
 }
 
@@ -89,11 +91,13 @@ export function StructuredAnswer({
   outputFormat,
   metadata,
   animate = false,
+  onAnimationComplete,
   className,
 }: StructuredAnswerProps) {
   const { displayed, isTyping, skip } = useTypewriter({
     text: content,
     enabled: animate,
+    onComplete: onAnimationComplete,
   });
 
   const hasMetadata =

@@ -21,7 +21,7 @@ export function FeedRail({ tone = "neutral", className }: FeedRailProps) {
     <div
       data-tone={tone}
       className={cn(
-        "absolute left-[15px] top-0 bottom-0 w-px",
+        "absolute left-4 top-0 bottom-0 w-px",
         color,
         className
       )}

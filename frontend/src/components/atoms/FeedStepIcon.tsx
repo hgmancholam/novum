@@ -27,20 +27,25 @@ export function FeedStepIcon({
       data-active={isActive}
       className={cn(
         "flex h-8 w-8 items-center justify-center rounded-full",
-        "bg-[var(--bg-tertiary)] border",
+        "bg-[var(--bg-tertiary)] border-2",
         "relative z-10",
         className
       )}
       style={{ borderColor }}
     >
+      {isActive ? (
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 rounded-full animate-ping opacity-60"
+          style={{ backgroundColor: borderColor, opacity: 0.25 }}
+        />
+      ) : null}
       <Icon
         aria-hidden="true"
         width={16}
         height={16}
-        className={cn(
-          "text-[var(--text-secondary)]",
-          isActive && "animate-pulse"
-        )}
+        className={cn("relative", isActive && "animate-pulse")}
+        style={{ color: borderColor }}
       />
     </div>
   );

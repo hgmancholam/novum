@@ -7,8 +7,9 @@
  * Microcopy per ui-prototype.md §7.7 / §7.4. Token-only styling.
  */
 
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
-import { formatRelative } from "@/lib/format";
+import { formatRelative, formatElapsed } from "@/lib/format";
 import type { Run } from "@/types/run";
 import type { StopReason } from "@/types/events";
 import { stopReasonConfig } from "./StopReasonCard";
@@ -124,6 +125,31 @@ function ConfidenceRow({ metrics }: { metrics: JudgeConfidenceMetrics }) {
   );
 }
 
+interface ElapsedValueProps {
+  startedAt: string | Date;
+  stoppedAt: string | Date | null;
+}
+
+function toMs(value: string | Date): number {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
+
+function ElapsedValue({ startedAt, stoppedAt }: ElapsedValueProps) {
+  const isRunning = stoppedAt === null;
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    if (!isRunning) return;
+    const tick = window.setInterval(() => { setNow(Date.now()); }, 1000);
+    return () => { window.clearInterval(tick); };
+  }, [isRunning]);
+
+  const startMs = toMs(startedAt);
+  const endMs = stoppedAt !== null ? toMs(stoppedAt) : now;
+  const seconds = Math.max(0, (endMs - startMs) / 1000);
+  return <span className="tabular-nums">{formatElapsed(seconds)}</span>;
+}
+
 export function TrustSummary({
   run,
   judgeConfidence,
@@ -189,9 +215,12 @@ export function TrustSummary({
           )}
         </Row>
         <Row label="Started">{formatRelative(run.startedAt)}</Row>
-        {run.stoppedAt !== null ? (
-          <Row label="Stopped">{formatRelative(run.stoppedAt)}</Row>
-        ) : null}
+        <Row label="Elapsed" hint="Tiempo total entre el inicio y el cierre del run">
+          <ElapsedValue
+            startedAt={run.startedAt}
+            stoppedAt={run.stoppedAt}
+          />
+        </Row>
       </dl>
       {!hasLiveMetrics && (
         <p className="mt-3 text-xs text-(--text-muted)">

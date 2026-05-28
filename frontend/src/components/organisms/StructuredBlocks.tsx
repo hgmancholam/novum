@@ -34,6 +34,8 @@ export interface StructuredBlocksProps {
   data: StructuredAnswerData;
   /** IP-24 Phase 3.5: Enable typewriter animation on first block (default false). */
   animate?: boolean;
+  /** Fires when the typewriter finishes revealing the first block. */
+  onAnimationComplete?: (() => void) | undefined;
   className?: string | undefined;
 }
 
@@ -48,12 +50,14 @@ function extractFirstBlockText(blocks: StructuredBlock[]): string {
 export function StructuredBlocks({
   data,
   animate = false,
+  onAnimationComplete,
   className,
 }: StructuredBlocksProps) {
   const firstBlockText = extractFirstBlockText(data.blocks);
   const { displayed, isTyping, skip } = useTypewriter({
     text: firstBlockText,
     enabled: animate && firstBlockText.length > 0,
+    onComplete: onAnimationComplete,
   });
 
   function handleSkip(

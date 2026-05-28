@@ -251,7 +251,7 @@ describe("TraceTimeline", () => {
       (n) => n.getAttribute("data-event-type") === "PriorRunHintReplayed"
     );
     expect(replayNode).toBeDefined();
-    expect(replayNode).toHaveTextContent("Prior result reused");
+    expect(replayNode).toHaveTextContent("Resultado reutilizado");
     expect(replayNode).toHaveTextContent("confidence 0.92");
   });
 });

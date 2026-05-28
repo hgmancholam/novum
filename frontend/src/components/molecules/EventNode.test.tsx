@@ -95,7 +95,7 @@ describe("EventNode", () => {
         onToggle={() => {}}
       />
     );
-    expect(screen.getByTestId("event-node")).toHaveTextContent("Stopped");
+    expect(screen.getByTestId("event-node")).toHaveTextContent("Listo");
   });
 
   it("has no accessibility violations", async () => {
@@ -125,7 +125,7 @@ describe("EventNode", () => {
         <EventNode event={priorEvent} expanded={false} onToggle={() => {}} />
       );
       const node = screen.getByTestId("event-node");
-      expect(node).toHaveTextContent("Prior result reused");
+      expect(node).toHaveTextContent("Resultado reutilizado");
       expect(node).toHaveTextContent("Same question answered");
       expect(node).toHaveTextContent("confidence 0.93");
     });

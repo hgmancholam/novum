@@ -9,7 +9,7 @@ describe("ResearchingBanner", () => {
     render(<ResearchingBanner />);
     expect(screen.getByTestId("researching-banner")).toBeInTheDocument();
     expect(screen.getByTestId("researching-activity")).toHaveTextContent(
-      "Working on it",
+      "Trabajando en ello",
     );
   });
 

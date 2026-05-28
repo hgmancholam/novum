@@ -14,10 +14,12 @@ import { cn } from "@/lib/cn";
 export interface TracePanelProps {
   header?: ReactNode;
   body?: ReactNode;
+  /** When true, padding shrinks so the header fits inside the 40px collapsed rail. */
+  isCollapsed?: boolean;
   className?: string;
 }
 
-export function TracePanel({ header, body, className }: TracePanelProps) {
+export function TracePanel({ header, body, isCollapsed = false, className }: TracePanelProps) {
   return (
     <GlassSurface
       data-testid="trace-panel"
@@ -27,7 +29,12 @@ export function TracePanel({ header, body, className }: TracePanelProps) {
       className={cn("flex h-full w-full flex-col", className)}
     >
       {header !== undefined ? (
-        <header className="border-b border-[var(--glass-border)] px-4 py-3">
+        <header
+          className={cn(
+            "border-b border-[var(--glass-border)]",
+            isCollapsed ? "px-1 py-2" : "px-4 py-3",
+          )}
+        >
           {header}
         </header>
       ) : null}
@@ -35,7 +42,10 @@ export function TracePanel({ header, body, className }: TracePanelProps) {
         role="log"
         aria-live="polite"
         aria-label="Event trace"
-        className="flex-1 overflow-y-auto px-3 py-3"
+        className={cn(
+          "flex-1 overflow-y-auto",
+          isCollapsed ? "p-0" : "px-3 py-3",
+        )}
       >
         {body}
       </div>

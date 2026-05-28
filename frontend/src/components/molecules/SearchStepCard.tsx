@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import { motion } from "motion/react";
 import { FeedStep } from "./FeedStep";
 import { SourceLinkRow, Badge, CollapseToggleButton } from "@/components/atoms";
 import { FEED_SEARCHED_WEB, FEED_RESULTS_COUNT } from "@/lib/microcopy";
@@ -53,28 +54,37 @@ export function SearchStepCard({
       {sources.length > 0 ? (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-[var(--text-muted)]">Sources</span>
+            <span className="text-xs text-[var(--text-muted)]">Fuentes</span>
             {autoCollapse ? (
               <CollapseToggleButton
                 isCollapsed={isCollapsed}
                 onToggle={() => {
                   setIsCollapsed(!isCollapsed);
                 }}
-                labelCollapse="Collapse sources"
-                labelExpand="Expand sources"
+                labelCollapse="Ocultar fuentes"
+                labelExpand="Mostrar fuentes"
               />
             ) : null}
           </div>
           {!isCollapsed ? (
             <ul className={cn("flex flex-col gap-0.5")}>
               {sources.map((src, idx) => (
-                <li key={`${src.url}-${idx.toString()}`}>
+                <motion.li
+                  key={`${src.url}-${idx.toString()}`}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{
+                    duration: 0.25,
+                    delay: idx * 0.08,
+                    ease: "easeOut",
+                  }}
+                >
                   <SourceLinkRow
                     url={src.url}
                     title={src.title}
                     sourceType={src.sourceType}
                   />
-                </li>
+                </motion.li>
               ))}
             </ul>
           ) : null}

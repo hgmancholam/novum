@@ -9,6 +9,15 @@ import type { EventType } from "@/types/events";
 import { cn } from "@/lib/cn";
 import { FeedStepIcon } from "@/components/atoms";
 
+const DECISION_TYPES: ReadonlySet<EventType> = new Set<EventType>([
+  "PlanCreated",
+  "PlanRevised",
+  "JudgeRuled",
+  "ContradictionDetected",
+  "AmbiguityDetected",
+  "Stopped",
+]);
+
 export interface FeedStepProps {
   type: EventType;
   title: string;
@@ -30,16 +39,17 @@ export function FeedStep({
   children,
   className,
 }: FeedStepProps) {
+  const isDecision = DECISION_TYPES.has(type);
   return (
     <motion.li
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.15, ease: "easeOut" }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       data-type={type}
       data-active={isActive}
       className={cn(
-        "relative flex gap-3 pl-2",
-        !isLast && "pb-3",
+        "relative flex gap-3",
+        !isLast && "pb-4",
         className
       )}
     >
@@ -49,7 +59,14 @@ export function FeedStep({
       {/* Content column */}
       <div className="flex-1 min-w-0 pt-0.5">
         <div className="flex items-center justify-between gap-2 mb-1">
-          <h4 className="text-sm font-medium text-[var(--text-primary)]">
+          <h4
+            className={cn(
+              "text-sm text-[var(--text-primary)]",
+              isDecision ? "font-semibold" : "font-medium",
+              type === "ContradictionDetected" && "text-[var(--semantic-warning)]",
+              type === "AmbiguityDetected" && "italic",
+            )}
+          >
             {title}
           </h4>
           {deltaMs !== undefined ? (

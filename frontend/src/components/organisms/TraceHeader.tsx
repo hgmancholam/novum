@@ -28,20 +28,24 @@ export function TraceHeader({
   return (
     <div
       data-testid="trace-header"
-      className={cn("flex items-center justify-between gap-2", className)}
+      className={cn(
+        "flex items-center gap-2",
+        isCollapsed ? "justify-center" : "justify-between",
+        className,
+      )}
     >
-      <div className="flex flex-col">
-        <h2 className="text-sm font-medium text-[var(--text-primary)]">Trace</h2>
-        {!isCollapsed ? (
+      {!isCollapsed ? (
+        <div className="flex flex-col">
+          <h2 className="text-sm font-medium text-[var(--text-primary)]">Trace</h2>
           <span className="text-[10px] text-[var(--text-muted)]">
             {eventCount === 0
-              ? "no events yet"
+              ? "sin eventos aún"
               : eventCount === 1
-                ? "1 event"
-                : `${eventCount.toString()} events`}
+                ? "1 evento"
+                : `${eventCount.toString()} eventos`}
           </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <div className="flex items-center gap-2">
         {isStreaming && !isCollapsed ? (
           <span

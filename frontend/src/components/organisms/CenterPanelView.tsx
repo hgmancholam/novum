@@ -15,6 +15,7 @@
 import { OutcomeBar, GlassSurface } from "@/components/atoms";
 import { FormatSelector } from "@/components/molecules";
 import { cn } from "@/lib/cn";
+import { useCallback, useState } from "react";
 import type { Run, RunStatus } from "@/types/run";
 import type { StructuredAnswerData, RunStreamEvent } from "@/types/events";
 import {
@@ -76,15 +77,17 @@ export function CenterPanelView({
     run.stopReason === "judge_confirmed" &&
     (answerProse !== null && answerProse !== undefined);
 
-  // IP-24 Phase 3.5: Determine if answer should animate
-  const shouldAnimate =
-    isAnimateAnswerEnabled() && hasAnswer && !hasAnswerBeenAnimated(run.id);
+  // IP-24 Phase 3.5: Stable `shouldAnimate` for the lifetime of the
+  // component instance. Computed once on mount so re-renders triggered
+  // by the typewriter itself do not flip it back to `false`.
+  const [shouldAnimate] = useState<boolean>(() =>
+    isAnimateAnswerEnabled() && hasAnswer && !hasAnswerBeenAnimated(run.id),
+  );
 
-  // Mark as animated when typing completes (via effect in future)
-  // For now, mark immediately to prevent re-animation on this page load
-  if (shouldAnimate && hasAnswer) {
+  // Mark as animated only after the typewriter finishes its run.
+  const handleAnswerAnimationComplete = useCallback(() => {
     markAnswerAnimated(run.id);
-  }
+  }, [run.id]);
 
   const isStructured = viewFormat === "structured";
 
@@ -122,7 +125,7 @@ export function CenterPanelView({
         <OutcomeBar reason={run.stopReason} />
       ) : null}
 
-      <div className="flex flex-col gap-4 px-6 py-6">
+      <div className="flex flex-col gap-6 px-6 py-6">
         <RunHeader run={run} status={status} />
         <QuestionDisplay question={run.question} />
 
@@ -131,7 +134,9 @@ export function CenterPanelView({
         {events !== undefined &&
         events.length > 0 &&
         !showPostResumeNotice ? (
-          <RunFeed events={events} isComplete={isTerminal} />
+          <div className="mt-2">
+            <RunFeed events={events} isComplete={isTerminal} />
+          </div>
         ) : null}
 
         {isTerminal && run.stopReason !== null ? (
@@ -153,12 +158,14 @@ export function CenterPanelView({
                   <StructuredBlocks
                     data={answerStructuredData!}
                     animate={shouldAnimate}
+                    onAnimationComplete={handleAnswerAnimationComplete}
                     data-testid="run-answer"
                   />
                 ) : (
                   <StructuredAnswer
                     content={activeContent}
                     animate={shouldAnimate}
+                    onAnimationComplete={handleAnswerAnimationComplete}
                     outputFormat={
                       (viewFormat ?? run.outputFormat ?? "prose") as
                         | "prose"

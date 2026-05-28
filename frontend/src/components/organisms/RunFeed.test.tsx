@@ -98,7 +98,7 @@ describe("RunFeed", () => {
       timestamp_ms: 1000,
     };
     render(<RunFeed events={[planEvent]} isComplete={false} />);
-    expect(screen.getByText("Drafted a plan")).toBeInTheDocument();
+    expect(screen.getByText("Construí el plan de búsqueda")).toBeInTheDocument();
     expect(screen.getByText("Breaking down the question")).toBeInTheDocument();
   });
 
@@ -113,7 +113,7 @@ describe("RunFeed", () => {
       timestamp_ms: 1000,
     };
     render(<RunFeed events={[judgeEvent]} isComplete={false} />);
-    expect(screen.getByText("Confirmed")).toBeInTheDocument();
+    expect(screen.getByText("Confirmado")).toBeInTheDocument();
     expect(screen.getByText(/85%/)).toBeInTheDocument();
   });
 
@@ -124,7 +124,7 @@ describe("RunFeed", () => {
         isComplete={true}
       />
     );
-    expect(screen.getByText(/Reasoning trace/)).toBeInTheDocument();
+    expect(screen.getByText(/Razonamiento/)).toBeInTheDocument();
   });
 
   it("does not show collapse header when not complete", () => {
@@ -134,7 +134,7 @@ describe("RunFeed", () => {
         isComplete={false}
       />
     );
-    expect(screen.queryByText(/Reasoning trace/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Razonamiento/)).not.toBeInTheDocument();
   });
 
   it("collapses feed when toggle is clicked", async () => {
@@ -146,7 +146,7 @@ describe("RunFeed", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: /collapse/i });
+    const toggle = screen.getByRole("button", { name: /ocultar/i });
     await user.click(toggle);
 
     expect(screen.queryByText(/"AI systems"/)).not.toBeInTheDocument();
@@ -161,7 +161,7 @@ describe("RunFeed", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: /collapse/i });
+    const toggle = screen.getByRole("button", { name: /ocultar/i });
     await user.click(toggle);
 
     expect(localStorage.getItem("novum_run_feed_collapsed")).toBe("1");

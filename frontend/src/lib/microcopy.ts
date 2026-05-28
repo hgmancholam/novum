@@ -28,20 +28,25 @@ export const RATE_LIMIT_MODAL_HINT =
 
 export const RATE_LIMIT_MODAL_CLOSE = "Got it";
 
-// Feed microcopy (IP-24)
-export const FEED_LET_ME_SEARCH = "Let me search for {query}…";
-export const FEED_LET_ME_FETCH = "Let me read this page…";
-export const FEED_LET_ME_THINK = "Let me work this through…";
-export const FEED_SEARCHED_WEB = "Searched the web";
-export const FEED_FETCHED_PAGE = "Fetched the page";
-export const FEED_DONE = "Done";
-export const FEED_TOGGLE_COLLAPSE = "Collapse reasoning";
-export const FEED_TOGGLE_EXPAND = "Expand reasoning";
-export const TRACE_PANEL_COLLAPSE = "Collapse trace";
-export const TRACE_PANEL_EXPAND = "Expand trace";
-export const ANSWER_SKIP_HINT = "Click to skip";
-export const ANSWER_ANIMATE_TOGGLE = "Animate answer";
+// Feed microcopy (IP-24) — Spanish per "storytelling" UX directive
+export const FEED_LET_ME_SEARCH = "Voy a buscar sobre {query}…";
+export const FEED_LET_ME_FETCH = "Déjame leer esta página…";
+export const FEED_LET_ME_THINK = "Déjame pensarlo bien…";
+export const FEED_SEARCHED_WEB = "Busqué en la web";
+export const FEED_FETCHED_PAGE = "Leí la página";
+export const FEED_DONE = "Listo";
+export const FEED_TOGGLE_COLLAPSE = "Ocultar razonamiento";
+export const FEED_TOGGLE_EXPAND = "Mostrar razonamiento";
+export const TRACE_PANEL_COLLAPSE = "Colapsar trace";
+export const TRACE_PANEL_EXPAND = "Expandir trace";
+export const ANSWER_SKIP_HINT = "Click para saltar";
+export const ANSWER_ANIMATE_TOGGLE = "Animar respuesta";
 
 export function FEED_RESULTS_COUNT(n: number): string {
-  return n === 1 ? "1 result" : `${n.toString()} results`;
+  return n === 1 ? "1 resultado" : `${n.toString()} resultados`;
+}
+
+export function FEED_REASONING_TRACE(stepCount: number, seconds: number): string {
+  const stepLabel = stepCount === 1 ? "paso" : "pasos";
+  return `Razonamiento (${stepCount.toString()} ${stepLabel} · ${seconds.toString()}s)`;
 }

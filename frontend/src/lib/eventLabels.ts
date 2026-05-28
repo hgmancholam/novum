@@ -17,59 +17,59 @@
 import type { EventType } from "@/types/events";
 
 export const EVENT_LABELS: Record<EventType, string> = {
-  QuestionAsked: "Question",
-  QuestionNormalized: "Normalized question",
-  QuestionClassified: "Question classified",
-  PlanCreated: "Plan",
-  PlanCritiqued: "Plan critique",
-  PlanRevised: "Plan revision",
-  ToolCalled: "Search",
-  EvidenceAdded: "Evidence",
-  ClaimCovered: "Claim covered",
-  ClaimUncoverable: "Claim uncoverable",
-  SourceFailed: "Source failed",
-  AmbiguityDetected: "Ambiguity",
-  ContradictionDetected: "Contradiction",
-  ContradictionResolved: "Contradiction resolved",
-  UserContextChallenged: "Context challenged",
-  PriorRunHintReplayed: "Prior result reused",
-  JudgeRuled: "Judge ruling",
-  ConfidenceMismatch: "Confidence mismatch",
-  AgentErrored: "Agent error",
-  ResumedAfterError: "Resumed after error",
-  ResumedAfterCancel: "Resumed after cancel",
-  Stopped: "Stopped",
-  SaturationDetected: "Saturation",
-  JudgeProviderDegraded: "Judge degraded",
-  DeepFetchPerformed: "Deep fetch",
+  QuestionAsked: "Pregunta",
+  QuestionNormalized: "Pregunta replanteada",
+  QuestionClassified: "Tipo de pregunta",
+  PlanCreated: "Plan de búsqueda",
+  PlanCritiqued: "Revisión del plan",
+  PlanRevised: "Plan ajustado",
+  ToolCalled: "Búsqueda",
+  EvidenceAdded: "Evidencia",
+  ClaimCovered: "Afirmación cubierta",
+  ClaimUncoverable: "Afirmación sin evidencia",
+  SourceFailed: "Fuente no disponible",
+  AmbiguityDetected: "Ambigüedad",
+  ContradictionDetected: "Contradicción",
+  ContradictionResolved: "Contradicción resuelta",
+  UserContextChallenged: "Contexto cuestionado",
+  PriorRunHintReplayed: "Resultado reutilizado",
+  JudgeRuled: "Veredicto del juez",
+  ConfidenceMismatch: "Inconsistencia en la confianza",
+  AgentErrored: "Error del agente",
+  ResumedAfterError: "Retomado tras error",
+  ResumedAfterCancel: "Retomado tras cancelación",
+  Stopped: "Listo",
+  SaturationDetected: "Saturación",
+  JudgeProviderDegraded: "Juez degradado",
+  DeepFetchPerformed: "Lectura profunda",
 };
 
 export const EVENT_ACTIVITIES: Record<EventType, string> = {
-  QuestionAsked: "Reading your question",
-  QuestionNormalized: "Understanding the question",
-  QuestionClassified: "Classifying the question",
-  PlanCreated: "Drafting a plan",
-  PlanCritiqued: "Reviewing the plan",
-  PlanRevised: "Refining the plan",
-  ToolCalled: "Searching the web",
-  EvidenceAdded: "Reading evidence",
-  ClaimCovered: "Checking claims",
-  ClaimUncoverable: "Marking gaps",
-  SourceFailed: "Retrying a source",
-  AmbiguityDetected: "Spotting ambiguity",
-  ContradictionDetected: "Spotting a contradiction",
-  ContradictionResolved: "Reconciling sources",
-  UserContextChallenged: "Asking for context",
-  PriorRunHintReplayed: "Retrieving cached answer",
-  JudgeRuled: "Judging the answer",
-  ConfidenceMismatch: "Reviewing confidence",
-  AgentErrored: "Recovering from an error",
-  ResumedAfterError: "Picking up where it left off",
-  ResumedAfterCancel: "Picking up where it left off",
-  Stopped: "Wrapping up",
-  SaturationDetected: "Detecting saturation",
-  JudgeProviderDegraded: "Switching judge provider",
-  DeepFetchPerformed: "Fetching full page",
+  QuestionAsked: "Recibí tu pregunta",
+  QuestionNormalized: "Reescribiendo la pregunta para entenderla mejor",
+  QuestionClassified: "Analizando de qué se trata",
+  PlanCreated: "Vamos a construir el plan de búsqueda",
+  PlanCritiqued: "Revisando el plan antes de seguir",
+  PlanRevised: "Replanteando el enfoque",
+  ToolCalled: "Buscando en la web",
+  EvidenceAdded: "Leyendo lo que encontré",
+  ClaimCovered: "Marcando una afirmación como cubierta",
+  ClaimUncoverable: "Identificando vacíos de información",
+  SourceFailed: "Reintentando una fuente",
+  AmbiguityDetected: "Detectando ambigüedad en la pregunta",
+  ContradictionDetected: "Encontré información contradictoria",
+  ContradictionResolved: "Reconciliando lo que dicen las fuentes",
+  UserContextChallenged: "Necesito un poco más de contexto",
+  PriorRunHintReplayed: "Recuperando una respuesta anterior",
+  JudgeRuled: "Evaluando si la respuesta es suficiente",
+  ConfidenceMismatch: "Revisando los niveles de confianza",
+  AgentErrored: "Recuperándome de un error",
+  ResumedAfterError: "Retomando desde donde quedé",
+  ResumedAfterCancel: "Retomando desde donde quedé",
+  Stopped: "Cerrando todo",
+  SaturationDetected: "Detectando saturación",
+  JudgeProviderDegraded: "Cambiando el juez de respaldo",
+  DeepFetchPerformed: "Leyendo la página completa",
 };
 
 export function getEventLabel(type: string): string {
@@ -78,9 +78,9 @@ export function getEventLabel(type: string): string {
 
 export function getEventActivity(type: string | undefined): string {
   if (type === undefined || type === "") {
-    return "Working on it";
+    return "Trabajando en ello";
   }
-  return EVENT_ACTIVITIES[type as EventType] ?? "Working on it";
+  return EVENT_ACTIVITIES[type as EventType] ?? "Trabajando en ello";
 }
 
 /**
@@ -97,9 +97,9 @@ export function getEventNarrative(
     case "ToolCalled": {
       const query = payload["query"];
       if (typeof query === "string" && query.length > 0) {
-        return `Searched the web for "${query}"`;
+        return `Busqué en la web: "${query}"`;
       }
-      return "Searched the web";
+      return "Busqué en la web";
     }
     case "EvidenceAdded": {
       const title = payload["source_title"];
@@ -107,26 +107,26 @@ export function getEventNarrative(
       if (typeof title === "string" && typeof url === "string") {
         try {
           const hostname = new URL(url).hostname.replace(/^www\./, "");
-          return `Read "${title}" (${hostname})`;
+          return `Leí "${title}" (${hostname})`;
         } catch {
-          return `Read "${title}"`;
+          return `Leí "${title}"`;
         }
       }
-      return "Read a source";
+      return "Leí una fuente";
     }
     case "JudgeRuled": {
       const confidence = payload["final_confidence"];
       if (typeof confidence === "number") {
-        return `Judge verdict: confidence ${confidence.toFixed(2)}`;
+        return `Veredicto del juez: confianza ${confidence.toFixed(2)}`;
       }
-      return "Judge ruled on the answer";
+      return "El juez evaluó la respuesta";
     }
     case "Stopped": {
       const stopReason = payload["stop_reason"];
       if (typeof stopReason === "string") {
-        return `Wrapped up — ${stopReason}`;
+        return `Terminé — ${stopReason}`;
       }
-      return "Wrapped up";
+      return "Terminé";
     }
     default:
       return getEventActivity(type);

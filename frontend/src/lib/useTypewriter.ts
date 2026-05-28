@@ -16,6 +16,8 @@ export interface UseTypewriterOptions {
   text: string;
   enabled: boolean;
   charsPerSecond?: number;
+  /** Fires once the typewriter has fully revealed `text` (after natural finish or skip). */
+  onComplete?: (() => void) | undefined;
 }
 
 export interface UseTypewriterResult {
@@ -33,7 +35,7 @@ function getAdaptiveSpeed(textLength: number): number {
 export function useTypewriter(
   options: UseTypewriterOptions
 ): UseTypewriterResult {
-  const { text, enabled, charsPerSecond } = options;
+  const { text, enabled, charsPerSecond, onComplete } = options;
 
   const speed = charsPerSecond ?? getAdaptiveSpeed(text.length);
 
@@ -46,6 +48,15 @@ export function useTypewriter(
   const skippedRef = useRef<boolean>(false);
   const textRef = useRef(text); // WHY: skip() needs current text, not stale closure
   textRef.current = text;
+  const onCompleteRef = useRef<typeof onComplete>(onComplete);
+  onCompleteRef.current = onComplete;
+  const completedRef = useRef<boolean>(false);
+
+  const fireComplete = (): void => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    onCompleteRef.current?.();
+  };
 
   const skip = (): void => {
     skippedRef.current = true;
@@ -55,6 +66,7 @@ export function useTypewriter(
     }
     setDisplayed(textRef.current); // WHY: use ref to avoid stale closure
     setIsTyping(false);
+    fireComplete();
   };
 
   useEffect(() => {
