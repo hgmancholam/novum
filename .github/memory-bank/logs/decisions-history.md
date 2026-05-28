@@ -46,7 +46,7 @@ Three of the six commits change agent *behaviour at terminal states*, which is e
 ### Pending follow-ups
 1. Smoke-test the chain end-to-end with a state-of-art question to observe SS + OpenAlex selection and citation lift in a real run.
 2. Deploy backend to Hetzner.
-3. Frontend: surface `AnswerKind.BEST_EFFORT` in `AnswerPanel` so the user can see the run is a fallback, not a confirmed answer.
+3. ~~Frontend: surface `AnswerKind.BEST_EFFORT` in `AnswerPanel` so the user can see the run is a fallback, not a confirmed answer.~~ **CLOSED 2026-05-28 (commit `6f822fd`)** — `CenterPanelContainer` extracts `answer_kind` from the terminal `Stopped` event and `CenterPanelView` renders a glass-tinted banner with a `Badge variant="warning"` reading "Best-effort answer" + description on `stopped_by_budget + answer_kind="best_effort"`. Per binding `ui-design.md` §2.7 / §6.4 the badge uses `--semantic-warning` (NOT `--warm`, §2.5 reserves amber for trust-confirmed). `Badge` extended to forward HTML attrs; `scripts/export_types.py` now emits `AnswerKind` + preserves `RunStreamEvent`. Vitest 605 passed / 1 pre-existing UsernameModal baseline.
 
 ### Cross-references
 - L-022 (lessons-learned) — `messages[-1]` vs `messages[0]` pitfall, surfaced while writing the C2 test.
