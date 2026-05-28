@@ -12,12 +12,16 @@
  * via `useRun` and renders this view inside the `templates/CenterPanel` body.
  */
 
-import { OutcomeBar, GlassSurface } from "@/components/atoms";
+import { OutcomeBar, GlassSurface, Badge } from "@/components/atoms";
 import { FormatSelector } from "@/components/molecules";
 import { cn } from "@/lib/cn";
+import {
+  ANSWER_KIND_BEST_EFFORT_DESCRIPTION,
+  ANSWER_KIND_BEST_EFFORT_LABEL,
+} from "@/lib/microcopy";
 import { useCallback, useState } from "react";
 import type { Run, RunStatus } from "@/types/run";
-import type { StructuredAnswerData, RunStreamEvent } from "@/types/events";
+import type { AnswerKind, StructuredAnswerData, RunStreamEvent } from "@/types/events";
 import {
   isAnimateAnswerEnabled,
   hasAnswerBeenAnimated,
@@ -44,6 +48,8 @@ export interface CenterPanelViewProps {
   answerStructured?: string | null | undefined;
   /** Final answer — typed structured JSON (RF-10). Frontend renders blocks natively. */
   answerStructuredData?: StructuredAnswerData | null | undefined;
+  /** RF-17: shape of the answer (best_effort surfaces a warning badge). */
+  answerKind?: AnswerKind | null | undefined;
   /** Currently active view format for client-side switching. */
   viewFormat?: string | undefined;
   /** Called when the user clicks a different format button. */
@@ -64,6 +70,7 @@ export function CenterPanelView({
   answerProse,
   answerStructured,
   answerStructuredData,
+  answerKind,
   viewFormat,
   onViewFormatChange,
   sources,
@@ -72,10 +79,19 @@ export function CenterPanelView({
   className,
 }: CenterPanelViewProps) {
   const isTerminal = status === "stopped" && run.stopReason !== null;
-  const hasAnswer =
+  const hasProse = answerProse !== null && answerProse !== undefined;
+  // C3 fallback: when the judge cap fires, the orchestrator still drafts a
+  // best-effort answer and stops with STOPPED_BY_BUDGET. We render it like a
+  // normal answer but tagged with a warning badge so the user sees the
+  // difference vs a judge-confirmed run.
+  const isBestEffortFallback =
     isTerminal &&
-    run.stopReason === "judge_confirmed" &&
-    (answerProse !== null && answerProse !== undefined);
+    run.stopReason === "stopped_by_budget" &&
+    answerKind === "best_effort" &&
+    hasProse;
+  const hasAnswer =
+    (isTerminal && run.stopReason === "judge_confirmed" && hasProse) ||
+    isBestEffortFallback;
 
   // IP-24 Phase 3.5: Stable `shouldAnimate` for the lifetime of the
   // component instance. Computed once on mount so re-renders triggered
@@ -158,6 +174,25 @@ export function CenterPanelView({
           <div className="flex flex-col gap-3 px-6 py-6">
             {hasAnswer && activeContent !== null ? (
               <>
+                {isBestEffortFallback ? (
+                  <div
+                    data-testid="answer-kind-banner"
+                    className={cn(
+                      "flex flex-col gap-2 rounded-lg px-4 py-3",
+                      "border border-(--glass-border) bg-(--glass-bg) backdrop-blur",
+                    )}
+                  >
+                    <Badge
+                      variant="warning"
+                      data-testid="answer-kind-badge"
+                    >
+                      {ANSWER_KIND_BEST_EFFORT_LABEL}
+                    </Badge>
+                    <p className="text-xs leading-relaxed text-(--text-secondary)">
+                      {ANSWER_KIND_BEST_EFFORT_DESCRIPTION}
+                    </p>
+                  </div>
+                ) : null}
                 {showFormatSelector ? (
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-(--text-muted)">

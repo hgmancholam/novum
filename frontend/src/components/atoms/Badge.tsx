@@ -3,7 +3,7 @@
  * See ui-prototype.md §1.3 (color tokens) and §8.2 (atoms).
  */
 
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 export type BadgeVariant =
@@ -14,10 +14,9 @@ export type BadgeVariant =
   | "info"
   | "secondary";
 
-export interface BadgeProps {
+export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;
   children: ReactNode;
-  className?: string | undefined;
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
@@ -38,6 +37,7 @@ export function Badge({
   variant = "default",
   children,
   className,
+  ...rest
 }: BadgeProps) {
   return (
     <span
@@ -47,6 +47,7 @@ export function Badge({
         variantStyles[variant],
         className
       )}
+      {...rest}
     >
       {children}
     </span>

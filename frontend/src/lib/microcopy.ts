@@ -41,6 +41,12 @@ export const TRACE_PANEL_EXPAND = "Expand trace";
 export const ANSWER_SKIP_HINT = "Click to skip";
 export const ANSWER_ANIMATE_TOGGLE = "Animate answer";
 
+// Answer-kind badge (RF-17). Surfaced when the agent could not reach
+// `judge_confirmed` and fell back to BEST_EFFORT after the judge cap fired.
+export const ANSWER_KIND_BEST_EFFORT_LABEL = "Best-effort answer";
+export const ANSWER_KIND_BEST_EFFORT_DESCRIPTION =
+  "The judge could not validate this answer after three attempts. The agent shares what it knows, what is still uncertain, and what would close the gap.";
+
 export function FEED_RESULTS_COUNT(n: number): string {
   return n === 1 ? "1 result" : `${n.toString()} results`;
 }

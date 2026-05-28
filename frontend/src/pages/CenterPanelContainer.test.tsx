@@ -347,4 +347,35 @@ describe("CenterPanelContainer", () => {
     });
     expect(screen.queryByTestId("post-resume-notice")).not.toBeInTheDocument();
   });
+
+  it("surfaces the best-effort badge when the Stopped event carries answer_kind=best_effort (C3 / RF-17)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        makeDto({
+          stop_reason: "stopped_by_budget",
+          stopped_at: "2026-05-26T00:05:00Z",
+        }),
+      ),
+    );
+    streamMock.mockImplementation(() =>
+      streamWith([
+        {
+          id: "evt-stop",
+          type: "Stopped",
+          step_index: 9,
+          stop_reason: "stopped_by_budget",
+          answer_kind: "best_effort",
+          answer_prose: "Here is the best the agent could assemble.",
+        },
+      ]),
+    );
+
+    renderWithRouter(<CenterPanelContainer />);
+    await waitFor(() => {
+      expect(screen.getByTestId("answer-kind-badge")).toHaveTextContent(
+        /best-effort answer/i,
+      );
+    });
+    expect(screen.getByTestId("structured-answer")).toBeInTheDocument();
+  });
 });

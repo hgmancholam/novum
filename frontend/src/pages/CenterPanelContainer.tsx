@@ -26,7 +26,7 @@ import {
 import { CenterPanel } from "@/components/templates";
 import { useRun } from "@/hooks/useRun";
 import { useRunStream } from "@/hooks/useRunStream";
-import { FORKABLE_EVENTS, type EventType, type StructuredAnswerData, type RunStreamEvent } from "@/types/events";
+import { FORKABLE_EVENTS, type AnswerKind, type EventType, type StructuredAnswerData, type RunStreamEvent } from "@/types/events";
 
 const FORKABLE_SET: ReadonlySet<string> = new Set<string>(FORKABLE_EVENTS);
 const RESUME_EVENT_TYPES: ReadonlySet<EventType> = new Set<EventType>([
@@ -195,6 +195,29 @@ export function CenterPanelContainer() {
     return null;
   }, [events]);
 
+  // RF-17 / C3 fallback: terminal Stopped event carries the AnswerKind that
+  // shaped the synthesizer prompt. We surface it as a badge so the user can
+  // tell a judge-confirmed answer from a best-effort fallback.
+  const answerKind = useMemo<AnswerKind | null>(() => {
+    for (const e of events) {
+      if (e.type !== "Stopped") {
+        continue;
+      }
+      const raw = (e as Record<string, unknown>)["answer_kind"];
+      if (
+        raw === "direct" ||
+        raw === "weighted" ||
+        raw === "scenario" ||
+        raw === "tradeoff" ||
+        raw === "ethical_redirect" ||
+        raw === "best_effort"
+      ) {
+        return raw;
+      }
+    }
+    return null;
+  }, [events]);
+
   /**
    * Confidence metrics from the last JudgeRuled event (RF-12).
    * final_confidence = min(structural, judge).
@@ -359,6 +382,7 @@ export function CenterPanelContainer() {
               answerProse={answerProse}
               answerStructured={answerStructured}
               answerStructuredData={answerStructuredData}
+              answerKind={answerKind}
               viewFormat={viewFormat}
               onViewFormatChange={setViewFormat}
               sources={sources}

@@ -66,4 +66,63 @@ describe("CenterPanelView", () => {
     expect(screen.queryByTestId("stop-reason-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("run-feed")).not.toBeInTheDocument();
   });
+
+  describe("best-effort fallback (C3 / RF-17)", () => {
+    const bestEffortRun = makeRun({
+      stoppedAt: "2026-05-26T00:05:00Z",
+      stopReason: "stopped_by_budget",
+    });
+
+    it("renders the badge + answer when stop_reason=stopped_by_budget and answer_kind=best_effort", () => {
+      render(
+        <CenterPanelView
+          run={bestEffortRun}
+          status="stopped"
+          answerKind="best_effort"
+          answerProse="Here is what we know so far."
+        />,
+      );
+      expect(screen.getByTestId("answer-kind-badge")).toHaveTextContent(
+        /best-effort answer/i,
+      );
+      expect(screen.getByTestId("answer-kind-banner")).toHaveTextContent(
+        /could not validate this answer/i,
+      );
+      expect(screen.getByTestId("structured-answer")).toBeInTheDocument();
+    });
+
+    it("does not render the badge for judge_confirmed answers", () => {
+      const confirmedRun = makeRun({
+        stoppedAt: "2026-05-26T00:05:00Z",
+        stopReason: "judge_confirmed",
+      });
+      render(
+        <CenterPanelView
+          run={confirmedRun}
+          status="stopped"
+          answerKind="direct"
+          answerProse="Yes."
+        />,
+      );
+      expect(screen.queryByTestId("answer-kind-badge")).not.toBeInTheDocument();
+      expect(screen.getByTestId("structured-answer")).toBeInTheDocument();
+    });
+
+    it("does not render the answer when answer_kind is best_effort but stop_reason is not stopped_by_budget", () => {
+      const userCancelled = makeRun({
+        stoppedAt: "2026-05-26T00:05:00Z",
+        stopReason: "user_cancelled",
+      });
+      render(
+        <CenterPanelView
+          run={userCancelled}
+          status="stopped"
+          answerKind="best_effort"
+          answerProse="Should not show."
+        />,
+      );
+      expect(screen.queryByTestId("answer-kind-badge")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("structured-answer")).not.toBeInTheDocument();
+    });
+  });
 });

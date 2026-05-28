@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-28T02:19:08.568165+00:00
+// Generated: 2026-05-28T08:57:43.361941+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -33,7 +33,9 @@ export type EvidencePolarity =
 
 export type SourceType =
   | "tavily"
-  | "wikipedia";
+  | "wikipedia"
+  | "semantic_scholar"
+  | "openalex";
 
 export type EventType =
   | "QuestionAsked"
@@ -78,6 +80,14 @@ export type AuthorityTier =
   | "reputable_secondary"
   | "general"
   | "low_signal";
+
+export type AnswerKind =
+  | "direct"
+  | "weighted"
+  | "scenario"
+  | "tradeoff"
+  | "ethical_redirect"
+  | "best_effort";
 
 // ---------------------------------------------------------------------------
 // RunStreamEvent (IP-24) — shared type for SSE events consumed by feed/organisms
@@ -3009,7 +3019,9 @@ export const EventSchema = {
       "description": "Source plugin identifiers.",
       "enum": [
         "tavily",
-        "wikipedia"
+        "wikipedia",
+        "semantic_scholar",
+        "openalex"
       ],
       "title": "SourceType",
       "type": "string"

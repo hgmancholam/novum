@@ -22,6 +22,7 @@ sys.path.insert(0, str(_BACKEND))
 from pydantic import TypeAdapter  # noqa: E402
 
 from app.domain.enums import (  # noqa: E402
+    AnswerKind,
     AuthorityTier,
     ComplexityHint,
     EventType,
@@ -58,6 +59,7 @@ def _build_output() -> str:
         ("ComplexityHint", [v.value for v in ComplexityHint]),
         ("TemporalSensitivity", [v.value for v in TemporalSensitivity]),
         ("AuthorityTier", [v.value for v in AuthorityTier]),
+        ("AnswerKind", [v.value for v in AnswerKind]),
     ]
 
     adapter: TypeAdapter[Event] = TypeAdapter(Event)
@@ -76,6 +78,19 @@ def _build_output() -> str:
     lines.append("")
     for name, values in enums:
         lines.append(_render_enum(name, values))
+
+    lines.append("// ---------------------------------------------------------------------------")
+    lines.append("// RunStreamEvent (IP-24) — shared type for SSE events consumed by feed/organisms")
+    lines.append("// Moved from @/hooks/useRunStream to satisfy Atomic Design §8.1 (B2 fix)")
+    lines.append("// ---------------------------------------------------------------------------")
+    lines.append("")
+    lines.append("export interface RunStreamEvent {")
+    lines.append("  type: string;")
+    lines.append("  step_index?: number;")
+    lines.append("  timestamp_ms?: number;")
+    lines.append("  [key: string]: unknown;")
+    lines.append("}")
+    lines.append("")
 
     lines.append("// ---------------------------------------------------------------------------")
     lines.append("// Forkable events (RF-03): user-selectable branch points.")
