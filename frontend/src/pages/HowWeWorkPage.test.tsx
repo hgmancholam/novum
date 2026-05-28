@@ -5,7 +5,7 @@
  *  - Hero, pipeline diagram, lane cards, anatomy of a run, stop reasons, strategy table, CTA all render.
  *  - The diagram exposes a labelled SVG (role="img").
  *  - "Back to Novum" link points at /.
- *  - All seven stop_reason values are present (RF-02).
+ *  - All four stop_reason values are present (RF-02, post WP-3).
  *  - The standard lane is highlighted as Novum's pick.
  *  - No jest-axe a11y violations.
  */
@@ -43,7 +43,7 @@ describe("HowWeWorkPage", () => {
 
   it("renders the three lane cards", () => {
     renderPage();
-    expect(screen.getByRole("heading", { level: 3, name: "Trivial" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Fast" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Standard" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Deep" })).toBeInTheDocument();
   });
@@ -62,9 +62,6 @@ describe("HowWeWorkPage", () => {
     renderPage();
     const reasons = [
       "judge_confirmed",
-      "honest_unanswerable",
-      "honest_contradiction",
-      "honest_ambiguous",
       "stopped_by_budget",
       "user_cancelled",
       "errored",

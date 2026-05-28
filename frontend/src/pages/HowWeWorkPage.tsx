@@ -12,18 +12,18 @@ import { motion, useReducedMotion } from "motion/react";
 import {
   ArrowLeft,
   ArrowRight,
-  AlertTriangle,
   Ban,
   CheckCircle2,
-  CircleSlash,
   Compass,
-  Flag,
+  Gauge,
   Hand,
   Layers,
+  ListChecks,
   Network,
   Search,
   ShieldCheck,
   Sparkles,
+  TimerReset,
   Workflow,
   Zap,
 } from "lucide-react";
@@ -47,6 +47,8 @@ export default function HowWeWorkPage() {
         <RouteCards />
         <AnatomyOfARun />
         <StopReasons />
+        <StoppingPolicy />
+        <NewEvents />
         <StrategyTable />
         <CostSavings />
         <ClosingCTA />
@@ -204,7 +206,7 @@ function ProblemStatement() {
 // ---------------------------------------------------------------------------
 
 interface LaneSpec {
-  id: "trivial" | "standard" | "deep";
+  id: "fast" | "standard" | "deep";
   label: string;
   subtitle: string;
   accent: string;
@@ -215,30 +217,44 @@ interface LaneSpec {
 
 const LANES: LaneSpec[] = [
   {
-    id: "trivial",
-    label: "Trivial",
-    subtitle: "One search, one answer",
+    id: "fast",
+    label: "Fast",
+    subtitle: "Direct search + mini-judge → escalate if weak",
     accent: "#22d3ee",
     glow: "rgba(34, 211, 238, 0.35)",
-    steps: ["Direct search", "Answer"],
+    steps: [
+      "Direct search (Wikipedia + Tavily top-3)",
+      "Short synthesis with inline citations",
+      "Mini-judge (escalates to Standard if it fails)",
+    ],
     icon: Search,
   },
   {
     id: "standard",
     label: "Standard",
-    subtitle: "Decompose → search × N → CoVe",
+    subtitle: "Decompose → parallel search → re-decompose → judge",
     accent: "#6366f1",
     glow: "rgba(99, 102, 241, 0.42)",
-    steps: ["Decompose", "Parallel search", "Analyze", "Synthesize"],
+    steps: [
+      "Claim decomposition (2–7 sub-claims)",
+      "Parallel retrieval across heterogeneous sources",
+      "Dynamic re-decomposition (closes coverage gaps)",
+      "Structured synthesis with citations",
+      "Independent judge + reactive deep-fetch on shallow claims",
+    ],
     icon: Network,
   },
   {
     id: "deep",
     label: "Deep",
-    subtitle: "Abductive + ReAct + CoVe",
+    subtitle: "Abductive hypotheses → ReAct loop → explicit CoVe",
     accent: "#a855f7",
     glow: "rgba(168, 85, 247, 0.40)",
-    steps: ["Hypotheses", "Reason→Act→Obs", "Iterate"],
+    steps: [
+      "Generate 2–4 competing hypotheses",
+      "ReAct loop (Reason → Act → Observe, cap 8 steps)",
+      "Explicit Chain-of-Verification on the draft",
+    ],
     icon: Compass,
   },
 ];
@@ -305,7 +321,7 @@ function DiagramSVG() {
       viewBox="0 0 1200 520"
       className="block h-auto w-full"
       role="img"
-      aria-label="Novum pipeline: Self-Ask router branches to trivial, standard and deep lanes; standard and deep converge on Chain-of-Verification before the verified output."
+      aria-label="Novum pipeline: Self-Ask classifies the question and a deterministic router picks the Fast, Standard or Deep lane. Fast escalates to Standard if its mini-judge rejects the draft. Standard and Deep both end on a verification step before the audited output."
     >
       <defs>
         <linearGradient id="grad-trivial" x1="0" x2="1">
@@ -337,17 +353,24 @@ function DiagramSVG() {
       <g fill="none" strokeWidth="2">
         {/* Question → Router */}
         <AnimatedPath d="M 180 260 C 230 260, 250 260, 300 260" stroke="rgba(203,213,225,0.55)" />
-        {/* Router → Trivial */}
+        {/* Router → Fast */}
         <AnimatedPath d="M 440 260 C 510 260, 540 130, 600 130" stroke="url(#grad-trivial)" delay={0.2} />
         {/* Router → Standard (flat path: use solid color so gradient bbox doesn't collapse) */}
         <AnimatedPath d="M 440 260 C 520 260, 540 260, 600 260" stroke="rgba(99,102,241,0.7)" delay={0.35} />
         {/* Router → Deep */}
         <AnimatedPath d="M 440 260 C 510 260, 540 390, 600 390" stroke="url(#grad-deep)" delay={0.5} />
-        {/* Trivial → Output (skip CoVe) */}
+        {/* Fast → Output (skip CoVe — mini-judge already approved) */}
         <AnimatedPath
           d="M 770 130 C 880 130, 980 260, 1080 260"
           stroke="url(#grad-trivial)"
           delay={0.65}
+          dashed
+        />
+        {/* Fast → Standard (LaneEscalated: mini-judge rejected) */}
+        <AnimatedPath
+          d="M 685 160 C 685 200, 685 220, 685 230"
+          stroke="rgba(244,114,182,0.85)"
+          delay={0.6}
           dashed
         />
         {/* Standard → CoVe (flat path: solid color) */}
@@ -376,8 +399,8 @@ function DiagramSVG() {
         y={100}
         w={170}
         h={60}
-        label="Trivial"
-        sublabel="Direct search"
+        label="Fast"
+        sublabel="Direct + mini-judge"
         accent="#22d3ee"
       />
       <DiagramNode
@@ -386,7 +409,7 @@ function DiagramSVG() {
         w={170}
         h={60}
         label="Standard"
-        sublabel="Decompose × N"
+        sublabel="Decompose + re-decomp"
         accent="#6366f1"
       />
       <DiagramNode
@@ -395,9 +418,22 @@ function DiagramSVG() {
         w={170}
         h={60}
         label="Deep"
-        sublabel="ReAct loop"
+        sublabel="Abductive + ReAct"
         accent="#a855f7"
       />
+
+      {/* Escalation label */}
+      <text
+        x={700}
+        y={200}
+        textAnchor="start"
+        fontFamily="Inter, system-ui, sans-serif"
+        fontSize="10"
+        fill="rgba(244,114,182,0.9)"
+        fontStyle="italic"
+      >
+        LaneEscalated
+      </text>
 
       <DiagramNode
         x={900}
@@ -607,8 +643,8 @@ interface Strategy {
 const STRATEGIES: Strategy[] = [
   { name: "Decomposition (pure)", effectiveness: 65, cost: "Low", hallucination: "Medium", note: "Structured queries, no verification" },
   { name: "Self-Ask", effectiveness: 70, cost: "Low", hallucination: "Medium", note: "Query router / classifier" },
-  { name: "Abductive Hypothesis", effectiveness: 78, cost: "Medium", hallucination: "Medium-low", note: "Exploratory or ambiguous" },
-  { name: "ReAct", effectiveness: 82, cost: "Medium", hallucination: "Low", note: "Adaptive engine for deep lane" },
+  { name: "Abductive Hypothesis", effectiveness: 78, cost: "Medium", hallucination: "Medium-low", highlight: true, note: "Novum's deep lane (step 1)" },
+  { name: "ReAct", effectiveness: 82, cost: "Medium", hallucination: "Low", highlight: true, note: "Novum's deep lane (step 2)" },
   { name: "Decomp + Retrieval + CoVe", effectiveness: 87, cost: "Medium", hallucination: "Low", highlight: true, note: "Novum's standard lane" },
   { name: "Debate / Multi-agent", effectiveness: 88, cost: "Very high", hallucination: "Very low", note: "Multi-perspective analysis" },
   { name: "Tree-of-Thoughts", effectiveness: 85, cost: "High", hallucination: "Low", note: "Competing hypotheses" },
@@ -723,8 +759,8 @@ function EffectivenessBar({ value, highlight }: { value: number; highlight: bool
 
 function CostSavings() {
   const dist = [
-    { label: "Trivial", value: 50, color: "#22d3ee" },
-    { label: "Standard", value: 35, color: "#6366f1" },
+    { label: "Fast", value: 20, color: "#22d3ee" },
+    { label: "Standard", value: 65, color: "#6366f1" },
     { label: "Deep", value: 15, color: "#a855f7" },
   ];
 
@@ -742,17 +778,18 @@ function CostSavings() {
             Routing pays for itself
           </div>
           <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            ~62% fewer LLM calls vs. one-pipeline-fits-all
+            From 8 minutes to ~2 — and honest the whole way
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-(--text-secondary) sm:text-base">
-            Most production traffic is trivial — definitions, dates, lookups. By routing those to a
-            single search instead of a full ReAct + verification loop, the average query costs a
-            fraction of the worst case while the quality on hard questions stays uncompromised.
+            Parallelizing retrieval and routing each question to the cheapest lane that can
+            honestly answer it cuts median latency by ~70% without weakening the verification step.
+            Hard questions still get the full Abductive + ReAct + CoVe treatment; trivial lookups
+            don't pay for it.
           </p>
           <div className="mt-6 grid grid-cols-3 gap-3">
-            <Metric label="Avg. cost" value="0.38×" tone="accent" />
+            <Metric label="Median latency" value="~2 min" tone="accent" />
             <Metric label="Read determinism" value="100%" />
-            <Metric label="Stop reasons" value="7" tone="warm" />
+            <Metric label="Stop reasons" value="4" tone="warm" />
           </div>
         </motion.div>
 
@@ -967,52 +1004,60 @@ const STOP_REASONS: StopReasonItem[] = [
   {
     reason: "judge_confirmed",
     label: "Confirmed",
-    body: "The judge agrees: claims are covered, sources are heterogeneous and the answer holds.",
+    body: "The independent judge agrees: claims are covered, sources are heterogeneous, the answer holds.",
     tone: "success",
     Icon: CheckCircle2,
     positive: true,
   },
   {
-    reason: "honest_unanswerable",
-    label: "Unanswerable",
-    body: "The evidence is simply not there — Novum says so instead of guessing.",
-    tone: "neutral",
-    Icon: CircleSlash,
-  },
-  {
-    reason: "honest_contradiction",
-    label: "Contradiction",
-    body: "Sources disagree and the conflict cannot be resolved. The disagreement is reported as-is.",
-    tone: "warning",
-    Icon: AlertTriangle,
-  },
-  {
-    reason: "honest_ambiguous",
-    label: "Ambiguous",
-    body: "Multiple plausible interpretations of the question; the run surfaces them rather than picking blindly.",
-    tone: "warning",
-    Icon: Flag,
-  },
-  {
     reason: "stopped_by_budget",
     label: "Budget reached",
-    body: "Token, time or tool-call ceiling hit. The partial trace is preserved.",
+    body: "Token, time or iteration ceiling hit. The run still emits its best-effort draft with an explicit rationale — never silent failure.",
     tone: "neutral",
     Icon: Layers,
   },
   {
     reason: "user_cancelled",
     label: "Cancelled",
-    body: "You stopped the run. Everything captured so far stays on disk.",
+    body: "You stopped the run. Everything captured so far stays on the event log and can be resumed or forked.",
     tone: "neutral",
     Icon: Hand,
   },
   {
     reason: "errored",
     label: "Errored",
-    body: "Infrastructure failure (upstream API, network). Logged with the failing step.",
+    body: "Infrastructure failure (upstream API, network). Logged with the failing step — the rest of the trace is intact.",
     tone: "danger",
     Icon: Ban,
+  },
+];
+
+interface AnswerKindItem {
+  kind: string;
+  label: string;
+  body: string;
+}
+
+const ANSWER_KINDS: AnswerKindItem[] = [
+  {
+    kind: "direct",
+    label: "Direct",
+    body: "Evidence converges; the answer is stated plainly with citations.",
+  },
+  {
+    kind: "best_effort",
+    label: "Best-effort",
+    body: "Evidence is partial, contradictory or ambiguous. The run says so and surfaces the gap instead of guessing.",
+  },
+  {
+    kind: "scenario",
+    label: "Scenario",
+    body: "Multiple plausible outcomes — each scenario is reported with its supporting evidence.",
+  },
+  {
+    kind: "weighted",
+    label: "Weighted",
+    body: "Trade-off question: options are scored against criteria, not collapsed into a single verdict.",
   },
 ];
 
@@ -1038,14 +1083,18 @@ function StopReasons() {
           Honest stops
         </div>
         <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Seven ways a run can end. None of them is a lie.
+          Four ways a run can end. None of them is a lie.
         </h2>
         <p className="mx-auto mt-3 max-w-2xl text-sm text-(--text-secondary) sm:text-base">
-          Every terminal state maps to one of seven explicit{" "}
+          Every terminal state maps to one of four explicit{" "}
           <code className="rounded bg-(--glass-bg) px-1.5 py-0.5 font-mono text-xs text-(--text-primary)">
             stop_reason
           </code>{" "}
-          values. "Cannot answer" is a first-class success.
+          values. Honesty about the shape of the answer is expressed on a separate axis —{" "}
+          <code className="rounded bg-(--glass-bg) px-1.5 py-0.5 font-mono text-xs text-(--text-primary)">
+            answer_kind
+          </code>{" "}
+          — so a confirmed run can still flag partial or contradictory evidence.
         </p>
       </motion.div>
 
@@ -1094,6 +1143,244 @@ function StopReasons() {
           );
         })}
       </motion.ul>
+
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.2 }}
+        transition={{ duration: 0.5 }}
+        className="mt-12"
+      >
+        <div className="mb-5 text-center">
+          <h3 className="text-lg font-semibold tracking-tight text-(--text-primary) sm:text-xl">
+            …and four shapes the answer can take
+          </h3>
+          <p className="mx-auto mt-2 max-w-2xl text-sm text-(--text-secondary)">
+            <code className="rounded bg-(--glass-bg) px-1.5 py-0.5 font-mono text-xs text-(--text-primary)">
+              answer_kind
+            </code>{" "}
+            is reported alongside every <code className="rounded bg-(--glass-bg) px-1.5 py-0.5 font-mono text-xs text-(--text-primary)">stop_reason</code>.
+            A <em>confirmed</em> run with <em>best_effort</em> shape is normal — the system is being explicit about partial evidence.
+          </p>
+        </div>
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {ANSWER_KINDS.map((k) => (
+            <li
+              key={k.kind}
+              className="rounded-2xl border border-(--glass-border) bg-(--glass-bg) p-4 backdrop-blur-xl"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-semibold text-(--text-primary)">{k.label}</span>
+                <code className="font-mono text-[11px] text-(--text-muted)">{k.kind}</code>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-(--text-secondary)">{k.body}</p>
+            </li>
+          ))}
+        </ul>
+      </motion.div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stopping policy (anti-loop): 3 gates
+// ---------------------------------------------------------------------------
+
+interface StopGate {
+  title: string;
+  question: string;
+  trigger: string;
+  outcome: string;
+  Icon: typeof Gauge;
+  accent: string;
+}
+
+const STOP_GATES: StopGate[] = [
+  {
+    title: "Confidence high enough?",
+    question: "min(S, J) ≥ threshold + margin",
+    trigger: "Early-exit checkpoint after retrieval, judge or ReAct step.",
+    outcome: "Short-circuit → judge_confirmed.",
+    Icon: Gauge,
+    accent: "var(--semantic-success)",
+  },
+  {
+    title: "Stuck without progress?",
+    question: "ΔS < 0.02 for 3 consecutive rounds/steps",
+    trigger: "NoProgressSignal fires inside the loop.",
+    outcome: "Force synthesis with current evidence → best_effort if below threshold.",
+    Icon: TimerReset,
+    accent: "var(--semantic-warning)",
+  },
+  {
+    title: "Hard cap reached?",
+    question: "max_react_steps · max_redecomposition · max_tokens · max_seconds",
+    trigger: "Absolute floor — independent of confidence.",
+    outcome: "stopped_by_budget with answer_kind = best_effort and stop_rationale.",
+    Icon: Ban,
+    accent: "var(--text-secondary)",
+  },
+];
+
+function StoppingPolicy() {
+  return (
+    <section className="mt-28">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.3 }}
+        transition={{ duration: 0.5 }}
+        className="mb-10 text-center"
+      >
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-(--glass-border) bg-(--glass-bg) px-3 py-1 text-xs text-(--text-secondary)">
+          <TimerReset className="h-3.5 w-3.5 text-(--accent)" />
+          Anti-loop discipline
+        </div>
+        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          Three gates make sure a run always terminates
+        </h2>
+        <p className="mx-auto mt-3 max-w-2xl text-sm text-(--text-secondary) sm:text-base">
+          Every iteration asks the same question in three different shapes. The cheapest gate
+          that fires wins. Hard caps are the absolute floor — a run can never loop indefinitely.
+        </p>
+      </motion.div>
+
+      <motion.ol
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.15 }}
+        variants={stagger}
+        className="grid gap-4 md:grid-cols-3"
+      >
+        {STOP_GATES.map((g, i) => (
+          <motion.li
+            key={g.title}
+            variants={fadeUp}
+            custom={i}
+            className="group relative overflow-hidden rounded-2xl border border-(--glass-border) bg-(--glass-bg) p-5 backdrop-blur-xl transition-colors hover:bg-(--glass-hover)"
+          >
+            <div className="mb-4 flex items-center gap-3">
+              <span
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl"
+                style={{
+                  background: `color-mix(in srgb, ${g.accent} 18%, transparent)`,
+                  color: g.accent,
+                }}
+              >
+                <g.Icon className="h-4.5 w-4.5" strokeWidth={1.75} />
+              </span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-(--text-muted)">
+                Gate {i + 1}
+              </span>
+            </div>
+            <h3 className="text-sm font-semibold text-(--text-primary)">{g.title}</h3>
+            <code className="mt-2 block font-mono text-[11px] leading-relaxed text-(--text-secondary)">
+              {g.question}
+            </code>
+            <p className="mt-3 text-xs leading-relaxed text-(--text-secondary)">{g.trigger}</p>
+            <p
+              className="mt-2 text-xs leading-relaxed"
+              style={{ color: g.accent }}
+            >
+              → {g.outcome}
+            </p>
+          </motion.li>
+        ))}
+      </motion.ol>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// New events (additive to the append-only log)
+// ---------------------------------------------------------------------------
+
+interface EventSpec {
+  name: string;
+  lane: "All" | "Fast" | "Standard" | "Deep";
+  detail: string;
+}
+
+const NEW_EVENTS: EventSpec[] = [
+  { name: "RouteSelected", lane: "All", detail: "Lane chosen + classifier dimensions that justified it." },
+  { name: "LaneEscalated", lane: "Fast", detail: "Mini-judge rejected → run upgraded to Standard transparently." },
+  { name: "PlanGapsDetected", lane: "Standard", detail: "Re-decomposition found uncovered angles → one targeted round." },
+  { name: "HypothesesGenerated", lane: "Deep", detail: "Abductive step emits 2–4 competing hypotheses." },
+  { name: "AgentThought", lane: "Deep", detail: "ReAct reasoning step." },
+  { name: "AgentAction", lane: "Deep", detail: "ReAct tool call (search · deep_fetch · evaluate · finish)." },
+  { name: "AgentObservation", lane: "Deep", detail: "Result of the action, fed back into the loop." },
+  { name: "HypothesisEvaluated", lane: "Deep", detail: "Verdict (confirmed / refuted) for a tracked hypothesis." },
+  { name: "VerificationQuestionsGenerated", lane: "Deep", detail: "CoVe questions targeting the draft's claims." },
+  { name: "NoProgressDetected", lane: "All", detail: "ΔS < 0.02 for 3 rounds → forces synthesis with current evidence." },
+];
+
+const LANE_TINT: Record<EventSpec["lane"], string> = {
+  All: "rgba(203, 213, 225, 0.55)",
+  Fast: "#22d3ee",
+  Standard: "#6366f1",
+  Deep: "#a855f7",
+};
+
+function NewEvents() {
+  return (
+    <section className="mt-28">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.3 }}
+        transition={{ duration: 0.5 }}
+        className="mb-10 text-center"
+      >
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-(--glass-border) bg-(--glass-bg) px-3 py-1 text-xs text-(--text-secondary)">
+          <ListChecks className="h-3.5 w-3.5 text-(--accent)" />
+          Auditable by construction
+        </div>
+        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          Every routing decision is a logged event
+        </h2>
+        <p className="mx-auto mt-3 max-w-2xl text-sm text-(--text-secondary) sm:text-base">
+          The append-only event log gains a handful of additive event types. Replaying a run
+          reproduces the exact same lane, re-decomposition and verification path — read
+          determinism stays intact.
+        </p>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.15 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="overflow-hidden rounded-2xl border border-(--glass-border) bg-(--bg-secondary)/40 backdrop-blur-xl"
+      >
+        <ul className="divide-y divide-(--glass-border)">
+          {NEW_EVENTS.map((e) => (
+            <li
+              key={e.name}
+              className="flex flex-col gap-2 px-5 py-3.5 transition-colors hover:bg-(--glass-hover) sm:flex-row sm:items-center sm:gap-5"
+            >
+              <code
+                className="font-mono text-xs text-(--text-primary) sm:w-72 sm:shrink-0"
+              >
+                {e.name}
+              </code>
+              <span
+                className="inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+                style={{
+                  background: `color-mix(in srgb, ${LANE_TINT[e.lane]} 16%, transparent)`,
+                  color: LANE_TINT[e.lane],
+                }}
+              >
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: LANE_TINT[e.lane] }}
+                />
+                {e.lane}
+              </span>
+              <span className="text-sm text-(--text-secondary)">{e.detail}</span>
+            </li>
+          ))}
+        </ul>
+      </motion.div>
     </section>
   );
 }
