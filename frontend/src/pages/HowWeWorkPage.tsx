@@ -398,8 +398,8 @@ function DiagramSVG() {
         <AnimatedPath d="M 180 260 C 230 260, 250 260, 300 260" stroke="rgba(203,213,225,0.55)" />
         {/* Router → Trivial */}
         <AnimatedPath d="M 440 260 C 510 260, 540 130, 600 130" stroke="url(#grad-trivial)" delay={0.2} />
-        {/* Router → Standard */}
-        <AnimatedPath d="M 440 260 C 520 260, 540 260, 600 260" stroke="url(#grad-standard)" delay={0.35} />
+        {/* Router → Standard (flat path: use solid color so gradient bbox doesn't collapse) */}
+        <AnimatedPath d="M 440 260 C 520 260, 540 260, 600 260" stroke="rgba(99,102,241,0.7)" delay={0.35} />
         {/* Router → Deep */}
         <AnimatedPath d="M 440 260 C 510 260, 540 390, 600 390" stroke="url(#grad-deep)" delay={0.5} />
         {/* Trivial → Output (skip CoVe) */}
@@ -409,12 +409,12 @@ function DiagramSVG() {
           delay={0.65}
           dashed
         />
-        {/* Standard → CoVe */}
-        <AnimatedPath d="M 770 260 C 830 260, 850 260, 900 260" stroke="url(#grad-standard)" delay={0.65} />
+        {/* Standard → CoVe (flat path: solid color) */}
+        <AnimatedPath d="M 770 260 C 830 260, 850 260, 900 260" stroke="rgba(99,102,241,0.7)" delay={0.65} />
         {/* Deep → CoVe */}
         <AnimatedPath d="M 770 390 C 830 390, 860 260, 900 260" stroke="url(#grad-deep)" delay={0.75} />
-        {/* CoVe → Output */}
-        <AnimatedPath d="M 1020 260 C 1050 260, 1060 260, 1080 260" stroke="url(#grad-final)" delay={0.9} />
+        {/* CoVe → Output (flat path: solid color) */}
+        <AnimatedPath d="M 1020 260 C 1050 260, 1060 260, 1080 260" stroke="rgba(251,191,36,0.85)" delay={0.9} />
       </g>
 
       {/* Nodes */}
