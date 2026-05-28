@@ -23,7 +23,7 @@ import structlog
 from app.agent.run_state import EvidenceItem, RunState
 from app.config import settings
 from app.domain.enums import ComplexityHint, EventType, SourceType
-from app.domain.events import BaseEvent, DeepFetchPerformedEvent
+from app.domain.events import DeepFetchPerformedEvent
 
 if TYPE_CHECKING:
     from app.sources.registry import SourceRegistry

@@ -1,9 +1,10 @@
 """Tests for cross-run question index (WP-6)."""
 
-import numpy as np
 from uuid import uuid4
 
-from app.agent.question_index import QuestionEmbeddingIndex, PriorRunHint
+import numpy as np
+
+from app.agent.question_index import PriorRunHint, QuestionEmbeddingIndex
 
 
 def test_question_index_add_and_top_k():
@@ -121,8 +122,8 @@ def test_prior_run_hint_forbids_extra_fields():
     assert hint.question_text == "Test"
 
     # Invalid construction with extra field should raise ValidationError
-    from pydantic import ValidationError
     import pytest
+    from pydantic import ValidationError
 
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         PriorRunHint(

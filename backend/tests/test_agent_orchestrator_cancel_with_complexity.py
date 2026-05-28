@@ -9,7 +9,6 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -19,11 +18,8 @@ import pytest
 from app.agent.instant_cache import CachedRun, record_run, reset_instant_cache
 from app.agent.orchestrator import AgentOrchestrator
 from app.agent.run_state import RunState
-from app.agent.states import AgentState
 from app.domain.enums import (
     AnswerKind,
-    ComplexityHint,
-    QuestionType,
     StopReason,
 )
 from app.domain.events import BaseEvent
@@ -105,8 +101,20 @@ async def test_cancel_during_trivial_path_before_searching(mock_llm: AsyncMock) 
 
 
 @pytest.mark.asyncio
-async def test_cancel_during_deep_path_mid_critique(mock_llm: AsyncMock) -> None:
+async def test_cancel_during_deep_path_mid_critique(
+    mock_llm: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Cancel during deep path after first critique but before second → user_cancelled."""
+    # Force STANDARD lane so the planning/critique pipeline runs. The original
+    # "deep path" here refers to the legacy multi-critique pipeline, NOT the
+    # Phase E DEEP lane (which has its own ReAct loop tested separately).
+    from app.domain.enums import Lane
+
+    monkeypatch.setattr(
+        "app.agent.lane_router.select_lane",
+        lambda *_a, **_kw: (Lane.STANDARD, "test_forced_standard"),
+    )
+
     # Mock classifier: state_of_art + deep hint
     mock_llm.side_effect = [
         # QuestionNormalization

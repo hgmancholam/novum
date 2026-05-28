@@ -116,16 +116,16 @@ def _normalize_host(url_or_host: str) -> str:
         # Add scheme if missing for urlparse to work correctly
         if "://" not in url_or_host:
             url_or_host = f"http://{url_or_host}"
-        
+
         parsed = urlparse(url_or_host)
         # Use netloc if available, fall back to path for bare hosts
         host = parsed.netloc or parsed.path.split("/")[0]
         host = host.lower()
-        
+
         # Strip leading www.
         if host.startswith("www."):
             host = host[4:]
-        
+
         return host
     except Exception:
         return ""
@@ -149,7 +149,7 @@ def _pattern_matches(host: str, pattern: str) -> bool:
     """
     host = host.lower()
     pattern = pattern.lower()
-    
+
     if pattern.startswith("*."):
         # TLD-family rule: *.gov matches nih.gov, cia.gov
         suffix = pattern[2:]  # Remove "*."
@@ -181,19 +181,19 @@ def match(source_domain_or_url: str, expected_experts: list[str] | None) -> floa
     """
     if not expected_experts:
         return 1.0
-    
+
     host = _normalize_host(source_domain_or_url)
     if not host:
         return 1.0
-    
+
     for expert_label in expected_experts:
         if expert_label not in expert_taxonomy:
             logger.debug("expert_label_unknown", label=expert_label)
             continue
-        
+
         patterns = expert_taxonomy[expert_label]
         for pattern in patterns:
             if _pattern_matches(host, pattern):
                 return 1.1
-    
+
     return 1.0

@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-28
-**Total Lessons:** 27
+**Total Lessons:** 28
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,19 @@
 ---
 
 ## Recent Lessons
+
+## L-028: Coder MUST run pyright + full pytest before reporting done (2026-05-28, IP-25 Phase F)
+**Context:** Phase F Coder reported "implementation complete" with only ruff + individual cove tests run. Orchestrator validation revealed 18 pyright errors and 10 test failures (cascading: wrong registry API, `SynthesizedAnswer` passed where `str` expected, missing monkeypatches, ≥2 hypotheses constraint, StrEnum case sensitivity).
+**Lesson:** Every Coder handoff MUST include explicit pyright + full pytest output as evidence. Skipping these costs an extra Orchestrator validation cycle and may hide cascading bugs.
+**Enforcement:** Orchestrator MUST refuse to launch Reviewer until Coder provides clean pyright + green full pytest.
+**Specific patterns to verify on every CoVe-like integration:**
+1. `SourceRegistry` API is `.types() -> list[SourceType]` and `.get(type) -> Source`. NEVER `.all_sources()`.
+2. DEEP lane `_synthesize_*` helpers return `SynthesizedAnswer`. Use `.prose` to feed string-typed downstream consumers (CoVe, mini-judge).
+3. `LLMRole` is StrEnum → `str(LLMRole.JUDGE) == "judge"` (lowercase). Assertions must use case-insensitive comparison.
+4. `generate_hypotheses` requires `len(items) ≥ 2`. Test fixtures returning 1 item raise `ValueError`.
+5. When a function imports `get_registry` at runtime inside a block, tests monkeypatch the module that imports it (`app.agent.tasks.cove.get_registry`) — keep the import seam single and consistent so all monkeypatches converge.
+
+---
 
 ## L-027 — SourceResult schema has `content`/`snippet`, never `text` or `authority_tier`
 **Date:** 2026-05-28 (origin: IP-25 Phase E iter 1 review — Coder accessed `result.text` which doesn't exist on SourceResult. Fixed in iter 2 with `result.content or result.snippet` pattern).

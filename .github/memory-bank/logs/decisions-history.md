@@ -4,11 +4,49 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-28
-**Total Decisions:** 71
+**Total Decisions:** 73
 
 ---
 
 ## Recent Decisions
+
+## D-IP25-COMPLETE: IP-25 Three-Lane Research Flow — ALL 7 PHASES COMPLETE (2026-05-28)
+**Date:** 2026-05-28
+**Decision:** ✅ **IP-25 fully implemented and approved.** All 7 phases passed Reviewer with score ≥ 9/10.
+**Final Scoreboard:**
+| Phase | Description | Final Score | Iterations |
+|-------|-------------|-------------|------------|
+| 0 | Parallel sub-questions + reformulation + echo chamber | PASS | 1 |
+| A | RouteSelected telemetry | PASS | 1 |
+| B | Re-decomposition + NoProgressSignal | 9.00 | 1 |
+| C | FAST lane (single-question short-circuit) | 9.23 | 3 |
+| D | Abductive hypotheses (DEEP) | 9.50 | 1 |
+| E | DEEP + ReAct loop + history summarization | 9.05 | 2 |
+| F | Chain-of-Verification (CoVe) | 9.48 | 1 |
+**Reviews:** [docs/implementation-phase/reviews/](docs/implementation-phase/reviews/) — REVIEW-IP-25-Phase-0.md through REVIEW-IP-25-Phase-F.md.
+**Final Test Status:** 933 passed, 1 xpassed, 0 failed (197s). 0 pyright errors on all Phase E/F files. Ruff clean.
+**Event Count:** 37 → 39 (added VerificationQuestionsGenerated, CoveContradictionDetected in Phase F).
+**Architectural Compliance:** All 8 rules respected across all 7 phases. Three seams preserved. Events append-only. Single LLM entry point. Pydantic v2 schema evolution rule honored.
+**Deferred:** NEVER pushed to origin. NEVER deployed. Code resides on local working tree only per user constraint.
+
+---
+
+## D-IP25-PF-ITER1: IP-25 Phase F Iteration 1 — Approved (2026-05-28)
+**Date:** 2026-05-28
+**Phase:** F4 iteration 1 — Reviewer Agent (L complexity, min_score=9, max_iter=5)
+**Decision:** ✅ **APPROVED** — Score 9.48/10 (no blockers). Phase F complete.
+**Coder→Orchestrator handoff:** Coder reported done WITHOUT running pyright/full pytest. Orchestrator validation surfaced 18 pyright errors + 10 test failures requiring fixes BEFORE Reviewer launch.
+**Orchestrator-applied fixes (post-Coder, pre-Reviewer):**
+1. `cove.py`: `registry.all_sources()` does not exist on SourceRegistry — replaced with `registry.types()[0]` + `registry.get(type)`. Imported `SourceResult` and `get_registry` at module level.
+2. `deep.py`: `_synthesize_with_react_history()` returns `SynthesizedAnswer`, not `str`. Extract `draft.prose` BEFORE passing to CoVe (which expects str). Fixed return type annotations on both synth helpers. Imported `get_registry` from `app.agent.tasks.cove` (so tests can monkeypatch a single seam).
+3. Test fixes: `MockRegistry` API → `types()/get()`; mock LLM must return ≥ 2 hypotheses (constraint in hypotheses.py); case-insensitive role assertions (StrEnum → lowercase); added `cove.llm.call` + `cove.get_registry` monkeypatches to pre-existing fallback test.
+4. Test count fixes: `test_domain_events.py` 37 → 39.
+5. Ruff cleanup: removed unused imports in test files.
+**Validation:** pyright 0 errors · ruff clean · pytest 933 passed, 1 xpassed, 0 failed (197s).
+**Review file:** [docs/implementation-phase/reviews/REVIEW-IP-25-Phase-F.md](docs/implementation-phase/reviews/REVIEW-IP-25-Phase-F.md)
+**Next:** Memory bank consolidation + user notification. NO push, NO deploy.
+
+---
 
 ## D-IP25-PF-CODER: IP-25 Phase F Implementation — CoVe in DEEP Lane (2026-05-28)
 **Date:** 2026-05-28

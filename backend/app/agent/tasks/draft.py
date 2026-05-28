@@ -156,6 +156,14 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
         for e in state.evidence
     ]
 
+    # IP-25 Phase D: Format hypotheses if present
+    hypotheses_list = None
+    if state.hypotheses:
+        hypotheses_list = [
+            {"text": h.text, "priority": h.priority}
+            for h in state.hypotheses
+        ]
+
     # Build prompt
     system_prompt, max_tokens = build_synthesizer_prompt(
         question=state.question,
@@ -163,6 +171,7 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
         answer_kind=answer_kind,
         user_language="es",  # TODO: use state.language when added
         requires_contradictions=requires_contradictions,
+        hypotheses=hypotheses_list,
     )
 
     # Call synthesizer with retry logic
@@ -396,12 +405,21 @@ async def draft_best_effort_fallback(
         for e in state.evidence
     ]
 
+    # IP-25 Phase D: Format hypotheses if present
+    hypotheses_list = None
+    if state.hypotheses:
+        hypotheses_list = [
+            {"text": h.text, "priority": h.priority}
+            for h in state.hypotheses
+        ]
+
     system_prompt, max_tokens = build_synthesizer_prompt(
         question=state.question,
         evidence=evidence_list,
         answer_kind=answer_kind,
         user_language="es",
         requires_contradictions=False,
+        hypotheses=hypotheses_list,
     )
 
     issues_block = ""

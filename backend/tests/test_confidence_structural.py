@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 import pytest
 
 from app.agent.run_state import EvidenceItem, RunState
 from app.confidence.structural import (
+    apply_echo_chamber_penalty,
     calculate_agreement,
     calculate_coverage,
     calculate_diversity,
@@ -208,3 +210,250 @@ def test_structural_full_state() -> None:
         + 0.15 * 1.0
     )
     assert result.score == pytest.approx(expected)
+
+
+# =============================================================================
+# IP-25 Phase 0: Echo chamber penalty
+# =============================================================================
+
+
+def test_echo_chamber_penalty_applied_when_dates_cluster() -> None:
+    """When ≥3 sources for same claim cluster within <7 days and agreement=1.0,
+    diversity is penalized by 0.85 and event is emitted.
+    """
+    base_date = datetime(2025, 1, 15, 12, 0, 0)
+    claims = [SubClaim(id="c1", text="test claim")]
+    evidence = [
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://a.com",
+            source_title="A",
+            text="x",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date,
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://b.com",
+            source_title="B",
+            text="y",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date + timedelta(days=2),
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://c.com",
+            source_title="C",
+            text="z",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date + timedelta(days=5),
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+    ]
+    state = _state(sub_claims=claims, covered=["c1"], evidence=evidence)
+
+    # Base diversity for 3 domains
+    base_diversity = calculate_diversity(evidence)
+    assert base_diversity == pytest.approx(0.7)
+
+    # Apply penalty
+    penalized_diversity, event = apply_echo_chamber_penalty(state, base_diversity)
+
+    # Diversity penalized by 0.85
+    assert penalized_diversity == pytest.approx(0.7 * 0.85)
+
+    # Event emitted
+    assert event is not None
+    assert event.target_claim_id == "c1"
+    assert event.n_sources == 3
+    assert event.date_window_days == 5
+    assert event.diversity_penalty_applied == 0.15
+
+
+def test_echo_chamber_penalty_skipped_when_dates_spread() -> None:
+    """When dates are >7 days apart, no penalty is applied."""
+    base_date = datetime(2025, 1, 1, 12, 0, 0)
+    claims = [SubClaim(id="c1", text="test claim")]
+    evidence = [
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://a.com",
+            source_title="A",
+            text="x",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date,
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://b.com",
+            source_title="B",
+            text="y",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date + timedelta(days=10),
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://c.com",
+            source_title="C",
+            text="z",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date + timedelta(days=20),
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+    ]
+    state = _state(sub_claims=claims, covered=["c1"], evidence=evidence)
+
+    base_diversity = calculate_diversity(evidence)
+    penalized_diversity, event = apply_echo_chamber_penalty(state, base_diversity)
+
+    # No penalty applied
+    assert penalized_diversity == pytest.approx(base_diversity)
+    assert event is None
+
+
+def test_echo_chamber_penalty_skipped_when_agreement_below_threshold() -> None:
+    """When agreement < 1.0, no penalty even if dates cluster."""
+    base_date = datetime(2025, 1, 15, 12, 0, 0)
+    claims = [SubClaim(id="c1", text="test claim")]
+    evidence = [
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://a.com",
+            source_title="A",
+            text="x",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date,
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://b.com",
+            source_title="B",
+            text="y",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date + timedelta(days=2),
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://c.com",
+            source_title="C",
+            text="z",
+            polarity="contradicts",  # Mixed polarity → agreement < 1.0
+            confidence=0.5,
+            source_published_date=base_date + timedelta(days=5),
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+    ]
+    state = _state(sub_claims=claims, covered=["c1"], evidence=evidence)
+
+    base_diversity = calculate_diversity(evidence)
+    penalized_diversity, event = apply_echo_chamber_penalty(state, base_diversity)
+
+    # No penalty due to disagreement
+    assert penalized_diversity == pytest.approx(base_diversity)
+    assert event is None
+
+
+def test_echo_chamber_penalty_skipped_when_insufficient_dated_evidence() -> None:
+    """When <3 evidence items have dates, no penalty."""
+    base_date = datetime(2025, 1, 15, 12, 0, 0)
+    claims = [SubClaim(id="c1", text="test claim")]
+    evidence = [
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://a.com",
+            source_title="A",
+            text="x",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date,
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://b.com",
+            source_title="B",
+            text="y",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=None,  # No date
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://c.com",
+            source_title="C",
+            text="z",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=None,  # No date
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+    ]
+    state = _state(sub_claims=claims, covered=["c1"], evidence=evidence)
+
+    base_diversity = calculate_diversity(evidence)
+    penalized_diversity, event = apply_echo_chamber_penalty(state, base_diversity)
+
+    # No penalty due to insufficient dated evidence
+    assert penalized_diversity == pytest.approx(base_diversity)
+    assert event is None
+
+
+def test_calculate_structural_confidence_integrates_echo_chamber_penalty() -> None:
+    """IP-25 Phase 0: calculate_structural_confidence must apply echo-chamber
+    penalty silently so S reflects temporal clustering (event emission is
+    the orchestrator's responsibility)."""
+    base_date = datetime(2025, 1, 15, 12, 0, 0)
+    claims = [SubClaim(id="c1", text="test claim")]
+    evidence = [
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://a.com",
+            source_title="A",
+            text="x",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date,
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://b.com",
+            source_title="B",
+            text="y",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date + timedelta(days=2),
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+        EvidenceItem(
+            claim_id="c1",
+            source_url="https://c.com",
+            source_title="C",
+            text="z",
+            polarity="supports",
+            confidence=0.8,
+            source_published_date=base_date + timedelta(days=5),
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
+        ),
+    ]
+    state = _state(sub_claims=claims, covered=["c1"], evidence=evidence)
+
+    result = calculate_structural_confidence(state)
+    base_diversity = calculate_diversity(evidence)
+    # diversity inside StructuralConfidence is the penalized value
+    assert result.diversity == pytest.approx(base_diversity * 0.85)

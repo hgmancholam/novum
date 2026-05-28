@@ -65,12 +65,11 @@ def test_none_expected_experts() -> None:
 
 def test_unknown_expert_label_no_raise(caplog: pytest.LogCaptureFixture) -> None:
     """TC-08: Unknown expert label logged at DEBUG, no exception."""
-    import logging
-    
+
     # Primary assertion: function returns 1.0 and does not raise
     result = match("https://example.com", ["invalid_expert_label"])
     assert result == 1.0
-    
+
     # Log assertion: Verify debug log was attempted (structlog writes to stdout by default in tests)
     # We verify behavior indirectly - if no exception was raised, the logger.debug call succeeded
 

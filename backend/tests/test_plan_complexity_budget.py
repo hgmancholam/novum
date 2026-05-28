@@ -73,7 +73,8 @@ async def test_standard_comparative_budget(mock_create: AsyncMock) -> None:
         complexity_hint=ComplexityHint.STANDARD,
     )
     assert event.complexity_hint == ComplexityHint.STANDARD
-    assert event.preferred_sources is None or event.preferred_sources == []
+    # Per D-AGENT-ROBUSTNESS C5, STANDARD+COMPARATIVE routes academic sources too.
+    assert event.preferred_sources == ["tavily", "wikipedia", "semantic_scholar", "openalex"]
 
 
 async def test_deep_state_of_art_two_critiques(mock_create: AsyncMock) -> None:

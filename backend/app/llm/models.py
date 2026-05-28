@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.enums import AnswerKind
 
@@ -48,7 +48,7 @@ class QuestionClassification(BaseModel):
     string in lowercase snake_case: factual, comparative, definitional,
     state_of_art, causal, predictive_future, subjective_opinion,
     personal_private).
-    
+
     ``confidence`` (BRD-22 additive) is the classifier's self-reported
     confidence 0..1, used as input to the complexity heuristic.
     """
@@ -256,6 +256,25 @@ class JudgeVerdict(BaseModel):
     # BRD-23 WP-2: claim IDs whose support is shallow (snippet-only / stale)
     # and would benefit from a full-content fetch before re-judging.
     supported_but_shallow_claim_ids: list[str] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap(cls, v: Any) -> Any:
+        return _unwrap_schema_envelope(cls, v)
+
+
+class MiniJudgeVerdict(BaseModel):
+    """Mini-judge verdict for FAST lane (IP-25 Phase C).
+
+    Lightweight evaluation with binary ok/reject decision.
+    Used in the FAST lane for quick validation of 1-2 sentence answers.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    ok: bool = Field(..., description="Whether the answer is acceptable")
+    j_score: float = Field(..., ge=0.0, le=1.0, description="Judge confidence score")
+    reason: str = Field(..., description="Short English explanation of the verdict")
 
     @model_validator(mode="before")
     @classmethod

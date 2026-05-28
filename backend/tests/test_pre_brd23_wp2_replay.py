@@ -9,6 +9,8 @@ This verifies the deep-fetch additions are additive only:
 
 from __future__ import annotations
 
+from pydantic import TypeAdapter
+
 from app.domain.enums import EventType, SourceType
 from app.domain.events import (
     EVENT_TYPE_MAP,
@@ -16,8 +18,6 @@ from app.domain.events import (
     Event,
     QuestionAskedEvent,
 )
-from pydantic import TypeAdapter
-
 
 _EVENT_ADAPTER: TypeAdapter[Event] = TypeAdapter(Event)
 

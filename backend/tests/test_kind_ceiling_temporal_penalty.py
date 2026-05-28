@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from app.agent.run_state import EvidenceItem
@@ -25,7 +25,7 @@ def _evidence(published: datetime | None) -> EvidenceItem:
 
 
 def test_no_penalty_when_temporal_is_none() -> None:
-    fresh = datetime.now(timezone.utc)
+    fresh = datetime.now(UTC)
     assert apply_ceiling(0.8, AnswerKind.DIRECT) == 0.8 * 1.00
     assert (
         apply_ceiling(0.8, AnswerKind.DIRECT, temporal_sensitivity=None, stale_majority=True)
@@ -73,8 +73,8 @@ def test_penalty_applies_only_on_direct_volatile_with_stale_majority() -> None:
 
 
 def test_is_stale_majority_counts_missing_dates_as_stale() -> None:
-    fresh = datetime.now(timezone.utc) - timedelta(days=3)
-    stale = datetime.now(timezone.utc) - timedelta(days=400)
+    fresh = datetime.now(UTC) - timedelta(days=3)
+    stale = datetime.now(UTC) - timedelta(days=400)
 
     # 50%+ stale → True
     assert is_stale_majority([_evidence(fresh), _evidence(stale)], days_filter=180) is True

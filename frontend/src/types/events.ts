@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-28T08:57:43.361941+00:00
+// Generated: 2026-05-28T16:16:30.661431+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -44,6 +44,7 @@ export type EventType =
   | "PlanCreated"
   | "PlanCritiqued"
   | "PlanRevised"
+  | "HypothesesGenerated"
   | "ToolCalled"
   | "EvidenceAdded"
   | "ClaimCovered"
@@ -59,6 +60,19 @@ export type EventType =
   | "SaturationDetected"
   | "JudgeProviderDegraded"
   | "DeepFetchPerformed"
+  | "QueryReformulated"
+  | "EchoChamberDetected"
+  | "RouteSelected"
+  | "PlanGapsDetected"
+  | "NoProgressDetected"
+  | "LaneEscalated"
+  | "AgentThought"
+  | "AgentAction"
+  | "AgentObservation"
+  | "HypothesisEvaluated"
+  | "HistorySummarized"
+  | "VerificationQuestionsGenerated"
+  | "CoveContradictionDetected"
   | "AgentErrored"
   | "ResumedAfterError"
   | "ResumedAfterCancel"
@@ -88,6 +102,11 @@ export type AnswerKind =
   | "tradeoff"
   | "ethical_redirect"
   | "best_effort";
+
+export type Lane =
+  | "fast"
+  | "standard"
+  | "deep";
 
 // ---------------------------------------------------------------------------
 // RunStreamEvent (IP-24) — shared type for SSE events consumed by feed/organisms
@@ -170,6 +189,102 @@ export interface StructuredAnswerData {
 
 export const EventSchema = {
   "$defs": {
+    "AgentActionEvent": {
+      "additionalProperties": true,
+      "description": "Agent action selection in ReAct loop (IP-25 Phase E).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "AgentAction",
+          "default": "AgentAction",
+          "title": "Type",
+          "type": "string"
+        },
+        "step": {
+          "title": "Step",
+          "type": "integer"
+        },
+        "action_type": {
+          "title": "Action Type",
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": true,
+          "title": "Args",
+          "type": "object"
+        }
+      },
+      "required": [
+        "step",
+        "action_type",
+        "args"
+      ],
+      "title": "AgentActionEvent",
+      "type": "object"
+    },
     "AgentErroredEvent": {
       "additionalProperties": true,
       "description": "Unrecoverable error during execution.",
@@ -299,6 +414,191 @@ export const EventSchema = {
         "recoverable"
       ],
       "title": "AgentErroredEvent",
+      "type": "object"
+    },
+    "AgentObservationEvent": {
+      "additionalProperties": true,
+      "description": "Agent observation result in ReAct loop (IP-25 Phase E).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "AgentObservation",
+          "default": "AgentObservation",
+          "title": "Type",
+          "type": "string"
+        },
+        "step": {
+          "title": "Step",
+          "type": "integer"
+        },
+        "result_summary": {
+          "title": "Result Summary",
+          "type": "string"
+        },
+        "tokens": {
+          "title": "Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step",
+        "result_summary",
+        "tokens"
+      ],
+      "title": "AgentObservationEvent",
+      "type": "object"
+    },
+    "AgentThoughtEvent": {
+      "additionalProperties": true,
+      "description": "Agent reasoning thought in ReAct loop (IP-25 Phase E).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "AgentThought",
+          "default": "AgentThought",
+          "title": "Type",
+          "type": "string"
+        },
+        "step": {
+          "title": "Step",
+          "type": "integer"
+        },
+        "thought": {
+          "title": "Thought",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "thought"
+      ],
+      "title": "AgentThoughtEvent",
       "type": "object"
     },
     "AmbiguityDetectedEvent": {
@@ -1085,6 +1385,96 @@ export const EventSchema = {
       "title": "ContradictionSource",
       "type": "object"
     },
+    "CoveContradictionDetectedEvent": {
+      "additionalProperties": true,
+      "description": "CoVe detected a contradiction in the draft answer (IP-25 Phase F).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "CoveContradictionDetected",
+          "default": "CoveContradictionDetected",
+          "title": "Type",
+          "type": "string"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "contradicting_evidence": {
+          "title": "Contradicting Evidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question",
+        "contradicting_evidence"
+      ],
+      "title": "CoveContradictionDetectedEvent",
+      "type": "object"
+    },
     "DeepFetchPerformedEvent": {
       "additionalProperties": true,
       "description": "Full-content fetch performed for a shallow citation (BRD-23 WP-2).\n\nEmitted after the judge flags a claim as ``supported_but_shallow``.\nInformational: the underlying evidence row may be updated with the\nextracted full text. Replay tolerates absence (pre-WP-2 traces lack\nthis event entirely).",
@@ -1204,6 +1594,106 @@ export const EventSchema = {
         "success"
       ],
       "title": "DeepFetchPerformedEvent",
+      "type": "object"
+    },
+    "EchoChamberDetectedEvent": {
+      "additionalProperties": true,
+      "description": "Echo chamber penalty applied (IP-25 Phase 0).\n\nEmitted when N \u2265 3 evidence items for the same claim:\n- All have non-null source_published_date\n- All fall within a window of < 7 days\n- C_agreement == 1.0 for that claim\n\nThe diversity score is penalized by multiplying by 0.85.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "EchoChamberDetected",
+          "default": "EchoChamberDetected",
+          "title": "Type",
+          "type": "string"
+        },
+        "target_claim_id": {
+          "title": "Target Claim Id",
+          "type": "string"
+        },
+        "n_sources": {
+          "title": "N Sources",
+          "type": "integer"
+        },
+        "date_window_days": {
+          "title": "Date Window Days",
+          "type": "integer"
+        },
+        "diversity_penalty_applied": {
+          "title": "Diversity Penalty Applied",
+          "type": "number"
+        }
+      },
+      "required": [
+        "target_claim_id",
+        "n_sources",
+        "date_window_days",
+        "diversity_penalty_applied"
+      ],
+      "title": "EchoChamberDetectedEvent",
       "type": "object"
     },
     "EvidenceAddedEvent": {
@@ -1352,6 +1842,329 @@ export const EventSchema = {
       ],
       "title": "EvidencePolarity",
       "type": "string"
+    },
+    "HistorySummarizedEvent": {
+      "additionalProperties": true,
+      "description": "ReAct history summarized to prevent token overflow (IP-25 Phase E).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "HistorySummarized",
+          "default": "HistorySummarized",
+          "title": "Type",
+          "type": "string"
+        },
+        "steps_summarized": {
+          "title": "Steps Summarized",
+          "type": "integer"
+        },
+        "summary_tokens": {
+          "title": "Summary Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "steps_summarized",
+        "summary_tokens"
+      ],
+      "title": "HistorySummarizedEvent",
+      "type": "object"
+    },
+    "HypothesesGeneratedEvent": {
+      "additionalProperties": true,
+      "description": "Abductive hypotheses generated for causal/scenario questions (IP-25 Phase D).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "HypothesesGenerated",
+          "default": "HypothesesGenerated",
+          "title": "Type",
+          "type": "string"
+        },
+        "hypotheses": {
+          "items": {
+            "$ref": "#/$defs/Hypothesis"
+          },
+          "title": "Hypotheses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hypotheses"
+      ],
+      "title": "HypothesesGeneratedEvent",
+      "type": "object"
+    },
+    "Hypothesis": {
+      "additionalProperties": true,
+      "description": "A candidate hypothesis for abductive reasoning.",
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "priority": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Priority",
+          "type": "number"
+        },
+        "verdict": {
+          "default": "pending",
+          "enum": [
+            "pending",
+            "confirmed",
+            "refuted"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "priority"
+      ],
+      "title": "Hypothesis",
+      "type": "object"
+    },
+    "HypothesisEvaluatedEvent": {
+      "additionalProperties": true,
+      "description": "Hypothesis verdict updated (IP-25 Phase E).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "HypothesisEvaluated",
+          "default": "HypothesisEvaluated",
+          "title": "Type",
+          "type": "string"
+        },
+        "hypothesis_id": {
+          "format": "uuid",
+          "title": "Hypothesis Id",
+          "type": "string"
+        },
+        "verdict": {
+          "title": "Verdict",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hypothesis_id",
+        "verdict",
+        "evidence_ids"
+      ],
+      "title": "HypothesisEvaluatedEvent",
+      "type": "object"
     },
     "JudgeProviderDegradedEvent": {
       "additionalProperties": true,
@@ -1727,6 +2540,112 @@ export const EventSchema = {
       "title": "KeyValueRow",
       "type": "object"
     },
+    "Lane": {
+      "description": "Research lane selection (IP-25 Phase A).\n\nDetermines the complexity and depth of the research flow:\n- FAST: single-round, Wikipedia + Tavily top-3, mini-judge\n- STANDARD: current default pipeline with multi-round search\n- DEEP: extended pipeline with extra critique, ReAct, abductive reasoning",
+      "enum": [
+        "fast",
+        "standard",
+        "deep"
+      ],
+      "title": "Lane",
+      "type": "string"
+    },
+    "LaneEscalatedEvent": {
+      "additionalProperties": true,
+      "description": "Lane escalation (IP-25 Phase C).\n\nEmitted when a lane (e.g., FAST) cannot satisfy its success criteria\nand escalates to a deeper lane (e.g., STANDARD). The run continues\nwith the target lane's pipeline.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "LaneEscalated",
+          "default": "LaneEscalated",
+          "title": "Type",
+          "type": "string"
+        },
+        "from_lane": {
+          "$ref": "#/$defs/Lane",
+          "description": "Source lane that escalated"
+        },
+        "to_lane": {
+          "$ref": "#/$defs/Lane",
+          "description": "Target lane for continuation"
+        },
+        "reason": {
+          "description": "Why escalation occurred (e.g., 'mini_judge_rejected_or_low_S')",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_lane",
+        "to_lane",
+        "reason"
+      ],
+      "title": "LaneEscalatedEvent",
+      "type": "object"
+    },
     "MarkdownBlock": {
       "additionalProperties": true,
       "description": "Fallback for content that is already richly formatted by the LLM.",
@@ -1779,6 +2698,96 @@ export const EventSchema = {
         "diagram"
       ],
       "title": "MermaidBlock",
+      "type": "object"
+    },
+    "NoProgressDetectedEvent": {
+      "additionalProperties": true,
+      "description": "Confidence plateau detected (IP-25 Phase B).\n\nEmitted when confidence has not improved by at least 0.05 over the\nlast 3 judge rounds. Forces transition to SYNTHESIZING to avoid\nwasted search cycles.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "NoProgressDetected",
+          "default": "NoProgressDetected",
+          "title": "Type",
+          "type": "string"
+        },
+        "delta_3rounds": {
+          "title": "Delta 3Rounds",
+          "type": "number"
+        },
+        "current_confidence": {
+          "title": "Current Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "delta_3rounds",
+        "current_confidence"
+      ],
+      "title": "NoProgressDetectedEvent",
       "type": "object"
     },
     "ParagraphBlock": {
@@ -2053,6 +3062,102 @@ export const EventSchema = {
       "title": "PlanCritiquedEvent",
       "type": "object"
     },
+    "PlanGapsDetectedEvent": {
+      "additionalProperties": true,
+      "description": "Dynamic re-decomposition triggered (IP-25 Phase B).\n\nEmitted after ANALYZING when structural confidence is below threshold\nand redecomposition_count < max_redecomposition. The gaps are LLM-\nidentified angles not covered by the current plan.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "PlanGapsDetected",
+          "default": "PlanGapsDetected",
+          "title": "Type",
+          "type": "string"
+        },
+        "gaps": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Gaps",
+          "type": "array"
+        },
+        "extra_sub_claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Extra Sub Claim Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "gaps",
+        "extra_sub_claim_ids"
+      ],
+      "title": "PlanGapsDetectedEvent",
+      "type": "object"
+    },
     "PlanRevisedEvent": {
       "additionalProperties": true,
       "description": "Plan updated after critique.",
@@ -2285,6 +3390,107 @@ export const EventSchema = {
         "prior_completed_at"
       ],
       "title": "PriorRunHintReplayedEvent",
+      "type": "object"
+    },
+    "QueryReformulatedEvent": {
+      "additionalProperties": true,
+      "description": "Query reformulation triggered by low relevance scores (IP-25 Phase 0).\n\nEmitted when all search results for a claim have relevance_score < 0.3.\nThe search task performs ONE reformulated retry per claim per round.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "QueryReformulated",
+          "default": "QueryReformulated",
+          "title": "Type",
+          "type": "string"
+        },
+        "original_query": {
+          "title": "Original Query",
+          "type": "string"
+        },
+        "reformulated_query": {
+          "title": "Reformulated Query",
+          "type": "string"
+        },
+        "target_claim_id": {
+          "title": "Target Claim Id",
+          "type": "string"
+        },
+        "reason": {
+          "const": "low_relevance",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "original_query",
+        "reformulated_query",
+        "target_claim_id",
+        "reason"
+      ],
+      "title": "QueryReformulatedEvent",
       "type": "object"
     },
     "QuestionAskedEvent": {
@@ -2814,6 +4020,114 @@ export const EventSchema = {
         "resume_point"
       ],
       "title": "ResumedAfterErrorEvent",
+      "type": "object"
+    },
+    "RouteSelectedEvent": {
+      "additionalProperties": true,
+      "description": "Lane routing decision (IP-25 Phase A).\n\nEmitted after QuestionClassified and before PlanCreated. Pure telemetry\nin Phase A \u2014 the pipeline continues through STANDARD flow regardless of\nthe selected lane. Phases B-F will implement actual branching.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "RouteSelected",
+          "default": "RouteSelected",
+          "title": "Type",
+          "type": "string"
+        },
+        "lane": {
+          "$ref": "#/$defs/Lane"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "question_type": {
+          "$ref": "#/$defs/QuestionType"
+        },
+        "complexity_hint": {
+          "$ref": "#/$defs/ComplexityHint"
+        },
+        "temporal_sensitivity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalSensitivity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "lane",
+        "reason",
+        "question_type",
+        "complexity_hint"
+      ],
+      "title": "RouteSelectedEvent",
       "type": "object"
     },
     "SaturationDetectedEvent": {
@@ -3621,35 +4935,137 @@ export const EventSchema = {
       ],
       "title": "UserContextChallengedEvent",
       "type": "object"
+    },
+    "VerificationQuestionsGeneratedEvent": {
+      "additionalProperties": true,
+      "description": "Verification questions generated for CoVe (IP-25 Phase F).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "VerificationQuestionsGenerated",
+          "default": "VerificationQuestionsGenerated",
+          "title": "Type",
+          "type": "string"
+        },
+        "questions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Questions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "questions"
+      ],
+      "title": "VerificationQuestionsGeneratedEvent",
+      "type": "object"
     }
   },
   "discriminator": {
     "mapping": {
+      "AgentAction": "#/$defs/AgentActionEvent",
       "AgentErrored": "#/$defs/AgentErroredEvent",
+      "AgentObservation": "#/$defs/AgentObservationEvent",
+      "AgentThought": "#/$defs/AgentThoughtEvent",
       "AmbiguityDetected": "#/$defs/AmbiguityDetectedEvent",
       "ClaimCovered": "#/$defs/ClaimCoveredEvent",
       "ClaimUncoverable": "#/$defs/ClaimUncoverableEvent",
       "ConfidenceMismatch": "#/$defs/ConfidenceMismatchEvent",
       "ContradictionDetected": "#/$defs/ContradictionDetectedEvent",
       "ContradictionResolved": "#/$defs/ContradictionResolvedEvent",
+      "CoveContradictionDetected": "#/$defs/CoveContradictionDetectedEvent",
       "DeepFetchPerformed": "#/$defs/DeepFetchPerformedEvent",
+      "EchoChamberDetected": "#/$defs/EchoChamberDetectedEvent",
       "EvidenceAdded": "#/$defs/EvidenceAddedEvent",
+      "HistorySummarized": "#/$defs/HistorySummarizedEvent",
+      "HypothesesGenerated": "#/$defs/HypothesesGeneratedEvent",
+      "HypothesisEvaluated": "#/$defs/HypothesisEvaluatedEvent",
       "JudgeProviderDegraded": "#/$defs/JudgeProviderDegradedEvent",
       "JudgeRuled": "#/$defs/JudgeRuledEvent",
+      "LaneEscalated": "#/$defs/LaneEscalatedEvent",
+      "NoProgressDetected": "#/$defs/NoProgressDetectedEvent",
       "PlanCreated": "#/$defs/PlanCreatedEvent",
       "PlanCritiqued": "#/$defs/PlanCritiquedEvent",
+      "PlanGapsDetected": "#/$defs/PlanGapsDetectedEvent",
       "PlanRevised": "#/$defs/PlanRevisedEvent",
       "PriorRunHintReplayed": "#/$defs/PriorRunHintReplayedEvent",
+      "QueryReformulated": "#/$defs/QueryReformulatedEvent",
       "QuestionAsked": "#/$defs/QuestionAskedEvent",
       "QuestionClassified": "#/$defs/QuestionClassifiedEvent",
       "QuestionNormalized": "#/$defs/QuestionNormalizedEvent",
       "ResumedAfterCancel": "#/$defs/ResumedAfterCancelEvent",
       "ResumedAfterError": "#/$defs/ResumedAfterErrorEvent",
+      "RouteSelected": "#/$defs/RouteSelectedEvent",
       "SaturationDetected": "#/$defs/SaturationDetectedEvent",
       "SourceFailed": "#/$defs/SourceFailedEvent",
       "Stopped": "#/$defs/StoppedEvent",
       "ToolCalled": "#/$defs/ToolCalledEvent",
-      "UserContextChallenged": "#/$defs/UserContextChallengedEvent"
+      "UserContextChallenged": "#/$defs/UserContextChallengedEvent",
+      "VerificationQuestionsGenerated": "#/$defs/VerificationQuestionsGeneratedEvent"
     },
     "propertyName": "type"
   },
@@ -3673,6 +5089,9 @@ export const EventSchema = {
       "$ref": "#/$defs/PlanRevisedEvent"
     },
     {
+      "$ref": "#/$defs/HypothesesGeneratedEvent"
+    },
+    {
       "$ref": "#/$defs/ToolCalledEvent"
     },
     {
@@ -3689,6 +5108,45 @@ export const EventSchema = {
     },
     {
       "$ref": "#/$defs/DeepFetchPerformedEvent"
+    },
+    {
+      "$ref": "#/$defs/QueryReformulatedEvent"
+    },
+    {
+      "$ref": "#/$defs/EchoChamberDetectedEvent"
+    },
+    {
+      "$ref": "#/$defs/RouteSelectedEvent"
+    },
+    {
+      "$ref": "#/$defs/PlanGapsDetectedEvent"
+    },
+    {
+      "$ref": "#/$defs/NoProgressDetectedEvent"
+    },
+    {
+      "$ref": "#/$defs/LaneEscalatedEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentThoughtEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentActionEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentObservationEvent"
+    },
+    {
+      "$ref": "#/$defs/HypothesisEvaluatedEvent"
+    },
+    {
+      "$ref": "#/$defs/HistorySummarizedEvent"
+    },
+    {
+      "$ref": "#/$defs/VerificationQuestionsGeneratedEvent"
+    },
+    {
+      "$ref": "#/$defs/CoveContradictionDetectedEvent"
     },
     {
       "$ref": "#/$defs/AmbiguityDetectedEvent"
@@ -3744,6 +5202,7 @@ export const EventSchema = {
 //   | PlanCreatedEvent
 //   | PlanCritiquedEvent
 //   | PlanRevisedEvent
+//   | HypothesesGeneratedEvent
 //   | ToolCalledEvent
 //   | EvidenceAddedEvent
 //   | ClaimCoveredEvent
@@ -3759,6 +5218,19 @@ export const EventSchema = {
 //   | SaturationDetectedEvent
 //   | JudgeProviderDegradedEvent
 //   | DeepFetchPerformedEvent
+//   | QueryReformulatedEvent
+//   | EchoChamberDetectedEvent
+//   | RouteSelectedEvent
+//   | PlanGapsDetectedEvent
+//   | NoProgressDetectedEvent
+//   | LaneEscalatedEvent
+//   | AgentThoughtEvent
+//   | AgentActionEvent
+//   | AgentObservationEvent
+//   | HypothesisEvaluatedEvent
+//   | HistorySummarizedEvent
+//   | VerificationQuestionsGeneratedEvent
+//   | CoveContradictionDetectedEvent
 //   | AgentErroredEvent
 //   | ResumedAfterErrorEvent
 //   | ResumedAfterCancelEvent

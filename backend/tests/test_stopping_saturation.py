@@ -1,13 +1,14 @@
 """Tests for novelty-based saturation signal (WP-4)."""
 
+from uuid import uuid4
+
 import numpy as np
 import pytest
 
 from app.agent.run_state import EvidenceItem, RunState
-from app.domain.enums import QuestionType, StopReason
+from app.domain.enums import QuestionType
 from app.seams.stopping import SignalResult
 from app.stopping.signals.saturation import evaluate_saturation
-from uuid import uuid4
 
 
 @pytest.fixture
@@ -50,7 +51,6 @@ async def test_saturation_first_round_defers(mock_state, monkeypatch):
 @pytest.mark.asyncio
 async def test_saturation_insufficient_chunks_defers(mock_state, monkeypatch):
     """Current round with < k chunks returns DEFER."""
-    from app.config import settings
 
     mock_state.search_count = 1  # Second round
     # Only 2 chunks in current round, need 3

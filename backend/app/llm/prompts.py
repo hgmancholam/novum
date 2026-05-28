@@ -81,6 +81,34 @@ If your draft query violates (a)-(c), rewrite it once before emitting.
 Output format: JSON matching the PlanOutput schema with optional `expected_experts` field (list of strings from the vocabulary above, max 3)."""
 
 
+HYPOTHESES_PROMPT = """You are a hypothesis generator for abductive reasoning.
+
+Given a causal, scenario, or predictive question, generate 2-4 competing hypotheses that could explain or predict the outcome.
+
+Guidelines:
+1. Each hypothesis should be a complete, testable statement
+2. Hypotheses should be mutually exclusive where possible
+3. Order by priority (0.0-1.0) based on initial plausibility
+4. Keep each hypothesis concise (1-2 sentences)
+5. Focus on distinct mechanisms or causal pathways
+
+Examples:
+Question: "Why did the Roman Empire fall?"
+Hypotheses:
+- "Military overextension and barbarian invasions overwhelmed defensive capacity" (priority: 0.9)
+- "Economic collapse due to debasement of currency and trade disruption" (priority: 0.8)
+- "Internal political instability and civil wars weakened central authority" (priority: 0.7)
+- "Climate change reduced agricultural productivity and caused famines" (priority: 0.5)
+
+Question: "Will quantum computing replace classical computing by 2040?"
+Hypotheses:
+- "Quantum computers will complement classical computers for specific workloads only" (priority: 0.85)
+- "Quantum computing will remain primarily in research labs due to cost and complexity" (priority: 0.7)
+- "Breakthroughs in error correction will enable widespread quantum adoption" (priority: 0.6)
+
+Output format: JSON matching the HypothesesList schema with 2-4 items, each with `text` (string) and `priority` (float 0.0-1.0)."""
+
+
 SYNTHESIZER_SYSTEM_PROMPT = """You are a research agent producing the final answer from gathered evidence.
 
 When drafting answers:
@@ -130,6 +158,55 @@ Be rigorous. Your job is to protect users from incorrect information.
 Stale-citation rule (BRD-23 WP-1): when the run's temporal_sensitivity is `volatile` or `realtime`, lower your confidence by up to 0.10 for every claim whose ALL supporting citations have `source_published_date` older than the active `tavily_days_filter` window (or whose dates are missing entirely). When more than half of a claim's supporting citations are stale, set `supported_but_shallow=true` for that claim id (BRD-23 WP-2 §4.6).
 
 Output format: JSON matching the JudgeVerdict schema with all fields populated."""
+
+
+PLAN_GAPS_PROMPT = """You are a research planning assistant identifying gaps in the current research plan.
+
+Given the question, current sub-claims, and evidence summary, identify up to 3 angles or sub-questions that are not yet covered.
+
+Return short imperative phrases describing what's missing. Examples:
+- "Verify X's claim with primary sources"
+- "Check Y's perspective on the issue"
+- "Investigate the Z aspect mentioned but not explored"
+
+If the plan already covers all major angles adequately, return an empty list.
+
+Be conservative — only suggest gaps that are genuinely important to answer the question. Do not invent tangential or background topics."""
+
+
+# =============================================================================
+# IP-25 Phase C: FAST lane prompts
+# =============================================================================
+
+FAST_SYNTH_PROMPT = """You are a research synthesizer producing a concise 1-2 sentence answer for a FAST lane query.
+
+Given the question and 3-6 top sources, write a direct answer with inline citations [1], [2].
+
+Rules:
+- Lead with the answer in the first sentence
+- Keep total response to 1-2 sentences maximum
+- Use inline citations [n] for every claim
+- Be factual and evidence-based
+- Acknowledge uncertainty briefly if sources disagree
+
+Reply in the user's language (Spanish by default).
+
+Output format: JSON matching the SynthesizedAnswer schema with `prose` (the 1-2 sentence answer) and `citations` (list of URLs). Leave other fields empty or null."""
+
+
+FAST_MINI_JUDGE_PROMPT = """You are a mini-judge for FAST lane answers.
+
+Given the question, the 1-2 sentence answer, and the sources, verify:
+1. Is the answer factually supported by the sources?
+2. Are the citations appropriate and inline?
+3. Does the answer directly address the question?
+
+Output a JSON object with:
+- `ok` (boolean): true if the answer is acceptable, false otherwise
+- `j_score` (float 0.0-1.0): your confidence in the answer quality
+- `reason` (string): short English explanation of your verdict
+
+Be strict but fair. A good FAST lane answer should be concise, accurate, and well-cited."""
 
 
 ROLE_PROMPTS: dict[LLMRole, str] = {
@@ -200,7 +277,9 @@ range of outcomes), cite the evidence [n] that supports it, and call out
 the key drivers and uncertainties. Do NOT use `prose` to "frame" the
 predictive nature of the question — the user already knows it is predictive.
 Leave candidates, criteria, redirect_alternatives, interpretation null.
-
+If hypotheses were generated during planning, use them as the skeleton for
+your scenarios. Each confirmed hypothesis (supported by evidence) should
+become a scenario branch labeled with its confidence.
 Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `scenario`.""",
     AnswerKind.TRADEOFF: """
 AnswerKind = TRADEOFF.
@@ -248,8 +327,17 @@ def build_synthesizer_prompt(
     answer_kind: AnswerKind,
     user_language: str = "es",
     requires_contradictions: bool = False,
+    hypotheses: list[dict] | None = None,  # IP-25 Phase D: {text, priority}
 ) -> tuple[str, int]:
     """Build the system prompt for the synthesizer based on answer_kind.
+
+    Args:
+        question: The research question
+        evidence: List of evidence items with url, title, snippet
+        answer_kind: Type of answer to generate
+        user_language: Language for the response (default Spanish)
+        requires_contradictions: Whether contradictions must be surfaced
+        hypotheses: Optional list of hypotheses for scenario answers
 
     Returns:
         (system_prompt, max_tokens) — the complete prompt and token budget.
@@ -266,6 +354,20 @@ def build_synthesizer_prompt(
         "\n\n".join(evidence_lines) if evidence_lines else "(No evidence)"
     )
 
+    # Build hypotheses block if provided (IP-25 Phase D)
+    hypotheses_block = ""
+    if hypotheses:
+        hypotheses_lines = []
+        for i, h in enumerate(hypotheses, start=1):
+            hypotheses_lines.append(
+                f"H{i}. {h.get('text', '')} (priority: {h.get('priority', 0.0):.2f})"
+            )
+        hypotheses_block = (
+            "\n\n=== CANDIDATE HYPOTHESES ===\n"
+            + "\n".join(hypotheses_lines)
+            + "\n"
+        )
+
     # Assemble system prompt
     system_prompt = _SHARED_SYSTEM_BLOCK
     if requires_contradictions:
@@ -279,12 +381,62 @@ def build_synthesizer_prompt(
     # the grounding context before the user turn (which only echoes the
     # question). Without this the synthesizer produced framing paragraphs
     # instead of substantive answers.
-    system_prompt += (
-        f"\n\n=== QUESTION ===\n{question}\n\n"
-        f"=== EVIDENCE ===\n{evidence_block}\n"
-    )
+    system_prompt += f"\n\n=== QUESTION ===\n{question}\n"
+    system_prompt += hypotheses_block  # IP-25 Phase D: insert hypotheses if present
+    system_prompt += f"\n=== EVIDENCE ===\n{evidence_block}\n"
 
     # Token budget
     max_tokens = _MAX_TOKENS_PER_KIND[answer_kind]
 
     return system_prompt, max_tokens
+
+
+# =============================================================================
+# IP-25 Phase F: Chain-of-Verification (CoVe) prompts
+# =============================================================================
+
+COVE_QUESTIONS_PROMPT = """You are a verification question generator for Chain-of-Verification.
+
+Given a draft research answer, generate exactly 3 sharp, atomic, independent verification questions whose answers (if "no") would contradict a load-bearing factual claim in the draft.
+
+Guidelines:
+1. Each question should target ONE specific factual assertion
+2. Questions must be answerable with external evidence (web search)
+3. Avoid yes-and-yes traps (questions where both "yes" and "no" support the draft)
+4. Focus on testable claims, not stylistic choices
+5. Make questions narrow and unambiguous
+6. Target the most important claims first
+
+Example:
+Draft: "Tokyo became Japan's capital in 1868 after the Meiji Restoration, replacing Kyoto which had been the capital for over 1000 years."
+
+Good verification questions:
+- "Did Tokyo officially become Japan's capital in 1868?"
+- "Was Kyoto the capital of Japan for over 1000 years before Tokyo?"
+- "Did the Meiji Restoration occur in 1868?"
+
+Bad verification questions:
+- "Is Tokyo a good capital?" (subjective, not factual)
+- "What is Japan's capital?" (yes-and-yes trap)
+- "Has Tokyo always been Japan's capital?" (too broad)
+
+Output format: JSON matching the CoveQuestions schema with `items` field containing exactly 3 questions as strings."""
+
+
+COVE_VERIFICATION_PROMPT = """You are a verification judge for Chain-of-Verification.
+
+Given a verification question, a draft answer, and fresh evidence from external sources, determine if the evidence contradicts the draft's claim.
+
+Rules:
+1. Focus ONLY on the specific factual claim targeted by the verification question
+2. Look for direct contradictions in facts, dates, numbers, attributions
+3. Ignore stylistic differences or alternative phrasings of the same fact
+4. If evidence is ambiguous or incomplete, default to no contradiction
+5. Minor discrepancies (e.g., "early 1868" vs "March 1868") are NOT contradictions
+6. Major factual errors (e.g., "1868" vs "1868 BCE") ARE contradictions
+
+Output format: JSON matching the CoveVerdict schema with:
+- `contradicts` (boolean): true if evidence contradicts the draft
+- `evidence` (string): the specific contradicting text or "no contradiction found"
+
+Be precise and conservative. Only flag clear contradictions."""

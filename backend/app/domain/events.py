@@ -17,11 +17,13 @@ from app.domain.enums import (
     ComplexityHint,
     EventType,
     EvidencePolarity,
+    Lane,
     QuestionType,
     SourceType,
     StopReason,
     TemporalSensitivity,
 )
+from app.domain.hypothesis import Hypothesis
 from app.domain.structured import StructuredAnswerData
 
 
@@ -124,6 +126,13 @@ class PlanRevisedEvent(BaseEvent):
     complexity_hint: ComplexityHint | None = None  # BRD-22 (replay tolerates absence)
 
 
+class HypothesesGeneratedEvent(BaseEvent):
+    """Abductive hypotheses generated for causal/scenario questions (IP-25 Phase D)."""
+
+    type: Literal[EventType.HYPOTHESES_GENERATED] = EventType.HYPOTHESES_GENERATED
+    hypotheses: list[Hypothesis]
+
+
 # =============================================================================
 # Search & Evidence Events
 # =============================================================================
@@ -214,6 +223,162 @@ class DeepFetchPerformedEvent(BaseEvent):
     content_length: int
     success: bool
     failure_reason: str | None = None
+
+
+class QueryReformulatedEvent(BaseEvent):
+    """Query reformulation triggered by low relevance scores (IP-25 Phase 0).
+
+    Emitted when all search results for a claim have relevance_score < 0.3.
+    The search task performs ONE reformulated retry per claim per round.
+    """
+
+    type: Literal[EventType.QUERY_REFORMULATED] = EventType.QUERY_REFORMULATED
+    original_query: str
+    reformulated_query: str
+    target_claim_id: str
+    reason: Literal["low_relevance"]
+
+
+class EchoChamberDetectedEvent(BaseEvent):
+    """Echo chamber penalty applied (IP-25 Phase 0).
+
+    Emitted when N ≥ 3 evidence items for the same claim:
+    - All have non-null source_published_date
+    - All fall within a window of < 7 days
+    - C_agreement == 1.0 for that claim
+
+    The diversity score is penalized by multiplying by 0.85.
+    """
+
+    type: Literal[EventType.ECHO_CHAMBER_DETECTED] = EventType.ECHO_CHAMBER_DETECTED
+    target_claim_id: str
+    n_sources: int
+    date_window_days: int
+    diversity_penalty_applied: float  # = 0.15
+
+
+class RouteSelectedEvent(BaseEvent):
+    """Lane routing decision (IP-25 Phase A).
+
+    Emitted after QuestionClassified and before PlanCreated. Pure telemetry
+    in Phase A — the pipeline continues through STANDARD flow regardless of
+    the selected lane. Phases B-F will implement actual branching.
+    """
+
+    type: Literal[EventType.ROUTE_SELECTED] = EventType.ROUTE_SELECTED
+    lane: Lane
+    reason: str
+    question_type: QuestionType
+    complexity_hint: ComplexityHint
+    temporal_sensitivity: TemporalSensitivity | None = None
+
+
+class PlanGapsDetectedEvent(BaseEvent):
+    """Dynamic re-decomposition triggered (IP-25 Phase B).
+
+    Emitted after ANALYZING when structural confidence is below threshold
+    and redecomposition_count < max_redecomposition. The gaps are LLM-
+    identified angles not covered by the current plan.
+    """
+
+    type: Literal[EventType.PLAN_GAPS_DETECTED] = EventType.PLAN_GAPS_DETECTED
+    gaps: list[str]
+    extra_sub_claim_ids: list[str]  # New SubClaim IDs added to state
+
+
+class NoProgressDetectedEvent(BaseEvent):
+    """Confidence plateau detected (IP-25 Phase B).
+
+    Emitted when confidence has not improved by at least 0.05 over the
+    last 3 judge rounds. Forces transition to SYNTHESIZING to avoid
+    wasted search cycles.
+    """
+
+    type: Literal[EventType.NO_PROGRESS_DETECTED] = EventType.NO_PROGRESS_DETECTED
+    delta_3rounds: float
+    current_confidence: float
+
+
+class LaneEscalatedEvent(BaseEvent):
+    """Lane escalation (IP-25 Phase C).
+
+    Emitted when a lane (e.g., FAST) cannot satisfy its success criteria
+    and escalates to a deeper lane (e.g., STANDARD). The run continues
+    with the target lane's pipeline.
+    """
+
+    type: Literal[EventType.LANE_ESCALATED] = EventType.LANE_ESCALATED
+    from_lane: Lane = Field(..., description="Source lane that escalated")
+    to_lane: Lane = Field(..., description="Target lane for continuation")
+    reason: str = Field(..., description="Why escalation occurred (e.g., 'mini_judge_rejected_or_low_S')")
+
+
+# =============================================================================
+# IP-25 Phase E: ReAct Loop Events
+# =============================================================================
+
+
+class AgentThoughtEvent(BaseEvent):
+    """Agent reasoning thought in ReAct loop (IP-25 Phase E)."""
+
+    type: Literal[EventType.AGENT_THOUGHT] = EventType.AGENT_THOUGHT
+    step: int
+    thought: str
+
+
+class AgentActionEvent(BaseEvent):
+    """Agent action selection in ReAct loop (IP-25 Phase E)."""
+
+    type: Literal[EventType.AGENT_ACTION] = EventType.AGENT_ACTION
+    step: int
+    action_type: str  # "search" | "deep_fetch" | "evaluate_hypothesis" | "finish"
+    args: dict[str, Any]
+
+
+class AgentObservationEvent(BaseEvent):
+    """Agent observation result in ReAct loop (IP-25 Phase E)."""
+
+    type: Literal[EventType.AGENT_OBSERVATION] = EventType.AGENT_OBSERVATION
+    step: int
+    result_summary: str
+    tokens: int
+
+
+class HypothesisEvaluatedEvent(BaseEvent):
+    """Hypothesis verdict updated (IP-25 Phase E)."""
+
+    type: Literal[EventType.HYPOTHESIS_EVALUATED] = EventType.HYPOTHESIS_EVALUATED
+    hypothesis_id: UUID
+    verdict: str  # "confirmed" | "refuted"
+    evidence_ids: list[UUID]
+
+
+class HistorySummarizedEvent(BaseEvent):
+    """ReAct history summarized to prevent token overflow (IP-25 Phase E)."""
+
+    type: Literal[EventType.HISTORY_SUMMARIZED] = EventType.HISTORY_SUMMARIZED
+    steps_summarized: int
+    summary_tokens: int
+
+
+class VerificationQuestionsGeneratedEvent(BaseEvent):
+    """Verification questions generated for CoVe (IP-25 Phase F)."""
+
+    type: Literal[EventType.VERIFICATION_QUESTIONS_GENERATED] = (
+        EventType.VERIFICATION_QUESTIONS_GENERATED
+    )
+    questions: list[str]
+
+
+class CoveContradictionDetectedEvent(BaseEvent):
+    """CoVe detected a contradiction in the draft answer (IP-25 Phase F)."""
+
+    type: Literal[EventType.COVE_CONTRADICTION_DETECTED] = (
+        EventType.COVE_CONTRADICTION_DETECTED
+    )
+    question: str
+    contradicting_evidence: str
+
 
 # =============================================================================
 # Detection Events (RF-04)
@@ -472,7 +637,7 @@ class StoppedEvent(BaseEvent):
 
 
 Event = Annotated[
-    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | DeepFetchPerformedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
+    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | HypothesesGeneratedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | DeepFetchPerformedEvent | QueryReformulatedEvent | EchoChamberDetectedEvent | RouteSelectedEvent | PlanGapsDetectedEvent | NoProgressDetectedEvent | LaneEscalatedEvent | AgentThoughtEvent | AgentActionEvent | AgentObservationEvent | HypothesisEvaluatedEvent | HistorySummarizedEvent | VerificationQuestionsGeneratedEvent | CoveContradictionDetectedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
     Field(discriminator="type"),
 ]
 
@@ -485,12 +650,26 @@ EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
     EventType.PLAN_CREATED: PlanCreatedEvent,
     EventType.PLAN_CRITIQUED: PlanCritiquedEvent,
     EventType.PLAN_REVISED: PlanRevisedEvent,
+    EventType.HYPOTHESES_GENERATED: HypothesesGeneratedEvent,
     EventType.TOOL_CALLED: ToolCalledEvent,
     EventType.EVIDENCE_ADDED: EvidenceAddedEvent,
     EventType.CLAIM_COVERED: ClaimCoveredEvent,
     EventType.CLAIM_UNCOVERABLE: ClaimUncoverableEvent,
     EventType.SOURCE_FAILED: SourceFailedEvent,
     EventType.DEEP_FETCH_PERFORMED: DeepFetchPerformedEvent,
+    EventType.QUERY_REFORMULATED: QueryReformulatedEvent,
+    EventType.ECHO_CHAMBER_DETECTED: EchoChamberDetectedEvent,
+    EventType.ROUTE_SELECTED: RouteSelectedEvent,
+    EventType.PLAN_GAPS_DETECTED: PlanGapsDetectedEvent,
+    EventType.NO_PROGRESS_DETECTED: NoProgressDetectedEvent,
+    EventType.LANE_ESCALATED: LaneEscalatedEvent,
+    EventType.AGENT_THOUGHT: AgentThoughtEvent,
+    EventType.AGENT_ACTION: AgentActionEvent,
+    EventType.AGENT_OBSERVATION: AgentObservationEvent,
+    EventType.HYPOTHESIS_EVALUATED: HypothesisEvaluatedEvent,
+    EventType.HISTORY_SUMMARIZED: HistorySummarizedEvent,
+    EventType.VERIFICATION_QUESTIONS_GENERATED: VerificationQuestionsGeneratedEvent,
+    EventType.COVE_CONTRADICTION_DETECTED: CoveContradictionDetectedEvent,
     EventType.AMBIGUITY_DETECTED: AmbiguityDetectedEvent,
     EventType.CONTRADICTION_DETECTED: ContradictionDetectedEvent,
     EventType.CONTRADICTION_RESOLVED: ContradictionResolvedEvent,

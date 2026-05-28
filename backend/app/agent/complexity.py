@@ -6,7 +6,6 @@ based on word count, question type, classifier confidence, and entity count.
 This module powers Task 3.1, 3.2 of IP-22.
 """
 
-import unicodedata
 from typing import Any
 
 from app.config import settings

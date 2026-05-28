@@ -20,7 +20,10 @@ from app.domain.enums import (
 from app.domain.events import (
     EVENT_TYPE_MAP,
     FORKABLE_EVENTS,
+    AgentActionEvent,
     AgentErroredEvent,
+    AgentObservationEvent,
+    AgentThoughtEvent,
     AmbiguityDetectedEvent,
     AnswerSection,
     Citation,
@@ -30,26 +33,37 @@ from app.domain.events import (
     ContradictionDetectedEvent,
     ContradictionResolvedEvent,
     ContradictionSource,
+    CoveContradictionDetectedEvent,
     DeepFetchPerformedEvent,
+    EchoChamberDetectedEvent,
     Event,
     EvidenceAddedEvent,
-    JudgeRuledEvent,
+    HistorySummarizedEvent,
+    HypothesesGeneratedEvent,
+    HypothesisEvaluatedEvent,
     JudgeProviderDegradedEvent,
+    JudgeRuledEvent,
+    LaneEscalatedEvent,
+    NoProgressDetectedEvent,
     PlanCreatedEvent,
     PlanCritiquedEvent,
+    PlanGapsDetectedEvent,
     PlanRevisedEvent,
     PriorRunHintReplayedEvent,
+    QueryReformulatedEvent,
     QuestionAskedEvent,
     QuestionClassifiedEvent,
     QuestionNormalizedEvent,
     ResumedAfterCancelEvent,
     ResumedAfterErrorEvent,
+    RouteSelectedEvent,
     SaturationDetectedEvent,
     SourceFailedEvent,
     StoppedEvent,
     SubClaim,
     ToolCalledEvent,
     UserContextChallengedEvent,
+    VerificationQuestionsGeneratedEvent,
 )
 
 _EVENT_ADAPTER: TypeAdapter[Event] = TypeAdapter(Event)
@@ -179,6 +193,28 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
                 "content_length": 1500,
                 "success": True,
             }
+        case EventType.QUERY_REFORMULATED:
+            extra = {
+                "original_query": "original query text",
+                "reformulated_query": "reformulated query text",
+                "target_claim_id": "c1",
+                "reason": "low_relevance",
+            }
+        case EventType.ECHO_CHAMBER_DETECTED:
+            extra = {
+                "target_claim_id": "c1",
+                "n_sources": 3,
+                "date_window_days": 5,
+                "diversity_penalty_applied": 0.15,
+            }
+        case EventType.ROUTE_SELECTED:
+            extra = {
+                "lane": "standard",
+                "reason": "default → STANDARD",
+                "question_type": QuestionType.FACTUAL.value,
+                "complexity_hint": "standard",
+                "temporal_sensitivity": "static",
+            }
         case EventType.AMBIGUITY_DETECTED:
             extra = {
                 "ambiguous_phrase": "p",
@@ -260,6 +296,69 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
                 "question_type": "factual",
                 "classifier_confidence": 0.92,
             }
+        case EventType.PLAN_GAPS_DETECTED:
+            extra = {
+                "gaps": ["Investigate orbital mechanics"],
+                "extra_sub_claim_ids": [str(uuid4())],
+            }
+        case EventType.NO_PROGRESS_DETECTED:
+            extra = {
+                "delta_3rounds": 0.03,
+                "current_confidence": 0.52,
+            }
+        case EventType.LANE_ESCALATED:
+            extra = {
+                "from_lane": "fast",
+                "to_lane": "standard",
+                "reason": "mini_judge_rejected_or_low_S",
+            }
+        case EventType.HYPOTHESES_GENERATED:
+            extra = {
+                "hypotheses": [
+                    {
+                        "id": str(uuid4()),
+                        "text": "Hypothesis A",
+                        "priority": 0.8,
+                        "verdict": "pending",
+                        "evidence_ids": [],
+                    }
+                ],
+            }
+        case EventType.AGENT_THOUGHT:
+            extra = {"step": 1, "thought": "I should search for X"}
+        case EventType.AGENT_ACTION:
+            extra = {
+                "step": 1,
+                "action_type": "search",
+                "args": {"query": "q"},
+            }
+        case EventType.AGENT_OBSERVATION:
+            extra = {
+                "step": 1,
+                "result_summary": "found 3 results",
+                "tokens": 42,
+            }
+        case EventType.HYPOTHESIS_EVALUATED:
+            extra = {
+                "hypothesis_id": str(uuid4()),
+                "verdict": "confirmed",
+                "evidence_ids": [str(uuid4())],
+            }
+        case EventType.HISTORY_SUMMARIZED:
+            extra = {"steps_summarized": 8, "summary_tokens": 250}
+        case EventType.VERIFICATION_QUESTIONS_GENERATED:
+            extra = {
+                "questions": [
+                    "Did Tokyo become capital in 1868?",
+                    "Was Kyoto the previous capital?",
+                    "Did the Meiji Restoration occur in 1868?",
+                ]
+            }
+        case EventType.COVE_CONTRADICTION_DETECTED:
+            extra = {
+                "question": "Did Tokyo become capital in 1868?",
+                "contradicting_evidence": "Tokyo became de facto capital in 1868 but was not officially designated until 1943.",
+            }
     base.update(extra)
     return base
 
@@ -271,12 +370,17 @@ _EXPECTED_CLASS: dict[EventType, type] = {
     EventType.PLAN_CREATED: PlanCreatedEvent,
     EventType.PLAN_CRITIQUED: PlanCritiquedEvent,
     EventType.PLAN_REVISED: PlanRevisedEvent,
+    EventType.PLAN_GAPS_DETECTED: PlanGapsDetectedEvent,
+    EventType.NO_PROGRESS_DETECTED: NoProgressDetectedEvent,
     EventType.TOOL_CALLED: ToolCalledEvent,
     EventType.EVIDENCE_ADDED: EvidenceAddedEvent,
     EventType.CLAIM_COVERED: ClaimCoveredEvent,
     EventType.CLAIM_UNCOVERABLE: ClaimUncoverableEvent,
     EventType.SOURCE_FAILED: SourceFailedEvent,
     EventType.DEEP_FETCH_PERFORMED: DeepFetchPerformedEvent,
+    EventType.QUERY_REFORMULATED: QueryReformulatedEvent,
+    EventType.ECHO_CHAMBER_DETECTED: EchoChamberDetectedEvent,
+    EventType.ROUTE_SELECTED: RouteSelectedEvent,
     EventType.AMBIGUITY_DETECTED: AmbiguityDetectedEvent,
     EventType.CONTRADICTION_DETECTED: ContradictionDetectedEvent,
     EventType.CONTRADICTION_RESOLVED: ContradictionResolvedEvent,
@@ -290,6 +394,15 @@ _EXPECTED_CLASS: dict[EventType, type] = {
     EventType.STOPPED: StoppedEvent,
     EventType.SATURATION_DETECTED: SaturationDetectedEvent,
     EventType.JUDGE_PROVIDER_DEGRADED: JudgeProviderDegradedEvent,
+    EventType.LANE_ESCALATED: LaneEscalatedEvent,
+    EventType.HYPOTHESES_GENERATED: HypothesesGeneratedEvent,
+    EventType.AGENT_THOUGHT: AgentThoughtEvent,
+    EventType.AGENT_ACTION: AgentActionEvent,
+    EventType.AGENT_OBSERVATION: AgentObservationEvent,
+    EventType.HYPOTHESIS_EVALUATED: HypothesisEvaluatedEvent,
+    EventType.HISTORY_SUMMARIZED: HistorySummarizedEvent,
+    EventType.VERIFICATION_QUESTIONS_GENERATED: VerificationQuestionsGeneratedEvent,
+    EventType.COVE_CONTRADICTION_DETECTED: CoveContradictionDetectedEvent,
 }
 
 
@@ -329,8 +442,8 @@ def test_extra_fields_preserved_in_model_extra() -> None:
 
 
 def test_event_type_enum_has_22_values() -> None:
-    """AC-04 (WP-4/5 + BRD-22 + BRD-23 WP-2): there are exactly 25 event types."""
-    assert len(EventType) == 25
+    """AC-04 (IP-25 Phase F): there are exactly 39 event types."""
+    assert len(EventType) == 39
 
 
 def test_forkable_events_exact_membership() -> None:
@@ -347,12 +460,12 @@ def test_forkable_events_exact_membership() -> None:
 def test_event_type_map_covers_every_event_type() -> None:
     """Every ``EventType`` value must map to a concrete class."""
     assert set(EVENT_TYPE_MAP.keys()) == {v.value for v in EventType}
-    assert len(EVENT_TYPE_MAP) == 25
+    assert len(EVENT_TYPE_MAP) == 39
 
 
 def test_event_type_map_values_are_unique_classes() -> None:
     classes = list(EVENT_TYPE_MAP.values())
-    assert len(set(classes)) == len(classes) == 25
+    assert len(set(classes)) == len(classes) == 39
 
 
 # ---------------------------------------------------------------------------
@@ -402,6 +515,113 @@ def test_evidence_added_event_accepts_authority_tier() -> None:
     parsed = _EVENT_ADAPTER.validate_json(raw)
     assert isinstance(parsed, EvidenceAddedEvent)
     assert parsed.authority_tier == AuthorityTier.PRIMARY_AUTHORITATIVE
+
+
+# =============================================================================
+# IP-25 Phase 0: New event types
+# =============================================================================
+
+
+def test_query_reformulated_event_serializes() -> None:
+    """QueryReformulatedEvent serializes and deserializes correctly."""
+    event = QueryReformulatedEvent(
+        original_query="what is X?",
+        reformulated_query="what is X? context",
+        target_claim_id="c1",
+        reason="low_relevance",
+    )
+    raw = event.model_dump_json()
+    parsed = _EVENT_ADAPTER.validate_json(raw)
+    assert isinstance(parsed, QueryReformulatedEvent)
+    assert parsed.original_query == "what is X?"
+    assert parsed.reformulated_query == "what is X? context"
+    assert parsed.reason == "low_relevance"
+
+
+def test_echo_chamber_detected_event_serializes() -> None:
+    """EchoChamberDetectedEvent serializes and deserializes correctly."""
+    event = EchoChamberDetectedEvent(
+        target_claim_id="c1",
+        n_sources=3,
+        date_window_days=5,
+        diversity_penalty_applied=0.15,
+    )
+    raw = event.model_dump_json()
+    parsed = _EVENT_ADAPTER.validate_json(raw)
+    assert isinstance(parsed, EchoChamberDetectedEvent)
+    assert parsed.target_claim_id == "c1"
+    assert parsed.n_sources == 3
+    assert parsed.date_window_days == 5
+    assert parsed.diversity_penalty_applied == 0.15
+
+
+def test_route_selected_event_serializes() -> None:
+    """RouteSelectedEvent serializes and deserializes correctly (IP-25 Phase A)."""
+    from app.domain.enums import ComplexityHint, Lane, TemporalSensitivity
+    from app.domain.events import RouteSelectedEvent
+
+    event = RouteSelectedEvent(
+        lane=Lane.STANDARD,
+        reason="complexity=standard → STANDARD",
+        question_type=QuestionType.COMPARATIVE,
+        complexity_hint=ComplexityHint.STANDARD,
+        temporal_sensitivity=TemporalSensitivity.VOLATILE,
+    )
+    raw = event.model_dump_json()
+    parsed = _EVENT_ADAPTER.validate_json(raw)
+    assert isinstance(parsed, RouteSelectedEvent)
+    assert parsed.lane == Lane.STANDARD
+    assert parsed.reason == "complexity=standard → STANDARD"
+    assert parsed.question_type == QuestionType.COMPARATIVE
+
+
+def test_plan_gaps_detected_event_serializes() -> None:
+    """PlanGapsDetectedEvent serializes and deserializes correctly (IP-25 Phase B)."""
+    from app.domain.events import PlanGapsDetectedEvent
+
+    event = PlanGapsDetectedEvent(
+        gaps=["Investigate X aspect", "Check Y perspective"],
+        extra_sub_claim_ids=["c3", "c4"],
+    )
+    raw = event.model_dump_json()
+    parsed = _EVENT_ADAPTER.validate_json(raw)
+    assert isinstance(parsed, PlanGapsDetectedEvent)
+    assert len(parsed.gaps) == 2
+    assert "aspect" in parsed.gaps[0]
+    assert len(parsed.extra_sub_claim_ids) == 2
+
+
+def test_no_progress_detected_event_serializes() -> None:
+    """NoProgressDetectedEvent serializes and deserializes correctly (IP-25 Phase B)."""
+    from app.domain.events import NoProgressDetectedEvent
+
+    event = NoProgressDetectedEvent(
+        delta_3rounds=0.03,
+        current_confidence=0.68,
+    )
+    raw = event.model_dump_json()
+    parsed = _EVENT_ADAPTER.validate_json(raw)
+    assert isinstance(parsed, NoProgressDetectedEvent)
+    assert parsed.delta_3rounds == 0.03
+    assert parsed.current_confidence == 0.68
+
+
+def test_lane_escalated_event_serializes() -> None:
+    """LaneEscalatedEvent serializes and deserializes correctly (IP-25 Phase C)."""
+    from app.domain.enums import Lane
+    from app.domain.events import LaneEscalatedEvent
+
+    event = LaneEscalatedEvent(
+        from_lane=Lane.FAST,
+        to_lane=Lane.STANDARD,
+        reason="mini_judge_rejected_or_low_S",
+    )
+    raw = event.model_dump_json()
+    parsed = _EVENT_ADAPTER.validate_json(raw)
+    assert isinstance(parsed, LaneEscalatedEvent)
+    assert parsed.from_lane == Lane.FAST
+    assert parsed.to_lane == Lane.STANDARD
+    assert parsed.reason == "mini_judge_rejected_or_low_S"
 
 
 def test_evidence_added_event_authority_tier_defaults_to_none() -> None:

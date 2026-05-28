@@ -11,7 +11,7 @@ ceiling is multiplied by ``settings.temporal_stale_penalty`` (= 0.85).
 The penalty only LOWERS the ceiling; it never raises it.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.config import settings
@@ -42,7 +42,7 @@ def is_stale_majority(
     """
     if days_filter is None or not evidence:
         return False
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days_filter)
+    cutoff = datetime.now(UTC) - timedelta(days=days_filter)
     stale = 0
     for ev in evidence:
         published = getattr(ev, "source_published_date", None)
@@ -50,7 +50,7 @@ def is_stale_majority(
             stale += 1
             continue
         if published.tzinfo is None:
-            published = published.replace(tzinfo=timezone.utc)
+            published = published.replace(tzinfo=UTC)
         if published < cutoff:
             stale += 1
     return stale * 2 >= len(evidence)

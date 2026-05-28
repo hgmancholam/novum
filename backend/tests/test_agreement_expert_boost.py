@@ -11,10 +11,10 @@ from uuid import uuid4
 
 import pytest
 
+from app.agent.run_state import EvidenceItem
 from app.confidence.calculator import ConfidenceCalculator
 from app.confidence.structural import calculate_agreement
-from app.domain.enums import EvidencePolarity, QuestionType, SourceType
-from app.agent.run_state import EvidenceItem
+from app.domain.enums import EvidencePolarity, QuestionType
 
 
 def test_agreement_expert_boost_integration() -> None:

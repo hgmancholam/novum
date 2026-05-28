@@ -90,7 +90,7 @@ class ComplexityHint(StrEnum):
 
 
 class EventType(StrEnum):
-    """All event types (22) for the event log."""
+    """All event types (39) for the event log."""
 
     # Question & Planning
     QUESTION_ASKED = "QuestionAsked"
@@ -99,6 +99,7 @@ class EventType(StrEnum):
     PLAN_CREATED = "PlanCreated"
     PLAN_CRITIQUED = "PlanCritiqued"
     PLAN_REVISED = "PlanRevised"
+    HYPOTHESES_GENERATED = "HypothesesGenerated"
 
     # Search & Evidence
     TOOL_CALLED = "ToolCalled"
@@ -126,6 +127,31 @@ class EventType(StrEnum):
 
     # BRD-23 WP-2: deep-fetch escalation
     DEEP_FETCH_PERFORMED = "DeepFetchPerformed"
+
+    # IP-25 Phase 0: Performance & robustness events
+    QUERY_REFORMULATED = "QueryReformulated"
+    ECHO_CHAMBER_DETECTED = "EchoChamberDetected"
+
+    # IP-25 Phase A: Lane routing telemetry
+    ROUTE_SELECTED = "RouteSelected"
+
+    # IP-25 Phase B: Dynamic re-decomposition + no-progress
+    PLAN_GAPS_DETECTED = "PlanGapsDetected"
+    NO_PROGRESS_DETECTED = "NoProgressDetected"
+
+    # IP-25 Phase C: FAST lane escalation
+    LANE_ESCALATED = "LaneEscalated"
+
+    # IP-25 Phase E: ReAct loop events
+    AGENT_THOUGHT = "AgentThought"
+    AGENT_ACTION = "AgentAction"
+    AGENT_OBSERVATION = "AgentObservation"
+    HYPOTHESIS_EVALUATED = "HypothesisEvaluated"
+    HISTORY_SUMMARIZED = "HistorySummarized"
+
+    # IP-25 Phase F: Chain-of-Verification events
+    VERIFICATION_QUESTIONS_GENERATED = "VerificationQuestionsGenerated"
+    COVE_CONTRADICTION_DETECTED = "CoveContradictionDetected"
 
     # Error & Recovery
     AGENT_ERRORED = "AgentErrored"
@@ -178,3 +204,17 @@ class AuthorityTier(StrEnum):
     REPUTABLE_SECONDARY = "reputable_secondary"
     GENERAL = "general"
     LOW_SIGNAL = "low_signal"
+
+
+class Lane(StrEnum):
+    """Research lane selection (IP-25 Phase A).
+
+    Determines the complexity and depth of the research flow:
+    - FAST: single-round, Wikipedia + Tavily top-3, mini-judge
+    - STANDARD: current default pipeline with multi-round search
+    - DEEP: extended pipeline with extra critique, ReAct, abductive reasoning
+    """
+
+    FAST = "fast"
+    STANDARD = "standard"
+    DEEP = "deep"

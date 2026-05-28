@@ -3,8 +3,8 @@
 > Central index of all knowledge artifacts in the Novum project.
 > Updated automatically by agents after each task.
 
-**Last Updated:** 2026-05-26
-**Updated By:** Orchestrator Agent (post IP-08 / REVIEW-IP-08-1 approved 10/10)
+**Last Updated:** 2026-05-28
+**Updated By:** Orchestrator Agent (post IP-25 Phase F approved 9.48/10 — IP-25 COMPLETE)
 
 ---
 
@@ -127,6 +127,11 @@
 | REVIEW-IP-23-phase2-iter1 | IP-23 Phase 2 (WP-1 Temporal Sensitivity) | 1 | 9.5/10 | Approved | [REVIEW-IP-23-phase2-iter1](../../../docs/implementation-phase/reviews/REVIEW-IP-23-phase2-iter1.md) |
 | REVIEW-IP-23-phase3-iter1 | IP-23 Phase 3 (WP-3 Authority Tiering) | 1 | 9.6/10 | Approved | [REVIEW-IP-23-phase3-iter1](../../../docs/implementation-phase/reviews/REVIEW-IP-23-phase3-iter1.md) |
 | REVIEW-IP-23-phase4-iter1 | IP-23 Phase 4 (WP-2 Deep-Fetch) | 1 | 9.6/10 | Approved | [REVIEW-IP-23-phase4-iter1](../../../docs/implementation-phase/reviews/REVIEW-IP-23-phase4-iter1.md) |
+| REVIEW-IP25-PhaseB-iter2 | IP-25 Phase B (re-decomp + NoProgressSignal) | 2 | 9.0/10 | Approved | [REVIEW-IP25-PhaseB-iter2](../../../docs/implementation-phase/reviews/REVIEW-IP25-PhaseB-iter2-2026-05-28.md) |
+| REVIEW-IP-25-Phase-C | IP-25 Phase C (FAST lane) | 3 | 9.23/10 | Approved | [REVIEW-IP-25-Phase-C](../../../docs/implementation-phase/reviews/REVIEW-IP-25-Phase-C.md) |
+| REVIEW-IP-25-Phase-D | IP-25 Phase D (Abductive hypotheses) | 1 | 9.5/10 | Approved | [REVIEW-IP-25-Phase-D](../../../docs/implementation-phase/reviews/REVIEW-IP-25-Phase-D.md) |
+| REVIEW-IP-25-Phase-E | IP-25 Phase E (DEEP + ReAct) | 2 | 9.05/10 | Approved | [REVIEW-IP-25-Phase-E](../../../docs/implementation-phase/reviews/REVIEW-IP-25-Phase-E.md) |
+| REVIEW-IP-25-Phase-F | IP-25 Phase F (Chain-of-Verification / CoVe) | 1 | 9.48/10 | Approved | [REVIEW-IP-25-Phase-F](../../../docs/implementation-phase/reviews/REVIEW-IP-25-Phase-F.md) |
 
 ---
 

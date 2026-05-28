@@ -18,6 +18,7 @@ from app.domain.enums import (
     AuthorityTier,
     ComplexityHint,
     EventType,
+    Lane,
     QuestionType,
     StopReason,
     TemporalSensitivity,
@@ -28,6 +29,7 @@ from app.domain.events import (
     ContradictionDetectedEvent,
     SubClaim,
 )
+from app.domain.hypothesis import Hypothesis
 
 
 class EvidenceItem(BaseModel):
@@ -81,10 +83,14 @@ class RunState(BaseModel):
     temporal_sensitivity: TemporalSensitivity | None = None
     tavily_days_filter: int | None = None
 
+    # IP-25 Phase A: selected research lane (telemetry only in Phase A)
+    selected_lane: Lane | None = None
+
     current_state: AgentState = AgentState.INIT
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     sub_claims: list[SubClaim] = Field(default_factory=list)
+    hypotheses: list[Hypothesis] = Field(default_factory=list)
     plan_revision_count: int = 0
     max_plan_revisions: int = 2
 
@@ -98,6 +104,23 @@ class RunState(BaseModel):
     search_count: int = 0
     max_searches: int = 20
     failed_sources: list[str] = Field(default_factory=list)
+    # IP-25 Phase 0: dedupe EchoChamberDetected emissions per claim across rounds.
+    echo_chamber_emitted_claims: set[str] = Field(default_factory=set)
+
+    # IP-25 Phase B: dynamic re-decomposition
+    redecomposition_count: int = 0
+    max_redecomposition: int = 1
+    confidence_history: list[float] = Field(default_factory=list)
+    no_progress_triggered: bool = False
+
+    # IP-25 Phase E: ReAct loop state
+    react_history: list[Any] = Field(default_factory=list)  # list[ReactStep] - Any to avoid circular import
+    react_step_count: int = 0
+    max_react_steps: int = 8
+
+    # IP-25 Phase F: Chain-of-Verification state
+    cove_rounds: int = 0
+    max_cove_rounds: int = 1
 
     draft_answer: str | None = None
     draft_sections: list[AnswerSection] | None = None

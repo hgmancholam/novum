@@ -5,6 +5,9 @@ Cross-checks enum values and counts against the Alembic migrations.
 Amendment 2026-05-27 WP-3: ``StopReason`` collapsed from 7 to 4 values
 (migration 002). ``QuestionType`` extended to 8 values (Types 6/7/8 no
 longer short-circuit); ``AnswerKind`` introduced (RF-17).
+
+Amendment 2026-05-28 IP-25 Phase A: ``Lane`` enum introduced for three-lane
+research flow (fast / standard / deep).
 """
 
 from app.domain.enums import (
@@ -13,6 +16,7 @@ from app.domain.enums import (
     ComplexityHint,
     EventType,
     EvidencePolarity,
+    Lane,
     OutputFormat,
     QuestionType,
     SourceType,
@@ -78,9 +82,9 @@ def test_output_format_values() -> None:
     assert {v.value for v in OutputFormat} == {"prose", "structured"}
 
 
-def test_event_type_has_exactly_24_values() -> None:
-    """BRD-22 + BRD-23 WP-2: 25 event types after DeepFetchPerformed."""
-    assert len(EventType) == 25
+def test_event_type_has_exactly_31_values() -> None:
+    """IP-25 Phase F: 31 + 6 (HypothesesGenerated + 5 ReAct) + 2 (CoVe) = 39 events."""
+    assert len(EventType) == 39
 
 
 def test_event_type_values() -> None:
@@ -109,7 +113,21 @@ def test_event_type_values() -> None:
         "Stopped",
         "SaturationDetected",
         "JudgeProviderDegraded",
-            "DeepFetchPerformed",
+        "DeepFetchPerformed",
+        "QueryReformulated",
+        "EchoChamberDetected",
+        "RouteSelected",
+        "PlanGapsDetected",
+        "NoProgressDetected",
+        "LaneEscalated",
+        "HypothesesGenerated",
+        "AgentThought",
+        "AgentAction",
+        "AgentObservation",
+        "HypothesisEvaluated",
+        "HistorySummarized",
+        "VerificationQuestionsGenerated",
+        "CoveContradictionDetected",
     }
     assert {v.value for v in EventType} == expected
 
@@ -150,3 +168,17 @@ def test_authority_tier_values() -> None:
     }
     assert {v.value for v in AuthorityTier} == expected
     assert AuthorityTier.PRIMARY_AUTHORITATIVE == "primary_authoritative"
+
+
+def test_lane_has_exactly_3_values() -> None:
+    """IP-25 Phase A: Lane enum with 3 values."""
+    assert len(Lane) == 3
+
+
+def test_lane_values() -> None:
+    """IP-25 Phase A: fast, standard, deep."""
+    expected = {"fast", "standard", "deep"}
+    assert {v.value for v in Lane} == expected
+    assert Lane.FAST == "fast"
+    assert Lane.STANDARD == "standard"
+    assert Lane.DEEP == "deep"

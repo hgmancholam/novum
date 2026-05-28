@@ -719,3 +719,108 @@ async def test_orchestrator_uses_injected_stopping_policy(
     assert reason == StopReason.STOPPED_BY_BUDGET
     assert consulted, "Injected stopping policy was not consulted"
 
+
+async def test_hypotheses_generated_for_causal_question(
+    llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """IP-25 Phase D: HypothesesGeneratedEvent emitted for causal questions."""
+    from app.agent.tasks.hypotheses import HypothesesList, HypothesisDraft
+    from app.domain.enums import Lane, QuestionType
+    from app.domain.events import HypothesesGeneratedEvent
+
+    # Force STANDARD lane so the planning/critique pipeline (where Phase D
+    # hypothesis generation lives) runs instead of the Phase E DEEP lane.
+    monkeypatch.setattr(
+        "app.agent.lane_router.select_lane",
+        lambda *_a, **_kw: (Lane.STANDARD, "test_forced_standard"),
+    )
+
+    llm_stub.queue("QuestionClassification", _classify("causal"))
+    llm_stub.queue("PlanOutput", _plan("c1"))
+    llm_stub.queue(
+        "CritiqueOutput",
+        CritiqueOutput(acceptable=True, summary="ok"),
+    )
+    # Queue hypotheses response
+    llm_stub.queue(
+        "HypothesesList",
+        HypothesesList(
+            items=[
+                HypothesisDraft(text="Hypothesis A", priority=0.9),
+                HypothesisDraft(text="Hypothesis B", priority=0.7),
+            ]
+        ),
+    )
+    llm_stub.queue(
+        "SynthesizedAnswer",
+        SynthesizedAnswer(prose="answer", key_points=["k"], citations=["u1"]),
+    )
+    llm_stub.queue(
+        "JudgeVerdict",
+        JudgeVerdict(confidence=0.9, verdict="approve", rationale="ok"),
+    )
+
+    tavily = _FakeSource(
+        SourceType.TAVILY,
+        results=[_result("u1", 0.9), _result("u2", 0.9), _result("u3", 0.9)],
+    )
+    _install_registry(monkeypatch, {SourceType.TAVILY: tavily})
+
+    state = _state()
+    orch, events = _make_orchestrator(state, support=True)
+    reason = await orch.run()
+
+    assert reason == StopReason.JUDGE_CONFIRMED
+    types = [type(e).__name__ for e in events]
+    assert "HypothesesGeneratedEvent" in types, "Expected HypothesesGeneratedEvent"
+    
+    # Find the event and verify it has hypotheses
+    hyp_event = next((e for e in events if isinstance(e, HypothesesGeneratedEvent)), None)
+    assert hyp_event is not None
+    assert len(hyp_event.hypotheses) == 2
+    assert hyp_event.hypotheses[0].text == "Hypothesis A"
+    
+    # Verify state was updated
+    assert len(state.hypotheses) == 2
+
+
+async def test_hypotheses_skipped_for_direct_factual(
+    llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """IP-25 Phase D: No HypothesesGeneratedEvent for factual questions."""
+    from app.domain.enums import QuestionType
+    from app.domain.events import HypothesesGeneratedEvent
+
+    llm_stub.queue("QuestionClassification", _classify("factual"))
+    llm_stub.queue("PlanOutput", _plan("c1"))
+    llm_stub.queue(
+        "CritiqueOutput",
+        CritiqueOutput(acceptable=True, summary="ok"),
+    )
+    # No hypotheses queued — should not be called
+    llm_stub.queue(
+        "SynthesizedAnswer",
+        SynthesizedAnswer(prose="answer", key_points=["k"], citations=["u1"]),
+    )
+    llm_stub.queue(
+        "JudgeVerdict",
+        JudgeVerdict(confidence=0.9, verdict="approve", rationale="ok"),
+    )
+
+    tavily = _FakeSource(
+        SourceType.TAVILY,
+        results=[_result("u1", 0.9), _result("u2", 0.9), _result("u3", 0.9)],
+    )
+    _install_registry(monkeypatch, {SourceType.TAVILY: tavily})
+
+    state = _state()
+    orch, events = _make_orchestrator(state, support=True)
+    reason = await orch.run()
+
+    assert reason == StopReason.JUDGE_CONFIRMED
+    types = [type(e).__name__ for e in events]
+    assert "HypothesesGeneratedEvent" not in types, "Should not emit HypothesesGeneratedEvent for factual"
+    
+    # Verify state has no hypotheses
+    assert len(state.hypotheses) == 0
+

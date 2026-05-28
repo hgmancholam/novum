@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import traceback
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 import structlog
 
@@ -32,13 +33,14 @@ from app.confidence import (
     calculate_coverage,
     detect_mismatch,
 )
-from app.domain.enums import StopReason
+from app.domain.enums import ComplexityHint, Lane, QuestionType, StopReason
 from app.domain.events import (
     AgentErroredEvent,
     BaseEvent,
     ConfidenceMismatchEvent,
     QuestionAskedEvent,
     QuestionClassifiedEvent,
+    RouteSelectedEvent,
     StoppedEvent,
     StopRationale,
 )
@@ -113,6 +115,57 @@ class AgentOrchestrator:
 
             if not await self._detect_question_type():
                 return StopReason.HONEST_UNANSWERABLE
+
+            # IP-25 Phase A: Select lane and emit RouteSelectedEvent (T-25-A-05)
+            # Telemetry only — all lanes continue through STANDARD flow for now
+            from app.agent.lane_router import select_lane
+
+            lane, reason = select_lane(
+                question_type=self.state.question_type or QuestionType.FACTUAL,
+                complexity_hint=self.state.complexity_hint or ComplexityHint.STANDARD,
+                temporal_sensitivity=self.state.temporal_sensitivity,
+                ambiguity_detected=self.state.has_ambiguity,
+            )
+            self.state.selected_lane = lane
+            await self.emit(
+                RouteSelectedEvent(
+                    lane=lane,
+                    reason=reason,
+                    question_type=self.state.question_type or QuestionType.FACTUAL,
+                    complexity_hint=self.state.complexity_hint or ComplexityHint.STANDARD,
+                    temporal_sensitivity=self.state.temporal_sensitivity,
+                )
+            )
+
+            # IP-25 Phase C: FAST lane execution (T-25-C-03)
+            if lane == Lane.FAST:
+                from app.agent.lanes.fast import execute_fast_lane
+                from app.domain.events import LaneEscalatedEvent
+
+                result = await execute_fast_lane(self.state, self.emit)
+                if result == "escalate":
+                    # Escalate to STANDARD lane
+                    await self.emit(
+                        LaneEscalatedEvent(
+                            from_lane=Lane.FAST,
+                            to_lane=Lane.STANDARD,
+                            reason="mini_judge_rejected_or_low_S",
+                        )
+                    )
+                    # Fall through to normal STANDARD pipeline
+                else:
+                    # FAST lane succeeded — finalize and exit
+                    await self._stop(result)
+                    return result
+
+            # IP-25 Phase E: DEEP lane execution (T-25-E-08)
+            if lane == Lane.DEEP:
+                from app.agent.lanes.deep import execute_deep_lane
+
+                result = await execute_deep_lane(self.state, self.emit)
+                # DEEP lane always returns a definitive StopReason
+                await self._stop(result)
+                return result
 
         try:
             if is_fresh:
@@ -280,9 +333,13 @@ class AgentOrchestrator:
 
         # Normal branching when target met
         if critique.acceptable:
+            # IP-25 Phase D: Generate hypotheses for certain question types or DEEP lane
+            await self._generate_hypotheses_if_needed()
             self.state.transition_to(AgentState.SEARCHING)
             return
         if self.state.plan_revision_count >= self.state.max_plan_revisions:
+            # IP-25 Phase D: Generate hypotheses before transitioning
+            await self._generate_hypotheses_if_needed()
             self.state.transition_to(AgentState.SEARCHING)
             return
         self.state.transition_to(AgentState.REVISING)
@@ -302,6 +359,39 @@ class AgentOrchestrator:
         self.state.sub_claims = list(revised.new_sub_claims)
         self.state.transition_to(AgentState.CRITIQUING)
 
+    async def _generate_hypotheses_if_needed(self) -> None:
+        """Generate abductive hypotheses for causal/scenario questions (IP-25 Phase D).
+
+        Triggered after planning is complete (critique accepted or max revisions hit)
+        when question_type requires hypotheses or lane is DEEP.
+        """
+        from app.agent.tasks.hypotheses import generate_hypotheses
+        from app.domain.enums import AnswerKind, Lane, QuestionType
+        from app.domain.events import HypothesesGeneratedEvent
+
+        trigger = (
+            self.state.question_type in {
+                QuestionType.CAUSAL,
+                QuestionType.PREDICTIVE_FUTURE,
+            }
+            or self.state.selected_answer_kind in {AnswerKind.SCENARIO, AnswerKind.BEST_EFFORT}
+            or self.state.selected_lane == Lane.DEEP
+        )
+
+        if not trigger:
+            return
+
+        try:
+            hypotheses = await generate_hypotheses(self.state)
+            self.state.hypotheses = hypotheses
+            await self.emit(HypothesesGeneratedEvent(hypotheses=hypotheses))
+        except Exception as exc:  # noqa: BLE001 - non-critical enrichment
+            logger.warning(
+                "hypotheses_generation_failed",
+                error=str(exc),
+                run_id=str(self.state.run_id),
+            )
+
     async def _handle_searching(self) -> None:
         result = await self._stopping_policy.evaluate(self.state)
         if self._stopping_policy.should_stop(result):
@@ -319,6 +409,14 @@ class AgentOrchestrator:
         events = await analyze_evidence(self.state)
         for ev in events:
             await self.emit(ev)
+
+        # IP-25 Phase 0: detect echo chambers (≥3 dated sources < 7d window,
+        # agreement=1.0). Emission deduped per claim across rounds.
+        from app.confidence.structural import apply_echo_chamber_penalty
+        _, echo_event = apply_echo_chamber_penalty(self.state, 1.0)
+        if echo_event is not None and echo_event.target_claim_id not in self.state.echo_chamber_emitted_claims:
+            self.state.echo_chamber_emitted_claims.add(echo_event.target_claim_id)
+            await self.emit(echo_event)
 
         # WP-4: Check saturation after each evidence round
         from app.config import settings as cfg
@@ -339,6 +437,46 @@ class AgentOrchestrator:
                     threshold=cfg.novelty_floor,
                 )
             )
+
+        # IP-25 Phase B: Dynamic re-decomposition check BEFORE transitioning
+        from uuid import uuid4
+
+        from app.agent.tasks.replan import identify_plan_gaps
+        from app.confidence import calculate_structural_confidence
+        from app.domain.events import PlanGapsDetectedEvent, SubClaim
+
+        structural_conf = calculate_structural_confidence(self.state)
+        S_raw = structural_conf.score
+
+        # Check re-decomposition conditions:
+        # 1. Haven't hit max re-decompositions
+        # 2. S_raw is below threshold + 0.10 buffer
+        # 3. Budget allows more search
+        if (
+            self.state.redecomposition_count < self.state.max_redecomposition
+            and S_raw < self.state.confidence_threshold + 0.10
+            and self.state.search_count < self.state.max_searches - 1  # Need room for at least one more round
+        ):
+            gaps = await identify_plan_gaps(self.state)
+            if gaps:
+                # Add gaps as new sub-claims
+                new_sub_claims = [
+                    SubClaim(id=str(uuid4()), text=gap, status="pending")
+                    for gap in gaps
+                ]
+                self.state.sub_claims.extend(new_sub_claims)
+                self.state.redecomposition_count += 1
+
+                await self.emit(
+                    PlanGapsDetectedEvent(
+                        gaps=gaps,
+                        extra_sub_claim_ids=[c.id for c in new_sub_claims],
+                    )
+                )
+
+                # Transition back to SEARCHING for new sub-claims
+                self.state.transition_to(AgentState.SEARCHING)
+                return
 
         if self.state.all_claims_resolved():
             # WP-3: always proceed to draft, even with zero covered claims.
@@ -375,6 +513,31 @@ class AgentOrchestrator:
             expected_experts=self.state.expected_experts or None,
         )
         self.state.judge_attempts += 1
+
+        # IP-25 Phase B: Update confidence history for no-progress detection
+        self.state.confidence_history.append(judge_event.final_confidence)
+
+        # IP-25 Phase B: Check for no-progress (confidence plateau)
+        from app.domain.events import NoProgressDetectedEvent
+        from app.stopping.signals.no_progress import check_no_progress
+
+        fires, delta = await check_no_progress(self.state)
+        if (
+            fires
+            and not self.state.no_progress_triggered
+            and self.state.judge_attempts < self.state.max_judge_attempts
+        ):
+            # Plateau detected — dedupe via flag, emit event, force synthesis
+            self.state.no_progress_triggered = True
+            await self.emit(
+                NoProgressDetectedEvent(
+                    delta_3rounds=delta,
+                    current_confidence=self.state.confidence_history[-1],
+                )
+            )
+            # Force synthesis-then-finalize path: skip another search/analyze cycle
+            self.state.transition_to(AgentState.DRAFTING)
+            return
 
         # WP-3 G8: Early-stop for trivial-fact questions (matrix row 1).
         # When coverage=1.0 AND C_agreement≥0.9 AND J≥0.85 on any round, stop immediately.
@@ -650,7 +813,11 @@ class AgentOrchestrator:
                 answer_kind=answer_kind,
                 answer_prose=answer,
                 answer_structured=answer_structured,
-                answer_structured_data=answer_structured_data,
+                answer_structured_data=(
+                    answer_structured_data.model_dump(mode="json")
+                    if answer_structured_data is not None
+                    else None
+                ),
                 citations=None,  # TODO: extract from evidence or state if available
                 completed_at=datetime.now(UTC),
             )
@@ -681,7 +848,6 @@ class AgentOrchestrator:
         Returns:
             StopReason.JUDGE_CONFIRMED.
         """
-        from datetime import UTC, datetime
 
         from app.agent.instant_cache import CachedRun, normalise_question
         from app.domain.events import JudgeRuledEvent, PriorRunHintReplayedEvent

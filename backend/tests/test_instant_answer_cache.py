@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -31,7 +30,7 @@ from app.agent.instant_cache import (
 from app.agent.orchestrator import AgentOrchestrator
 from app.agent.run_state import RunState
 from app.domain.enums import AnswerKind, StopReason
-from app.domain.events import BaseEvent, Citation
+from app.domain.events import BaseEvent
 
 
 def test_normalise_question_whitespace() -> None:
@@ -65,7 +64,7 @@ def test_try_replay_hit_high_conf() -> None:
         completed_at=datetime.now(UTC),
     )
     record_run("user1", "Capital of Japan?", cached)
-    
+
     result = try_replay("user1", "Capital of Japan?")
     assert result is not None
     assert result.run_id == cached.run_id
@@ -89,7 +88,7 @@ def test_try_replay_low_conf_no_replay() -> None:
     )
     reset_instant_cache()
     record_run("user1", "Question?", cached)
-    
+
     result = try_replay("user1", "Question?")
     assert result is None
 
@@ -111,7 +110,7 @@ def test_try_replay_non_judge_confirmed_no_replay() -> None:
     )
     reset_instant_cache()
     record_run("user1", "Question?", cached)
-    
+
     result = try_replay("user1", "Question?")
     assert result is None
 
@@ -133,7 +132,7 @@ def test_cosine_similar_different_string_no_replay() -> None:
     )
     reset_instant_cache()
     record_run("user1", "Capital of Japan?", cached)
-    
+
     # Similar but different wording → miss
     result = try_replay("user1", "What is Japan's capital?")
     assert result is None
@@ -156,7 +155,7 @@ def test_cross_user_scoping() -> None:
     )
     reset_instant_cache()
     record_run("user1", "Capital of Japan?", cached)
-    
+
     result = try_replay("user2", "Capital of Japan?")
     assert result is None
 
@@ -178,9 +177,9 @@ def test_reset_instant_cache_clears() -> None:
     )
     reset_instant_cache()
     record_run("user1", "Question?", cached)
-    
+
     assert try_replay("user1", "Question?") is not None
-    
+
     reset_instant_cache()
     assert try_replay("user1", "Question?") is None
 
@@ -189,7 +188,7 @@ def test_reset_instant_cache_clears() -> None:
 async def test_instant_replay_latency_assertion() -> None:
     """TC-01b: Replayed run completes within 1s."""
     reset_instant_cache()
-    
+
     # Record a cached run
     cached = CachedRun(
         run_id=uuid4(),
@@ -205,7 +204,7 @@ async def test_instant_replay_latency_assertion() -> None:
         completed_at=datetime.now(UTC),
     )
     record_run("testuser", "Capital of Japan?", cached)
-    
+
     # Create orchestrator with the question
     state = RunState(
         run_id=uuid4(),
@@ -213,18 +212,18 @@ async def test_instant_replay_latency_assertion() -> None:
         owner_username="testuser",
     )
     emitted: list[BaseEvent] = []
-    
+
     async def emit(event: BaseEvent) -> None:
         emitted.append(event)
-    
+
     orch = AgentOrchestrator(state, emit)
-    
+
     # Run with 1s timeout — should complete via instant replay
     try:
         await asyncio.wait_for(orch.run(), timeout=1.0)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         pytest.fail("Instant replay took >1s")
-    
+
     # Verify replay path: QuestionAsked → PriorRunHintReplayed → JudgeRuled → Stopped
     event_types = [e.type for e in emitted]
     assert "QuestionAsked" in event_types
@@ -237,7 +236,7 @@ async def test_instant_replay_latency_assertion() -> None:
 async def test_fork_after_replay_inherits_confidence() -> None:
     """TC-09: Forking a replayed run inherits the synthetic JudgeRuledEvent fields."""
     reset_instant_cache()
-    
+
     # Record cached run
     cached = CachedRun(
         run_id=uuid4(),
@@ -253,7 +252,7 @@ async def test_fork_after_replay_inherits_confidence() -> None:
         completed_at=datetime.now(UTC),
     )
     record_run("testuser", "Capital of Japan?", cached)
-    
+
     # First run (replay path)
     state1 = RunState(
         run_id=uuid4(),
@@ -261,20 +260,20 @@ async def test_fork_after_replay_inherits_confidence() -> None:
         owner_username="testuser",
     )
     emitted1: list[BaseEvent] = []
-    
+
     async def emit1(event: BaseEvent) -> None:
         emitted1.append(event)
-    
+
     orch1 = AgentOrchestrator(state1, emit1)
     await orch1.run()
-    
+
     # Verify state has judge_confidence populated from synthetic event
     assert state1.last_judge_confidence == 0.88
     assert state1.last_structural_confidence == 0.92
     # Final confidence is min(S, J) per RF-12
     assert min(state1.last_judge_confidence or 0, state1.last_structural_confidence or 0) == 0.88
     assert state1.selected_answer_kind == AnswerKind.DIRECT
-    
+
     # Fork from this replayed run (would use runner._fold_events in real scenario)
     # For this unit test, we simulate forking by checking the state was correctly populated
     # The actual fork test is in test_agent_runner.py

@@ -11,12 +11,11 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from app.config import settings
 from app.domain.enums import AnswerKind, StopReason
 from app.domain.events import Citation
-from app.domain.structured import StructuredAnswerData
 
 
 def normalise_question(s: str) -> str:

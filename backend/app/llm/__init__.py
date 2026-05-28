@@ -15,6 +15,7 @@ from app.llm.client import LLMClient, count_tokens, llm
 from app.llm.models import (
     CritiqueOutput,
     JudgeVerdict,
+    MiniJudgeVerdict,
     PlanOutput,
     QuestionClassification,
     QuestionNormalization,
@@ -29,6 +30,7 @@ __all__ = [
     "JudgeVerdict",
     "LLMClient",
     "LLMRole",
+    "MiniJudgeVerdict",
     "PlanOutput",
     "QuestionClassification",
     "QuestionNormalization",

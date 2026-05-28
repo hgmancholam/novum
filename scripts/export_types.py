@@ -27,6 +27,7 @@ from app.domain.enums import (  # noqa: E402
     ComplexityHint,
     EventType,
     EvidencePolarity,
+    Lane,
     OutputFormat,
     QuestionType,
     SourceType,
@@ -60,6 +61,7 @@ def _build_output() -> str:
         ("TemporalSensitivity", [v.value for v in TemporalSensitivity]),
         ("AuthorityTier", [v.value for v in AuthorityTier]),
         ("AnswerKind", [v.value for v in AnswerKind]),
+        ("Lane", [v.value for v in Lane]),
     ]
 
     adapter: TypeAdapter[Event] = TypeAdapter(Event)

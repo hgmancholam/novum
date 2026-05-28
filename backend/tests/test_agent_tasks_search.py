@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from uuid import uuid4
 
 import pytest
@@ -11,6 +13,7 @@ from app.agent.tasks import search as search_mod
 from app.domain.enums import SourceType
 from app.domain.events import (
     EvidenceAddedEvent,
+    QueryReformulatedEvent,
     SourceFailedEvent,
     SubClaim,
     ToolCalledEvent,
@@ -189,3 +192,152 @@ async def test_unavailable_source_is_skipped(monkeypatch: pytest.MonkeyPatch) ->
     tool_called = [e for e in events if isinstance(e, ToolCalledEvent)]
     assert len(tool_called) == 1
     assert tool_called[0].source_type == SourceType.WIKIPEDIA
+
+
+# =============================================================================
+# IP-25 Phase 0: Parallel execution and query reformulation
+# =============================================================================
+
+
+async def test_execute_search_round_runs_claims_in_parallel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Per-claim searches run concurrently; total time ≈ max(per-claim), not sum."""
+
+    class _SlowSource(_FakeSource):
+        def __init__(self, source_type: SourceType, delay: float) -> None:
+            super().__init__(source_type, results=[_result("u1")])
+            self.delay = delay
+
+        async def search(
+            self, query: str, max_results: int = 5, **_kwargs: object
+        ) -> list[SourceResult]:
+            await asyncio.sleep(self.delay)
+            return await super().search(query, max_results, **_kwargs)
+
+    # 3 claims with varying delays: 0.1s, 0.15s, 0.2s
+    tavily = _SlowSource(SourceType.TAVILY, delay=0.2)
+    monkeypatch.setattr(
+        registry_mod, "_registry", _FakeRegistry({SourceType.TAVILY: tavily})
+    )
+
+    state = _state(num_claims=3)
+    start = time.perf_counter()
+    events = await search_mod.execute_search_round(state)
+    elapsed = time.perf_counter() - start
+
+    # Total time should be ~0.2s (max delay), not ~0.6s (sum)
+    # Allow 50% overhead for test variance
+    assert elapsed < 0.35, f"Expected parallel execution, got {elapsed:.3f}s"
+    assert len([e for e in events if isinstance(e, EvidenceAddedEvent)]) == 3
+
+
+async def test_execute_search_round_preserves_event_order_per_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Events within each claim are deterministic: ToolCalled before EvidenceAdded."""
+    tavily = _FakeSource(SourceType.TAVILY, results=[_result("u1"), _result("u2")])
+    monkeypatch.setattr(
+        registry_mod, "_registry", _FakeRegistry({SourceType.TAVILY: tavily})
+    )
+
+    state = _state(num_claims=2)
+    events = await search_mod.execute_search_round(state)
+
+    # Each claim should emit: ToolCalled → EvidenceAdded (x2)
+    # Total: 6 events (3 per claim)
+    tool_calls = [e for e in events if isinstance(e, ToolCalledEvent)]
+    evidence_adds = [e for e in events if isinstance(e, EvidenceAddedEvent)]
+
+    assert len(tool_calls) == 2
+    assert len(evidence_adds) == 4  # 2 results per claim
+
+    # Find indices to check ordering within each claim
+    for claim_id in ["c1", "c2"]:
+        claim_events = [
+            i
+            for i, e in enumerate(events)
+            if (
+                isinstance(e, (ToolCalledEvent, EvidenceAddedEvent))
+                and getattr(e, "target_claim_id", None) == claim_id
+            )
+        ]
+        # First event for claim should be ToolCalled
+        assert isinstance(events[claim_events[0]], ToolCalledEvent)
+
+
+async def test_low_relevance_triggers_query_reformulation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When all Tavily results have relevance_score < 0.3, reformulate and retry."""
+
+    class _LowRelevanceSource(_FakeSource):
+        def __init__(self) -> None:
+            super().__init__(SourceType.TAVILY)
+            self.call_count = 0
+
+        async def search(
+            self, query: str, max_results: int = 5, **_kwargs: object
+        ) -> list[SourceResult]:
+            self.call_count += 1
+            if self.call_count == 1:
+                # First call: all results below threshold
+                return [
+                    _result("u1", score=0.2),
+                    _result("u2", score=0.15),
+                    _result("u3", score=0.1),
+                ]
+            else:
+                # Second call (reformulated): good results
+                return [_result("u4", score=0.8)]
+
+    tavily = _LowRelevanceSource()
+    monkeypatch.setattr(
+        registry_mod, "_registry", _FakeRegistry({SourceType.TAVILY: tavily})
+    )
+
+    state = _state()
+    state.question = "What is the capital of France?"
+    events = await search_mod.execute_search_round(state)
+
+    # Should see: ToolCalled → QueryReformulated → ToolCalled → EvidenceAdded
+    tool_calls = [e for e in events if isinstance(e, ToolCalledEvent)]
+    reformulations = [e for e in events if isinstance(e, QueryReformulatedEvent)]
+    evidence_adds = [e for e in events if isinstance(e, EvidenceAddedEvent)]
+
+    assert len(tool_calls) == 2, "Expected 2 tool calls (original + reformulated)"
+    assert len(reformulations) == 1, "Expected 1 reformulation"
+    assert len(evidence_adds) == 1, "Expected evidence from reformulated query"
+
+    # Check reformulation content
+    reform_event = reformulations[0]
+    assert reform_event.original_query == "claim 1"
+    assert "claim 1" in reform_event.reformulated_query
+    assert "What is the capital" in reform_event.reformulated_query
+    assert reform_event.reason == "low_relevance"
+
+
+async def test_high_relevance_skips_reformulation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When at least one result has relevance_score ≥ 0.3, no reformulation."""
+    tavily = _FakeSource(
+        SourceType.TAVILY,
+        results=[
+            _result("u1", score=0.5),  # Above threshold
+            _result("u2", score=0.2),
+        ],
+    )
+    monkeypatch.setattr(
+        registry_mod, "_registry", _FakeRegistry({SourceType.TAVILY: tavily})
+    )
+
+    state = _state()
+    events = await search_mod.execute_search_round(state)
+
+    tool_calls = [e for e in events if isinstance(e, ToolCalledEvent)]
+    reformulations = [e for e in events if isinstance(e, QueryReformulatedEvent)]
+
+    assert len(tool_calls) == 1, "Expected only 1 tool call (no reformulation)"
+    assert len(reformulations) == 0, "Expected no reformulation"
+

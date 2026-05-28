@@ -7,8 +7,6 @@ hints remain strictly confined to the planner.
 
 import inspect
 
-from app.agent.question_index import PriorRunHint
-
 
 def test_synthesizer_does_not_accept_prior_run_hint():
     """Synthesizer prompt builder must not have PriorRunHint in signature."""

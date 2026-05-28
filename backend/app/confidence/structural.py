@@ -3,6 +3,9 @@
 Pure synchronous helpers operating on in-memory ``RunState``. Each
 function returns a float in ``[0.0, 1.0]`` and is safe against the
 empty edge cases documented in IP-08 §4.1.
+
+IP-25 Phase 0: Echo-chamber penalty applied when ≥3 sources for a
+claim cluster within <7 days and show perfect agreement.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from app.domain.enums import AuthorityTier
 
 if TYPE_CHECKING:
     from app.agent.run_state import EvidenceItem, RunState
+    from app.domain.events import EchoChamberDetectedEvent
 
 _DIVERSITY_TABLE: dict[int, float] = {0: 0.0, 1: 0.3, 2: 0.5, 3: 0.7, 4: 0.9}
 
@@ -82,7 +86,7 @@ def calculate_agreement(
     """
     if not evidence:
         return 0.0
-    
+
     # Apply expert multiplier to aligning evidence only (supports + neutral),
     # clamped per-row to avoid exceeding 1.0
     aligning_weight = sum(
@@ -90,12 +94,12 @@ def calculate_agreement(
         for e in evidence
         if e.polarity in ("supports", "neutral")
     )
-    
+
     # Contradicting evidence never receives multiplier
     contradicting_weight = sum(
         e.confidence for e in evidence if e.polarity == "contradicts"
     )
-    
+
     denom = aligning_weight + contradicting_weight
     if denom == 0.0:
         return 0.0
@@ -131,6 +135,68 @@ def calculate_diversity(evidence: list[EvidenceItem]) -> float:
     return max(0.0, min(1.0, base * mean_mult))
 
 
+def apply_echo_chamber_penalty(
+    state: RunState, diversity_score: float
+) -> tuple[float, EchoChamberDetectedEvent | None]:
+    """Apply echo-chamber penalty when sources cluster temporally (IP-25 Phase 0).
+
+    Checks each claim for echo-chamber conditions:
+    - N ≥ 3 evidence items with non-null source_published_date
+    - All dates fall within < 7 days
+    - C_agreement == 1.0 for that claim
+
+    When triggered, multiplies diversity_score by 0.85 and emits event.
+    Only one penalty applied per call (first matching claim triggers it).
+
+    Args:
+        state: Current run state with evidence and claims
+        diversity_score: Base diversity score to penalize
+
+    Returns:
+        Tuple of (penalized_score, event_or_none). If no echo chamber is
+        detected, returns (diversity_score, None) unchanged.
+    """
+    from app.domain.events import EchoChamberDetectedEvent
+
+    # Group evidence by claim
+    evidence_by_claim: dict[str, list[EvidenceItem]] = {}
+    for e in state.evidence:
+        if e.claim_id not in evidence_by_claim:
+            evidence_by_claim[e.claim_id] = []
+        evidence_by_claim[e.claim_id].append(e)
+
+    for claim_id, claim_evidence in evidence_by_claim.items():
+        # Filter evidence with dates
+        dated_evidence = [e for e in claim_evidence if e.source_published_date is not None]
+        if len(dated_evidence) < 3:
+            continue
+
+        # Check agreement for this claim
+        agreement = calculate_agreement(claim_evidence)
+        if agreement < 1.0:
+            continue
+
+        # Check date clustering (< 7 days window)
+        dates = [e.source_published_date for e in dated_evidence if e.source_published_date is not None]
+        if not dates:
+            continue
+        min_date = min(dates)
+        max_date = max(dates)
+        window_days = (max_date - min_date).days
+
+        if window_days < 7:
+            # Echo chamber detected
+            event = EchoChamberDetectedEvent(
+                target_claim_id=claim_id,
+                n_sources=len(dated_evidence),
+                date_window_days=window_days,
+                diversity_penalty_applied=0.15,
+            )
+            return (diversity_score * 0.85, event)
+
+    return (diversity_score, None)
+
+
 def calculate_no_conflict(state: RunState) -> float:
     """C_no_conflict: 1 - contradictions / evidence, clamped to [0.0, 1.0]."""
     if not state.evidence:
@@ -156,10 +222,16 @@ def calculate_structural_confidence(
     Returns:
         StructuralConfidence with all components populated
     """
+    base_diversity = calculate_diversity(state.evidence)
+    # IP-25 Phase 0: apply echo-chamber penalty silently so S reflects temporal
+    # clustering. The emission of EchoChamberDetectedEvent is the orchestrator's
+    # responsibility (once per round in _handle_analyzing), to avoid duplicate
+    # events across the many call sites of this function.
+    penalized_diversity, _ = apply_echo_chamber_penalty(state, base_diversity)
     return StructuralConfidence(
         coverage=calculate_coverage(state),
         agreement=calculate_agreement(state.evidence, expected_experts=expected_experts),
-        diversity=calculate_diversity(state.evidence),
+        diversity=penalized_diversity,
         no_conflict=calculate_no_conflict(state),
         kind_appropriateness=kind_appropriateness,
     )

@@ -71,20 +71,20 @@ async def test_classify_emits_new_types(
 @pytest.mark.asyncio
 async def test_question_classified_event_discriminator_roundtrip(mock_llm_call) -> None:
     """US-22-1 AC-6: QuestionClassifiedEvent round-trips through discriminated union."""
-    from app.domain.events import QuestionClassifiedEvent, Event
-    from app.domain.enums import ComplexityHint
     from pydantic import TypeAdapter
-    
+
+    from app.domain.events import Event, QuestionClassifiedEvent
+
     mock_llm_call.return_value = QuestionClassification(
         question_type="factual",
         rationale="test",
         answerable=True,
         confidence=0.90,
     )
-    
+
     # Call classify to get all return values including complexity_hint
     q_type, verdict, hint, signals = await classify_question("Capital of Japan?")
-    
+
     # Create event
     event = QuestionClassifiedEvent(
         id=uuid4(),
@@ -95,12 +95,12 @@ async def test_question_classified_event_discriminator_roundtrip(mock_llm_call) 
         complexity_hint=hint,
         heuristic_signals=signals,
     )
-    
+
     # Serialize and deserialize through discriminated union
     adapter = TypeAdapter(Event)
     payload = event.model_dump()
     roundtripped = adapter.validate_python(payload)
-    
+
     assert roundtripped.type == "QuestionClassified"
     assert roundtripped.complexity_hint is not None  # Complexity hint is present (actual value depends on heuristic)
     assert "word_count" in roundtripped.heuristic_signals

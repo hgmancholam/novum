@@ -662,9 +662,10 @@ async def test_trivial_path_latency_under_5s(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """TC-08: Mocked trivial path (no LLM calls, no critique) completes quickly."""
+    import time
+
     from app.domain.enums import ComplexityHint
     from app.services.event_service import EventService
-    import time
 
     # Seed trivial path: QuestionAsked → PlanCreated (no critique)
     async with sqlite_session_maker() as s:
