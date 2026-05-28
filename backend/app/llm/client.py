@@ -56,7 +56,8 @@ def resolve_active_provider() -> str:
 # Google/OpenAI/Anthropic use litellm's defaults for their custom_llm_provider).
 # A global override sent every non-GitHub provider's request to the GitHub
 # endpoint and yielded misleading ``Unauthorized`` errors.
-litellm.api_key = settings.github_token
+# V1: github_token is optional (Anthropic-only), so default to empty string.
+litellm.api_key = settings.github_token or ""
 # Drop provider-unsupported params silently (e.g. gpt-5 rejects any
 # ``temperature`` other than 1, gpt-5.1 rejects ``temperature`` unless
 # ``reasoning_effort='none'``). Without this every synthesizer call
@@ -92,15 +93,22 @@ _MODEL_ROTATION: dict[LLMRole, Any] = {
 # Round-robin pool of GitHub PATs. Each PAT has an independent rate-limit
 # bucket on GitHub Models, so rotating per call gives N x effective RPM.
 # Parsed from ``settings.github_tokens`` (CSV); falls back to the single
-# ``settings.github_token`` when unset.
+# ``settings.github_token`` when unset. V1: github_token may be empty
+# (Anthropic-only) — in that case the pool is empty and the GitHub path
+# is unreachable at runtime (guarded in ``LLMClient.call``).
 _TOKEN_POOL: tuple[str, ...] = tuple(
     t.strip() for t in settings.github_tokens.split(",") if t.strip()
-) or (settings.github_token,)
-_TOKEN_ROTATION = cycle(_TOKEN_POOL)
+) or ((settings.github_token,) if settings.github_token else ())
+_TOKEN_ROTATION = cycle(_TOKEN_POOL) if _TOKEN_POOL else None
 
 
 def _next_token() -> str:
     """Return the next GitHub PAT from the rotation pool."""
+    if _TOKEN_ROTATION is None:
+        raise RuntimeError(
+            "GitHub Models path requested but no GITHUB_TOKEN configured. "
+            "V1 active provider is Anthropic — set LLM_PROVIDER=anthropic."
+        )
     return cast("str", next(_TOKEN_ROTATION))
 
 
@@ -331,11 +339,25 @@ class LLMClient:
             response_model=response_model.__name__,
         )
 
+        # V1 doctrine guard (ai-services.md §1.2 / §1.3): only Anthropic is
+        # active in V1. The other providers are wired but disabled. This guard
+        # is the runtime belt-and-suspenders on top of the Settings validator;
+        # together they ensure no cross-family call escapes accidentally even
+        # if the per-run ``current_provider`` contextvar is set by mistake.
+        active_provider = resolve_active_provider()
+        if (
+            active_provider != "anthropic"
+            and not settings.allow_non_anthropic_providers
+        ):
+            raise RuntimeError(
+                f"V1: LLM provider locked to 'anthropic' (got {active_provider!r}). "
+                "Set ALLOW_NON_ANTHROPIC_PROVIDERS=true to override (Plan-B only)."
+            )
+
         # Provider seam: when LLM_PROVIDER != "github", route through the
         # factory-resolved provider (OpenAI / Anthropic / Google). The
         # github path below stays untouched to preserve token+model pool
         # rotation and judge fallback (WP-5).
-        active_provider = resolve_active_provider()
         if active_provider != "github":
             from app.llm.factory import get_provider
 

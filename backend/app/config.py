@@ -1,6 +1,6 @@
 """Application configuration via environment variables."""
 
-from pydantic import SecretStr
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,12 +17,19 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/novum"
 
     # LLM — provider selection (single active provider at runtime).
-    # Switch with one env var; all four roles route through it.
-    # Accepted values: "github" | "openai" | "anthropic" | "google".
-    llm_provider: str = "github"
+    # V1 lock: only ``anthropic`` is permitted unless ``allow_non_anthropic_providers``
+    # is explicitly enabled (see validator below + ai-services.md §1.2).
+    # The interface still supports ``github`` | ``openai`` | ``anthropic`` | ``google``
+    # so re-enabling cross-family routing is a one-env-var change.
+    llm_provider: str = "anthropic"
 
-    # GitHub Models (default provider; rate-limited so token+model pools exist)
-    github_token: str
+    # V1 doctrine escape hatch — set to ``true`` ONLY to re-enable cross-family
+    # providers (GitHub Models, OpenAI direct, Google Gemini) for Plan-B outages
+    # or test fixtures. Production deploys must keep this False.
+    allow_non_anthropic_providers: bool = False
+
+    # GitHub Models (wired-but-disabled in V1; required for Plan-B fallback)
+    github_token: str = ""
     # Optional comma-separated pool of GitHub PATs for per-call round-robin
     # rotation. Each PAT has its own rate-limit bucket, so N tokens give
     # N x effective RPM. When empty, falls back to ``github_token``.
@@ -42,11 +49,15 @@ class Settings(BaseSettings):
     openai_model_synthesizer: str = ""
     openai_model_judge: str = ""
 
+    # Anthropic Claude — V1 active provider.
+    # Per-role defaults follow ai-services.md §1.3: haiku-4-5 for the cheap
+    # classifier path, sonnet-4-6 for everything else. All overridable via env
+    # (ANTHROPIC_MODEL_CLASSIFIER, ANTHROPIC_MODEL_PLANNER, …).
     anthropic_model: str = "anthropic/claude-sonnet-4-6"
-    anthropic_model_classifier: str = ""
-    anthropic_model_planner: str = ""
-    anthropic_model_synthesizer: str = ""
-    anthropic_model_judge: str = ""
+    anthropic_model_classifier: str = "anthropic/claude-haiku-4-5"
+    anthropic_model_planner: str = "anthropic/claude-sonnet-4-6"
+    anthropic_model_synthesizer: str = "anthropic/claude-sonnet-4-6"
+    anthropic_model_judge: str = "anthropic/claude-sonnet-4-6"
 
     google_model: str = "gemini/gemini-2.5-flash"
     google_api_key: SecretStr | None = None
@@ -57,15 +68,16 @@ class Settings(BaseSettings):
 
     # Optional comma-separated model pools per role for round-robin rotation
     # (mitigates GitHub Models per-model per-minute quotas). When empty, the
-    # single ``llm_model_<role>`` value above is used.
+    # single ``llm_model_<role>`` value above is used. V1 unused (Anthropic
+    # has no per-model RPM split needing rotation) — kept for Plan-B.
     llm_model_classifier_pool: str = ""
     llm_model_planner_pool: str = ""
     llm_model_synthesizer_pool: str = ""
     llm_model_judge_pool: str = ""
 
-    # WP-5: Judge provider routing (default "github" since no Anthropic key in prod)
-    judge_provider: str = "github"  # "anthropic" or "github"
-    judge_model: str = "deepseek/DeepSeek-V3-0324"  # GitHub fallback model
+    # WP-5: Judge provider routing. V1 default = anthropic (single active provider).
+    judge_provider: str = "anthropic"  # "anthropic" or "github"
+    judge_model: str = "anthropic/claude-sonnet-4-6"
     anthropic_api_key: SecretStr | None = None
 
     # Search
@@ -154,6 +166,37 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @model_validator(mode="after")
+    def _enforce_v1_anthropic_only(self) -> "Settings":
+        """V1 doctrine guard: lock the active LLM provider to Anthropic.
+
+        The interface in ``app/llm/`` is provider-agnostic (litellm supports
+        Anthropic, OpenAI, Google Gemini and GitHub Models) but V1 only
+        activates Anthropic Claude. To re-enable any other provider — for
+        a Plan-B outage swap or a cross-family R6 mitigation experiment —
+        set ``ALLOW_NON_ANTHROPIC_PROVIDERS=true`` explicitly.
+
+        See: ai-services.md §1.2 / §1.3.
+        """
+        if self.allow_non_anthropic_providers:
+            return self
+        if self.llm_provider != "anthropic":
+            raise ValueError(
+                f"V1: LLM_PROVIDER must be 'anthropic' (got {self.llm_provider!r}). "
+                "Set ALLOW_NON_ANTHROPIC_PROVIDERS=true to override (Plan-B only)."
+            )
+        if self.judge_provider != "anthropic":
+            raise ValueError(
+                f"V1: JUDGE_PROVIDER must be 'anthropic' (got {self.judge_provider!r}). "
+                "Set ALLOW_NON_ANTHROPIC_PROVIDERS=true to override (Plan-B only)."
+            )
+        if self.anthropic_api_key is None:
+            raise ValueError(
+                "V1: ANTHROPIC_API_KEY is required (LLM_PROVIDER=anthropic). "
+                "Set ALLOW_NON_ANTHROPIC_PROVIDERS=true to boot without it."
+            )
+        return self
 
 
 settings = Settings()  # pyright: ignore[reportCallIssue]

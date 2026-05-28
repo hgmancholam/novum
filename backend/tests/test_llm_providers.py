@@ -155,7 +155,10 @@ async def test_anthropic_provider_uses_anthropic_tag(
     kwargs = mock_create.call_args.kwargs
     assert kwargs["custom_llm_provider"] == "anthropic"
     assert kwargs["api_key"] == "sk-ant"
-    assert kwargs["model"] == client_module.settings.anthropic_model
+    # V1 doctrine: classifier role has a per-role default (haiku-4-5) distinct
+    # from the family default (anthropic_model = sonnet-4-6); assert the
+    # per-role override fires.
+    assert kwargs["model"] == client_module.settings.anthropic_model_classifier
 
 
 @pytest.mark.asyncio
