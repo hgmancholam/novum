@@ -1,10 +1,10 @@
 #!/bin/bash
 # Test each GH PAT against GitHub Models inference endpoint.
 TOKENS=(
-  "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"
-  "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"
-  "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"
-  "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"
+  ""
+  ""
+  ""
+  ""
 )
 PAYLOAD='{"model":"meta/Llama-4-Scout-17B-16E-Instruct","messages":[{"role":"user","content":"hi"}],"max_tokens":5}'
 for i in "${!TOKENS[@]}"; do
