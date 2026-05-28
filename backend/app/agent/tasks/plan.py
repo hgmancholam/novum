@@ -279,6 +279,29 @@ async def create_plan(
     elif temporal_sensitivity == TemporalSensitivity.VOLATILE:
         preferred_sources = ["tavily", "wikipedia"]
 
+    # C5: academic routing — for research-grade question types at
+    # standard/deep complexity, add Semantic Scholar + OpenAlex so the
+    # planner is guaranteed to pull from peer-reviewed sources, not just
+    # web/wiki. Temporal overrides above still win for realtime/volatile
+    # topics where freshness beats citation depth.
+    _ACADEMIC_QUESTION_TYPES = {
+        QuestionType.STATE_OF_ART,
+        QuestionType.PREDICTIVE_FUTURE,
+        QuestionType.CAUSAL,
+        QuestionType.COMPARATIVE,
+    }
+    _ACADEMIC_COMPLEXITY = {ComplexityHint.STANDARD, ComplexityHint.DEEP}
+    if (
+        question_type in _ACADEMIC_QUESTION_TYPES
+        and coerced_hint in _ACADEMIC_COMPLEXITY
+        and temporal_sensitivity != TemporalSensitivity.REALTIME
+    ):
+        base = list(preferred_sources) if preferred_sources else ["tavily", "wikipedia"]
+        for academic in ("semantic_scholar", "openalex"):
+            if academic not in base:
+                base.append(academic)
+        preferred_sources = base
+
     return PlanCreatedEvent(
         sub_claims=sub_claims,
         rationale=result.overall_rationale,

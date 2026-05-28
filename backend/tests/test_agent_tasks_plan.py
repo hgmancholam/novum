@@ -100,3 +100,85 @@ async def test_create_plan_scales_claim_budget_by_question_type(
 
 def test_claim_budget_defaults_to_middle_range_when_unknown() -> None:
     assert plan._claim_budget(None, None) == (3, 5, 2, 1)
+
+
+async def test_create_plan_routes_academic_sources_for_state_of_art(
+    mock_create: AsyncMock,
+) -> None:
+    """C5: STATE_OF_ART + STANDARD/DEEP → preferred_sources includes
+    semantic_scholar and openalex alongside the web/wiki defaults.
+    """
+    from app.domain.enums import ComplexityHint, QuestionType
+
+    mock_create.return_value = PlanOutput(
+        sub_claims=[SubClaimOutput(id="c1", text="x", rationale="r")],
+        overall_rationale="ok",
+    )
+    event = await plan.create_plan(
+        "What is the state of the art in X?",
+        question_type=QuestionType.STATE_OF_ART,
+        complexity_hint=ComplexityHint.STANDARD,
+    )
+    assert event.preferred_sources is not None
+    assert "semantic_scholar" in event.preferred_sources
+    assert "openalex" in event.preferred_sources
+
+
+async def test_create_plan_routes_academic_sources_for_comparative_deep(
+    mock_create: AsyncMock,
+) -> None:
+    from app.domain.enums import ComplexityHint, QuestionType
+
+    mock_create.return_value = PlanOutput(
+        sub_claims=[SubClaimOutput(id="c1", text="x", rationale="r")],
+        overall_rationale="ok",
+    )
+    event = await plan.create_plan(
+        "Compare A vs B in depth.",
+        question_type=QuestionType.COMPARATIVE,
+        complexity_hint=ComplexityHint.DEEP,
+    )
+    assert event.preferred_sources is not None
+    assert "semantic_scholar" in event.preferred_sources
+    assert "openalex" in event.preferred_sources
+
+
+async def test_create_plan_skips_academic_sources_for_factual_trivial(
+    mock_create: AsyncMock,
+) -> None:
+    """C5: trivial factual stays Wikipedia-first; no academic routing."""
+    from app.domain.enums import ComplexityHint, QuestionType
+
+    mock_create.return_value = PlanOutput(
+        sub_claims=[SubClaimOutput(id="c1", text="x", rationale="r")],
+        overall_rationale="ok",
+    )
+    event = await plan.create_plan(
+        "Capital of France?",
+        question_type=QuestionType.FACTUAL,
+        complexity_hint=ComplexityHint.TRIVIAL,
+    )
+    assert event.preferred_sources == ["wikipedia"]
+
+
+async def test_create_plan_realtime_overrides_academic_routing(
+    mock_create: AsyncMock,
+) -> None:
+    """C5: realtime topics need freshness, not citation depth — Tavily only."""
+    from app.domain.enums import (
+        ComplexityHint,
+        QuestionType,
+        TemporalSensitivity,
+    )
+
+    mock_create.return_value = PlanOutput(
+        sub_claims=[SubClaimOutput(id="c1", text="x", rationale="r")],
+        overall_rationale="ok",
+    )
+    event = await plan.create_plan(
+        "What is happening right now?",
+        question_type=QuestionType.CAUSAL,
+        complexity_hint=ComplexityHint.STANDARD,
+        temporal_sensitivity=TemporalSensitivity.REALTIME,
+    )
+    assert event.preferred_sources == ["tavily"]
