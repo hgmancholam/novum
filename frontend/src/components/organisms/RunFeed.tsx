@@ -1,36 +1,33 @@
 /**
- * RunFeed organism — Claude-style live feed for the center panel.
- * IP-24 Phase 3.
+ * RunFeed organism — AnatomyOfARun-style stepper for live reasoning.
  *
- * Consumes events via buildFeedSteps, renders molecules per step kind.
- * Sticky-bottom autoscroll (reusing IntersectionObserver pattern from TraceTimeline).
- * Collapse-after-completion with localStorage persistence.
+ * Visual model: `pages/HowWeWorkPage.tsx::AnatomyOfARun`. A vertical rail
+ * with small glowing dots; each row is an uppercase colored label + inline
+ * detail. The latest active step types out via `useTypewriter`. While the
+ * run is streaming, a bottom row shows `ThinkingDots` + the current
+ * activity narrative + a rotating idle reassurance message.
  */
 
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
-/* WHY: defensive optional guards on event payload fields are intentional */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 import {
   buildFeedSteps,
   type FeedStepData,
   type RunStreamEvent,
 } from "@/lib/feedGrouping";
-import {
-  FeedStep,
-  SearchStepCard,
-  PlanStepCard,
-  JudgeVerdictCard,
-  type SearchSource,
-  type SubClaim,
-} from "@/components/molecules";
-import { FeedRail, JumpToLatestPill, CollapseToggleButton } from "@/components/atoms";
+import { FeedRail, JumpToLatestPill, CollapseToggleButton, ThinkingDots } from "@/components/atoms";
+import { FeedStepLine } from "@/components/molecules";
 import {
   FEED_TOGGLE_COLLAPSE,
   FEED_TOGGLE_EXPAND,
   FEED_REASONING_TRACE,
 } from "@/lib/microcopy";
 import { useIdleReassurance } from "@/lib/idleMessages";
+import { getEventActivity, getEventLabel, getEventNarrative } from "@/lib/eventLabels";
+import { getEventVisual, TONE_COLOR } from "@/lib/eventVisuals";
+import type { EventType } from "@/types/events";
 import { cn } from "@/lib/cn";
 
 export interface RunFeedProps {
@@ -46,7 +43,7 @@ function getInitialCollapsed(isComplete: boolean): boolean {
   try {
     return localStorage.getItem(FEED_COLLAPSED_KEY) === "1";
   } catch {
-    return true; // Default collapsed after completion
+    return true;
   }
 }
 
@@ -54,8 +51,178 @@ function persistCollapsed(value: boolean): void {
   try {
     localStorage.setItem(FEED_COLLAPSED_KEY, value ? "1" : "0");
   } catch {
-    // Ignore storage errors
+    // ignore
   }
+}
+
+interface StepView {
+  label: string;
+  detail: string;
+  accent: string;
+  children?: ReactNode;
+}
+
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+function mapStepToView(step: FeedStepData): StepView {
+  const payload = step.payload;
+  const type = (payload.type as string | undefined) ?? "";
+
+  switch (step.kind) {
+    case "plan": {
+      const rationale = (payload.rationale as string | undefined) ?? "";
+      const subClaims =
+        (payload.sub_claims as Array<{ text?: string }> | undefined) ?? [];
+      const isRevision = type === "PlanRevised";
+      const label = isRevision ? "Plan ajustado" : "Plan";
+      const summary =
+        rationale.length > 0
+          ? rationale
+          : isRevision
+            ? "Replanteé el enfoque tras revisar los hallazgos."
+            : "Construí el plan de búsqueda.";
+      const detail =
+        subClaims.length > 0
+          ? `${summary} Voy a verificar ${subClaims.length.toString()} sub-afirmación${subClaims.length === 1 ? "" : "es"}.`
+          : summary;
+      const children: ReactNode =
+        subClaims.length > 0 ? (
+          <ul className="mt-1 flex flex-wrap gap-1.5">
+            {subClaims.map((c, idx) => (
+              <li
+                key={idx}
+                className="rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] px-2.5 py-0.5 text-[11px] text-[var(--text-secondary)]"
+              >
+                {c.text ?? `Sub-afirmación ${(idx + 1).toString()}`}
+              </li>
+            ))}
+          </ul>
+        ) : null;
+      return {
+        label,
+        detail,
+        accent: "var(--accent)",
+        ...(children !== null ? { children } : {}),
+      };
+    }
+    case "search": {
+      const query = (payload.query as string | undefined) ?? "";
+      const sources =
+        (payload.sources as Array<{ url?: string; title?: string }> | undefined) ?? [];
+      const detail =
+        query.length > 0
+          ? `Busqué en la web: "${query}" → ${sources.length.toString()} fuente${sources.length === 1 ? "" : "s"}.`
+          : `Encontré ${sources.length.toString()} fuente${sources.length === 1 ? "" : "s"}.`;
+      const children: ReactNode =
+        sources.length > 0 ? (
+          <ul className="mt-1 space-y-1">
+            {sources.slice(0, 5).map((s, idx) => (
+              <motion.li
+                key={`${s.url ?? ""}-${idx.toString()}`}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.25, delay: idx * 0.08, ease: "easeOut" }}
+                className="flex items-baseline gap-2 text-[12px] text-[var(--text-secondary)]"
+              >
+                <span className="h-1 w-1 shrink-0 rounded-full bg-[#22d3ee]" />
+                {s.url ? (
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="truncate hover:text-[var(--text-primary)] hover:underline"
+                  >
+                    {s.title && s.title.length > 0 ? s.title : hostnameOf(s.url)}
+                    <span className="ml-1.5 text-[var(--text-muted)]">
+                      ({hostnameOf(s.url)})
+                    </span>
+                  </a>
+                ) : (
+                  <span className="truncate">{s.title ?? "Fuente"}</span>
+                )}
+              </motion.li>
+            ))}
+            {sources.length > 5 ? (
+              <li className="text-[11px] text-[var(--text-muted)]">
+                +{(sources.length - 5).toString()} más…
+              </li>
+            ) : null}
+          </ul>
+        ) : null;
+      return {
+        label: "Búsqueda",
+        accent: "#22d3ee",
+        detail,
+        ...(children !== null ? { children } : {}),
+      };
+    }
+    case "judge": {
+      const passed = (payload.passed as boolean | undefined) ?? false;
+      const finalConfidence = (payload.final_confidence as number | undefined) ?? 0;
+      const threshold = (payload.threshold as number | undefined) ?? 0.7;
+      const rationale = (payload.rationale as string | undefined) ?? "";
+      const verdict = passed ? "Confirmado" : "Sugiero reintentar";
+      const detail = `Veredicto: ${verdict} · confianza ${(finalConfidence * 100).toFixed(0)}% (umbral ${(threshold * 100).toFixed(0)}%).`;
+      const children: ReactNode =
+        rationale.length > 0 ? (
+          <p className="mt-1 text-[12px] italic text-[var(--text-muted)]">
+            «{rationale}»
+          </p>
+        ) : null;
+      return {
+        label: "Juez",
+        accent: "var(--warm)",
+        detail,
+        ...(children !== null ? { children } : {}),
+      };
+    }
+    case "ambiguity":
+      return {
+        label: "Ambigüedad",
+        accent: "var(--semantic-warning)",
+        detail: "Detecté que la pregunta tiene varias interpretaciones posibles.",
+      };
+    case "contradiction":
+      return {
+        label: "Contradicción",
+        accent: "var(--semantic-warning)",
+        detail: "Las fuentes no coinciden en datos clave.",
+      };
+    case "done": {
+      const stopReason = (payload.stop_reason as string | undefined) ?? "unknown";
+      const confirmed = stopReason === "judge_confirmed";
+      return {
+        label: "Resultado verificado",
+        accent: confirmed ? "var(--semantic-success)" : "var(--semantic-neutral)",
+        detail: `Terminé — motivo: ${stopReason}.`,
+      };
+    }
+    default: {
+      const tone = getEventVisual(type).tone;
+      const accent = TONE_COLOR[tone];
+      const label = getEventLabel(type);
+      const detail = type
+        ? getEventNarrative(type as EventType, payload)
+        : getEventActivity(undefined);
+      return { label, detail, accent };
+    }
+  }
+}
+
+function getActivityText(events: readonly RunStreamEvent[]): string {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (ev !== undefined) {
+      return getEventActivity(ev.type);
+    }
+  }
+  return getEventActivity(undefined);
 }
 
 export function RunFeed({ events, isComplete, className }: RunFeedProps) {
@@ -71,35 +238,30 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Update collapsed state when completion changes
   useEffect(() => {
     if (isComplete) {
       setIsCollapsed(getInitialCollapsed(true));
     }
   }, [isComplete]);
 
-  // Sticky-bottom observer
   useEffect(() => {
     const sentinel = bottomRef.current;
     if (!sentinel || typeof IntersectionObserver === "undefined") {
       setSticky(true);
       return;
     }
-
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry) {
-          setSticky(entry.isIntersecting);
-        }
+        if (entry) setSticky(entry.isIntersecting);
       },
       { threshold: 0.5 }
     );
-
     observer.observe(sentinel);
-    return () => { observer.disconnect(); };
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
-  // Scroll to bottom when new events arrive and sticky
   useEffect(() => {
     if (sticky && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: "smooth" });
@@ -116,21 +278,21 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
     persistCollapsed(newValue);
   }
 
-  // Calculate total duration - explicitly type as number for strictNullChecks compliance
   const lastEvent = events[events.length - 1];
   const firstEvent = events[0];
   const lastTimestamp: number = lastEvent?.timestamp_ms ?? 0;
   const firstTimestamp: number = firstEvent?.timestamp_ms ?? 0;
-  const totalSeconds = events.length > 0
-    ? Math.round((lastTimestamp - firstTimestamp) / 1000)
-    : 0;
+  const totalSeconds =
+    events.length > 0 ? Math.round((lastTimestamp - firstTimestamp) / 1000) : 0;
 
   const idleMessage = useIdleReassurance(
     !isComplete && events.length > 0,
     lastTimestamp > 0 ? lastTimestamp : null,
   );
 
-  if (steps.length === 0) {
+  const activityText = !isComplete ? getActivityText(events) : "";
+
+  if (events.length === 0) {
     return null;
   }
 
@@ -140,47 +302,64 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
       data-testid="run-feed"
       className={cn("relative", className)}
     >
-      {/* Collapse header (only after completion) */}
-      {isComplete && events.length > 0 ? (
-        <div className="sticky top-0 z-20 bg-[var(--bg-primary)] border-b border-[var(--glass-border)] px-4 py-2 flex items-center justify-between">
-          <h3 className="text-sm font-medium text-[var(--text-secondary)]">
-            {FEED_REASONING_TRACE(steps.length, totalSeconds)}
-          </h3>
-          <CollapseToggleButton
-            isCollapsed={isCollapsed}
-            onToggle={toggleCollapsed}
-            labelCollapse={FEED_TOGGLE_COLLAPSE}
-            labelExpand={FEED_TOGGLE_EXPAND}
-          />
-        </div>
-      ) : null}
+      {/* Header */}
+      <div className="flex items-center gap-2 border-b border-[var(--glass-border)] px-1 pb-3">
+        <span
+          className={cn(
+            "inline-flex h-2 w-2 rounded-full",
+            isComplete
+              ? "bg-[var(--semantic-success)] shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+              : "bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] animate-pulse"
+          )}
+        />
+        <h3 className="text-sm font-medium text-[var(--text-secondary)]">
+          {steps.length > 0
+            ? FEED_REASONING_TRACE(steps.length, totalSeconds)
+            : "Pensando…"}
+        </h3>
+        {isComplete && steps.length > 0 ? (
+          <div className="ml-auto">
+            <CollapseToggleButton
+              isCollapsed={isCollapsed}
+              onToggle={toggleCollapsed}
+              labelCollapse={FEED_TOGGLE_COLLAPSE}
+              labelExpand={FEED_TOGGLE_EXPAND}
+            />
+          </div>
+        ) : null}
+      </div>
 
       {/* Feed content */}
       {!isCollapsed ? (
-        <div className="relative px-4 py-3">
+        <div className="relative pt-5 pb-2 pl-7 pr-1">
           <FeedRail tone={isComplete ? "neutral" : "active"} />
-          <ol className="flex flex-col relative">
-            {steps.map((step, idx) => (
-              <FeedStepRenderer
-                key={`step-${idx.toString()}`}
-                step={step}
-                isLast={idx === steps.length - 1}
-              />
-            ))}
+          <ol className="relative">
+            {steps.map((step, idx) => {
+              const view = mapStepToView(step);
+              const isLatest = idx === steps.length - 1;
+              const enableTypewriter = isLatest && !isComplete;
+              return (
+                <FeedStepLine
+                  key={`step-${idx.toString()}-${step.kind}`}
+                  label={view.label}
+                  detail={view.detail}
+                  accent={view.accent}
+                  deltaMs={step.deltaMs}
+                  typewriter={enableTypewriter}
+                  isLast={isLatest && isComplete}
+                >
+                  {view.children}
+                </FeedStepLine>
+              );
+            })}
+            {!isComplete ? (
+              <ThinkingRow activity={activityText} idleMessage={idleMessage} />
+            ) : null}
           </ol>
-          {idleMessage !== null ? (
-            <p
-              data-testid="feed-idle-message"
-              className="mt-2 pl-12 text-xs italic text-[var(--text-muted)] animate-pulse"
-            >
-              {idleMessage}
-            </p>
-          ) : null}
           <div ref={bottomRef} />
         </div>
       ) : null}
 
-      {/* Jump to latest pill */}
       {!sticky && !isCollapsed ? (
         <div className="absolute bottom-4 right-4 z-10">
           <JumpToLatestPill onClick={handleJumpToLatest} />
@@ -190,116 +369,42 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
   );
 }
 
-interface FeedStepRendererProps {
-  step: FeedStepData;
-  isLast: boolean;
+interface ThinkingRowProps {
+  activity: string;
+  idleMessage: string | null;
 }
 
-function FeedStepRenderer({ step, isLast }: FeedStepRendererProps) {
-  switch (step.kind) {
-    case "search": {
-      const { query, sources } = step.payload as {
-        query: string;
-        sources: SearchSource[];
-      };
-      return (
-        <SearchStepCard
-          query={query}
-          sources={sources}
-          isActive={step.isActive}
-          deltaMs={step.deltaMs}
-        />
-      );
-    }
-    case "plan": {
-      const payload = step.payload;
-      const rationale = (payload.rationale as string) ?? "";
-      const subClaims = ((payload.sub_claims as unknown[]) ?? []).map(
-        (c: unknown) => {
-          const claim = c as Record<string, unknown>;
-          return {
-            id: (claim.id as string) ?? "",
-            text: (claim.text as string) ?? "",
-            status: (claim.status as SubClaim["status"]) ?? "pending",
-          };
-        }
-      );
-      const isRevision = payload.type === "PlanRevised";
-      return (
-        <PlanStepCard
-          rationale={rationale}
-          subClaims={subClaims}
-          complexityHint={payload.complexity_hint as string | undefined}
-          isActive={step.isActive}
-          deltaMs={step.deltaMs}
-          isRevision={isRevision}
-        />
-      );
-    }
-    case "judge": {
-      const payload = step.payload;
-      const passed = (payload.passed as boolean) ?? false;
-      const finalConfidence = (payload.final_confidence as number) ?? 0;
-      const threshold = (payload.threshold as number) ?? 0.7;
-      const rationale = (payload.rationale as string) ?? "";
-      return (
-        <JudgeVerdictCard
-          passed={passed}
-          finalConfidence={finalConfidence}
-          threshold={threshold}
-          rationale={rationale}
-          deltaMs={step.deltaMs}
-        />
-      );
-    }
-    case "done": {
-      const stopReason = (step.payload.stop_reason as string) ?? "unknown";
-      return (
-        <FeedStep
-          type="Stopped"
-          title="Terminé"
-          summary={`Motivo: ${stopReason}`}
-          isActive={step.isActive}
-          deltaMs={step.deltaMs}
-          isLast={isLast}
-        />
-      );
-    }
-    case "ambiguity": {
-      return (
-        <FeedStep
-          type="AmbiguityDetected"
-          title="Detecté una ambigüedad"
-          summary="La pregunta tiene varias interpretaciones posibles"
-          isActive={step.isActive}
-          deltaMs={step.deltaMs}
-          isLast={isLast}
-        />
-      );
-    }
-    case "contradiction": {
-      return (
-        <FeedStep
-          type="ContradictionDetected"
-          title="Encontré información contradictoria"
-          summary="Las fuentes no coinciden en datos clave"
-          isActive={step.isActive}
-          deltaMs={step.deltaMs}
-          isLast={isLast}
-        />
-      );
-    }
-    default: {
-      // Generic fallback - use QuestionAsked as a safe default for unknown types
-      return (
-        <FeedStep
-          type="QuestionAsked"
-          title={(step.payload.type as string) ?? "Evento desconocido"}
-          {...(step.isActive !== undefined ? { isActive: step.isActive } : {})}
-          {...(step.deltaMs !== undefined ? { deltaMs: step.deltaMs } : {})}
-          isLast={isLast}
-        />
-      );
-    }
-  }
+function ThinkingRow({ activity, idleMessage }: ThinkingRowProps) {
+  return (
+    <motion.li
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      className="relative pt-1"
+      data-testid="feed-thinking-row"
+    >
+      <span
+        aria-hidden
+        className="absolute top-2 -left-[22px] inline-flex h-3.5 w-3.5 items-center justify-center rounded-full"
+        style={{
+          background: "color-mix(in srgb, var(--accent) 35%, var(--bg-primary))",
+          boxShadow: "0 0 0 3px var(--bg-primary), 0 0 12px var(--accent-glow)",
+        }}
+      />
+      <div className="flex items-center gap-2">
+        <ThinkingDots />
+        <span className="text-sm italic text-[var(--text-secondary)]">
+          {activity}…
+        </span>
+      </div>
+      {idleMessage !== null ? (
+        <p
+          data-testid="feed-idle-message"
+          className="mt-1.5 text-xs italic text-[var(--text-muted)] animate-pulse"
+        >
+          {idleMessage}
+        </p>
+      ) : null}
+    </motion.li>
+  );
 }

@@ -40,3 +40,5 @@ export { CollapseToggleButton } from "./CollapseToggleButton";
 export type { CollapseToggleButtonProps } from "./CollapseToggleButton";
 export { BlinkingCursor } from "./BlinkingCursor";
 export type { BlinkingCursorProps } from "./BlinkingCursor";
+export { ThinkingDots } from "./ThinkingDots";
+export type { ThinkingDotsProps } from "./ThinkingDots";

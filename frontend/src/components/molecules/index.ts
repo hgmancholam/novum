@@ -33,3 +33,5 @@ export { PlanStepCard } from "./PlanStepCard";
 export type { PlanStepCardProps, SubClaim } from "./PlanStepCard";
 export { JudgeVerdictCard } from "./JudgeVerdictCard";
 export type { JudgeVerdictCardProps } from "./JudgeVerdictCard";
+export { FeedStepLine } from "./FeedStepLine";
+export type { FeedStepLineProps } from "./FeedStepLine";

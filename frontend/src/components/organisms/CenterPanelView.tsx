@@ -111,36 +111,51 @@ export function CenterPanelView({
     onViewFormatChange !== undefined;
 
   return (
-    <GlassSurface
+    <div
       data-testid="center-panel-view"
-      variant="default"
-      elevation="lg"
-      radius="xl"
-      className={cn(
-        "mx-auto flex w-full max-w-3xl flex-col gap-4 overflow-hidden",
-        className
-      )}
+      className={cn("mx-auto flex w-full max-w-3xl flex-col gap-5", className)}
     >
-      {isTerminal && run.stopReason !== null ? (
-        <OutcomeBar reason={run.stopReason} />
-      ) : null}
+      {/* Card 1 — Question + run header */}
+      <GlassSurface
+        variant="default"
+        elevation="lg"
+        radius="xl"
+        className="relative overflow-hidden"
+      >
+        {isTerminal && run.stopReason !== null ? (
+          <OutcomeBar reason={run.stopReason} />
+        ) : null}
+        <div className="flex flex-col gap-6 px-6 py-6">
+          <RunHeader run={run} status={status} />
+          <QuestionDisplay question={run.question} />
+        </div>
+      </GlassSurface>
 
-      <div className="flex flex-col gap-6 px-6 py-6">
-        <RunHeader run={run} status={status} />
-        <QuestionDisplay question={run.question} />
-
-        {/* IP-24: RunFeed replaces ResearchingBanner */}
-        {/* IP-15 §9: hide feed during post-resume limbo */}
-        {events !== undefined &&
-        events.length > 0 &&
-        !showPostResumeNotice ? (
-          <div className="mt-2">
+      {/* Card 2 — Live reasoning feed */}
+      {events !== undefined &&
+      events.length > 0 &&
+      !showPostResumeNotice ? (
+        <GlassSurface
+          variant="default"
+          elevation="md"
+          radius="xl"
+          data-testid="run-feed-card"
+        >
+          <div className="px-6 py-5">
             <RunFeed events={events} isComplete={isTerminal} />
           </div>
-        ) : null}
+        </GlassSurface>
+      ) : null}
 
-        {isTerminal && run.stopReason !== null ? (
-          <div className="flex flex-col gap-3">
+      {/* Card 3 — Verified answer + trust + stop reason */}
+      {isTerminal && run.stopReason !== null ? (
+        <GlassSurface
+          variant="default"
+          elevation="lg"
+          radius="xl"
+          data-testid="run-answer-card"
+        >
+          <div className="flex flex-col gap-3 px-6 py-6">
             {hasAnswer && activeContent !== null ? (
               <>
                 {showFormatSelector ? (
@@ -186,8 +201,8 @@ export function CenterPanelView({
             />
             <StopReasonCard reason={run.stopReason} />
           </div>
-        ) : null}
-      </div>
-    </GlassSurface>
+        </GlassSurface>
+      ) : null}
+    </div>
   );
 }

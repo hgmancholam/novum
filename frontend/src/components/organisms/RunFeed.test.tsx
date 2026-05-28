@@ -76,18 +76,18 @@ describe("RunFeed", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders SearchStepCard for ToolCalled + EvidenceAdded", () => {
+  it("renders SearchStepCard for ToolCalled + EvidenceAdded", async () => {
     render(
       <RunFeed
         events={[mockToolCalledEvent, mockEvidenceEvent]}
-        isComplete={false}
+        isComplete={true}
       />
     );
-    expect(screen.getByText(/"AI systems"/)).toBeInTheDocument();
-    expect(screen.getByText(/1 result/)).toBeInTheDocument();
+    expect(await screen.findByText(/"AI systems"/)).toBeInTheDocument();
+    expect(screen.getByText(/1 fuente/)).toBeInTheDocument();
   });
 
-  it("renders PlanStepCard for PlanCreated", () => {
+  it("renders PlanStepCard for PlanCreated", async () => {
     const planEvent: RunStreamEvent = {
       type: "PlanCreated",
       step_index: 1,
@@ -97,12 +97,11 @@ describe("RunFeed", () => {
       ],
       timestamp_ms: 1000,
     };
-    render(<RunFeed events={[planEvent]} isComplete={false} />);
-    expect(screen.getByText("Construí el plan de búsqueda")).toBeInTheDocument();
-    expect(screen.getByText("Breaking down the question")).toBeInTheDocument();
+    render(<RunFeed events={[planEvent]} isComplete={true} />);
+    expect(await screen.findByText(/Breaking down the question/)).toBeInTheDocument();
   });
 
-  it("renders JudgeVerdictCard for JudgeRuled", () => {
+  it("renders JudgeVerdictCard for JudgeRuled", async () => {
     const judgeEvent: RunStreamEvent = {
       type: "JudgeRuled",
       step_index: 1,
@@ -112,8 +111,8 @@ describe("RunFeed", () => {
       rationale: "Good answer",
       timestamp_ms: 1000,
     };
-    render(<RunFeed events={[judgeEvent]} isComplete={false} />);
-    expect(screen.getByText("Confirmado")).toBeInTheDocument();
+    render(<RunFeed events={[judgeEvent]} isComplete={true} />);
+    expect(await screen.findByText(/Confirmado/)).toBeInTheDocument();
     expect(screen.getByText(/85%/)).toBeInTheDocument();
   });
 
@@ -124,17 +123,17 @@ describe("RunFeed", () => {
         isComplete={true}
       />
     );
-    expect(screen.getByText(/Razonamiento/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ocultar/i })).toBeInTheDocument();
   });
 
-  it("does not show collapse header when not complete", () => {
+  it("does not show collapse button when not complete", () => {
     render(
       <RunFeed
         events={[mockToolCalledEvent]}
         isComplete={false}
       />
     );
-    expect(screen.queryByText(/Razonamiento/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /ocultar/i })).not.toBeInTheDocument();
   });
 
   it("collapses feed when toggle is clicked", async () => {
