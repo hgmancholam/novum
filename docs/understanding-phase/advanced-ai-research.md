@@ -136,10 +136,25 @@ Each sub-claim gets a search query that obeys four hygiene clauses:
 
 ## 2.3 Source routing by temporal sensitivity (IP-23 WP-1)
 
-- `static` / `slow_changing` → Wikipedia + Semantic Scholar first, Tavily second.
-- `volatile` / `real_time` → Tavily first with `search_depth="advanced"` and `days` filter; Wikipedia + Semantic Scholar second.
-- Semantic Scholar's recency filter is mapped from `days` to a `year` range (the API has no day-level filter).
-## 2.4 Plan self-critique (`CRITIQUING`)
+- `static` / `slow_changing` → Wikipedia + Semantic Scholar + OpenAlex first, Tavily second.
+- `volatile` / `real_time` → Tavily first with `search_depth="advanced"` and `days` filter; Wikipedia + Semantic Scholar + OpenAlex second.
+- Semantic Scholar's and OpenAlex's recency filter is mapped from `days` to a `year` range (neither API has a day-level filter).
+
+## 2.4 Source routing by question type (commit C5, 2026-05-28)
+
+On top of temporal routing, the planner appends the **academic pair**
+`["semantic_scholar", "openalex"]` to `preferred_sources` when **all three**
+hold:
+
+- `question_type ∈ {STATE_OF_ART, PREDICTIVE_FUTURE, CAUSAL, COMPARATIVE}`
+- `complexity ∈ {STANDARD, DEEP}`
+- `temporal_sensitivity != real_time` (peer-reviewed material is stale by
+  definition on real-time topics)
+
+This keeps Semantic Scholar / OpenAlex quota for the questions that
+actually benefit from peer-reviewed evidence and avoids burning it on
+`FACTUAL` or `DEFINITIONAL` queries.
+## 2.5 Plan self-critique (`CRITIQUING`)
 
 Before any external call is made, the LLM critiques its own plan:
 
@@ -156,7 +171,7 @@ budget.
 
 For each sub-claim, in order:
 
-## 3.1 Three heterogeneous Sources (RF-04)
+## 3.1 Four heterogeneous Sources (RF-04)
 
 - **Tavily** web search — `search_depth="advanced"`, with `days` filter from §2.3.
 - **Wikipedia** — encyclopedic baseline, second Source plugin.
@@ -165,12 +180,33 @@ For each sub-claim, in order:
   venue and DOI. Free tier, no API key required (optional `S2_API_KEY` raises
   the rate limit). Provides high-weight evidence for science, medical and
   technical questions.
+- **OpenAlex** — open scholarly graph (`api.openalex.org/works`). Independent
+  index of works, authors, venues and citation counts; complements Semantic
+  Scholar for source heterogeneity within the academic tier. Free, no API
+  key required.
 
-All three are interchangeable behind the `Source` Protocol (RF-01) and live
+All four are interchangeable behind the `Source` Protocol (RF-01) and live
 in [backend/app/sources/registry.py](../../backend/app/sources/registry.py).
-Semantic Scholar hosts (`*.semanticscholar.org`, `doi.org`) are classified
-`primary_authoritative` in the tier table below — evidence from this source
-lands at ×1.30 on coverage and diversity.
+Semantic Scholar and OpenAlex hosts (`*.semanticscholar.org`,
+`*.openalex.org`, `doi.org`) are classified `primary_authoritative` in the
+tier table below — evidence from these sources lands at ×1.30 on coverage
+and diversity.
+
+### 3.1.1 Citation-weighted ranking inside academic sources (commit C6, 2026-05-28)
+
+Semantic Scholar and OpenAlex share a `_citation_bump` helper that lifts
+well-cited works in the result list **without overriding search-engine
+relevance**:
+
+```
+bump(c)  = min(0.30, log10(1 + c) / log10(1001) * 0.30)
+final_score = clamp(base_relevance + bump(citation_count), 0, 1)
+```
+
+- `base_relevance = max(0.1, 1.0 - rank * 0.05)` (existing rank decay).
+- Cap at +0.30 ensures citations **break ties** at deeper ranks (≥ 6) but
+  cannot override a top-ranked topical hit. The seam contract
+  `relevance_score ∈ [0, 1]` is preserved.
 
 ## 3.2 What we capture per URL
 
@@ -186,7 +222,7 @@ Every result is classified into one of four tiers by host pattern:
 
 | `AuthorityTier` | Examples | Multiplier on `C_coverage` + `C_diversity` |
 |---|---|---|
-| `primary_authoritative` | `*.gov`, `*.gov.*`, `*.gob`, `*.gob.*`, `*.mil`, `*.mil.*`, `*.int`, `*.edu`, `*.edu.*`, `*.ac.*`, `who.int`, `nih.gov`, `arxiv.org`, `*.semanticscholar.org`, `doi.org`, `ietf.org`, `iso.org`, peer-reviewed journals | × 1.30 |
+| `primary_authoritative` | `*.gov`, `*.gov.*`, `*.gob`, `*.gob.*`, `*.mil`, `*.mil.*`, `*.int`, `*.edu`, `*.edu.*`, `*.ac.*`, `who.int`, `nih.gov`, `arxiv.org`, `*.semanticscholar.org`, `*.openalex.org`, `doi.org`, `ietf.org`, `iso.org`, peer-reviewed journals | × 1.30 |
 | `reputable` | Wikipedia, Britannica, NYT, BBC, Reuters, AP News | × 1.10 |
 | `general` | Most blogs, vendor docs, Stack Overflow, Reddit, plain country TLDs (`.es`, `.mx`, `.co`, …) | × 1.00 |
 | `low_signal` | Medium, Quora, geeksforgeeks, w3schools, `*.blogspot.com`, `*.wordpress.com`, `*.substack.com`, `.biz`, `.info`, `.xyz`, `.top` | × 0.70 |
@@ -281,9 +317,16 @@ After analysis and confidence are updated, the orchestrator checks every
 configured `StoppingSignal` plugin:
 
 1. **`BudgetExhaustedSignal`** — `max_rounds`, `max_searches`, `max_tokens` from §1.2.
-2. **`ConfidenceThresholdSignal`** — `S_effective ≥ confidence_threshold` (default 0.70).
-3. **`UserCancelledSignal`** — the FE asked us to stop.
-4. **`JudgeConfirmedSignal`** — the judge approved the draft (set in §8).
+2. **`UserCancelledSignal`** — the FE asked us to stop.
+3. **`JudgeSignal`** — fires when the judge LLM returns `verdict == "approve"`
+   (priority 40, set in §8). Maps to `STOP{JUDGE_CONFIRMED}`.
+
+> **Threshold unification (commit C2, 2026-05-28).** There is no longer a
+> separate `ConfidenceThresholdSignal` gating on `min(S, J) >= threshold`.
+> The `confidence_threshold` is passed into the judge prompt and **the judge
+> LLM applies it itself** when choosing approve vs reject. This eliminates
+> the bug where a judge `approve` could still be vetoed by the structural
+> score, double-applying the same rule.
 
 If **none** fire, the orchestrator schedules another round of `SEARCHING` →
 `ANALYZING`. If any fires, we move to `SYNTHESIZING`.
@@ -343,7 +386,7 @@ The `JudgeRuled` event carries a structured `JudgeVerdict`:
 | `supported_but_shallow_claim_ids[]` | Claims supported only by snippets — candidates for deep-fetch |
 | `j_score` | Judge confidence in [0, 1] |
 
-## 8.1 Final confidence
+## 8.1 Final confidence (logged, not gating)
 
 ```
 final_confidence = min(S_effective, J)
@@ -352,6 +395,30 @@ final_confidence = min(S_effective, J)
 This is the rule from RF-12. The lower of structural and judge confidence
 wins. The judge cannot raise confidence above what the evidence structurally
 supports.
+
+Since commit C2 (2026-05-28), `final_confidence` is **recorded as a metric
+on the `Stopped` event and shown in the UI**, but it is **not** re-checked
+as a stopping gate — the judge LLM owns the approve/reject call (§6).
+
+## 8.2 Judge-cap best-effort fallback (commit C3, 2026-05-28)
+
+The judge can reject a draft. When that happens the orchestrator loops back
+to `ANALYZING` (or `SEARCHING` if deep-fetch §9 applies) and re-drafts. To
+avoid spinning forever, attempts are capped by `max_judge_attempts`.
+
+If the cap is reached **without** an `approve` verdict, the orchestrator
+does **not** terminate as `STOPPED_BY_BUDGET` with a rejected draft. Instead
+it invokes `draft_best_effort_fallback(state)`, which:
+
+1. Reuses the synthesizer system prompt with a *FALLBACK MODE* directive.
+2. Pins `AnswerKind.BEST_EFFORT` so the UI can render the distinct
+   *best-effort* badge (`CenterPanelView` warning banner) instead of
+   presenting the answer as confirmed.
+3. Structures the reply in 4 explicit parts: what evidence we have / what
+   we couldn't confirm / our best current take / what would close the gap.
+
+The run then terminates as `STOPPED_BY_BUDGET` **with an honest
+best-effort answer**, not a silent failure.
 
 ---
 
@@ -431,7 +498,7 @@ To keep the system honest, we list what is deliberately absent:
 
 | Capability | Status | Reason |
 |---|---|---|
-| **Vector DB / embeddings / semantic retrieval** | ❌ | Three Source plugins (Tavily + Wikipedia + Semantic Scholar) provide enough heterogeneity for the assignment scope. |
+| **Vector DB / embeddings / semantic retrieval** | ❌ | Four Source plugins (Tavily + Wikipedia + Semantic Scholar + OpenAlex) provide enough heterogeneity for the assignment scope. |
 | **RAG over private corpora** | ❌ | Out of scope; no document ingestion pipeline. |
 | **Abductive hypothesis generation** | ❌ | Deep-fetch is reactive (escalates on judge feedback), not generative. |
 | **Adaptive query reformulation mid-run** | ❌ | Queries are decided at plan time and not rewritten based on intermediate findings. |
