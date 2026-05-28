@@ -94,6 +94,7 @@ class RunService:
             user_context=data.user_context,
             output_format=data.output_format.value,
             confidence_threshold=data.confidence_threshold,
+            llm_provider=data.llm_provider,
         )
         self.db.add(run)
         await self.db.commit()

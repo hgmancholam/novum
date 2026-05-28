@@ -1,8 +1,18 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { axe } from "jest-axe";
 
 import { QuestionForm } from "./QuestionForm";
+
+beforeEach(() => {
+  window.localStorage.clear();
+  // Silence the ProviderSelect availability fetch in tests — the
+  // component falls back to "all enabled" on failure.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => Promise.reject(new Error("network disabled in test")))
+  );
+});
 
 function setup(props: Partial<Parameters<typeof QuestionForm>[0]> = {}) {
   const onSubmit = vi.fn();
@@ -36,6 +46,7 @@ describe("QuestionForm", () => {
       userContext: null,
       outputFormat: "structured",
       confidenceThreshold: 0.6,
+      llmProvider: "github",
     });
   });
 
@@ -97,5 +108,28 @@ describe("QuestionForm", () => {
     const { container } = render(<QuestionForm onSubmit={vi.fn()} />);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+  });
+
+  it("defaults the provider to github and submits the chosen value", () => {
+    const { onSubmit } = setup();
+    const select = screen.getByTestId("provider-select") as HTMLSelectElement;
+    expect(select.value).toBe("github");
+
+    fireEvent.change(select, { target: { value: "anthropic" } });
+    fireEvent.change(screen.getByLabelText(/your question/i), {
+      target: { value: "What is event sourcing?" },
+    });
+    fireEvent.click(screen.getByTestId("submit-question"));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ llmProvider: "anthropic" })
+    );
+    expect(window.localStorage.getItem("novum:llm_provider")).toBe("anthropic");
+  });
+
+  it("hydrates the selected provider from localStorage", () => {
+    window.localStorage.setItem("novum:llm_provider", "openai");
+    setup();
+    const select = screen.getByTestId("provider-select") as HTMLSelectElement;
+    expect(select.value).toBe("openai");
   });
 });

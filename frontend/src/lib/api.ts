@@ -5,6 +5,7 @@
 
 import { API_URL } from "./constants";
 import { getAuthHeaders } from "./auth";
+import type { LlmProviderName } from "./providers";
 
 export interface ApiError {
   code: string;
@@ -187,6 +188,7 @@ export interface RunResponseDto {
   question_type: QuestionTypeDto | null;
   output_format: OutputFormatDto;
   confidence_threshold: number;
+  llm_provider: string;
   started_at: string;
   stopped_at: string | null;
   stop_reason: StopReasonDto | null;
@@ -233,6 +235,7 @@ export interface RunCreatePayload {
   user_context?: string | null;
   output_format?: OutputFormatDto;
   confidence_threshold?: number;
+  llm_provider?: LlmProviderName;
 }
 
 /** POST /api/runs — requires X-Username + X-Token (BRD-04). */

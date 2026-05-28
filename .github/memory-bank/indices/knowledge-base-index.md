@@ -46,6 +46,7 @@
 | IP-09 | BRD-09 Stopping Signal Policy | 2026-05-26 | Completed | [IP-09](../../../docs/implementation-phase/implementation-plans/IP-09-stopping-signals.md) |
 | IP-14 | BRD-14 Trace Panel | 2026-05-26 | Completed | [IP-14](../../../docs/implementation-phase/implementation-plans/IP-14-trace-panel.md) |
 | IP-15 | BRD-15 Fork & Resume from Events | 2026-05-26 | Completed | [IP-15](../../../docs/implementation-phase/implementation-plans/IP-15-fork-resume.md) |
+| IP-23 | BRD-23 Research-Quality Improvements (Temporal · Authority · Deep-Fetch · Query Hygiene) | 2026-05-27 | Draft (F2) | [IP-23](../../../docs/implementation-phase/implementation-plans/IP-23-research-quality-improvements.md) |
 
 ---
 
@@ -73,6 +74,8 @@
 | BRD-17 | Testing Strategy & Calibration Eval | 2026-05-26 | Draft | [BRD-17](../../../docs/implementation-phase/brds/BRD-17-testing-strategy.md) |
 | BRD-18 | Infrastructure & Deployment | 2026-05-26 | Draft | [BRD-18](../../../docs/implementation-phase/brds/BRD-18-infrastructure.md) |
 | BRD-20 | Delete Finished Run & History Pagination | 2026-05-27 | Implemented | [BRD-20](../../../docs/implementation-phase/brds/BRD-20-delete-run-and-pagination.md) |
+| BRD-22 | Complexity-Aware Planning + Expected Experts + Instant Cache | 2026-05-27 | Implemented | [BRD-22](../../../docs/implementation-phase/brds/BRD-22-complexity-aware-planning-and-experts.md) |
+| BRD-23 | Research-Quality Improvements (Temporal · Authority · Deep-Fetch · Query Hygiene) | 2026-05-27 | Draft (F1) | [BRD-23](../../../docs/implementation-phase/brds/BRD-23-research-quality-improvements.md) |
 
 ---
 
@@ -100,6 +103,7 @@
 |----|----------------|-----------|-------|--------|----------|
 | AUDIT-IP-22 | IP-22 (BRD-22) | 1 | 8.2/10 | Needs Revision | [AUDIT-IP-22](../../../docs/implementation-phase/audits/AUDIT-IP-22-complexity-aware-planning-and-experts.md) |
 | AUDIT-IP-22 | IP-22 (BRD-22) | 2 | 9.6/10 | ✅ Approved | [AUDIT-IP-22](../../../docs/implementation-phase/audits/AUDIT-IP-22-complexity-aware-planning-and-experts.md) |
+| AUDIT-IP-23-F2 | IP-23 (BRD-23) | 1 | 9.0/10 | ✅ Approved (F2) → Ready for F3 (Coder) | [AUDIT-IP-23-F2](../../../docs/implementation-phase/audits/AUDIT-IP-23-F2.md) |
 
 ---
 

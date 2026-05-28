@@ -82,6 +82,7 @@ def test_run_response_accepts_optional_fields() -> None:
         stop_reason=None,
         parent_run_id=None,
         forked_at_event_id=None,
+        llm_provider="github",
     )
     assert response.question_type == QuestionType.FACTUAL
     assert response.stop_reason is None

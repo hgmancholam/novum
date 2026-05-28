@@ -4,11 +4,113 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-27
-**Total Decisions:** 50
+**Total Decisions:** 53
 
 ---
 
 ## Recent Decisions
+
+## D-IP23-AUDIT-F2-ITER1: IP-23 F2 audit — APPROVED (9.0/10, iter 1)
+**Date:** 2026-05-27
+**Phase:** F2 — PLAN (Auditor sub-loop, iter 1 of max 3)
+**Artifacts:** [AUDIT-IP-23-F2](../../../docs/implementation-phase/audits/AUDIT-IP-23-F2.md), [IP-23](../../../docs/implementation-phase/implementation-plans/IP-23-research-quality-improvements.md), [BRD-23 v1.1](../../../docs/implementation-phase/brds/BRD-23-research-quality-improvements.md)
+**Complexity profile:** L (`min_score = 9`, `max_iter = 3`)
+
+### Outcome
+**APPROVED** — final score = `min(dimension_scores) = 9.0/10`. IP-23 is cleared for F3 (Coder).
+
+### Per-dimension scores
+Completeness 9.5 · Atomicity 9.5 · Sequencing 10.0 · Test plan 10.0 · Blind-path 9.0 · Rollback 10.0 · Schema-compat 10.0 · Memory protocol 10.0.
+
+### Verified PO confirmations against the codebase
+1. ✅ Prompts single-file at `backend/app/llm/prompts.py` (lines 16/44/76/97).
+2. ✅ `ToolCalledEvent` + `EvidenceAddedEvent` constructed at exactly one site: `backend/app/agent/tasks/search.py:46` / `:74`.
+3. ✅ `ComplexityBadge` rendered in `frontend/src/components/molecules/PlanPreview.tsx:59`.
+4. ✅ `frontend/src/components/organisms/SourcesCard.tsx` exists.
+5. ✅ `tavily_days_filter` bundled with `query_length_tokens` in Phase 1 (T-23-1-01).
+
+### Non-blocking advisories handed to Coder (F3)
+- A. `backend/app/confidence/structural.py` defines `calculate_diversity` (line 86), not `calculate_independence` — apply WP-3 multiplier inside `calculate_coverage` + `calculate_diversity`; do not rename.
+- B. `_handle_critiquing` in `backend/app/agent/orchestrator.py:260` is the plan-critique state, not the post-judge hook. Coder must grep for the actual `JudgeRuledEvent` emission site before wiring `maybe_deep_fetch`.
+- C. IP-23 §6 typo: "Deep-fetch fold contract — `app/agent/run_state.py::_fold_events`" is wrong; the canonical location is `backend/app/agent/runner.py:100`. T-23-4-12 already says `runner.py` — typo lives only in the §6 checklist echo.
+- D. `backend/tests/fixtures/runs/` contains only `.gitkeep`; AC-09 fixture must be created during Phase 4.
+- E. Atomic-design layering nit: `TemporalSensitivityBadge` + `AuthorityTierChip` are more accurately **molecules** (each wraps the existing `Badge` atom, like `ComplexityBadge`). Move to `molecules/` to keep ESLint `import/no-restricted-paths` clean.
+
+### Next action
+Orchestrator → dispatch IP-23 to Coder (F3) with the green-light queue: Phase 1 → 2 → 3 → 4. Phase 3 PR hard-gated on the in-PR amendment of `docs/understanding-phase/confidence-calculation.md` (BRD §15.3 Q6).
+
+---
+
+## D-IP23-PLAN-CREATED: IP-23 Implementation Plan drafted from BRD-23 v1.1
+**Date:** 2026-05-27
+**Phase:** F2 — PLAN (Orchestrator, iter 1)
+**Artifacts:** [IP-23](../../../docs/implementation-phase/implementation-plans/IP-23-research-quality-improvements.md)
+**Complexity:** L (deep) — `quality_profiles.L`, model tier `balanced` (Claude Sonnet 4.5)
+
+### Scope
+Four-phase plan covering the four BRD-23 work packages, each independently shippable:
+- **Phase 1 = WP-4 Query hygiene** — planner prompt clause + additive `query_length_tokens` on `ToolCalledEvent`.
+- **Phase 2 = WP-1 Temporal sensitivity** — `TemporalSensitivity` enum + classifier heuristic + Tavily routing/`days` filter + judge stale-citation rule + `kind_ceiling["direct"]` × 0.85 penalty.
+- **Phase 3 = WP-3 Authority tiering** — `AuthorityTier` enum + static domain table + per-evidence-row multiplier (1.05/1.00/0.90/0.50) on `C_coverage` / `C_independence` ONLY + `confidence-calculation.md` amendment (SAME PR — hard gate per BRD §15.3 Q6).
+- **Phase 4 = WP-2 Deep-fetch** — optional `Source.fetch_full()` (default `None`) on existing seam, Tavily + Wikipedia implementations, `DeepFetchPerformedEvent`, complexity-keyed budget (0/2/3).
+
+### Phase-ordering decision (overrides BRD §13 suggestion)
+BRD §13 suggested WP-1 → WP-4 → WP-3 → WP-2. IP-23 reverses to **WP-4 → WP-1 → WP-3 → WP-2** because:
+1. WP-4 has the smallest blast radius (pure prompt + 1 optional field) and provides the `query_length_tokens` baseline that later phases need for measurement.
+2. WP-1 must precede WP-3 because AC-04 (stale-citation ceiling) depends on `temporal_sensitivity` being live.
+3. WP-3 is the highest review surface (confidence-formula change); shipping it before WP-2 keeps the deep-fetch re-computation in Phase 4 honest.
+4. WP-2 is largest blast radius (new event type + Protocol method + orchestrator branch); benefits from temporal + authority signals already rendering in trace UI.
+
+### Invariants preserved (carried over from BRD-23 §2 RF Traceability)
+- 4-value `stop_reason` enum.
+- RF-12 `final_confidence = min(S_effective, J)`.
+- Architecture rule #1 — WP-2 extends existing `Source` seam; no parallel hierarchy.
+- Architecture rule #5 — every new field optional `T | None = None`; one new event type only; deep-fetch counter recomputed from event log (L-015).
+- No new env vars REQUIRED (only optional tunables); no Alembic migration; no FSM state; no new LLM provider; single-server scope (RF-05).
+
+### Assumptions flagged (in plan §1 / §3 — Coder must verify)
+1. LLM prompts live in `app/llm/prompts.py` (verified by grep — `CLASSIFIER_SYSTEM_PROMPT`, `PLANNER_SYSTEM_PROMPT`, `JUDGE_SYSTEM_PROMPT`). BRD §4.1's `app/llm/prompts/{classifier,planner,judge}.py` paths are notional; the file paths in IP-23 task list reflect the real codebase.
+2. `EvidenceAddedEvent` emission site is in `app/agent/tasks/search.py` OR `app/agent/tasks/analyze.py` — Coder must `grep_search` to confirm.
+3. `ComplexityBadge` is rendered inside `frontend/src/components/molecules/PlanPreview.tsx` (verified from IP-22 §AD-05); `TemporalSensitivityBadge` ships next to it (or in `organisms/RunHeader.tsx` if Coder finds a better fit).
+4. Citations are rendered inside `frontend/src/components/organisms/SourcesCard.tsx` — Coder to grep for the actual citation row component before wiring `AuthorityTierChip`.
+
+### Next steps
+Await F2 Auditor sub-loop on this plan (`audit-implementation-plan` skill, blind-path detection). Min score = 9/10; max audit iterations = 3 per `quality_profiles.L`. Score ≥ 9 → Coder (F3) implements phase by phase.
+
+---
+
+## D-BRD23-DRAFT: BRD-23 (Research-Quality Improvements) drafted for F1 audit
+**Date:** 2026-05-27
+**Phase:** F1 — ANALYZE (BSA, draft)
+**Artifacts:** [BRD-23](../../../docs/implementation-phase/brds/BRD-23-research-quality-improvements.md)
+**Complexity:** L (deep) — four independently-shippable Work Packages
+
+### Scope
+Consolidates four research-quality improvements as separate WPs inside a single BRD:
+- **WP-1 Temporal sensitivity** — 4-valued classifier hint (`static/slow_changing/volatile/realtime`) driving Tavily routing, `days` filter, and a stale-citation penalty on `kind_ceiling["direct"]` for volatile/realtime topics.
+- **WP-2 Deep-fetch escalation** — optional `Source.fetch_full()` (default `None`) implemented for Tavily (`extract`) and Wikipedia (full body). Trigger: judge flags critical-path claim as `supported_but_shallow` AND snippet < threshold. Budget mirrors BRD-22 ladder (0/2/5). New event `DeepFetchPerformed`.
+- **WP-3 Authority tiering** — static domain → tier table (`primary_authoritative/reputable_secondary/general/low_signal`) as multiplier (1.10/1.00/0.90/0.50) on `C_coverage` and `C_independence` inputs to `S_raw`. `final_confidence = min(S_effective, J)` invariant preserved (RF-12).
+- **WP-4 Query hygiene** — planner prompt clause (≤ 6 tokens, no stop-words, quotes only when required) + additive `query_length_tokens` on existing `ToolCalledEvent`.
+
+### Invariants preserved
+- 4-value `stop_reason` enum (amendment 2026-05-27).
+- RF-12 `min(S_effective, J)`.
+- Architecture rule #1/#2 — WP-2 extends the existing `Source` seam; no parallel hierarchy.
+- Architecture rule #5 — every new field optional `T | None = None`; one new event type (`DeepFetchPerformed`); fold-strategy for the deep-fetch counter is "recompute from event log count" (per L-015).
+- No new env vars are required; tunable values added as optional with defaults.
+- No Alembic migration; no FSM state added; no new LLM provider; single-server scope (RF-05) preserved.
+
+### Open questions flagged for Auditor / PO (see BRD §15.3)
+1. Keep `ToolCalledEvent` extension vs. add dedicated `SearchQueryEmittedEvent`? Default: keep.
+2. Authority multiplier defaults (1.10/0.90/0.50) — calibrate in V2.
+3. Initial low-signal seed list (medium.com / quora.com / answers.com) — expand?
+4. Deep-fetch cap for `deep` complexity — 5 vs. 3?
+5. Stale-citation ceiling multiplier — 0.90 vs. 0.85?
+
+### Next steps
+Await F1 sub-loop: Auditor reviews BRD + the four US-23-x drafts (still to be authored downstream; this entry covers the BRD only). Score ≥ 9 → Orchestrator drafts IP-23 per WP.
+
+---
 
 ## D-IP22-IMPL: BRD-22 (Complexity-Aware Planning + Expected Experts + Instant Cache) implemented end-to-end
 **Date:** 2026-05-27

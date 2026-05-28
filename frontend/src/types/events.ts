@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-28T00:07:15.979226+00:00
+// Generated: 2026-05-28T01:25:24.366529+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -3267,6 +3267,30 @@ export const EventSchema = {
           ],
           "default": null,
           "title": "Target Claim Id"
+        },
+        "query_length_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Query Length Tokens"
+        },
+        "tavily_days_filter": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tavily Days Filter"
         }
       },
       "required": [

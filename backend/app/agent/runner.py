@@ -366,6 +366,13 @@ class AgentRunner:
             )
             _fold_events(state, prior_events)
 
+            # Pin the user-chosen LLM provider for the whole task tree of
+            # this run. Every ``llm.call`` inside the orchestrator picks
+            # this value up via ``current_provider`` contextvar.
+            from app.llm.client import current_provider
+
+            current_provider.set(run.llm_provider)
+
             emit = self._make_emit(run_id, event_service)
             orchestrator = AgentOrchestrator(state, emit, stopping_policy=None)
             self._orchestrators[run_id] = orchestrator

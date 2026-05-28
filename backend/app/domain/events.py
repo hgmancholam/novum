@@ -133,6 +133,8 @@ class ToolCalledEvent(BaseEvent):
     query: str
     query_intent: str
     target_claim_id: str | None = None
+    query_length_tokens: int | None = None  # BRD-23 WP-4 (observability)
+    tavily_days_filter: int | None = None  # BRD-23 WP-1 (temporal routing)
 
 
 class SourceResult(BaseModel):

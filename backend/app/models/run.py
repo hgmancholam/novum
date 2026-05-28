@@ -80,6 +80,15 @@ class Run(Base):
         server_default=text("0.7"),
     )
 
+    # LLM provider selected for this run (immutable for the lifetime of the run
+    # to satisfy read-determinism). Stored as plain string for forward
+    # compatibility with new providers without enum migrations.
+    llm_provider: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=text("'github'"),
+    )
+
     # Timing
     started_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),

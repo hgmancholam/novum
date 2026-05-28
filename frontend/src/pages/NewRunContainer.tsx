@@ -45,6 +45,7 @@ export function NewRunContainer() {
         user_context: values.userContext,
         output_format: values.outputFormat,
         confidence_threshold: values.confidenceThreshold,
+        llm_provider: values.llmProvider,
       });
       void navigate(`/runs/${run.id}`);
     } catch {

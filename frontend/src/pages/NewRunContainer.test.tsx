@@ -37,6 +37,25 @@ const fetchMock = vi.fn();
 
 beforeEach(() => {
   fetchMock.mockReset();
+  // Default: any unmatched fetch returns a benign 404 so the provider
+  // dropdown's mount-time fetch never throws or shadows test setup.
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/api/llm/providers")) {
+      return Promise.resolve(
+        jsonResponse({
+          default: "github",
+          providers: [
+            { name: "github", available: true, default_model: "openai/gpt-4o-mini" },
+            { name: "openai", available: false, default_model: "gpt-5.4" },
+            { name: "anthropic", available: false, default_model: "claude" },
+            { name: "google", available: false, default_model: "gemini" },
+          ],
+        })
+      );
+    }
+    return Promise.resolve(new Response("not found", { status: 404 }));
+  });
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => {
@@ -59,22 +78,39 @@ describe("NewRunContainer", () => {
     localStorage.setItem("novum_username", "alice");
     localStorage.setItem("novum_token", "secret");
 
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        id: "22222222-2222-2222-2222-222222222222",
-        owner_username: "alice",
-        question: "What is event sourcing?",
-        user_context: null,
-        question_type: null,
-        output_format: "structured",
-        confidence_threshold: 0.6,
-        started_at: "2026-05-26T00:00:00Z",
-        stopped_at: null,
-        stop_reason: null,
-        parent_run_id: null,
-        forked_at_event_id: null,
-      })
-    );
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/llm/providers")) {
+        return Promise.resolve(
+          jsonResponse({
+            default: "github",
+            providers: [
+              { name: "github", available: true, default_model: "x" },
+              { name: "openai", available: false, default_model: "x" },
+              { name: "anthropic", available: false, default_model: "x" },
+              { name: "google", available: false, default_model: "x" },
+            ],
+          })
+        );
+      }
+      return Promise.resolve(
+        jsonResponse({
+          id: "22222222-2222-2222-2222-222222222222",
+          owner_username: "alice",
+          question: "What is event sourcing?",
+          user_context: null,
+          question_type: null,
+          output_format: "structured",
+          confidence_threshold: 0.6,
+          started_at: "2026-05-26T00:00:00Z",
+          stopped_at: null,
+          stop_reason: null,
+          parent_run_id: null,
+          forked_at_event_id: null,
+          llm_provider: "github",
+        })
+      );
+    });
 
     renderWithProviders(<NewRunContainer />);
 
@@ -102,8 +138,14 @@ describe("NewRunContainer", () => {
     });
     fireEvent.click(screen.getByTestId("submit-question"));
 
-    // We never called the network because the auth gate kicked in.
-    expect(fetchMock).not.toHaveBeenCalled();
+    // We never called the run-creation endpoint because the auth gate kicked in.
+    // (The provider dropdown may fetch /api/llm/providers on mount; we only care
+    //  that POST /api/runs was not invoked.)
+    const runCreateCalls = fetchMock.mock.calls.filter((args) => {
+      const url = String(args[0] ?? "");
+      return /\/api\/runs(\?|$)/.test(url);
+    });
+    expect(runCreateCalls).toHaveLength(0);
     // No navigation should have happened.
     expect(screen.queryByTestId("run-page")).not.toBeInTheDocument();
   });

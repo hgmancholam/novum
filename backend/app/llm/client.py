@@ -12,6 +12,7 @@ fallback) with JudgeProviderDegradedEvent emission on degradation.
 
 from __future__ import annotations
 
+import contextvars
 from collections.abc import Awaitable, Callable
 from itertools import cycle
 from typing import Any, TypeVar, cast
@@ -32,6 +33,22 @@ from app.llm.roles import ROLE_CONFIGS, LLMRole
 logger = structlog.get_logger()
 
 T = TypeVar("T", bound=BaseModel)
+
+# Per-run provider override. The agent runner sets this contextvar at the
+# start of ``_supervised_run`` so every ``llm.call`` made inside the
+# run's task tree picks the user-chosen vendor without changing any
+# call signature. ``None`` means "use settings.llm_provider".
+current_provider: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "current_llm_provider", default=None
+)
+
+
+def resolve_active_provider() -> str:
+    """Return the provider name in effect for the current async context."""
+    override = current_provider.get()
+    if override is not None:
+        return override
+    return settings.llm_provider
 
 # Module-level litellm configuration (ai-services.md §1.1).
 litellm.api_base = settings.llm_api_base
@@ -277,6 +294,32 @@ class LLMClient:
             role=role.value,
             response_model=response_model.__name__,
         )
+
+        # Provider seam: when LLM_PROVIDER != "github", route through the
+        # factory-resolved provider (OpenAI / Anthropic / Google). The
+        # github path below stays untouched to preserve token+model pool
+        # rotation and judge fallback (WP-5).
+        active_provider = resolve_active_provider()
+        if active_provider != "github":
+            from app.llm.factory import get_provider
+
+            provider = get_provider(active_provider)
+            effective_max = max_tokens if max_tokens is not None else config.max_tokens
+            result = await provider.complete(
+                role=role,
+                messages=messages,
+                response_model=response_model,
+                temperature=config.temperature,
+                max_tokens=effective_max,
+            )
+            logger.info(
+                "llm_call_complete",
+                role=role.value,
+                provider=provider.name,
+                model=provider.model_for(role),
+                response_model=response_model.__name__,
+            )
+            return result
 
         # WP-5: Special handling for judge role with provider routing
         if role == LLMRole.JUDGE:

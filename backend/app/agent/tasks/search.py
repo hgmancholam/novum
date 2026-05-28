@@ -25,6 +25,11 @@ _RESULTS_PER_SEARCH = 3
 _CASCADE_ORDER: list[SourceType] = [SourceType.TAVILY, SourceType.WIKIPEDIA]
 
 
+def _count_query_tokens(query: str) -> int:
+    """Whitespace-split token count for ``ToolCalledEvent.query_length_tokens`` (BRD-23 WP-4)."""
+    return len(query.split())
+
+
 async def execute_search_round(state: RunState) -> list[BaseEvent]:
     """Issue one cascading search per pending claim.
 
@@ -48,6 +53,7 @@ async def execute_search_round(state: RunState) -> list[BaseEvent]:
                     query=query,
                     query_intent=f"Verify {claim.id}: {claim.text[:80]}",
                     target_claim_id=claim.id,
+                    query_length_tokens=_count_query_tokens(query),
                 )
             )
 

@@ -17,8 +17,14 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
-import { Button } from "@/components/atoms";
+import { Button, ProviderSelect } from "@/components/atoms";
 import { cn } from "@/lib/cn";
+import {
+  DEFAULT_PROVIDER,
+  getStoredProvider,
+  setStoredProvider,
+  type LlmProviderName,
+} from "@/lib/providers";
 import type { OutputFormat } from "@/types/events";
 
 const QUESTION_MIN = 10;
@@ -31,6 +37,7 @@ export interface QuestionFormValues {
   userContext: string | null;
   outputFormat: OutputFormat;
   confidenceThreshold: number;
+  llmProvider: LlmProviderName;
 }
 
 export interface QuestionFormProps {
@@ -78,6 +85,11 @@ export function QuestionForm({
     useState<ThresholdPreset>("standard");
   const [customThreshold, setCustomThreshold] = useState<number>(0.7);
   const [localError, setLocalError] = useState<string | null>(null);
+  // Provider selection — initialised lazily from localStorage on first
+  // render so SSR-safe and so we don't blow away the user's prior choice.
+  const [llmProvider, setLlmProvider] = useState<LlmProviderName>(
+    () => getStoredProvider()
+  );
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -141,6 +153,7 @@ export function QuestionForm({
       userContext: ctx,
       outputFormat,
       confidenceThreshold: threshold,
+      llmProvider,
     });
   }
 
@@ -212,17 +225,27 @@ export function QuestionForm({
       </div>
 
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setContextOpen((v) => !v);
-          }}
-          aria-expanded={contextOpen}
-          aria-controls={contextId}
-          className="self-start text-xs text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-        >
-          {contextOpen ? "Hide context ▾" : "Add context (optional) ▸"}
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setContextOpen((v) => !v);
+            }}
+            aria-expanded={contextOpen}
+            aria-controls={contextId}
+            className="text-xs text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          >
+            {contextOpen ? "Hide context \u25BE" : "Add context (optional) \u25B8"}
+          </button>
+          <ProviderSelect
+            value={llmProvider}
+            onChange={(next) => {
+              setLlmProvider(next);
+              setStoredProvider(next);
+            }}
+            disabled={isSubmitting}
+          />
+        </div>
         {contextOpen ? (
           <div className="flex flex-col gap-1">
             <label

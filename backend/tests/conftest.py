@@ -125,6 +125,8 @@ def _run_defaults(_mapper: object, _conn: object, target: Run) -> None:
         target.output_format = "prose"
     if target.confidence_threshold is None:
         target.confidence_threshold = 0.7
+    if target.llm_provider is None:
+        target.llm_provider = "github"
 
 
 def _event_defaults(_mapper: object, _conn: object, target: Event) -> None:

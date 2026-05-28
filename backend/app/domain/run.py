@@ -7,6 +7,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import OutputFormat, QuestionType, StopReason
 
+# Provider names accepted on the wire. Must stay in sync with
+# ``app.llm.factory.SUPPORTED_PROVIDERS``; duplicated here as a literal so
+# Pydantic can validate the request body without importing the LLM layer.
+LLM_PROVIDERS = ("github", "openai", "anthropic", "google")
+
 
 class RunCreate(BaseModel):
     """Request body for creating a new run."""
@@ -15,6 +20,16 @@ class RunCreate(BaseModel):
     user_context: str | None = Field(None, max_length=1000)  # RF-07
     output_format: OutputFormat = OutputFormat.PROSE
     confidence_threshold: float = Field(0.7, ge=0.0, le=1.0)  # RF-12
+    llm_provider: str = Field(
+        "github",
+        description="LLM provider for this run; immutable for its lifetime.",
+    )
+
+    def model_post_init(self, _ctx: object) -> None:
+        if self.llm_provider not in LLM_PROVIDERS:
+            raise ValueError(
+                f"llm_provider must be one of {LLM_PROVIDERS}, got '{self.llm_provider}'"
+            )
 
 
 class RunResponse(BaseModel):
@@ -29,6 +44,7 @@ class RunResponse(BaseModel):
     question_type: QuestionType | None
     output_format: OutputFormat
     confidence_threshold: float
+    llm_provider: str
     started_at: datetime
     stopped_at: datetime | None
     stop_reason: StopReason | None

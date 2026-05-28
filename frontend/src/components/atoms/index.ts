@@ -13,6 +13,8 @@ export { Spinner } from "./Spinner";
 export type { SpinnerProps, SpinnerSize } from "./Spinner";
 export { AnimatedDots } from "./AnimatedDots";
 export type { AnimatedDotsProps } from "./AnimatedDots";
+export { ProviderSelect } from "./ProviderSelect";
+export type { ProviderSelectProps } from "./ProviderSelect";
 export { Logo } from "./Logo";
 export type { LogoProps } from "./Logo";
 export { OutcomeBar } from "./OutcomeBar";

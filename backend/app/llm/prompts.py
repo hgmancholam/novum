@@ -70,6 +70,13 @@ Examples:
 
 If no expert type matches, or the question is broadly cross-domain, omit the field or return an empty list.
 
+Query hygiene (BRD-23 WP-4) — each search query you emit MUST satisfy:
+(a) at most 6 tokens (split by whitespace);
+(b) no stop-words ('the', 'a', 'an', 'of', 'in', 'on', 'for', 'is', 'are', 'was', 'were', 'to', 'with') except when they appear inside a quoted exact-match phrase;
+(c) quotes ONLY around an exact phrase whose precise wording is required to disambiguate — never around a whole query;
+(d) technical connectors ('vs', 'and', '+', '-', site filters like 'site:arxiv.org') are allowed and DO NOT count toward the 6-token cap.
+If your draft query violates (a)-(c), rewrite it once before emitting.
+
 Output format: JSON matching the PlanOutput schema with optional `expected_experts` field (list of strings from the vocabulary above, max 3)."""
 
 
