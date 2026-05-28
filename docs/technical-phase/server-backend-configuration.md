@@ -200,7 +200,7 @@ Asociado al server `novum-prod`. Filtra antes de que el paquete llegue a la VM.
 
 #### Outbound rules
 
-**Sin reglas** → todo el tráfico saliente está permitido (necesario para GitHub Models, Tavily, Wikipedia, apt, Let's Encrypt).
+**Sin reglas** → todo el tráfico saliente está permitido (necesario para Anthropic Claude API, Tavily, Wikipedia, apt, Let's Encrypt; los providers fallback Gemini / OpenAI / GitHub Models comparten el mismo egreso TLS si se reactivan).
 
 > Si tu IP pública cambia (`181.51.x.x` deja de funcionar), edita la regla 1 en el panel de Hetzner.
 

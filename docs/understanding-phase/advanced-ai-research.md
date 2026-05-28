@@ -361,7 +361,7 @@ and tokens (where applicable). These feed the budget signals in §7.
 
 All LLM calls go through `app/llm/client.py::call`, which:
 
-- Rotates across an **N-PAT pool** for GitHub Models (4 PATs in prod).
+- Routes through the **provider-agnostic interface** (litellm) which supports Anthropic, Google, OpenAI, and GitHub Models. **V1 only enables Anthropic Claude.**
 - Retries with **tenacity** + exponential backoff on transient errors.
 - **Fails fast** on permanent quota errors from OpenAI / Anthropic / Google
   (`LLMProviderQuotaExhausted`) without burning the retry budget.
@@ -521,7 +521,7 @@ meta-judge has already said `continue` N times in a row.
 | Cap | Default | Lane(s) | On reach |
 |---|---|---|---|
 | `max_redecomposition` | 1 (STANDARD), 2 (DEEP) | STANDARD | Force synthesis with current evidence |
-| `max_judge_attempts` | 5 (STANDARD), 3 (DEEP) | STANDARD, DEEP | Invoke `draft_best_effort_fallback` (BRD-26 raised STANDARD from 2 → 5 because the meta-judge usually stops earlier) |
+| `max_judge_attempts` | 3 (single default in `RunState`) | STANDARD, DEEP | Invoke `draft_best_effort_fallback`. The meta-judge usually stops earlier; this cap is the safety floor when meta-judge keeps returning `continue`. |
 | `max_deep_fetch_per_run` | 2 (STANDARD), 3 (DEEP) | STANDARD, DEEP | Accept shallow evidence |
 | `max_react_steps` | 8 | DEEP | Force synthesis with ReAct history |
 | `max_cove_rounds` | 1 | DEEP | Accept draft without further verification |
@@ -534,23 +534,38 @@ judge of §9 — the judge owns *is-the-draft-supported*, the meta-judge owns
 *is-another-round-worth-it*. Two distinct LLM responsibilities, two distinct
 prompts, two distinct persisted events.
 
-Lives in `app/stopping/signals/meta_judge_voc.py` and
-`meta_judge_adversarial.py` — both plain `StoppingSignal` plugins, no new
-seam. Default model family: same as the judge (`deepseek/DeepSeek-V3-0324`
-in prod). Overridable via `META_JUDGE_PROVIDER` + `META_JUDGE_MODEL_<provider>`.
+**Where it lives (actual code):** a single helper
+[`maybe_run_meta_judge`](../../backend/app/agent/meta_judge_hook.py) in
+`app/agent/meta_judge_hook.py`, invoked imperatively from the orchestrator
+(STANDARD `after_judge`) and the DEEP lane (`after_cove`). It is **not**
+implemented as a `StoppingSignal` plugin — keeping it lane-aware and on the
+orchestrator side avoided a synthetic adapter for the DEEP CoVe pre-judge
+call site, which has no `JudgeRuled` event to react to. The underlying LLM
+calls (`evaluate_value_of_continuation`, `generate_adversarial_objections`)
+live in [`app/llm/meta_judge.py`](../../backend/app/llm/meta_judge.py) and
+go through the standard `app/llm/client.py::call` router, same model family
+as the judge by default (`anthropic/claude-sonnet-4-6` in V1).
+
+**Opt-in default.** `settings.meta_judge_enabled` defaults to **`False`**.
+The feature is dark-launched: events, helper and tests ship together but
+production rollout is one env var (`META_JUDGE_ENABLED=true`) away. The
+`meta_judge_min_delta_s` threshold (default `0.03`) is also a setting.
 
 ### 7.5.1 Hook points per lane
 
-| Lane | Hook | When |
-|---|---|---|
-| FAST | none | Cost-prohibitive — FAST only spends 2 LLM calls; the existing mini-judge already plays the binary stop role at the right cost level. |
-| STANDARD | `after_judge` | Right after `JudgeRuled`, **before** evaluating `max_judge_attempts`. |
-| DEEP | `after_react_observation` | After each `AgentObservation`, replacing the previous direct `max_react_steps` evaluation as the *decision*. |
-| DEEP | `after_cove` | After the explicit CoVe pass, **before** evaluating `max_cove_rounds`. |
+| Lane | Hook | Status | When |
+|---|---|---|---|
+| FAST | none | n/a | Cost-prohibitive — FAST only spends 2 LLM calls; the existing mini-judge already plays the binary stop role at the right cost level. |
+| STANDARD | `after_judge` | ✅ implemented | Right after `JudgeRuled`, **before** evaluating `max_judge_attempts`. Orchestrator calls `maybe_run_meta_judge(state, emit, judge_event, hook="after_judge")`. |
+| DEEP | `after_cove` | ✅ implemented | After the explicit CoVe pass and **before** the mini-judge. The lane synthesises a `_CoveSignal` placeholder (`passed=False`, current `judge_confidence` / `structural_confidence` from `RunState`, rationale `"after_cove pre-judge: no judge ruling yet on this draft"`) so the hook helper signature stays uniform across hooks. |
+| DEEP | `after_react_observation` | ⏸ deferred | The `MetaJudgeHook` enum already accepts the value, but the call site inside the ReAct loop is **not** wired yet pending a cost gate (per-step LLM call needs `max_meta_judge_calls` cap + `meta_judge_min_step_delta` gate + lane-aware activation, e.g. `react_steps_so_far >= 2`). Until then, ReAct still terminates exclusively via `max_react_steps`, `hypothesis_decisively_supported` and `hypotheses_all_refuted`. |
 
-Happy path is cheap: when `judge.verdict == approve` AND
-`final_confidence ≥ threshold`, the meta-judge is **not invoked**. It only
-runs when the cheap path failed to terminate.
+Happy-path skip conditions (all evaluated at the top of `maybe_run_meta_judge`):
+
+1. `settings.meta_judge_enabled is False` → `skipped`.
+2. `state.selected_lane == Lane.FAST` → `skipped`.
+3. `judge_signal.passed is True` → `skipped` (the cheap path already terminated).
+4. `state.judge_attempts >= state.max_judge_attempts` → `skipped` (cap will fire next; the hard floor owns the stop).
 
 ### 7.5.2 Value of Continuation (VoC)
 
@@ -589,25 +604,38 @@ different objections against the current draft, each classified as:
 
 Persisted as `AdversarialObjectionsGenerated`. Two outcomes:
 
-- **All 3 answered** → terminate `judge_confirmed` immediately, regardless
-  of `judge_attempt_count`. The strongest possible "we are done" signal:
-  the LLM was asked to attack the draft and failed.
-- **Any unanswered (and budget allows)** → convert each
-  `unanswered_needs_search` objection into a new `SubClaim` (STANDARD) or
-  route it to a matching pending `Hypothesis.evaluate_hypothesis(...)`
-  target (DEEP, token-overlap heuristic ≥ 0.5). Emit
-  `DirectedSubclaimsFromObjections`, increment `judge_attempt_count`,
-  transition `ANALYZING → SEARCHING` for a **directed** round (the
-  research goes toward a named gap, not toward another generic search).
+- **All 3 answered** (`ac.all_answered is True`) → helper returns
+  `"confirm"`. Caller maps this to `STOP{JUDGE_CONFIRMED}` regardless of
+  `judge_attempts`. The strongest possible "we are done" signal: the LLM
+  was asked to attack the draft and failed.
+- **Any `unanswered_needs_search` objection** → mint one new `SubClaim`
+  per actionable objection and append it to `state.sub_claims` (status
+  `"pending"`). The sub-claim text is the objection's `suggested_query`
+  when present, otherwise the objection text. Emit
+  `DirectedSubclaimsFromObjections { objection_texts[], new_subclaim_ids[] }`,
+  then return `"continue"`; the orchestrator's regular flow drives
+  `ANALYZING → SEARCHING` for the next directed round. The minting is
+  **lane-uniform** in V1: both STANDARD and DEEP append `SubClaim` entries.
+  Per-hypothesis routing in DEEP (token-overlap matching against pending
+  `Hypothesis` entries) is on the BRD-26 backlog but **not** implemented.
+- **All objections `unanswered_no_search_possible`** → helper returns
+  `"continue"` with no new sub-claims (nothing to direct toward). The hard
+  caps (`max_judge_attempts`, `max_searches`) own the eventual stop.
 
 ### 7.5.4 Cost
 
 - STANDARD: +1 VoC call per non-happy-path round; +1 AC call only when VoC
-  said `continue`. Telemetry target: `meta_judge_calls_per_run ≤ 3`.
-- DEEP `after_react_observation`: +1 VoC call per ReAct step (≤ 8).
-- DEEP `after_cove`: +1 VoC call. AC fires on the same conditions as STANDARD.
+  said `continue` with `expected_delta_s ≥ meta_judge_min_delta_s`.
+  Telemetry target: `meta_judge_calls_per_run ≤ 3`.
+- DEEP `after_cove`: +1 VoC call per CoVe pass; +1 AC call on the same
+  conditions as STANDARD.
+- DEEP `after_react_observation`: **0 calls today** (hook deferred — see
+  §7.5.1). When wired, it will add ≤ 8 VoC calls per run, gated by the
+  cost knobs described above.
 
-Absorbed by the 4-PAT GitHub Models pool in V1.
+Absorbed by the Anthropic Claude provider in V1 (well within tier-1 Anthropic rate limits). Any LLM error inside the
+meta-judge is caught and downgraded to `"skipped"` — the meta-judge can
+never block a run.
 
 ### 7.5.5 Replay determinism (RF-08)
 
@@ -635,7 +663,7 @@ All lanes terminate in one of:
 
 # Phase 8 — Drafting an Answer (`SYNTHESIZING`)
 
-The synthesizer LLM (`openai/gpt-5`) emits a `DraftSynthesized` event.
+The synthesizer LLM (`anthropic/claude-sonnet-4-6`) emits a `DraftSynthesized` event.
 
 ## 8.1 Shape follows `AnswerKind`
 
@@ -663,11 +691,15 @@ project). Internal prompts, identifiers and logs stay in English.
 
 # Phase 9 — Judging the Draft (`JUDGING`)
 
-A verifier LLM — in production today `deepseek/DeepSeek-V3-0324`, a
-**different family** from the synthesizer's `openai/gpt-5` — verifies the
-draft. The provider routing supports swapping per-role to
-`anthropic/claude-sonnet-4-6` or `google/gemini-2.5-flash` via env vars when
-stronger independence is needed (see `ai-services.md`).
+A verifier LLM — in V1 the **same family** as the synthesizer
+(`anthropic/claude-sonnet-4-6`) — verifies the
+draft. The cross-family verification originally planned (DeepSeek judge vs
+OpenAI synthesizer) is **deferred** in V1; the R6 mitigation now relies on
+an adversarial judge prompt plus the `min(S, J)` cap (see
+[ai-services.md §1.3](../technical-phase/ai-services.md)). The provider-agnostic
+interface supports swapping per-role to `google/gemini-2.5-flash`,
+`openai/gpt-5` or a GitHub-Models route via env vars when stronger
+independence is needed.
 
 The `JudgeRuled` event carries a structured `JudgeVerdict`:
 
@@ -698,20 +730,28 @@ as a stopping gate — the judge LLM owns the approve/reject call (§7).
 The judge can reject a draft. When that happens the orchestrator first runs
 the meta-judge (§7.5) — which now owns the loop-or-stop decision — and only
 loops back to `ANALYZING` (or `SEARCHING` if deep-fetch §10 applies) when
-the meta-judge says `continue`. `max_judge_attempts` remains as the absolute
-safety floor (default 5 in STANDARD post BRD-26, see §7.4).
+the meta-judge says `continue`. `max_judge_attempts` (default `3`) remains
+as the absolute safety floor (see §7.4).
 
-There are now **two routes** into the best-effort fallback:
+There are now **two routes** into the best-effort fallback on STANDARD:
 
 1. **Meta-judge route (preferred).** VoC returns `stop_best_effort`
-   (saturation: no concrete next action, or `expected_delta_s < 0.03`).
+   (saturation: no concrete next action, or `expected_delta_s < meta_judge_min_delta_s`).
    The `stop_rationale` quotes `ValueOfContinuationVerdict.reason`
    verbatim — the user sees *why* we stopped, not just *that* we stopped.
-2. **Hard-cap route (safety floor).** `judge_attempt_count` reaches
+2. **Hard-cap route (safety floor).** `judge_attempts` reaches
    `max_judge_attempts` while the meta-judge is still saying `continue`.
    The `stop_rationale` cites the cap.
 
-Both routes invoke `draft_best_effort_fallback(state)`, which:
+On DEEP the `after_cove` hook reuses the same outcomes but takes a
+shorter path: `stop_best_effort` sets `state.final_answer = draft_text`,
+`state.budget_exhausted_kind = "react_steps"` and returns
+`StopReason.STOPPED_BY_BUDGET` directly from the lane; `confirm` returns
+`StopReason.JUDGE_CONFIRMED` and skips the mini-judge entirely. The lane
+does not currently route through `draft_best_effort_fallback` — the DEEP
+draft already exists at that point.
+
+On STANDARD, both routes invoke `draft_best_effort_fallback(state)`, which:
 
 1. Reuses the synthesizer system prompt with a *FALLBACK MODE* directive.
 2. Pins `AnswerKind.BEST_EFFORT` so the UI can render the distinct
@@ -727,26 +767,33 @@ answer**, not a silent failure.
 
 ## 9.3 Explicit CoVe in DEEP (IP-25 Phase F)
 
-For `lane == DEEP` only, after the first `JudgeRuled` the orchestrator runs
-a **literal CoVe pass** — not the implicit verification the judge already
-performs, but a separate cycle:
+For `lane == DEEP` only, after the ReAct loop produces a draft the lane
+runs a **literal CoVe pass** — not the implicit verification the judge
+already performs, but a separate cycle, **before** the mini-judge:
 
-1. The synthesizer (`gpt-5`) generates **3 verification questions**
+1. The synthesizer (`claude-sonnet-4-6`) generates **3 verification questions**
    targeting specific claims in the draft. Emits
    `VerificationQuestionsGenerated { questions[] }`.
-2. For each question, the **judge** (DeepSeek-V3 — different family from the
-   synthesizer) runs a small directed search via the `Source` seam and
+2. For each question, the **judge** (same Claude tier in V1 — cross-family
+   verification deferred) runs a small directed search via the `Source` seam and
    returns whether the new evidence contradicts the draft.
 3. If ≥ 1 question detects contradiction AND `cove_rounds < max_cove_rounds`
    (default 1), `CoveContradictionDetected` is emitted and the synthesizer
    re-drafts with the contradicting evidence as context. Loop bounded by
    `max_cove_rounds`.
-4. The judge verdict on the final draft is the one persisted on the
-   `Stopped` event.
+4. The lane then evaluates the **`after_cove` meta-judge hook** (§7.5.1)
+   on the post-CoVe draft. The hook can short-circuit into
+   `STOPPED_BY_BUDGET` (best-effort), `JUDGE_CONFIRMED` (confirm) or fall
+   through to the mini-judge as the regular path.
+5. The judge verdict on the final draft (mini-judge if the hook fell
+   through; otherwise the meta-judge outcome) is what the `Stopped`
+   event records.
 
 Rationale: the DEEP draft comes from a ReAct loop, not from pre-decomposed
 sub-claims, so per-claim coverage is not guaranteed by construction the
-way it is in STANDARD. CoVe restores that guarantee.
+way it is in STANDARD. CoVe restores that guarantee, and the `after_cove`
+meta-judge layered on top decides whether the verified draft is good
+enough to ship without spending another mini-judge call.
 
 ---
 
@@ -804,7 +851,7 @@ These run continuously throughout the pipeline:
 | **Replay safety** | Fork/resume append; never mutate |
 | **Trust surface** | FE renders every RF-13 signal (sources, tiers, confidence, dates, lane, hypotheses, ReAct steps) |
 | **Single-writer per run** | In-process advisory lock; `uvicorn --workers 1` |
-| **N-PAT rotation** | `GITHUB_TOKENS` env, round-robin per call |
+| **Provider-agnostic LLM call** | `app/llm/client.py::call` via litellm; supports Anthropic / Gemini / OpenAI / GitHub Models; V1 active = Anthropic only (`ANTHROPIC_API_KEY`) |
 | **Provider quota fail-fast** | `LLMProviderQuotaExhausted` skips retry budget |
 | **Parallel search within a round** | `asyncio.gather` over pending claims (IP-25 Phase 0) |
 | **Lane isolation** | Each lane has its own state-machine path but shares the `Source` / `StoppingSignal` / `OutputRenderer` seams |
@@ -859,7 +906,7 @@ To keep the system honest, we list what is deliberately absent **after IP-25**:
 | **Long-term memory across runs** | ❌ | Each run is isolated. Memory across runs would break read determinism. |
 | **Knowledge graph construction** | ❌ | Out of V1 scope. |
 | **Multi-agent debate** | ❌ | One planner, one synthesizer, one judge, one meta-judge. The meta-judge plays a *skeptical reviewer* role (BRD-26 §7.5.3 Adversarial Completeness) but as a single reasoning step, not a debate. |
-| **Agentic stopping decision (VoC + Adversarial Completeness)** | ✅ | BRD-26 (§7.5). STANDARD + DEEP; FAST stays with mini-judge for cost reasons. |
+| **Agentic stopping decision (VoC + Adversarial Completeness)** | ✅ (opt-in) | BRD-26 (§7.5). STANDARD `after_judge` + DEEP `after_cove` wired; DEEP `after_react_observation` deferred pending cost gate. FAST stays with mini-judge for cost reasons. Disabled by default (`META_JUDGE_ENABLED=false`); flip the env var to activate. |
 | **Tree-of-Thoughts** | ❌ | Quadratic cost not justified; ReAct + abductive hypotheses covers the multi-path exploration case. |
 | **Real-time browser navigation** | ❌ | We fetch URLs (deep-fetch) but do not interact with pages. |
 | **Distributed execution** | ❌ | Single server, single worker (RF-05). |

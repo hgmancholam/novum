@@ -4,11 +4,36 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-28
-**Total Decisions:** 73
+**Total Decisions:** 76
 
 ---
 
 ## Recent Decisions
+
+## D-IP26-SLICE3: IP-26 Slice 3 — directed sub-claims + DEEP after_cove hook + FE viz (2026-05-28)
+**Date:** 2026-05-28
+**Commit:** `edb0da8`
+**Scope:** BRD-26 meta-judge — sub-claim minting (3a), after_cove hook in DEEP (3b), FE visualization (3c).
+**Implementation:**
+- **3a — directed minting:** When meta-judge returns `continue` and `expected_delta_s >= settings.meta_judge_min_delta_s`, run the Adversarial Completeness (AC) pass. For every objection flagged `unanswered_needs_search`, mint a fresh `SubClaim` (id `uuid4()`, text = `obj.suggested_query or obj.text`) and emit `DirectedSubclaimsFromObjectionsEvent`. The planner then routes new queries instead of looping on the same draft.
+- **3b — after_cove hook + shared helper:** Extracted `app/agent/meta_judge_hook.py::maybe_run_meta_judge(state, emit, judge_signal, *, hook)` so the orchestration is reusable per lifecycle point. Orchestrator's `after_judge` is now a thin wrapper. DEEP lane invokes it with `hook="after_cove"` right before the mini-judge: `stop_best_effort` commits the draft with `STOPPED_BY_BUDGET`, `confirm` short-circuits to `JUDGE_CONFIRMED` (skips a redundant mini-judge round-trip).
+- **3c — FE viz:** Added labels, present-continuous activities and rich narratives for the three new event types (`MetaStopVerdict`, `AdversarialObjectionsGenerated`, `DirectedSubclaimsFromObjections`) in `frontend/src/lib/eventLabels.ts`. Registered them as named SSE listeners in `frontend/src/hooks/useRunStream.ts`.
+**Files:** `backend/app/agent/meta_judge_hook.py` (NEW), `backend/app/agent/orchestrator.py`, `backend/app/agent/lanes/deep.py`, `backend/tests/test_orchestrator_meta_judge.py`, `backend/tests/test_deep_meta_judge_hook.py` (NEW), `frontend/src/lib/eventLabels.ts`, `frontend/src/lib/eventLabels.test.ts`, `frontend/src/hooks/useRunStream.ts`.
+**Tests:** 14 backend (test_orchestrator_meta_judge + test_deep_meta_judge_hook), 21 FE eventLabels, 13 FE useRunStream — all green.
+**Deferred:** `hook="after_react_observation"` — per-step LLM cost requires a cost-gating design (budget cap + delta gate + lane-aware activation) before wiring. Tracked for a future slice/BRD.
+**Reach:** Local commit only. NOT pushed, NOT deployed.
+
+---
+
+## D-IP26-EMBED-HANG-FIX: Stub embed() in orchestrator e2e tests (2026-05-28)
+**Date:** 2026-05-28
+**Commit:** `10a68cd`
+**Problem:** `tests/test_agent_orchestrator.py` and `tests/test_agent_orchestrator_cancel_with_complexity.py` appeared to hang at the session-fixture stage. Verbose `-s -v` run revealed the real cause: end-to-end orchestrator tests exercise the saturation signal (`app.stopping.signals.saturation`) and the planner similarity pass (`app.agent.tasks.plan`), both of which call `app.llm.embeddings.embed`. `embed` dials litellm against OpenAI (401 with the stale `.env.test` `OPENAI_API_KEY`) and falls back to the GitHub token pool which is rate-limited, then retries via tenacity. Net effect: multi-minute pseudo-hang per test.
+**Fix:** Added autouse fixture in both files that monkeypatches BOTH `app.llm.embeddings.embed` AND the consumer-bound `app.stopping.signals.saturation.embed` (module-level import → binding captured at import time, so the source-module patch alone has no effect) to return `np.zeros(1536, dtype=np.float32)` per text.
+**Validation:** 21 tests across the two files pass in 5.22s (previously hanging indefinitely).
+**Reach:** Local commit only. NOT pushed, NOT deployed.
+
+---
 
 ## D-IP25-COMPLETE: IP-25 Three-Lane Research Flow — ALL 7 PHASES COMPLETE (2026-05-28)
 **Date:** 2026-05-28

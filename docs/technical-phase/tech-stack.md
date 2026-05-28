@@ -78,26 +78,36 @@ All frontend decisions are inherited from [ui-prototype.md](../understanding-pha
 
 | Pick | Choice | Rationale |
 |---|---|---|
-| LLM gateway | **litellm** ✅ | One API for all providers behind the thin `llm.call` wrapper (RF §6-ter not-seam). Native support for GitHub Models. Token tracking gratis. Switch providers in one line (R5 mitigation). |
+| LLM gateway | **litellm** ✅ | One API for all providers behind the thin `llm.call` wrapper (RF §6-ter not-seam). Provider-agnostic: native support for Anthropic, Google, OpenAI, and GitHub Models. Token tracking gratis. Switch providers in one line (R5 mitigation). |
 | Structured outputs | **instructor** ✅ | Forces LLM responses into Pydantic models. Eliminates ~50 LOC of JSON parsing + retry boilerplate per call. |
 | Orchestration | **Custom FSM** ✅ (no LangGraph) | `match` over `RunState` Pydantic ~150 LOC. Defensible line-by-line in pair session. LangGraph deferred to V2 (still seam-compatible). |
-| Token counting | **tiktoken** ✅ | Budget cap (RF-01·F). OpenAI tokenizer used as approximation for Llama/DeepSeek (precision sufficient for budget purposes). |
+| Token counting | **tiktoken** ✅ | Budget cap (RF-01·F). OpenAI tokenizer used as approximation for Claude (precision sufficient for budget purposes). |
 | Retries | **tenacity** ✅ | Exponential backoff for LLM (RF-11) and source tools (RF-04). Clean decorator API. |
 
 ### 2.3 LLM provider and model assignment
 
-**One provider** in V1: **GitHub Models** (`https://models.github.ai/inference`) — OpenAI-SDK-compatible endpoint, authenticated with a GitHub PAT.
+**Provider-agnostic interface.** `app/llm/client.py::call` routes through `litellm` and supports four providers out of the box:
+
+| Provider | V1 status | Auth env var |
+|---|---|---|
+| **Anthropic** (Claude) | ✅ Active — all 5 roles | `ANTHROPIC_API_KEY` |
+| **Google** (Gemini) | ⚪ Wired, disabled | `GOOGLE_API_KEY` |
+| **OpenAI** (direct) | ⚪ Wired, disabled | `OPENAI_API_KEY` |
+| **GitHub Models** | ⚪ Wired, disabled (zero-cost fallback) | `GITHUB_TOKEN` |
+
+**V1 active provider:** Anthropic Claude only. The other three are reachable through the same interface but no role in `app/llm/models.py` points at them.
 
 | Role | Model | Family | Rationale |
 |---|---|---|---|
-| Classifier (RF-06) | `meta/Llama-4-Scout-17B-16E-Instruct` | Meta | Fastest tier, sufficient for 8-class classification. |
-| Planner | `deepseek/DeepSeek-V3-0324` | DeepSeek | Strong reasoning, good at structured JSON output. |
-| Synthesizer | `openai/gpt-5` | OpenAI | Highest-quality final answer, best citation handling. |
-| Judge (RF-01·B) | `deepseek/DeepSeek-V3-0324` | DeepSeek | **Cross-family** vs synthesizer (OpenAI ↔ DeepSeek) → mitigates R6 (judge sycophancy). Strong adversarial reasoning. |
+| Classifier (RF-06) | `anthropic/claude-haiku-4-5` | Anthropic | Fast, cheap tier — sufficient for 8-class classification. |
+| Planner | `anthropic/claude-sonnet-4-6` | Anthropic | Strong reasoning, reliable structured JSON output. |
+| Synthesizer | `anthropic/claude-sonnet-4-6` | Anthropic | Highest-quality final answer, faithful citation handling. |
+| Judge (RF-01·B) | `anthropic/claude-sonnet-4-6` | Anthropic | Adversarial-prompt + `min(S,J)` cap mitigate R6 in single-family V1 (cross-family verification is deliberately deferred — see [ai-services.md §1.3](ai-services.md)). |
+| Meta-judge (BRD-26) | `anthropic/claude-sonnet-4-6` | Anthropic | Tiebreak when judges diverge. |
 
-**Single API key:** `GITHUB_TOKEN` (PAT). No Groq, Gemini, OpenAI-direct or Anthropic keys required in V1.
+**Required API key:** `ANTHROPIC_API_KEY`. The other three provider keys are reserved env vars; leaving them unset is safe and intentional.
 
-**Cost:** $0 within GitHub Models free-tier limits.
+**Cost:** ~$5/month ceiling at expected V1 cadence (≤ 50 runs/day during validation + demo). Per-run ≈ $0.01–0.04. Detailed pricing in [ai-services.md §1.5](ai-services.md).
 
 ### 2.4 Search and retrieval
 
@@ -159,7 +169,7 @@ For the record (and the pair session):
 - ❌ **Cookies** — `localStorage` per ui-prototype §9.2.
 - ❌ **Storybook** — V2 per ui-prototype §8.4.
 - ❌ **i18n** — V2 per ui-prototype §9.7.
-- ❌ **Multiple LLM providers** — GitHub Models alone covers all four roles; reduces secrets to one.
+- ❌ **Multiple active LLM providers** — the interface layer supports four providers, but V1 enables only Anthropic Claude. Reduces secrets to one and keeps cost predictable. Re-activating Gemini / OpenAI / GitHub Models for cross-family judging is a one-line change post-V1.
 
 ---
 

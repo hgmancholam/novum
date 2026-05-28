@@ -8,215 +8,262 @@
 
 ## 1. Sequence diagram · complete run (happy path + branches)
 
-End-to-end temporal flow of a single research run. Actors are implicit in node labels (`UI`, `API`, `Loop`, `External`, `Store`). Branching covers honest stops, contradictions, source failure cascade (RF-04), user cancel (RF-08), LLM provider errors (RF-11), budget exhaustion (RF-01·F), and the two Resume paths.
+End-to-end temporal flow of a single research run, **post IP-25 (lanes) + BRD-26 (meta-judge)**. Actors are implicit in node labels (`UI`, `API`, `Loop`, `External`, `Store`). The diagram makes the three-lane router explicit: after `QuestionClassified` the orchestrator dispatches to FAST, STANDARD or DEEP and the run lives inside that lane until it terminates. Terminal states are the **4** real `stop_reason` values (`judge_confirmed`, `stopped_by_budget`, `user_cancelled`, `errored`); honest-failure cases surface as `stopped_by_budget` with `answer_kind = best_effort` and a `stop_rationale` (see [advanced-ai-research.md §7.6](advanced-ai-research.md#7-6-the-four-stop-reason-enum-values)).
 
 ```dot
 digraph RunSequence {
   rankdir=TB;
+  compound=true;
   node [shape=box, style="rounded,filled", fillcolor="#eef2ff", fontname="Inter", fontsize=10];
   edge [fontname="Inter", fontsize=9];
 
   start [shape=circle, label="", width=0.2, style=filled, fillcolor=black];
 
-  s01 [label="1 · UI: POST /runs\n{question, context, format, threshold}"];
-  s02 [label="2 · API: create run_id\nINSERT runs + QuestionAsked event\nreturn 201 {run_id}"];
-  s03 [label="3 · UI: open SSE\nGET /runs/{id}/events"];
-  s04 [label="4 · Loop: replay event log\nemit QuestionAsked to subscribers"];
-  s05 [label="5 · Loop → LLM:\nclassifier(question, user_context)\n→ question_type"];
+  // ----- Setup -----
+  s01 [label="1 · UI: POST /runs\n{question, threshold, …}"];
+  s02 [label="2 · API: INSERT users (if new) + runs\nemit QuestionAsked\nreturn 201 {run_id, token}"];
+  s03 [label="3 · UI: open SSE\nGET /runs/{id}/events\nLast-Event-ID + 15s heartbeat"];
 
-  d_type [shape=diamond, label="type ∈\n{predictive, opinion, personal}?", fillcolor="#fff3cd"];
-  s_early [label="Emit Stopped(honest_unanswerable,\nreason=out_of_scope_type)", fillcolor="#fee2e2"];
+  // ----- CLASSIFYING (§1.1-1.5) -----
+  s_cls [label="4 · Loop → LLM (classifier)\nemit QuestionClassified\n{question_type, complexity_hint,\ntemporal_sensitivity,\nexpected_experts[]}"];
 
-  s06 [label="6 · Loop: emit PlanCreated\n(question_type, sub_claims[])"];
-  s06b [label="6b · Loop → LLM:\nplan_critic(question, sub_claims)\nemit PlanCritiqued\n{approved, issues, reasoning}\n(RF-14)"];
+  // ----- Lane routing (§1.6) -----
+  s_route [label="5 · Loop: lane_router.select_lane(...)\nemit RouteSelected\n{lane, reason, dimensions}", fillcolor="#dbeafe"];
+  d_lane [shape=diamond, label="lane?", fillcolor="#fff3cd"];
 
-  d_critic [shape=diamond, label="approved?", fillcolor="#fff3cd"];
-  d_replan_attempt [shape=diamond, label="first attempt?", fillcolor="#fff3cd"];
-  s06c [label="6c · Loop: re-plan once\nwith critic's issues\nemit PlanCreated (v2)\n(RF-14)"];
-  s_plan_unstable [label="Emit Stopped(honest_ambiguous,\nsub_reason=plan_unstable,\nissues[])", fillcolor="#fee2e2"];
+  // ============ FAST lane (§2 advanced-ai-research) ============
+  subgraph cluster_fast {
+    label="FAST lane (trivial direct/definitional)"; style="rounded,filled"; fillcolor="#F5F5F7";
+    f01 [label="F1 · Loop: one combined ToolCalled\nWikipedia + Tavily in parallel (top-3 each)"];
+    f02 [label="F2 · Loop → LLM (synthesizer)\nFAST_SYNTH_PROMPT → 1-2 sentence answer"];
+    f03 [label="F3 · Loop → LLM (mini-judge)\nFAST_MINI_JUDGE_PROMPT\n→ MiniJudgeVerdict{ok, j_score, reason}"];
+    d_fast [shape=diamond, label="S_effective ≥ 0.85\n∧ mini_judge.ok?", fillcolor="#fff3cd"];
+    f_esc [label="emit LaneEscalated\n{from=FAST, to=STANDARD}", fillcolor="#dbeafe"];
+  }
 
-  d_ambig [shape=diamond, label="AmbiguityDetected\nat plan time?", fillcolor="#fff3cd"];
-  s_ambig [label="Emit AmbiguityDetected →\nStopped(honest_ambiguous)", fillcolor="#fee2e2"];
+  // ============ STANDARD lane (§3-7 advanced-ai-research) ============
+  subgraph cluster_std {
+    label="STANDARD lane (default)"; style="rounded,filled"; fillcolor="#F5F5F7";
+    st01 [label="S1 · Loop → LLM (planner)\nemit PlanCreated\n{sub_claims[], queries[],\npreferred_sources[]}"];
+    st02 [label="S2 · Loop: plan self-critique\n(CRITIQUING)\nregenerate if invalid"];
+    st03 [label="S3 · Loop: execute_search_round\nasyncio.gather(per-claim cascade)\nTavily/Wikipedia/SemanticScholar/OpenAlex\nemit ToolCalled + QueryReformulated?\n+ EchoChamberDetected? per round"];
+    st04 [label="S4 · Loop: analyze evidence\ncompute S_raw (coverage, diversity,\nagreement, no_conflict)\napply AuthorityTier × kind_ceiling"];
+    d_redec [shape=diamond, label="S_raw < threshold+0.10\n∧ redecomp_count < max?", fillcolor="#fff3cd"];
+    st_redec [label="emit PlanGapsDetected\nappend new SubClaims\nback to S3 (1 extra round)", fillcolor="#dbeafe"];
+    d_noprog [shape=diamond, label="NoProgressSignal\n(Δ over 3 rounds < 0.05)?", fillcolor="#fff3cd"];
+    st_noprog [label="emit NoProgressDetected\nforce SYNTHESIZING", fillcolor="#dbeafe"];
+    st05 [label="S5 · Loop → LLM (synthesizer · claude-sonnet-4-6)\nemit DraftSynthesized\n(shape by AnswerKind)"];
+    st06 [label="S6 · Loop → LLM (judge · claude-sonnet-4-6)\nemit JudgeRuled\n{sufficient, supported,\nshallow_claim_ids[], j_score}"];
 
-  s07 [label="7 · Loop: pick (source, sub_claim)\npriority: lowest-coverage claim first,\nties by claim weight in confidence\nemit ToolCalled(tool, query,\nquery_intent='supporting')"];
-  s08 [label="8 · External: search / wikipedia"];
+    // BRD-26 meta-judge after_judge hook
+    d_mj_skip [shape=diamond, label="judge.passed\n∨ meta_judge_enabled=false\n∨ judge_attempts ≥ max?", fillcolor="#fff3cd"];
+    st_voc [label="S7 · Loop → meta-judge VoC\n(app/agent/meta_judge_hook.py)\nemit MetaStopVerdict\n{decision, expected_delta_s,\nnext_action_hypothesis}", fillcolor="#dbeafe"];
+    d_voc [shape=diamond, label="VoC decision?", fillcolor="#fff3cd"];
+    st_ac [label="S8 · Loop → meta-judge AC\nemit AdversarialObjectionsGenerated\n{objections[3], all_answered}", fillcolor="#dbeafe"];
+    d_ac [shape=diamond, label="all_answered?", fillcolor="#fff3cd"];
+    st_dir [label="mint SubClaims from\nunanswered_needs_search\nobjections\nemit DirectedSubclaimsFromObjections\n→ back to S3 (directed round)", fillcolor="#dbeafe"];
+    st_fallback [label="Loop: draft_best_effort_fallback\nAnswerKind = best_effort\nstop_rationale = VoC.reason", fillcolor="#dbeafe"];
 
-  d_tool [shape=diamond, label="tool result?", fillcolor="#fff3cd"];
-  s09a [label="9a · Loop: emit EvidenceAdded\n(chunks, source_url, captured_at,\npolarity ∈ {supporting,\nrefuting, limiting})"];
-  s09b [label="9b · Loop: emit SourceFailed\nretry → reformulate → switch source"];
+    // Deep-fetch (§10)
+    d_shallow [shape=diamond, label="judge: shallow claims\n∧ deep_fetch_budget?", fillcolor="#fff3cd"];
+    st_df [label="emit DeepFetchPerformed\nfull-page fetch via Source.fetch_full\n→ back to S4 (re-analyze)", fillcolor="#dbeafe"];
+  }
 
-  d_src_exhausted [shape=diamond, label="all source\nstrategies exhausted?", fillcolor="#fff3cd"];
-  s09c [label="9c · Loop: emit ClaimUncoverable\n(claim_id, reason=sources_exhausted)\n→ claim excluded from A denominator"];
+  // ============ DEEP lane (§3.5, §5.5, §9.3 advanced-ai-research) ============
+  subgraph cluster_deep {
+    label="DEEP lane (causal / scenario / predictive)"; style="rounded,filled"; fillcolor="#F5F5F7";
+    dp01 [label="D1 · Loop → LLM (planner)\nemit PlanCreated + HypothesesGenerated\n{hypotheses[2..4]}"];
+    dp02 [label="D2 · Loop: initial parallel\nsearch round\n(seed evidence for ReAct)"];
+    dp03 [label="D3 · ReAct sub-FSM (≤ 8 steps)\nper step emit:\nAgentThought → AgentAction\n(search|deep_fetch|evaluate_hypothesis|finish)\n→ AgentObservation\n+ HypothesisEvaluated\n+ HistorySummarized? (tokens > 15k)"];
+    d_react [shape=diamond, label="hypothesis decisively\nsupported / all refuted /\nfinish / max_react_steps?", fillcolor="#fff3cd"];
+    dp04 [label="D4 · Loop → LLM (synthesizer · claude-sonnet-4-6)\nemit DraftSynthesized\n(skeleton = confirmed hypotheses)"];
+    dp05 [label="D5 · CoVe pass\nemit VerificationQuestionsGenerated[3]\njudge runs directed mini-search\nemit CoveContradictionDetected? → re-draft\n(loop bounded by max_cove_rounds=1)"];
 
-  s10 [label="10 · Loop: update coverage\nemit ClaimCovered (if applicable)"];
+    // BRD-26 after_cove hook (BEFORE mini-judge)
+    d_dmj_skip [shape=diamond, label="meta_judge_enabled\n∧ judge_attempts < max?", fillcolor="#fff3cd"];
+    dp_voc [label="D6 · Loop → meta-judge VoC\n(after_cove)\nemit MetaStopVerdict", fillcolor="#dbeafe"];
+    d_dvoc [shape=diamond, label="VoC decision?", fillcolor="#fff3cd"];
+    dp_ac [label="D7 · Loop → meta-judge AC\nemit AdversarialObjectionsGenerated", fillcolor="#dbeafe"];
+    d_dac [shape=diamond, label="all_answered?", fillcolor="#fff3cd"];
 
-  d_newly_covered [shape=diamond, label="claim newly reached\nC_coverage(c) ≥ N_min?", fillcolor="#fff3cd"];
-  s10b [label="10b · Loop → LLM:\nquery_anti = reformulate(claim,\nintent='refuting')\nemit ToolCalled(query_intent='refuting'),\nEvidenceAdded(polarity='refuting'|'limiting')\n(RF-15 disconfirmation pass)"];
+    dp08 [label="D8 · Loop → LLM (mini-judge)\nFAST_MINI_JUDGE_PROMPT on draft"];
+  }
 
-  d_contr [shape=diamond, label="D-score conflict\nfor any sub-claim?", fillcolor="#fff3cd"];
-  s_contr_res [label="Loop: dispute-resolution\n≤ 2 extra targeted searches"];
-  d_contr_resolved [shape=diamond, label="resolved?", fillcolor="#fff3cd"];
-  s_contr_stop [label="Emit ContradictionDetected →\nStopped(honest_contradiction)", fillcolor="#fee2e2"];
-
-  d_gates [shape=diamond, label="A coverage gate green∧\nno pending conflict∧\nall covered claims passed\ndisconfirmation?\n(edge-triggered)", fillcolor="#fff3cd"];
-  s_judge [label="11 · Loop → LLM:\njudge(state)\nemit JudgeRuled\n{sufficient, confidence, S, J,\nmismatch:{delta,regime}}"];
-  s_mismatch [label="11b · Loop: if |S−J| > 0.3\nemit ConfidenceMismatch\n(non-blocking trust-flag, RF-15)", fillcolor="#dbeafe"];
-  d_judge [shape=diamond, label="sufficient ∧\nconfidence ≥ threshold?", fillcolor="#fff3cd"];
-  s_stop_good [label="Emit Stopped(judge_confirmed)", fillcolor="#d1fae5"];
-
-  d_replan_trigger [shape=diamond, label="gaps look like\nmissing sub-claims OR\npersistent S_low_J_high\nmismatch?\n(RF-14 trigger)", fillcolor="#fff3cd"];
-  d_replans_left [shape=diamond, label="replans_used\n< max_replans?", fillcolor="#fff3cd"];
-  s_replan [label="Loop → LLM:\nplanner.revise(gaps, evidence)\nemit PlanRevised(added[],\nremoved[], modified[])\n(RF-14)", fillcolor="#dbeafe"];
-
-  d_judge_stall [shape=diamond, label="judge_rejections\n≥ max_rejections (3)?", fillcolor="#fff3cd"];
-  s_stop_stall [label="Emit Stopped(honest_unanswerable,\nsub_reason=judge_loop_stalled,\nlast_gaps[])", fillcolor="#fee2e2"];
-
+  // ============ Cross-lane safety & terminal ============
   d_cancel [shape=diamond, label="cancel signal\nreceived?", fillcolor="#fff3cd"];
-  s_cancel [label="Emit Stopped(user_cancelled)", fillcolor="#fee2e2"];
+  s_cancel [label="emit Stopped(user_cancelled)", fillcolor="#fee2e2"];
+  d_err [shape=diamond, label="LLM/source error\nafter tenacity retry?", fillcolor="#fff3cd"];
+  s_err [label="emit AgentErrored →\nStopped(errored)", fillcolor="#fee2e2"];
+  d_budget [shape=diamond, label="any budget cap reached?\n(max_rounds · max_searches ·\nmax_tokens · max_seconds)", fillcolor="#fff3cd"];
 
-  d_err [shape=diamond, label="LLM provider error\nafter 1 retry?", fillcolor="#fff3cd"];
-  s_err [label="Emit AgentErrored →\nStopped(errored)", fillcolor="#fee2e2"];
+  s_stop_good [label="emit Stopped(judge_confirmed)\n+ final_confidence = min(S, J)", fillcolor="#d1fae5"];
+  s_stop_budget [label="emit Stopped(stopped_by_budget)\nanswer_kind = best_effort?\nstop_rationale = VoC.reason | cap", fillcolor="#fff3cd"];
 
-  d_budget [shape=diamond, label="budget exhausted?", fillcolor="#fff3cd"];
-  d_budget_conf [shape=diamond, label="best_confidence\n≥ threshold?", fillcolor="#fff3cd"];
-  s_stop_budget [label="Emit Stopped(stopped_by_budget)", fillcolor="#fee2e2"];
-  s_stop_below [label="Emit Stopped(honest_unanswerable,\nsub_reason=confidence_below_threshold)", fillcolor="#fee2e2"];
-
-  s_persist [label="12 · Store: terminal snapshot\nclose SSE (server side)"];
-  s_render [label="13 · UI: receive terminal event\nfetch final answer (Seam 3 renderer)\nrender TrustSummary + OutcomeBar"];
-
+  s_persist [label="X · Store: persist terminal event\nclose SSE (server side)"];
+  s_render [label="Y · UI: receive terminal event\nrender from event log\n(NO LLM on read · RF-08)"];
   end [shape=doublecircle, label="run\ndone", fillcolor="#eef2ff"];
 
-  // Resume staging
   resume_cancel [label="Owner Resume after cancel\nappend ResumedAfterCancel\nre-attach SSE", fillcolor="#dbeafe"];
   resume_err    [label="Owner Resume after error\nappend ResumedAfterError\nre-attach SSE", fillcolor="#dbeafe"];
 
-  start -> s01 -> s02 -> s03 -> s04 -> s05 -> d_type;
-  d_type -> s_early [label="yes"];
-  s_early -> s_persist;
-  d_type -> s06 [label="no"];
-  s06 -> s06b -> d_critic;
-  d_critic -> d_ambig [label="approved"];
-  d_critic -> d_replan_attempt [label="rejected"];
-  d_replan_attempt -> s06c [label="yes"];
-  s06c -> s06b [label="critique v2"];
-  d_replan_attempt -> s_plan_unstable [label="no\n(2nd failure)"];
-  s_plan_unstable -> s_persist;
-  d_ambig -> s_ambig [label="yes"];
-  s_ambig -> s_persist;
-  d_ambig -> s07 [label="no"];
+  // ============ EDGES ============
+  start -> s01 -> s02 -> s03 -> s_cls -> s_route -> d_lane;
 
-  s07 -> s08 -> d_tool;
-  d_tool -> s09a [label="ok"];
-  d_tool -> s09b [label="fail"];
-  s09b -> d_src_exhausted;
-  d_src_exhausted -> s07 [label="no\n(retry / reformulate / switch)", style=dashed];
-  d_src_exhausted -> s09c [label="yes", style=dashed];
-  s09c -> s10;
-  s09a -> s10;
+  // FAST lane
+  d_lane -> f01 [label="FAST"];
+  f01 -> f02 -> f03 -> d_fast;
+  d_fast -> s_stop_good [label="yes"];
+  d_fast -> f_esc [label="no"];
+  f_esc -> st01 [label="seamless escalation\n(continue inside STANDARD)"];
 
-  s10 -> d_newly_covered;
-  d_newly_covered -> s10b [label="yes"];
-  s10b -> d_contr [label="disconfirmation done"];
-  d_newly_covered -> d_contr [label="no"];
-  d_contr -> s_contr_res [label="yes"];
-  s_contr_res -> d_contr_resolved;
-  d_contr_resolved -> s_contr_stop [label="no"];
-  s_contr_stop -> s_persist;
-  d_contr_resolved -> d_gates [label="yes"];
-  d_contr -> d_gates [label="no"];
+  // STANDARD lane
+  d_lane -> st01 [label="STANDARD"];
+  st01 -> st02 -> st03 -> st04;
+  st04 -> d_noprog;
+  d_noprog -> st_noprog [label="yes"];
+  st_noprog -> st05;
+  d_noprog -> d_redec [label="no"];
+  d_redec -> st_redec [label="yes"];
+  st_redec -> st03 [label="extra round"];
+  d_redec -> st05 [label="no"];
+  st05 -> st06;
+  st06 -> d_shallow;
+  d_shallow -> st_df [label="yes"];
+  st_df -> st04 [label="re-analyze"];
+  d_shallow -> d_mj_skip [label="no"];
+  d_mj_skip -> s_stop_good [label="judge.passed → confirm"];
+  d_mj_skip -> s_stop_budget [label="cap reached → fallback"];
+  d_mj_skip -> st_voc [label="run meta-judge"];
+  st_voc -> d_voc;
+  d_voc -> st_fallback [label="stop_best_effort"];
+  st_fallback -> s_stop_budget;
+  d_voc -> s_stop_good [label="stop (confirm)"];
+  d_voc -> st_ac [label="continue ∧ Δ ≥ min"];
+  d_voc -> st03 [label="continue ∧ Δ < min\n(next round)", style=dashed];
+  st_ac -> d_ac;
+  d_ac -> s_stop_good [label="yes → confirm"];
+  d_ac -> st_dir [label="no"];
+  st_dir -> st03 [label="directed round"];
 
-  d_gates -> s_judge [label="yes"];
-  s_judge -> s_mismatch;
-  s_mismatch -> d_judge;
-  d_judge -> s_stop_good [label="yes"];
-  s_stop_good -> s_persist;
-  d_judge -> d_replan_trigger [label="no\n(increment\njudge_rejections)"];
-  d_replan_trigger -> d_replans_left [label="yes"];
-  d_replans_left -> s_replan [label="yes"];
-  s_replan -> s07 [label="continue with\nrevised plan"];
-  d_replans_left -> d_judge_stall [label="no\n(exhausted)"];
-  d_replan_trigger -> d_judge_stall [label="no"];
-  d_judge_stall -> s_stop_stall [label="yes"];
-  s_stop_stall -> s_persist;
-  d_judge_stall -> s07 [label="no\n(gaps[] → next queries,\nRF-01·B)"];
-  d_gates -> d_cancel [label="no\n(keep searching)"];
+  // DEEP lane
+  d_lane -> dp01 [label="DEEP"];
+  dp01 -> dp02 -> dp03 -> d_react;
+  d_react -> dp03 [label="continue (next step)", style=dashed];
+  d_react -> dp04 [label="terminate"];
+  dp04 -> dp05 -> d_dmj_skip;
+  d_dmj_skip -> dp08 [label="skip → mini-judge"];
+  d_dmj_skip -> dp_voc [label="run meta-judge"];
+  dp_voc -> d_dvoc;
+  d_dvoc -> s_stop_budget [label="stop_best_effort"];
+  d_dvoc -> s_stop_good [label="stop"];
+  d_dvoc -> dp_ac [label="continue ∧ Δ ≥ min"];
+  d_dvoc -> dp08 [label="continue ∧ Δ < min", style=dashed];
+  dp_ac -> d_dac;
+  d_dac -> s_stop_good [label="yes → confirm"];
+  d_dac -> dp08 [label="no → fall through to mini-judge"];
+  dp08 -> s_stop_good [label="ok ∧ confidence ≥ thr"];
+  dp08 -> s_stop_budget [label="¬ ok"];
 
+  // Cross-lane safety (cancel/error/budget evaluated every iteration of S3/D3)
+  st03 -> d_cancel [style=dashed, label="every round"];
+  dp03 -> d_cancel [style=dashed, label="every step"];
   d_cancel -> s_cancel [label="yes"];
   s_cancel -> s_persist;
   d_cancel -> d_err [label="no"];
-
   d_err -> s_err [label="yes"];
   s_err -> s_persist;
   d_err -> d_budget [label="no"];
+  d_budget -> s_stop_budget [label="yes"];
+  d_budget -> st03 [label="no (STANDARD)", style=dashed];
+  d_budget -> dp03 [label="no (DEEP)", style=dashed];
 
-  d_budget -> d_budget_conf [label="yes"];
-  d_budget_conf -> s_stop_budget [label="yes"];
-  d_budget_conf -> s_stop_below [label="no"];
+  s_stop_good   -> s_persist;
   s_stop_budget -> s_persist;
-  s_stop_below -> s_persist;
-  d_budget -> s07 [label="no\n(next iteration)"];
-
   s_persist -> s_render -> end;
 
-  // Resume edges
+  // Resume
   s_cancel -> resume_cancel [style=dashed, color=blue, label="owner clicks Resume"];
-  resume_cancel -> s07;
-  s_err -> resume_err [style=dashed, color=blue, label="owner clicks Resume"];
-  resume_err -> s07;
+  s_err    -> resume_err    [style=dashed, color=blue, label="owner clicks Resume"];
+  resume_cancel -> d_lane [label="re-dispatch lane"];
+  resume_err    -> d_lane;
 }
 ```
 
 **Path coverage check.**
-- `d_type`: yes → `s_early` → terminal · no → continues.
-- `d_critic` (RF-14): approved → `d_ambig` · rejected → `d_replan_attempt`.
-- `d_replan_attempt`: first failure → re-plan once (`s06c → s06b` loop) · second failure → `Stopped(honest_ambiguous, sub_reason=plan_unstable)`.
-- `d_ambig`: yes → terminal · no → continues.
-- `d_tool`: ok → evidence · fail → `d_src_exhausted` both branches covered.
-- `d_src_exhausted`: no → retry/reformulate/switch · **yes → emit `ClaimUncoverable`** (the claim is officially excluded from A's denominator, see [confidence-calculation.md §3.1](confidence-calculation.md); this lets A still close on the remaining claims instead of forcing budget exhaustion).
-- `d_newly_covered` (RF-15 disconfirmation): yes → `s10b` issues **one** adversarial query (`query_intent='refuting'`) and any returned chunks land in the same `EvidenceAdded` flow with `polarity ∈ {refuting, limiting}` · no → skip directly to `d_contr`.
-- `d_contr`: yes → resolution (this is the **`block` vote** from signal D — stopping is forbidden while a real conflict is open) → both `d_contr_resolved` branches covered · no → continues.
-- `d_gates`: "A coverage green ∧ no pending conflict ∧ disconfirmation done on every covered claim" — **edge-triggered**: only fires when A *transitions* from incomplete to complete (after a new `ClaimCovered` or `ClaimUncoverable` closes the open set) **and** every covered claim has received its disconfirmation pass. D is **not** evaluated here as an independent gate because D's contribution is already enforced by the dispute-resolution loop above (any open conflict routes to `s_contr_res` and cannot reach `d_gates`). yes → judge · no → `d_cancel`.
-- `s_judge → s_mismatch → d_judge`: every `JudgeRuled` is followed by the mismatch check; `ConfidenceMismatch` is emitted only when `|S − J| > 0.3` (RF-15) and never blocks the decision.
-- `d_judge`: yes → terminal · no → `d_replan_trigger`.
-- `d_replan_trigger` (RF-14): yes (gaps look structural OR persistent `S_low_J_high`) → `d_replans_left` · no → `d_judge_stall` (the classic gaps[]-feed-search path).
-- `d_replans_left`: yes → emit `PlanRevised` and re-enter `s07` with the new plan · no → fall through to `d_judge_stall`.
-- `d_judge_stall`: yes → `Stopped(honest_unanswerable, sub_reason=judge_loop_stalled)` (guards against the judge rejecting indefinitely when `gaps[]` cannot be filled — anti-ciclo); no → `s07` with the judge's `gaps[]` as next queries (RF-01·B).
-- `d_cancel` / `d_err` / `d_budget` / `d_budget_conf`: all yes/no edges defined.
-- `s07` documents the sub-claim picking criterion (lowest coverage first, ties by claim weight in the final confidence) and the default `query_intent='supporting'`; refuting queries flow through `s10b`.
-- Resume from `s_cancel` and `s_err` both loop back into `s07`.
+- `d_lane` covers all three lanes (FAST / STANDARD / DEEP); no implicit default. Lane selection is deterministic in [`app/agent/lane_router.py::select_lane`](../../backend/app/agent/lane_router.py).
+- **FAST**: `d_fast` covers both outcomes — pass → `judge_confirmed`; fail → `LaneEscalated` re-enters the diagram at `st01` (STANDARD), so the user never sees a fast-lane failure (transparent escalation, §2.4 advanced-ai-research).
+- **STANDARD**:
+  - `d_noprog` (anti-stall, §7.2): yes → force synth · no → check redecomp.
+  - `d_redec` (dynamic re-decomposition, §5.3): yes → extra round (capped at `max_redecomposition`) · no → synthesize.
+  - `d_shallow` (deep-fetch escalation, §10): yes → re-analyze with full text · no → meta-judge.
+  - `d_mj_skip` (BRD-26 happy-path skip, §7.5.1): three outcomes — judge passed (confirm), cap reached (fallback), neither (run meta-judge).
+  - `d_voc` (VoC decision): all four real outcomes covered — `stop` → confirm; `stop_best_effort` → fallback; `continue ∧ Δ ≥ meta_judge_min_delta_s` → AC; `continue ∧ Δ < min` → skip AC and start the next round directly (dashed).
+  - `d_ac` (AC verdict, §7.5.3): `all_answered` → confirm; otherwise mint `SubClaim` per `unanswered_needs_search` objection and enter a directed round.
+- **DEEP**:
+  - `d_react` covers all 4 termination triggers documented in §5.5 + §7.3: hypothesis decisively supported, all refuted, `finish` action, `max_react_steps` cap.
+  - `d_dmj_skip` covers BOTH branches (skip → mini-judge; run → VoC). The DEEP `after_cove` hook runs **before** the mini-judge (§9.3), not after.
+  - `d_dvoc` / `d_dac` mirror the STANDARD branches; on confirm the lane returns `JUDGE_CONFIRMED` directly and skips the mini-judge entirely; on `stop_best_effort` the lane sets `state.final_answer = draft_text`, `budget_exhausted_kind = "react_steps"` and returns `STOPPED_BY_BUDGET` (§9.2).
+  - `dp08` (mini-judge fallthrough): covers both outcomes.
+- **Cross-lane safety**: `d_cancel`, `d_err`, `d_budget` are evaluated every iteration of the long loops (`st03` STANDARD, `dp03` DEEP) — dashed edges signal "every round / every step", not a single one-shot check.
+- **Terminals**: exactly the **4** `stop_reason` enum values (`judge_confirmed`, `stopped_by_budget`, `user_cancelled`, `errored`) are reachable. Honest-failure cases (ambiguity, unanswerability, contradictions) surface as `stopped_by_budget` with `answer_kind = best_effort` and a descriptive `stop_rationale` — not as separate enum values (§7.6 advanced-ai-research).
+- **Resume**: both `s_cancel` and `s_err` route to `d_lane` rather than directly into a lane, because the original lane decision is replayed from the event log before the loop resumes.
+- **Read determinism (RF-08)**: `s_render` reads exclusively from the event log; no edge from `s_render` back into any LLM role.
 
 ---
 
 ## 2. Agent state machine
 
-The same logic as §1 collapsed into states, with transitions labeled by the emitted event. Terminal states (`peripheries=2`) match the 7-value `stop_reason` enum from RF-02. The judge (B) is the **only** path to a positive terminal: there is no `coverage_met` bypass, because per [stopping-signal-analysis.md](stopping-signal-analysis.md) signal B is the final qualitative confirmer that fires whenever A and D are green.
+The same logic as §1 collapsed into states, with transitions labeled by the emitted event. Terminal states (`peripheries=2`) match the **4-value** `stop_reason` enum (`judge_confirmed`, `stopped_by_budget`, `user_cancelled`, `errored`) defined in [`backend/app/domain/enums.py`](../../backend/app/domain/enums.py) — honest-failure cases (ambiguity, unanswerability, contradictions) surface as `stopped_by_budget` with `answer_kind = best_effort` and a descriptive `stop_rationale` rather than as separate enum values (see [advanced-ai-research §7.6](advanced-ai-research.md#76-honest-failure-no-longer-a-stop_reason)).
+
+Three lanes (`FAST`, `STANDARD`, `DEEP`) are selected by `RouteSelecting` and remain disjoint in the state graph: FAST may transparently escalate to STANDARD via `LaneEscalated`, but no lane re-enters another. The judge is the **only** path to a positive terminal in STANDARD and DEEP; FAST has its own mini-judge (`FAST_MINI_JUDGE_PROMPT`). BRD-26 meta-judge is an **orchestrator-side helper**, not a state, and runs at two hook points (`STANDARD.after_judge`, `DEEP.after_cove`) only when `META_JUDGE_ENABLED=true`.
 
 ```dot
 digraph AgentFSM {
-  rankdir=TB;
+  rankdir=TB; compound=true;
   node [shape=box, style="rounded,filled", fillcolor="#eef2ff", fontname="Inter", fontsize=10];
   edge [fontname="Inter", fontsize=9];
 
   start [shape=circle, label="", width=0.2, style=filled, fillcolor=black];
   Idle;
   Classifying;
-  Planning;
-  PlanCritiquing;
-  Replanning;
-  Searching;
-  DisputeResolution;
-  Judging;
+  RouteSelecting;
 
+  // ---- FAST lane ----
+  subgraph cluster_fast {
+    label="FAST lane"; style="rounded,filled"; fillcolor="#F5F5F7";
+    FastSearchSynth [label="Fast.SearchSynth\n(Wikipedia+Tavily parallel,\nsynth, mini-judge)"];
+  }
+
+  // ---- STANDARD lane ----
+  subgraph cluster_std {
+    label="STANDARD lane"; style="rounded,filled"; fillcolor="#F5F5F7";
+    Std_Planning;
+    Std_Critiquing;
+    Std_Searching;
+    Std_Analyzing;
+    Std_DeepFetching;
+    Std_Synthesizing;
+    Std_Judging;
+    Std_MetaJudge [label="Std.MetaJudgeHook\n(after_judge · BRD-26)"];
+  }
+
+  // ---- DEEP lane ----
+  subgraph cluster_deep {
+    label="DEEP lane"; style="rounded,filled"; fillcolor="#F5F5F7";
+    Dp_Planning [label="Dp.Planning\n+ HypothesesGenerated"];
+    Dp_InitSearch [label="Dp.InitialSearch"];
+    Dp_ReAct [label="Dp.ReActStep\n(Thought→Action→Observation,\n≤ max_react_steps)"];
+    Dp_Synthesizing;
+    Dp_CoVe [label="Dp.CoVePass\n(VerificationQuestions,\nCoveContradictionDetected?)"];
+    Dp_MetaJudge [label="Dp.MetaJudgeHook\n(after_cove · BRD-26)"];
+    Dp_MiniJudge;
+  }
+
+  // ---- Terminals (4 enum values only) ----
   node [peripheries=2, fillcolor="#d1fae5"];
   StoppedJudgeConfirmed [label="Stopped\n(judge_confirmed)"];
-
   node [fillcolor="#fff3cd"];
-  StoppedHonestUnanswerable [label="Stopped\n(honest_unanswerable)"];
-  StoppedHonestAmbiguous    [label="Stopped\n(honest_ambiguous)"];
-  StoppedHonestContradiction[label="Stopped\n(honest_contradiction)"];
-  StoppedByBudget           [label="Stopped\n(stopped_by_budget)"];
-
+  StoppedByBudget [label="Stopped\n(stopped_by_budget)\n[may carry answer_kind=\nbest_effort + stop_rationale]"];
   node [fillcolor="#fee2e2"];
   StoppedUserCancelled [label="Stopped\n(user_cancelled)"];
   StoppedErrored       [label="Stopped\n(errored)"];
@@ -226,72 +273,95 @@ digraph AgentFSM {
   ResumingAfterError;
   node [fillcolor="#eef2ff"];
 
+  // ---- Entry ----
   start -> Idle [label="run row created"];
   Idle  -> Classifying [label="QuestionAsked"];
+  Classifying -> RouteSelecting [label="QuestionClassified"];
 
-  Classifying -> StoppedHonestUnanswerable [label="type ∈ {predictive,\nopinion, personal}"];
-  Classifying -> StoppedHonestAmbiguous    [label="AmbiguityDetected\n(up front)"];
-  Classifying -> Planning                  [label="type ∈ {factual, comparative,\ndefinitional, SotA, causal}"];
+  RouteSelecting -> FastSearchSynth [label="RouteSelected\n(lane=FAST)"];
+  RouteSelecting -> Std_Planning    [label="RouteSelected\n(lane=STANDARD)"];
+  RouteSelecting -> Dp_Planning     [label="RouteSelected\n(lane=DEEP)"];
 
-  Planning -> PlanCritiquing [label="PlanCreated"];
-  PlanCritiquing -> Searching [label="PlanCritiqued\n(approved)"];
-  PlanCritiquing -> Planning  [label="PlanCritiqued\n(rejected,\n1st attempt)"];
-  PlanCritiquing -> StoppedHonestAmbiguous [label="PlanCritiqued\n(rejected, 2nd attempt)\nsub_reason=plan_unstable"];
+  // ---- FAST flow ----
+  FastSearchSynth -> StoppedJudgeConfirmed [label="mini-judge.ok ∧\nS_effective ≥ 0.85"];
+  FastSearchSynth -> Std_Planning [label="LaneEscalated\n(from=FAST, to=STANDARD)"];
 
-  Searching -> Searching          [label="ToolCalled (query_intent\n='supporting'|'refuting') →\nEvidenceAdded(polarity=\n'supporting'|'refuting'|'limiting') |\nSourceFailed →\nretry/reformulate/switch |\nClaimUncoverable\n(claim excluded from A) |\ndisconfirmation pass on\nnewly-covered claim (RF-15)"];
-  Searching -> Replanning         [label="replan trigger:\nstructural gaps OR\npersistent S_low_J_high\nmismatch (RF-14)"];
-  Replanning -> Searching         [label="PlanRevised\n(replans_used < max)"];
-  Replanning -> StoppedHonestUnanswerable [label="replans exhausted\nsub_reason=replan_exhausted"];
-  Searching -> DisputeResolution  [label="D-signal → block vote\n(conflict on some sub-claim)"];
-  Searching -> Judging            [label="A coverage green ∧\nno pending conflict ∧\ndisconfirmation pass done\n(edge-triggered)"];
-  Searching -> StoppedByBudget    [label="budget exhausted ∧\nbest_confidence ≥ threshold"];
-  Searching -> StoppedHonestUnanswerable [label="budget exhausted ∧\nbest_confidence < threshold\n(sub_reason)"];
+  // ---- STANDARD flow ----
+  Std_Planning    -> Std_Critiquing  [label="PlanCreated"];
+  Std_Critiquing  -> Std_Planning    [label="critique invalid\n→ regenerate"];
+  Std_Critiquing  -> Std_Searching   [label="PlanCritiqued (ok)"];
+  Std_Searching   -> Std_Searching   [label="ToolCalled +\nEvidenceAdded |\nQueryReformulated |\nEchoChamberDetected |\nSourceFailed"];
+  Std_Searching   -> Std_Analyzing   [label="round complete"];
+  Std_Analyzing   -> Std_Searching   [label="PlanGapsDetected\n(redecomp_count++)\n→ extra round"];
+  Std_Analyzing   -> Std_Synthesizing[label="NoProgressDetected ∨\nS_raw ≥ threshold ∨\nno redecomp budget"];
+  Std_Synthesizing-> Std_Judging     [label="DraftSynthesized"];
+  Std_Judging     -> Std_DeepFetching[label="shallow_claim_ids[] ≠ []\n∧ deep_fetch_budget"];
+  Std_DeepFetching-> Std_Analyzing   [label="DeepFetchPerformed"];
+  Std_Judging     -> StoppedJudgeConfirmed [label="JudgeRuled.passed ∧\nmeta-judge skipped/confirms"];
+  Std_Judging     -> Std_MetaJudge   [label="¬ passed ∧ enabled ∧\nattempts < max"];
+  Std_MetaJudge   -> StoppedJudgeConfirmed [label="VoC=stop\n(confirm)"];
+  Std_MetaJudge   -> StoppedByBudget [label="VoC=stop_best_effort\nanswer_kind=best_effort"];
+  Std_MetaJudge   -> Std_Searching   [label="VoC=continue ∧\nΔ_s ≥ min OR\nAC: ¬all_answered\n(DirectedSubclaims minted)"];
+  Std_Judging     -> StoppedByBudget [label="¬ passed ∧\njudge_attempts ≥ max\n(stop_rationale=judge_cap)"];
 
-  DisputeResolution -> Searching                  [label="conflict resolved"];
-  DisputeResolution -> StoppedHonestContradiction [label="unresolved after\n≤ 2 extra searches"];
+  // ---- DEEP flow ----
+  Dp_Planning     -> Dp_InitSearch   [label="PlanCreated +\nHypothesesGenerated"];
+  Dp_InitSearch   -> Dp_ReAct        [label="initial evidence ready"];
+  Dp_ReAct        -> Dp_ReAct        [label="AgentThought→Action→\nObservation +\nHypothesisEvaluated +\nHistorySummarized?\n(step++)"];
+  Dp_ReAct        -> Dp_Synthesizing [label="hypothesis decisively\nsupported / all refuted /\nfinish / max_react_steps"];
+  Dp_Synthesizing -> Dp_CoVe         [label="DraftSynthesized"];
+  Dp_CoVe         -> Dp_Synthesizing [label="CoveContradictionDetected\n(re-draft, max_cove_rounds=1)"];
+  Dp_CoVe         -> Dp_MetaJudge    [label="CoVe pass ok ∧ enabled"];
+  Dp_CoVe         -> Dp_MiniJudge    [label="CoVe pass ok ∧ ¬ enabled"];
+  Dp_MetaJudge    -> StoppedJudgeConfirmed [label="VoC=stop"];
+  Dp_MetaJudge    -> StoppedByBudget [label="VoC=stop_best_effort\nbudget_exhausted_kind=\nreact_steps"];
+  Dp_MetaJudge    -> Dp_MiniJudge    [label="VoC=continue ∧\nΔ_s < min OR AC ok"];
+  Dp_MiniJudge    -> StoppedJudgeConfirmed [label="mini-judge.ok"];
+  Dp_MiniJudge    -> StoppedByBudget [label="¬ ok"];
 
-  Judging -> StoppedJudgeConfirmed [label="sufficient ∧\nconfidence ≥ threshold\n(JudgeRuled +\nConfidenceMismatch if\n|S−J|>0.3, RF-15)"];
-  Judging -> Replanning            [label="¬ sufficient ∧\ngaps look structural OR\npersistent S_low_J_high ∧\nreplans_used < max\n(RF-14)"];
-  Judging -> Searching             [label="¬ sufficient ∧\njudge_rejections < max →\ngaps[] feed next queries\n(RF-01·B);\nor sufficient ∧\nconfidence < threshold\n→ keep searching (RF-12)"];
-  Judging -> StoppedHonestUnanswerable [label="¬ sufficient ∧\njudge_rejections ≥ max\n(sub_reason=\njudge_loop_stalled)"];
+  // ---- Cancel from any active state ----
+  Classifying     -> StoppedUserCancelled [label="Cancel", style=dashed];
+  RouteSelecting  -> StoppedUserCancelled [label="Cancel", style=dashed];
+  FastSearchSynth -> StoppedUserCancelled [label="Cancel", style=dashed];
+  Std_Searching   -> StoppedUserCancelled [label="Cancel", style=dashed];
+  Std_Judging     -> StoppedUserCancelled [label="Cancel", style=dashed];
+  Dp_ReAct        -> StoppedUserCancelled [label="Cancel", style=dashed];
+  Dp_CoVe         -> StoppedUserCancelled [label="Cancel", style=dashed];
 
-  // Cancel from any active state
-  Classifying       -> StoppedUserCancelled [label="Cancel", style=dashed];
-  Planning          -> StoppedUserCancelled [label="Cancel", style=dashed];
-  PlanCritiquing    -> StoppedUserCancelled [label="Cancel", style=dashed];
-  Replanning        -> StoppedUserCancelled [label="Cancel", style=dashed];
-  Searching         -> StoppedUserCancelled [label="Cancel", style=dashed];
-  DisputeResolution -> StoppedUserCancelled [label="Cancel", style=dashed];
-  Judging           -> StoppedUserCancelled [label="Cancel", style=dashed];
+  // ---- Errored (LLM/source after tenacity retry) ----
+  Classifying     -> StoppedErrored [label="LLM error", style=dashed, color=red];
+  Std_Planning    -> StoppedErrored [label="LLM error", style=dashed, color=red];
+  Std_Searching   -> StoppedErrored [label="source/LLM error", style=dashed, color=red];
+  Std_Judging     -> StoppedErrored [label="LLM error", style=dashed, color=red];
+  Std_MetaJudge   -> StoppedErrored [label="LLM error\n(swallowed →\noutcome=skipped\nmost paths)", style=dashed, color=red];
+  Dp_ReAct        -> StoppedErrored [label="LLM error", style=dashed, color=red];
+  Dp_Synthesizing -> StoppedErrored [label="LLM error", style=dashed, color=red];
+  Dp_CoVe         -> StoppedErrored [label="LLM error", style=dashed, color=red];
 
-  // Provider error from any LLM-calling state
-  Classifying       -> StoppedErrored [label="LLM error\n(retry fail)", style=dashed, color=red];
-  Planning          -> StoppedErrored [label="LLM error",            style=dashed, color=red];
-  PlanCritiquing    -> StoppedErrored [label="LLM error\n(critic)",  style=dashed, color=red];
-  Replanning        -> StoppedErrored [label="LLM error\n(revise)",  style=dashed, color=red];
-  Searching         -> StoppedErrored [label="LLM error\n(reformulation)", style=dashed, color=red];
-  DisputeResolution -> StoppedErrored [label="LLM error",            style=dashed, color=red];
-  Judging           -> StoppedErrored [label="LLM error",            style=dashed, color=red];
-
-  // Resume
+  // ---- Resume ----
   StoppedUserCancelled -> ResumingAfterCancel [label="owner Resume", color=blue];
   StoppedErrored       -> ResumingAfterError  [label="owner Resume", color=blue];
-  ResumingAfterCancel  -> Searching           [label="ResumedAfterCancel\n(replay event log)"];
-  ResumingAfterError   -> Searching           [label="ResumedAfterError\n(replay event log)"];
+  ResumingAfterCancel  -> RouteSelecting      [label="ResumedAfterCancel\n(replay event log →\nre-dispatch lane)"];
+  ResumingAfterError   -> RouteSelecting      [label="ResumedAfterError\n(replay event log)"];
 }
 ```
 
 **Path coverage check.**
-- All 7 `stop_reason` enum values are terminal nodes and each is reachable.
-- Every active state (`Classifying`, `Planning`, `PlanCritiquing`, `Replanning`, `Searching`, `DisputeResolution`, `Judging`) has: a happy-path transition forward, a `Cancel` transition to `StoppedUserCancelled`, and an LLM-error transition to `StoppedErrored`.
-- **`PlanCritiquing` (RF-14)** is the new mandatory stop between `Planning` and `Searching`. It is the only path out of `Planning`. Three outcomes: `approved` → `Searching`; `rejected, 1st attempt` → back to `Planning` (one re-plan); `rejected, 2nd attempt` → `StoppedHonestAmbiguous(plan_unstable)`.
-- **`Replanning` (RF-14)** is reachable from `Searching` (when `Judging` does not happen because A is not green but structural gaps are obvious) and from `Judging` (when the judge rejected and the gaps look structural OR a persistent `S_low_J_high` `ConfidenceMismatch` accumulated). Two outcomes: `PlanRevised` appended → back to `Searching` with recomputed A denominator; `replans_used >= max_replans` → `StoppedHonestUnanswerable(sub_reason=replan_exhausted)`.
-- `Searching → DisputeResolution` materializes the signal registry's `block` vote (signal D forbids stopping while a real conflict is open) — the only consumer of the `block` value defined by the `StoppingSignal` contract in [§5 Plugin seams](#5-plugin-seams).
-- `Searching` self-loop now includes the **`ClaimUncoverable`** event and the **RF-15 disconfirmation pass**: when a claim newly reaches `C_coverage(c) ≥ N_min`, one adversarial `ToolCalled(query_intent='refuting')` is issued and its results land back with `polarity ∈ {refuting, limiting}`.
-- `Searching → Judging` requires three conditions now: A green, no conflict pending, **and** every covered claim has completed its disconfirmation pass. The gate stays **edge-triggered** to avoid invoking the expensive judge on every iteration.
-- `Judging` has **four** outgoing transitions: (a) `judge_confirmed` on success (with `ConfidenceMismatch` emitted as a side event if `|S−J|>0.3`); (b) `Replanning` when the judge's `gaps[]` are structural and the replan budget allows; (c) `Searching` with `gaps[]` when the rejection is evidence-shaped and the rejection counter is below `max_judge_rejections`; (d) `StoppedHonestUnanswerable(sub_reason=judge_loop_stalled)` when the counter is exhausted — anti-ciclo guard against a judge that keeps rejecting on unfillable gaps.
-- `Judging → Searching` carries two semantically distinct sub-cases on the same edge: (a) `¬ sufficient` — the judge's `gaps[]` array is fed back to the searcher as next queries (RF-01·B); (b) `sufficient ∧ confidence < threshold` — the threshold raises the bar without silencing the judge (RF-12).
-- Both `Resuming*` states return to `Searching` (mechanical parity).
+- **4 terminal states** match the real enum: `judge_confirmed`, `stopped_by_budget`, `user_cancelled`, `errored`. No `honest_*` enum states exist — see [advanced-ai-research §7.6](advanced-ai-research.md#76-honest-failure-no-longer-a-stop_reason) for the design rationale.
+- **Lane dispatch** is the single point where the three sublanes diverge. `LaneEscalated` is the only inter-lane transition; FAST→STANDARD is transparent (the user only sees STANDARD events thereafter).
+- **STANDARD**:
+  - `Std_Critiquing` may regenerate `Std_Planning` (in-loop) when the plan critique fails — there is no separate "Replanning" state; the planner is re-invoked synchronously.
+  - `Std_Analyzing → Std_Searching` is the dynamic re-decomposition path (`PlanGapsDetected`, capped by `max_redecomposition`).
+  - `Std_Analyzing → Std_Synthesizing` covers both early-exit (`NoProgressDetected`) and threshold-reached paths.
+  - `Std_Judging → Std_DeepFetching → Std_Analyzing` is the deep-fetch escalation (§10 advanced-ai-research).
+  - `Std_MetaJudge` is **only** reachable when `META_JUDGE_ENABLED=true` ∧ `judge_attempts < max` ∧ judge did not pass. It has 3 outgoing edges: confirm, fallback (`best_effort`), continue (back to `Std_Searching`, either with directed sub-claims minted from AC or with a plain next round).
+- **DEEP**:
+  - `Dp_ReAct` self-loop carries all per-step events; the 4 termination triggers (decisive support / all refuted / `finish` action / `max_react_steps` cap) collapse onto the single `→ Dp_Synthesizing` edge.
+  - CoVe re-draft is bounded by `max_cove_rounds=1` — the `Dp_CoVe → Dp_Synthesizing` self-cycle is therefore at most one round.
+  - The meta-judge hook fires **after CoVe and before the mini-judge** (§9.3 advanced-ai-research). On confirm it short-circuits the mini-judge entirely; on `stop_best_effort` it sets `budget_exhausted_kind="react_steps"` and routes to `StoppedByBudget`.
+  - The mini-judge (`Dp_MiniJudge`) is the DEEP-lane analogue of FAST's mini-judge; the judge LLM role (`anthropic/claude-sonnet-4-6`) is reused via `FAST_MINI_JUDGE_PROMPT`.
+- **Cancel / Errored**: dashed edges are intentionally drawn only from the long-running states to keep the graph readable; in code every state checks `state.cancel_requested` at its loop boundary and every LLM call routes provider errors through tenacity before the lane converts them into `AgentErrored`.
+- **Resume**: both `Resuming*` states re-enter at `RouteSelecting` (not at a lane) because the original `RouteSelected` event is replayed from the log before the orchestrator dispatches the lane again. This guarantees the resumed run honors the original lane decision deterministically (RF-08 read-determinism is preserved because the lane decision lives in the event log, not in process memory).
 
 ---
 
@@ -404,7 +474,7 @@ digraph UIRunFSM {
 
 ## 4. Layers and data flow
 
-Logical layers of the deployed system, from browser to database to external providers. Distinguishes **transport** (REST + SSE), **server** (registries + agent loop + single-writer task registry), **persistence** (PostgreSQL `events` / `runs` / `users` tables), and **external providers** (LLM + search APIs).
+Logical layers of the deployed system, from browser to database to external providers. Distinguishes **transport** (REST + SSE), **server** (registries + agent loop + single-writer task registry + lane router + BRD-26 meta-judge helper), **persistence** (PostgreSQL `events` / `runs` / `users` tables — no JSON snapshots in V1), and **external providers** (Anthropic Claude LLM provider — reached via the provider-agnostic `llm.call` interface, V1 active — + 4 search sources).
 
 ```dot
 digraph DataFlow {
@@ -430,27 +500,33 @@ digraph DataFlow {
   }
 
   subgraph cluster_server {
-    label="Server (single-process)"; style="rounded,filled"; fillcolor="#f5f5f7";
-    api      [label="API handlers", fillcolor="#fde68a"];
-    loop     [label="Agent loop\n(classify → plan → search →\njudge → render)", fillcolor="#fde68a"];
-    signals  [label="StoppingSignal registry\n(A · D · B · E · F)", fillcolor="#fde68a"];
-    sources  [label="Source registry\n(web · wikipedia · …)", fillcolor="#fde68a"];
-    renderer [label="OutputRenderer registry\n(prose · structured · …)", fillcolor="#fde68a"];
-    lock     [label="Per-run advisory lock\n(append serialization)", fillcolor="#fde68a"];
+    label="Server (single-process · uvicorn --workers 1)"; style="rounded,filled"; fillcolor="#f5f5f7";
+    api      [label="API handlers\n(FastAPI routers)", fillcolor="#fde68a"];
+    orch     [label="Orchestrator\n(classify → route → lane →\nsynth → render)\napp/agent/orchestrator.py", fillcolor="#fde68a"];
+    router   [label="Lane router\napp/agent/lane_router.py\nFAST · STANDARD · DEEP", fillcolor="#fde68a"];
+    lane_fast[label="FAST lane\napp/agent/lanes/fast.py", fillcolor="#fde68a"];
+    lane_std [label="STANDARD lane\napp/agent/lanes/standard.py", fillcolor="#fde68a"];
+    lane_deep[label="DEEP lane\napp/agent/lanes/deep.py\n(ReAct + CoVe)", fillcolor="#fde68a"];
+    meta     [label="Meta-judge helper\napp/agent/meta_judge_hook.py\n(VoC + AC · opt-in)", fillcolor="#fde68a"];
+    signals  [label="StoppingSignal registry\nBudgetExhausted ·\nUserCancelled · JudgeSignal ·\nNoProgress + early-exit\ncheckpoints", fillcolor="#fde68a"];
+    sources  [label="Source registry\nTavily · Wikipedia ·\nSemanticScholar · OpenAlex", fillcolor="#fde68a"];
+    renderer [label="OutputRenderer registry\nprose · structured", fillcolor="#fde68a"];
+    llm_client[label="llm.call\napp/llm/client.py\n(litellm + instructor +\ntenacity, all roles)", fillcolor="#fde68a"];
+    lock     [label="Per-run anyio.Lock\n+ task registry\n(single writer per run)", fillcolor="#fde68a"];
   }
 
   subgraph cluster_store {
-    label="Persistence (filesystem)"; style="rounded,filled"; fillcolor="#f5f5f7";
-    jsonl [label="PostgreSQL 16\n(events / runs / users tables)\nappend-only events",  shape=cylinder, fillcolor="#fef3c7"];
-    snap  [label="data/snapshots/<run_id>.json\n(every N steps + terminal)", shape=cylinder, fillcolor="#fef3c7"];
-    users [label="data/users.json\n(username → token)",                  shape=cylinder, fillcolor="#fef3c7"];
+    label="Persistence"; style="rounded,filled"; fillcolor="#f5f5f7";
+    pg [label="PostgreSQL 16\nevents (JSONB payload,\nappend-only) ·\nruns · users\n(SQLAlchemy 2.0 async\n+ asyncpg + Alembic)", shape=cylinder, fillcolor="#fef3c7"];
   }
 
   subgraph cluster_external {
     label="External providers"; style="rounded,filled"; fillcolor="#f5f5f7";
-    llm  [label="LLM API\n(classifier · planner ·\nsynthesizer · judge)", fillcolor="#fecaca"];
-    web  [label="Web search API",   fillcolor="#fecaca"];
-    wiki [label="Wikipedia API",    fillcolor="#fecaca"];
+    gh   [label="Anthropic Claude\n(via litellm · x-api-key)\n· anthropic/claude-haiku-4-5\n  (classifier)\n· anthropic/claude-sonnet-4-6\n  (planner · synthesizer ·\n   judge · meta-judge)\nGemini/OpenAI/GitHub Models:\nwired but disabled in V1", fillcolor="#fecaca"];
+    tav  [label="Tavily API\n(search_depth=advanced)", fillcolor="#fecaca"];
+    wiki [label="Wikipedia REST",          fillcolor="#fecaca"];
+    s2   [label="Semantic Scholar API",    fillcolor="#fecaca"];
+    oa   [label="OpenAlex API",            fillcolor="#fecaca"];
   }
 
   // Client internal
@@ -476,38 +552,56 @@ digraph DataFlow {
   api  -> sse  [label="text/event-stream"];
 
   // Server internal
-  api -> loop      [label="start / resume"];
-  api -> lock      [label="acquire on append"];
-  loop -> lock     [label="guard append"];
-  loop -> signals  [label="evaluate(state)\neach iteration"];
-  signals -> loop  [label="vote: stop|continue|block"];
-  loop -> sources  [label="search(query, k)"];
-  sources -> loop  [label="Evidence[]"];
-  loop -> renderer [label="render(final state)\non Stopped"];
-  renderer -> loop [label="RenderedOutput"];
+  api -> orch       [label="start / resume / cancel"];
+  api -> lock       [label="acquire on append"];
+  orch -> lock      [label="guard every append"];
+  orch -> router    [label="select_lane(...)"];
+  router -> orch    [label="RouteSelected\n(lane, reason, dimensions)"];
+  orch -> lane_fast [label="dispatch (lane=FAST)"];
+  orch -> lane_std  [label="dispatch (lane=STANDARD)"];
+  orch -> lane_deep [label="dispatch (lane=DEEP)"];
+  lane_fast -> orch [label="LaneEscalated →\nre-dispatch STANDARD", style=dashed];
+  lane_std  -> meta [label="after_judge hook\n(opt-in)"];
+  lane_deep -> meta [label="after_cove hook\n(opt-in · before mini-judge)"];
+  meta -> lane_std  [label="continue: mint\nDirectedSubclaims", style=dashed];
+  orch -> signals   [label="evaluate(state)"];
+  signals -> orch   [label="vote: stop|continue|block"];
+  lane_fast -> sources [label="parallel\nwiki+tavily"];
+  lane_std  -> sources [label="search(query, k)\nper claim"];
+  lane_deep -> sources [label="search +\ndeep_fetch"];
+  sources -> lane_fast [label="Evidence[]"];
+  sources -> lane_std  [label="Evidence[]"];
+  sources -> lane_deep [label="Evidence[] +\nfull-text"];
+  lane_fast -> llm_client [label="prompts\n(synth · mini-judge)"];
+  lane_std  -> llm_client [label="prompts\n(planner · synth · judge)"];
+  lane_deep -> llm_client [label="prompts\n(planner · ReAct ·\nsynth · CoVe · mini-judge)"];
+  meta      -> llm_client [label="prompts\n(meta-judge VoC + AC)"];
+  llm_client -> gh        [label="HTTPS"];
+  gh         -> llm_client[label="completion"];
+  orch -> renderer        [label="render(final state)\non Stopped"];
+  renderer -> orch        [label="RenderedOutput"];
 
   // Server ↔ store
-  loop -> jsonl [label="INSERT event\n(sole writer per run_id)"];
-  loop -> snap  [label="write\n(every N + terminal)"];
-  api  -> jsonl [label="SELECT for SSE catch-up,\nlist, replay"];
-  api  -> snap  [label="O(1) resume\n(fallback to replay)"];
-  api  -> users [label="validate token /\nclaim username"];
+  orch -> pg [label="INSERT events\n(sole writer per run_id)"];
+  api  -> pg [label="SELECT for SSE catch-up,\nlist, replay,\nuser/token validate"];
 
-  // Server ↔ external
-  loop    -> llm  [label="prompt"];
-  llm     -> loop [label="completion"];
-  sources -> web  [label="query"];
-  web     -> sources [label="results"];
-  sources -> wiki [label="query"];
-  wiki    -> sources [label="results"];
+  // Sources ↔ external
+  sources -> tav  [label="query"]; tav  -> sources [label="results"];
+  sources -> wiki [label="query"]; wiki -> sources [label="results"];
+  sources -> s2   [label="query"]; s2   -> sources [label="results"];
+  sources -> oa   [label="query"]; oa   -> sources [label="results"];
 }
 ```
 
 **Path coverage check.**
-- Every persistent store (Postgres tables, snapshot cache when added in V2) has both a writer and a reader.
+- **Single persistent store**: PostgreSQL (`events`, `runs`, `users`). The V1 codebase has no `data/snapshots/<run_id>.json` and no `data/users.json` — those JSON files from the original design were eliminated when Postgres landed.
 - Every external provider has a request and a response edge.
-- The single-writer task registry is the only path through which `loop` issues `INSERT` to the `events` table for a given `run_id`.
+- The single-writer task registry (`anyio.Lock` per `run_id`) is the only path through which `orch` issues `INSERT` to the `events` table.
 - Both directions of the client ↔ transport ↔ server triplet are present (request and response for REST; subscription and stream for SSE).
+- **Lane dispatch** is explicit: the orchestrator delegates per-iteration work to exactly one of `lane_fast`, `lane_std`, `lane_deep`. `LaneEscalated` is the only re-entry from a lane back to the orchestrator (FAST → STANDARD transparent escalation).
+- **Meta-judge helper** is wired only into `lane_std` (hook `after_judge`) and `lane_deep` (hook `after_cove`). It is **not** in the `StoppingSignal` registry — see §5 below for rationale. All meta-judge LLM calls flow through `llm.call` like every other role.
+- **Anthropic Claude** is the only LLM provider **active** in V1, reached through the provider-agnostic `llm.call` interface (litellm). The interface also supports Gemini, OpenAI direct, and GitHub Models, but those are wired-and-disabled in V1. Two Claude tiers are used: `anthropic/claude-haiku-4-5` (classifier) and `anthropic/claude-sonnet-4-6` (planner, synthesizer, judge, meta-judge).
+- The 4 sources (Tavily, Wikipedia, Semantic Scholar, OpenAlex) all conform to the `Source` plugin protocol; new sources plug in here without touching lanes.
 
 ---
 
@@ -521,35 +615,36 @@ digraph Seams {
   node [shape=box, style="rounded,filled", fontname="Inter", fontsize=10];
   edge [fontname="Inter", fontsize=9];
 
-  loop [label="Agent loop\n(planner + executor +\nsynthesizer)", fillcolor="#fde68a", shape=box3d];
+  loop [label="Orchestrator + lanes\n(FAST · STANDARD · DEEP)", fillcolor="#fde68a", shape=box3d];
 
   subgraph cluster_s1 {
     label="Seam 1 · Source"; style="rounded,dashed";
-    src_reg   [label="source_registry", fillcolor="#dbeafe"];
-    src_iface [label="interface Source {\n  name\n  search(query, k) → Evidence[]\n  health_check()\n  metadata\n}", shape=note, fillcolor="#eef2ff"];
-    src_web   [label="WebSearchSource (V1)",  fillcolor="#bbf7d0"];
-    src_wiki  [label="WikipediaSource (V1)",  fillcolor="#bbf7d0"];
-    src_v2a   [label="ConfluenceSource (V2)", fillcolor="#e5e7eb", style="rounded,filled,dashed"];
-    src_v2b   [label="ArxivSource (V2)",      fillcolor="#e5e7eb", style="rounded,filled,dashed"];
-    src_v2c   [label="PDFCorpusSource (V2)",  fillcolor="#e5e7eb", style="rounded,filled,dashed"];
-    src_v2d   [label="SQLConnector (V2)",     fillcolor="#e5e7eb", style="rounded,filled,dashed"];
+    src_reg   [label="source_registry\napp/sources/registry.py", fillcolor="#dbeafe"];
+    src_iface [label="interface Source {\n  name\n  search(query, k) → Evidence[]\n  fetch_full(url) → Evidence?\n  health_check()\n  metadata\n}", shape=note, fillcolor="#eef2ff"];
+    src_tav  [label="TavilySource (V1)",         fillcolor="#bbf7d0"];
+    src_wiki [label="WikipediaSource (V1)",      fillcolor="#bbf7d0"];
+    src_s2   [label="SemanticScholarSource (V1)",fillcolor="#bbf7d0"];
+    src_oa   [label="OpenAlexSource (V1)",       fillcolor="#bbf7d0"];
+    src_v2a  [label="ArxivSource (V2)",          fillcolor="#e5e7eb", style="rounded,filled,dashed"];
+    src_v2b  [label="PDFCorpusSource (V2)",      fillcolor="#e5e7eb", style="rounded,filled,dashed"];
+    src_v2c  [label="SQLConnector (V2)",         fillcolor="#e5e7eb", style="rounded,filled,dashed"];
   }
 
   subgraph cluster_s2 {
     label="Seam 2 · StoppingSignal"; style="rounded,dashed";
-    sig_reg   [label="signal_registry\n(priority-ordered)", fillcolor="#dbeafe"];
-    sig_iface [label="interface StoppingSignal {\n  name\n  evaluate(state)\n  → { vote, reason, payload }\n}", shape=note, fillcolor="#eef2ff"];
-    sig_a [label="A · ClaimCoverage (V1)",  fillcolor="#bbf7d0"];
-    sig_d [label="D · SourceAgreement (V1)",fillcolor="#bbf7d0"];
-    sig_b [label="B · JudgeLLM (V1)",       fillcolor="#bbf7d0"];
-    sig_e [label="E · HonestStop (V1)",     fillcolor="#bbf7d0"];
-    sig_f [label="F · Budget (V1)",         fillcolor="#bbf7d0"];
-    sig_v2 [label="DomainSafetySignal\n(V2 / likely pair-session)", fillcolor="#e5e7eb", style="rounded,filled,dashed"];
+    sig_reg   [label="signal_registry\napp/stopping/registry.py", fillcolor="#dbeafe"];
+    sig_iface [label="interface StoppingSignal {\n  name · priority\n  evaluate(state)\n  → { vote, reason, payload }\n}", shape=note, fillcolor="#eef2ff"];
+    sig_budget [label="BudgetExhausted (V1)\nmax_rounds · max_searches ·\nmax_tokens · max_seconds", fillcolor="#bbf7d0"];
+    sig_cancel [label="UserCancelled (V1)",      fillcolor="#bbf7d0"];
+    sig_judge  [label="JudgeSignal (V1)\n(STANDARD-lane judge verdict\nadapter, RF-12)", fillcolor="#bbf7d0"];
+    sig_nop    [label="NoProgressSignal (V1)\nΔS over 3 rounds < 0.05", fillcolor="#bbf7d0"];
+    sig_react  [label="ReAct early-exit\ncheckpoints (V1)\nhypothesis_decisively_supported ·\nhypotheses_all_refuted", fillcolor="#bbf7d0"];
+    sig_v2     [label="DomainSafetySignal\n(V2 / pair-session)", fillcolor="#e5e7eb", style="rounded,filled,dashed"];
   }
 
   subgraph cluster_s3 {
     label="Seam 3 · OutputRenderer"; style="rounded,dashed";
-    out_reg   [label="renderer_registry", fillcolor="#dbeafe"];
+    out_reg   [label="renderer_registry\napp/output/registry.py", fillcolor="#dbeafe"];
     out_iface [label="interface OutputRenderer {\n  name\n  render(state) → RenderedOutput\n}", shape=note, fillcolor="#eef2ff"];
     out_prose [label="ProseRenderer (V1)",      fillcolor="#bbf7d0"];
     out_struct[label="StructuredRenderer (V1)", fillcolor="#bbf7d0"];
@@ -558,27 +653,28 @@ digraph Seams {
     out_v2c   [label="SlackRenderer (V2)",      fillcolor="#e5e7eb", style="rounded,filled,dashed"];
   }
 
-  nonseam [label="Explicitly NOT seams in V1:\n· Planner (the brain — V2)\n· Storage (PostgreSQL via SQLAlchemy — module, not plugin)\n· LLM provider (thin llm.call —\n  contract too thin to be useful)", shape=note, fillcolor="#fee2e2"];
+  nonseam [label="Explicitly NOT seams in V1:\n· Planner (the brain — V2)\n· Storage (PostgreSQL via SQLAlchemy — module, not plugin)\n· LLM provider (thin llm.call —\n  contract too thin to be useful)\n· Lane router (orchestrator-side\n  pure-function dispatcher)\n· Meta-judge hook (BRD-26)\n  — orchestrator-side helper,\n  invoked from STANDARD.after_judge\n  and DEEP.after_cove only;\n  needs lane-state access that\n  the signal contract hides", shape=note, fillcolor="#fee2e2"];
 
   // Seam 1 wiring
   loop -> src_reg [label="discover() at run start"];
   src_reg -> src_iface [style=dashed, label="contract"];
-  src_iface -> src_web;
+  src_iface -> src_tav;
   src_iface -> src_wiki;
+  src_iface -> src_s2;
+  src_iface -> src_oa;
   src_iface -> src_v2a [style=dashed];
   src_iface -> src_v2b [style=dashed];
   src_iface -> src_v2c [style=dashed];
-  src_iface -> src_v2d [style=dashed];
-  src_reg -> loop [label="search(query, k)\nper sub-claim"];
+  src_reg -> loop [label="search(query, k) +\nfetch_full(url)\nper sub-claim"];
 
   // Seam 2 wiring
   loop -> sig_reg [label="evaluate() each iteration"];
   sig_reg -> sig_iface [style=dashed, label="contract"];
-  sig_iface -> sig_a;
-  sig_iface -> sig_d;
-  sig_iface -> sig_b;
-  sig_iface -> sig_e;
-  sig_iface -> sig_f;
+  sig_iface -> sig_budget;
+  sig_iface -> sig_cancel;
+  sig_iface -> sig_judge;
+  sig_iface -> sig_nop;
+  sig_iface -> sig_react;
   sig_iface -> sig_v2 [style=dashed];
   sig_reg -> loop [label="aggregated vote\n(stop | continue | block)"];
 
@@ -598,7 +694,10 @@ digraph Seams {
 
 **Path coverage check.**
 - Every seam has: a discovery edge (loop → registry), a contract edge (registry → interface), implementation edges (interface → each V1/V2 plugin), and a result edge (registry → loop).
-- Each registry has at least 2 V1 plugins (so the abstraction is real, not a stub).
+- Each registry has at least 2 V1 plugins (Seam 1 has 4: Tavily, Wikipedia, Semantic Scholar, OpenAlex — guaranteeing source heterogeneity per RF-04).
+- The `Source` contract now exposes both `search` (snippets, used by every round) and `fetch_full` (full page body, used by the deep-fetch escalation path in §10 of advanced-ai-research). Sources that cannot fetch full pages return `None` and are skipped by the deep-fetch path.
+- **`StoppingSignal` registry V1 contents** are the actual ones in `app/stopping/`: `BudgetExhausted`, `UserCancelled`, `JudgeSignal`, `NoProgressSignal`, and the ReAct early-exit checkpoints. The original A/D/B/E/F naming (coverage / agreement / judge / honest-stop / budget) collapsed into these as the design firmed up — the "B" judge survives as `JudgeSignal`, "F" budget as `BudgetExhausted`, "E" honest-stop became the orchestrator-side `stop_rationale` field on the terminal `Stopped` event (not a signal vote), and "A" coverage / "D" agreement were absorbed into the per-lane analyzer (they are computed inside the STANDARD lane and feed `JudgeSignal` rather than living in the signal registry).
+- The `nonseam` note now includes the **meta-judge hook (BRD-26)** with its rationale: the helper needs lane-state access (judge attempt counter, last `s_raw`, `last_voc_decision`, AC objection minting back to `state.claims`) that the `StoppingSignal.evaluate(state) → vote` contract intentionally hides. It is invoked from `lane_std.run` at `after_judge` and from `lane_deep.run` at `after_cove`. The hook is **opt-in** (`META_JUDGE_ENABLED=false` by default).
 - The `nonseam` note is reachable from `loop` only via an invisible edge — it is documentation, not a runtime path.
 
 ---
@@ -847,252 +946,300 @@ digraph NovumObjects {
 
 ## 8. Agentic architecture
 
-A structural view of **what lives inside the agent loop**, complementary to §1 (temporal), §2 (states), §4 (system layers) and §5 (plugin seams). This one answers *"who does what, and through which contract"*: the four LLM-backed **roles** (classifier, planner, judge, synthesizer), the three plugin **registries** (sources, signals, renderers), the deterministic **signal aggregator** that gates the judge, and the **single sink** every component writes to (the `events` table).
+A structural view of **what lives inside the agent runtime**, complementary to §1 (temporal), §2 (states), §4 (system layers) and §5 (plugin seams). This one answers *"who does what, and through which contract"*: the **lane router** that dispatches into one of three lanes (FAST · STANDARD · DEEP), the **five LLM-backed roles** (classifier, planner, synthesizer, judge, meta-judge), the **three plugin registries** (sources, signals, renderers), the **opt-in meta-judge helper** that wraps the judge in STANDARD and CoVe in DEEP (BRD-26), and the **single sink** every component writes to (the `events` table).
 
-The diagram makes four V1 design choices visible at a glance:
+The diagram makes six V1 design choices visible at a glance:
 
-1. **No LangGraph / LangChain.** The orchestrator is a `match` over `state.phase` inside one Python function. Every LLM role goes through the same `llm.client.call(role, …)` seam (architecture.md §4.3).
-2. **The judge is gated, not autonomous.** Signal B (`JudgeLLM`) only fires after the deterministic signals A (`ClaimCoverage`) and D (`SourceAgreement`) are both green — see the green-dashed edges `sig_a/sig_d → sig_b`. B is the **only** path to `judge_confirmed`; there is no `coverage_met` bypass.
-3. **The signal contract has three votes: `stop`, `continue`, `block`.** `block` is emitted by signal D when a real contradiction is open and routes the FSM into the dispute resolver (red edge `sig_d → disp`). It is **not** a no-op: while any signal votes `block`, the aggregator forbids `stop` even if other signals would vote for it.
-4. **The judge-rejection loop is explicit.** When the judge returns `sufficient=false`, its `gaps[]` array becomes the next search queries — the amber edge `jdg_out → exec`. The loop iterates until the judge confirms, **or** signal F (budget) caps the run, **or** signal E (honest stop) fires. The budget is the hard upper bound: there is no path where the loop runs forever.
+1. **No LangGraph / LangChain.** The orchestrator is a `match` over `state.phase` inside one Python function (`app/agent/orchestrator.py`). Every LLM role goes through the same `llm.client.call(role, …)` seam (architecture.md §4.3, ai-services.md §1.3).
+2. **Three lanes, deterministic dispatch.** `lane_router.select_lane(...)` is a pure function over `(question_type, complexity_hint, temporal_sensitivity, …)` and writes its decision to the event log as `RouteSelected`. Replaying that event re-dispatches the same lane (RF-08 read-determinism).
+3. **The judge is the only positive-terminal authority** for STANDARD and DEEP — there is no `coverage_met` bypass. FAST has a dedicated `mini-judge` that uses the same Judge role with `FAST_MINI_JUDGE_PROMPT`.
+4. **Meta-judge is an opt-in helper, not a signal.** When `META_JUDGE_ENABLED=true`, the orchestrator calls `meta_judge_hook.maybe_run_meta_judge(...)` from `lane_std.run` (hook `after_judge`) and from `lane_deep.run` (hook `after_cove`). It can confirm, switch the answer to `best_effort` with `Stopped(stopped_by_budget)`, or mint **directed sub-claims** that re-enter the SEARCHING loop (BRD-26, §7.5 advanced-ai-research).
+5. **4 terminal stop_reasons only.** `judge_confirmed`, `stopped_by_budget`, `user_cancelled`, `errored`. Honest-failure scenarios surface as `stopped_by_budget` with `answer_kind=best_effort` and a descriptive `stop_rationale` (advanced-ai-research §7.6).
+6. **Provider-agnostic LLM interface; Anthropic Claude is the only active provider in V1.** `llm.call` routes through `litellm` and supports Anthropic, Google Gemini, OpenAI direct, and GitHub Models. V1 enables only Anthropic Claude: `anthropic/claude-haiku-4-5` (classifier) and `anthropic/claude-sonnet-4-6` (planner · synthesizer · judge · meta-judge). Switching the active provider is one line in `app/llm/models.py` + the matching API key env var.
 
 ```dot
 digraph AgenticArchitecture {
-  rankdir=TB;
-  compound=true;
-  newrank=true;
-  splines=ortho;
-  nodesep=0.4;
-  ranksep=0.6;
-  bgcolor="#FAFBFC";
-  fontname="Inter";
+  rankdir=TB; compound=true; newrank=true; splines=ortho;
+  nodesep=0.4; ranksep=0.6; bgcolor="#FAFBFC"; fontname="Inter";
   node [fontname="Inter", fontsize=10, style="rounded,filled"];
   edge [fontname="Inter", fontsize=9, color="#5A6273", arrowsize=0.7];
 
   // ---------------- Inputs ----------------
   subgraph cluster_input {
     label="Inputs (POST /runs)"; style="rounded,filled"; fillcolor="#F5F5F7"; fontsize=11;
-    inp_q  [label="question",            shape=box, fillcolor="#eef2ff"];
+    inp_q  [label="question",                            shape=box, fillcolor="#eef2ff"];
     inp_c  [label="user_context\n(optional, ≤1000 chars)", shape=box, fillcolor="#eef2ff"];
-    inp_th [label="confidence_threshold\n∈ [0,1]",  shape=box, fillcolor="#eef2ff"];
-    inp_fmt[label="output_format\nprose | structured",     shape=box, fillcolor="#eef2ff"];
+    inp_th [label="confidence_threshold ∈ [0,1]",        shape=box, fillcolor="#eef2ff"];
+    inp_fmt[label="output_format\nprose | structured",   shape=box, fillcolor="#eef2ff"];
   }
 
   // ---------------- Shared core ----------------
   subgraph cluster_core {
     label="Shared core"; style="rounded,filled"; fillcolor="#F5F5F7"; fontsize=11;
-    state    [label="RunState\n(dataclass · in-memory)\nsub_claims · coverage ·\ncontradictions · budget ·\nphase · evidence[]",
-              shape=box3d, fillcolor="#fde68a"];
-    llm      [label="llm.client.call(role, …)\nlitellm + instructor +\ntenacity retries (1)",
-              shape=box,   fillcolor="#fde68a"];
-    fsm      [label="FSM orchestrator\nwhile not state.is_terminal:\n  match state.phase: …",
-              shape=box,   fillcolor="#fde68a"];
+    state [label="RunState (Pydantic)\nphase · lane · sub_claims ·\nhypotheses · evidence ·\ncoverage · budgets ·\njudge_attempts · last_voc_*",
+           shape=box3d, fillcolor="#fde68a"];
+    llm   [label="llm.client.call(role, …)\nlitellm + instructor +\ntenacity (provider-agnostic;\nV1 → Anthropic only)",
+           shape=box, fillcolor="#fde68a"];
+    orch  [label="Orchestrator (FSM)\napp/agent/orchestrator.py\nwhile not state.is_terminal:\n  match state.phase: …",
+           shape=box, fillcolor="#fde68a"];
+    router[label="Lane router\napp/agent/lane_router.py\nselect_lane(...)\n→ FAST · STANDARD · DEEP",
+           shape=box, fillcolor="#fde68a"];
+    meta  [label="Meta-judge hook (opt-in)\napp/agent/meta_judge_hook.py\nmaybe_run_meta_judge(state, hook)\nhook ∈ {after_judge,\n        after_cove}",
+           shape=box, fillcolor="#fde68a"];
   }
 
   // ---------------- Phase 1: Classifier ----------------
   subgraph cluster_classify {
     label="Phase · CLASSIFYING"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
-    cls [label="Classifier role\nprompt: \"is this answerable\nfactually?\"\n→ question_type",
+    cls [label="Classifier role\n(anthropic/claude-haiku-4-5)\nprompt: question_type +\ncomplexity_hint +\ntemporal_sensitivity +\nexpected_experts[]",
          shape=box, fillcolor="#fde68a"];
-    cls_out [label="QuestionType ∈\n{factual, comparative, definitional,\nSotA, causal} → continue\n{predictive, opinion, personal}\n→ honest_unanswerable",
+    cls_out [label="QuestionClassified\n{question_type,\ncomplexity_hint,\ntemporal_sensitivity,\nexpected_experts[]}",
              shape=note, fillcolor="#fff3cd"];
   }
 
-  // ---------------- Phase 2: Planner ----------------
-  subgraph cluster_plan {
-    label="Phase · PLANNING"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
-    pln [label="Planner role\nprompt: \"decompose into\natomic, verifiable sub_claims\"\n→ Plan(sub_claims[])",
-         shape=box, fillcolor="#fde68a"];
-    pln_out [label="Plan\n· sub_claim[]\n· per-claim source hints\n· AmbiguityDetected?",
-             shape=note, fillcolor="#fff3cd"];
+  // ---------------- Phase: lane dispatch ----------------
+  subgraph cluster_dispatch {
+    label="Phase · ROUTE_SELECTING"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
+    route_out [label="RouteSelected\n{lane, reason, dimensions}",
+               shape=note, fillcolor="#fff3cd"];
   }
 
-  // ---------------- Phase 3: Searcher + tools ----------------
-  subgraph cluster_search {
-    label="Phase · SEARCHING (loops)"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
-    exec [label="Search executor\npicks (source, sub_claim)\nreformulates on failure",
-          shape=box, fillcolor="#fde68a"];
-
-    subgraph cluster_sources {
-      label="Source registry (Seam 1)"; style="rounded,dashed"; fillcolor="#FFFFFF";
-      src_web  [label="WebSearchSource\n(Tavily)",   shape=box, fillcolor="#bbf7d0"];
-      src_wiki [label="WikipediaSource\n(wikipedia-api)", shape=box, fillcolor="#bbf7d0"];
-    }
-
-    evid [label="Evidence ledger\n(in RunState.evidence)\nchunks · source_url ·\ncaptured_at",
-          shape=cylinder, fillcolor="#fef3c7"];
+  // ---------------- FAST lane ----------------
+  subgraph cluster_fast {
+    label="FAST lane · app/agent/lanes/fast.py"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
+    fast_search [label="Combined search\nasyncio.gather(\n  wiki.search(q,3),\n  tavily.search(q,3))",
+                 shape=box, fillcolor="#fde68a"];
+    fast_synth  [label="Synthesizer role (FAST_SYNTH_PROMPT)\n→ 1-2 sentence answer",
+                 shape=box, fillcolor="#fde68a"];
+    fast_mj     [label="Mini-judge\n(Judge role +\nFAST_MINI_JUDGE_PROMPT)\n→ MiniJudgeVerdict{ok,j_score}",
+                 shape=box, fillcolor="#fde68a"];
+    fast_gate   [label="gate: S_effective ≥ 0.85\n∧ mini_judge.ok\n→ JUDGE_CONFIRMED\nelse → LaneEscalated",
+                 shape=box, fillcolor="#fde68a"];
   }
 
-  // ---------------- Phase 4: Dispute resolver ----------------
-  subgraph cluster_dispute {
-    label="Phase · DISPUTE RESOLUTION"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
-    disp [label="Dispute resolver\n≤ 2 targeted re-searches\n(no LLM role of its own —\nreuses Planner reformulation)",
-          shape=box, fillcolor="#fde68a"];
-    disp_out [label="resolved → back to Searching\nunresolved →\nStopped(honest_contradiction)",
-              shape=note, fillcolor="#fff3cd"];
+  // ---------------- STANDARD lane ----------------
+  subgraph cluster_std {
+    label="STANDARD lane · app/agent/lanes/standard.py"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
+    std_pln  [label="Planner role\nPlan(sub_claims[], queries[],\npreferred_sources[])",
+              shape=box, fillcolor="#fde68a"];
+    std_crit [label="Plan self-critique\n(CRITIQUING)\nregenerate if invalid",
+              shape=box, fillcolor="#fde68a"];
+    std_exec [label="Search executor\nper-claim cascade\nQueryReformulated? per round\nEchoChamberDetected? per round",
+              shape=box, fillcolor="#fde68a"];
+    std_anal [label="Analyzer\nS_raw = coverage · diversity ·\nagreement · no_conflict\nAuthorityTier × kind_ceiling\nPlanGapsDetected? (capped)",
+              shape=box, fillcolor="#fde68a"];
+    std_syn  [label="Synthesizer role\n(anthropic/claude-sonnet-4-6)\nshape by AnswerKind",
+              shape=box, fillcolor="#fde68a"];
+    std_jdg  [label="Judge role\n(anthropic/claude-sonnet-4-6)\nJudgeVerdict{sufficient,\nshallow_claim_ids[], j_score}",
+              shape=box, fillcolor="#fde68a"];
+    std_df   [label="Deep-fetch escalation\nSource.fetch_full(url)\n→ re-analyze (capped)",
+              shape=box, fillcolor="#fde68a"];
   }
 
-  // ---------------- Stopping signal registry ----------------
+  // ---------------- DEEP lane ----------------
+  subgraph cluster_deep {
+    label="DEEP lane · app/agent/lanes/deep.py"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
+    dp_pln   [label="Planner role +\nHypothesesGenerated\n(2..4 hypotheses)",
+              shape=box, fillcolor="#fde68a"];
+    dp_init  [label="Initial parallel search",
+              shape=box, fillcolor="#fde68a"];
+    dp_react [label="ReAct sub-FSM (≤ 8 steps)\nAgentThought → AgentAction\n(search | deep_fetch |\nevaluate_hypothesis | finish)\n→ AgentObservation +\nHypothesisEvaluated +\nHistorySummarized?",
+              shape=box, fillcolor="#fde68a"];
+    dp_syn   [label="Synthesizer role\nskeleton = confirmed hypotheses",
+              shape=box, fillcolor="#fde68a"];
+    dp_cove  [label="CoVe pass\nVerificationQuestionsGenerated[3]\nCoveContradictionDetected? →\nre-draft (≤ max_cove_rounds=1)",
+              shape=box, fillcolor="#fde68a"];
+    dp_mj    [label="Mini-judge\n(Judge role +\nFAST_MINI_JUDGE_PROMPT)",
+              shape=box, fillcolor="#fde68a"];
+  }
+
+  // ---------------- Source registry ----------------
+  subgraph cluster_sources {
+    label="Source registry (Seam 1)"; style="rounded,dashed"; fillcolor="#FFFFFF";
+    src_tav  [label="TavilySource\n(search_depth=advanced)", shape=box, fillcolor="#bbf7d0"];
+    src_wiki [label="WikipediaSource",                       shape=box, fillcolor="#bbf7d0"];
+    src_s2   [label="SemanticScholarSource",                 shape=box, fillcolor="#bbf7d0"];
+    src_oa   [label="OpenAlexSource",                        shape=box, fillcolor="#bbf7d0"];
+  }
+
+  // ---------------- Stopping-signal registry ----------------
   subgraph cluster_signals {
-    label="Stopping signals (Seam 2 · priority-ordered)"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
-    sig_e [label="E · HonestStop\n(deterministic)",      shape=box, fillcolor="#bbf7d0"];
-    sig_a [label="A · ClaimCoverage\n(deterministic)",   shape=box, fillcolor="#bbf7d0"];
-    sig_d [label="D · SourceAgreement\n(deterministic)", shape=box, fillcolor="#bbf7d0"];
-    sig_b [label="B · JudgeLLM\n(LLM role — see Judge)", shape=box, fillcolor="#bbf7d0"];
-    sig_f [label="F · Budget\n(deterministic · hard cap)", shape=box, fillcolor="#bbf7d0"];
-    agg   [label="aggregate(state) →\n{vote, reason}\nfirst stop wins",
-           shape=box, fillcolor="#fde68a"];
+    label="StoppingSignal registry (Seam 2)"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
+    sig_budget [label="BudgetExhausted\n(max_rounds · max_searches ·\nmax_tokens · max_seconds)", shape=box, fillcolor="#bbf7d0"];
+    sig_cancel [label="UserCancelled",   shape=box, fillcolor="#bbf7d0"];
+    sig_judge  [label="JudgeSignal\n(STANDARD verdict adapter)", shape=box, fillcolor="#bbf7d0"];
+    sig_nop    [label="NoProgressSignal\n(ΔS over 3 rounds < 0.05)", shape=box, fillcolor="#bbf7d0"];
+    sig_react  [label="ReAct early-exit checkpoints\nhypothesis_decisively_supported ·\nhypotheses_all_refuted", shape=box, fillcolor="#bbf7d0"];
+    agg        [label="aggregate(state)\n→ {vote, reason}", shape=box, fillcolor="#fde68a"];
   }
 
-  // ---------------- Phase 5: Judge ----------------
-  subgraph cluster_judge {
-    label="Phase · JUDGING (gated by A ∧ D green)"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
-    jdg [label="Judge role\n**adversarial prompt:**\n\"argue why this is NOT enough\"\nstructured output via instructor",
-         shape=box, fillcolor="#fde68a"];
-    jdg_out [label="JudgeVerdict\n· sufficient: bool\n· J: confidence ∈ [0,1]\n· gaps[] (used as next queries)\n· rationale (must cite A & D)",
-             shape=note, fillcolor="#fff3cd"];
-    conf [label="final_confidence =\nmin(S, J)\ngate: sufficient ∧\nfinal_confidence ≥ threshold",
-          shape=box, fillcolor="#fde68a"];
-  }
-
-  // ---------------- Phase 6: Synthesizer + Renderer ----------------
+  // ---------------- Output renderer ----------------
   subgraph cluster_out {
-    label="Terminal (Stopped)"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
-    syn [label="Synthesizer role\nprompt: \"write the answer,\ncite sources, language = user's\"",
-         shape=box, fillcolor="#fde68a"];
-    subgraph cluster_renderer {
-      label="OutputRenderer (Seam 3)"; style="rounded,dashed"; fillcolor="#FFFFFF";
-      rnd_prose  [label="ProseRenderer",      shape=box, fillcolor="#bbf7d0"];
-      rnd_struct [label="StructuredRenderer", shape=box, fillcolor="#bbf7d0"];
-    }
+    label="Terminal · OutputRenderer (Seam 3)"; style="rounded,filled"; fillcolor="#FFF8E1"; fontsize=11;
+    rnd_prose  [label="ProseRenderer",      shape=box, fillcolor="#bbf7d0"];
+    rnd_struct [label="StructuredRenderer", shape=box, fillcolor="#bbf7d0"];
   }
 
-  // ---------------- Event log sink ----------------
-  log [label="events table (PostgreSQL · JSONB · append-only)\nQuestionAsked · PlanCreated · PlanCritiqued · PlanRevised · ToolCalled ·\nEvidenceAdded(polarity) · ClaimCovered · ClaimUncoverable ·\nContradictionDetected · JudgeRuled · ConfidenceMismatch · Stopped · …",
-       shape=cylinder, fillcolor="#fef3c7", width=6];
-
-  // ---------------- External LLM provider ----------------
-  ext_llm [label="GitHub Models\n(provider · single-key V1)", shape=box, fillcolor="#fecaca"];
+  // ---------------- Event log + external LLM ----------------
+  log [label="events table (PostgreSQL · JSONB · append-only)\nQuestionAsked · QuestionClassified · RouteSelected · LaneEscalated · PlanCreated · HypothesesGenerated · HypothesisEvaluated ·\nToolCalled · EvidenceAdded · QueryReformulated · EchoChamberDetected · SourceFailed · PlanGapsDetected · NoProgressDetected ·\nAgentThought · AgentAction · AgentObservation · HistorySummarized · DeepFetchPerformed · DraftSynthesized · VerificationQuestionsGenerated ·\nCoveContradictionDetected · JudgeRuled · MetaStopVerdict · AdversarialObjectionsGenerated · DirectedSubclaimsFromObjections · Stopped",
+       shape=cylinder, fillcolor="#fef3c7", width=8];
+  ext_llm [label="Anthropic Claude\n(provider-agnostic via litellm)\nclaude-haiku-4-5  ·  claude-sonnet-4-6",
+           shape=box, fillcolor="#fecaca"];
 
   // ============= EDGES =============
 
-  // Inputs → FSM
-  inp_q  -> fsm;
-  inp_c  -> fsm;
-  inp_th -> conf [label="threshold", style=dashed];
+  // Inputs → orchestrator
+  inp_q  -> orch;
+  inp_c  -> orch;
+  inp_th -> std_jdg [label="threshold", style=dashed];
+  inp_th -> fast_gate [label="threshold", style=dashed];
   inp_fmt-> rnd_prose  [label="if prose",      style=dashed];
   inp_fmt-> rnd_struct [label="if structured", style=dashed];
 
-  // FSM ↔ State
-  fsm -> state [dir=both, label="read / write"];
+  // Orchestrator ↔ state
+  orch -> state [dir=both, label="read / write"];
 
-  // FSM dispatch into each phase
-  fsm -> cls  [label="phase=CLASSIFYING"];
-  fsm -> pln  [label="phase=PLANNING"];
-  fsm -> exec [label="phase=SEARCHING"];
-  fsm -> disp [label="phase=DISPUTE"];
-  fsm -> jdg  [label="phase=JUDGING ∧\nA & D green"];
+  // Classifier
+  orch -> cls [label="phase=CLASSIFYING"];
+  cls  -> llm; llm -> cls [label="QuestionClassified", style=dashed];
+  cls  -> cls_out;
+  cls_out -> log [label="QuestionClassified", style=dashed];
 
-  // LLM roles go through the single client
-  cls -> llm;  llm -> cls  [label="QuestionType",     style=dashed];
-  pln -> llm;  llm -> pln  [label="Plan",             style=dashed];
-  jdg -> llm;  llm -> jdg  [label="JudgeVerdict",     style=dashed];
-  syn -> llm;  llm -> syn  [label="answer text",      style=dashed];
-  llm -> ext_llm [label="HTTPS · instructor"];
+  // Lane router
+  orch -> router [label="phase=ROUTE_SELECTING"];
+  router -> route_out;
+  route_out -> log [label="RouteSelected", style=dashed];
+
+  // Dispatch
+  router -> fast_search [label="lane=FAST"];
+  router -> std_pln     [label="lane=STANDARD"];
+  router -> dp_pln      [label="lane=DEEP"];
+
+  // FAST flow
+  fast_search -> src_tav  [label="search"];
+  fast_search -> src_wiki [label="search"];
+  src_tav  -> fast_search [style=dashed];
+  src_wiki -> fast_search [style=dashed];
+  fast_search -> fast_synth -> fast_mj -> fast_gate;
+  fast_synth -> llm; llm -> fast_synth [style=dashed];
+  fast_mj    -> llm; llm -> fast_mj    [style=dashed];
+  fast_gate  -> log [label="JUDGE_CONFIRMED |\nLaneEscalated", style=dashed];
+  fast_gate  -> std_pln [label="escalate (transparent)", color="#B45309"];
+
+  // STANDARD flow
+  std_pln -> llm; llm -> std_pln [style=dashed];
+  std_pln -> std_crit -> std_exec -> std_anal -> std_syn -> std_jdg;
+  std_crit -> std_pln [label="critique invalid →\nregenerate", style=dashed];
+  std_anal -> std_exec [label="PlanGapsDetected\n(extra round)", style=dashed];
+  std_exec -> src_tav  [label="search"];
+  std_exec -> src_wiki [label="search"];
+  std_exec -> src_s2   [label="search"];
+  std_exec -> src_oa   [label="search"];
+  src_tav  -> std_exec [style=dashed];
+  src_wiki -> std_exec [style=dashed];
+  src_s2   -> std_exec [style=dashed];
+  src_oa   -> std_exec [style=dashed];
+  std_syn  -> llm; llm -> std_syn [style=dashed];
+  std_jdg  -> llm; llm -> std_jdg [style=dashed];
+  std_jdg  -> std_df  [label="shallow_claim_ids[] ≠ []", style=dashed];
+  std_df   -> src_tav [label="fetch_full", style=dashed];
+  src_tav  -> std_df  [style=dashed];
+  std_df   -> std_anal [label="DeepFetchPerformed →\nre-analyze"];
+  std_jdg  -> meta    [label="after_judge hook"];
+  std_jdg  -> log [label="JudgeRuled", style=dashed];
+
+  // DEEP flow
+  dp_pln -> llm; llm -> dp_pln [style=dashed];
+  dp_pln -> dp_init -> dp_react -> dp_syn -> dp_cove;
+  dp_react -> dp_react [label="step++\n(≤ max_react_steps)"];
+  dp_react -> src_tav  [label="action=search"];
+  dp_react -> src_wiki [label="action=search"];
+  dp_react -> src_s2   [label="action=search"];
+  dp_react -> src_oa   [label="action=search"];
+  dp_react -> llm; llm -> dp_react [style=dashed];
+  dp_syn   -> llm; llm -> dp_syn   [style=dashed];
+  dp_cove  -> llm; llm -> dp_cove  [style=dashed];
+  dp_cove  -> dp_syn [label="CoveContradictionDetected\n→ re-draft", style=dashed];
+  dp_cove  -> meta   [label="after_cove hook\n(BEFORE mini-judge)"];
+  dp_cove  -> dp_mj  [label="if ¬ enabled or\nskipped"];
+  meta     -> dp_mj  [label="continue ∧\nΔ_s < min"];
+  dp_mj    -> llm; llm -> dp_mj [style=dashed];
+
+  // Meta-judge outcomes
+  meta -> llm; llm -> meta [label="MetaStopVerdict +\nAdversarialObjectionsGenerated", style=dashed];
+  meta -> log [label="MetaStopVerdict /\nAdversarialObjectionsGenerated /\nDirectedSubclaimsFromObjections", style=dashed];
+  meta -> std_exec [label="continue ∧\nAC: ¬ all_answered →\nmint DirectedSubclaims", color="#B45309"];
+  meta -> std_exec [label="continue ∧\nΔ_s ≥ min", color="#B45309", style=dashed];
+
+  // Signal evaluation every iteration
+  state -> sig_budget [label="evaluate", style=dashed];
+  state -> sig_cancel [label="evaluate", style=dashed];
+  state -> sig_judge  [label="evaluate", style=dashed];
+  state -> sig_nop    [label="evaluate", style=dashed];
+  state -> sig_react  [label="evaluate", style=dashed];
+  sig_budget -> agg;
+  sig_cancel -> agg;
+  sig_judge  -> agg;
+  sig_nop    -> agg;
+  sig_react  -> agg;
+  agg -> orch [label="decision\n(stop | continue)"];
+
+  // LLM provider edges (consolidated)
+  llm -> ext_llm [label="HTTPS"];
   ext_llm -> llm [style=dashed];
 
-  // Classifier outputs
-  cls -> cls_out;
-  cls_out -> log [label="QuestionAsked /\nStopped(honest_unanswerable)", style=dashed];
-
-  // Planner outputs
-  pln -> pln_out;
-  pln_out -> log [label="PlanCreated /\nAmbiguityDetected", style=dashed];
-  pln_out -> exec [label="sub_claims[]"];
-
-  // Search loop
-  exec -> src_web  [label="search(q, k)"];
-  exec -> src_wiki [label="search(q, k)"];
-  src_web  -> evid [label="Evidence[]"];
-  src_wiki -> evid [label="Evidence[]"];
-  evid -> state  [label="append"];
-  exec -> log   [label="ToolCalled /\nEvidenceAdded /\nSourceFailed /\nClaimUncoverable", style=dashed];
-
-  // Every iteration: signals evaluate state
-  state -> sig_e [label="evaluate", style=dashed];
-  state -> sig_a [label="evaluate", style=dashed];
-  state -> sig_d [label="evaluate", style=dashed];
-  state -> sig_f [label="evaluate", style=dashed];
-  sig_e -> agg;  sig_a -> agg;  sig_d -> agg;  sig_b -> agg;  sig_f -> agg;
-  agg -> fsm [label="decision\n(stop | continue | block)"];
-
-  // Judge is invoked from signal B only after A & D green
-  sig_a -> sig_b [label="green",  style=dashed, color="#2E7D32"];
-  sig_d -> sig_b [label="green",  style=dashed, color="#2E7D32"];
-  sig_b -> jdg   [label="invoke"];
-  jdg -> jdg_out;
-  jdg_out -> conf;
-  conf -> agg   [label="judge vote"];
-  jdg_out -> log [label="JudgeRuled", style=dashed];
-
-  // Judge says not enough → gaps fuel next search
-  jdg_out -> exec [label="if ¬sufficient:\ngaps → next queries", color="#B45309"];
-
-  // Dispute path
-  sig_d -> disp   [label="conflict",  color="#B91C1C"];
-  disp -> exec    [label="retry queries"];
-  disp -> disp_out;
-  disp_out -> log [label="ContradictionDetected /\nStopped(honest_contradiction)", style=dashed];
+  // Search emits events
+  std_exec -> log [label="ToolCalled / EvidenceAdded /\nQueryReformulated /\nEchoChamberDetected /\nSourceFailed", style=dashed];
+  dp_react -> log [label="AgentThought / Action /\nObservation / Hypothesis* /\nHistorySummarized", style=dashed];
 
   // Terminal path
-  agg -> syn        [label="stop=judge_confirmed →\nsynthesize", color="#15803D"];
-  syn -> rnd_prose;
-  syn -> rnd_struct;
+  agg       -> rnd_prose  [label="JUDGE_CONFIRMED →\nrender prose",      color="#15803D"];
+  agg       -> rnd_struct [label="JUDGE_CONFIRMED →\nrender structured", color="#15803D"];
   rnd_prose  -> log [label="Stopped(judge_confirmed)\n+ final answer", style=dashed];
   rnd_struct -> log [label="Stopped(judge_confirmed)\n+ final answer", style=dashed];
 
-  // Budget / honest stops emit directly
-  sig_f -> log [label="Stopped(stopped_by_budget |\nhonest_unanswerable)", style=dashed];
-  sig_e -> log [label="Stopped(honest_*)",            style=dashed];
+  // Budget / cancel / errored terminals
+  sig_budget -> log [label="Stopped(stopped_by_budget)\n[answer_kind=best_effort?]", style=dashed];
+  sig_cancel -> log [label="Stopped(user_cancelled)", style=dashed];
+  orch       -> log [label="Stopped(errored)\non LLM/source error", style=dashed];
 
-  // Invisible spine to enforce vertical reading order
-  inp_q -> fsm        [style=invis, weight=30];
-  fsm   -> cls        [style=invis, weight=20];
-  cls   -> pln        [style=invis, weight=20];
-  pln   -> exec       [style=invis, weight=20];
-  exec  -> disp       [style=invis, weight=20];
-  disp  -> agg        [style=invis, weight=20];
-  agg   -> jdg        [style=invis, weight=20];
-  jdg   -> syn        [style=invis, weight=20];
-  syn   -> log        [style=invis, weight=30];
+  // Reading-order spine
+  inp_q -> orch  [style=invis, weight=30];
+  orch  -> cls   [style=invis, weight=20];
+  cls   -> router[style=invis, weight=20];
+  router-> std_pln [style=invis, weight=10];
 }
 ```
 
-### The four LLM roles and what guarantees their correctness
+### The five LLM roles and what guarantees their correctness
 
-| Role | Phase | Prompt style | Structured output (instructor) | Guardrails |
-|---|---|---|---|---|
-| **Classifier** | CLASSIFYING | *"is this factually answerable?"* | `QuestionType` enum | Predictive / opinion / personal → honest stop **before** any search cost. |
-| **Planner** | PLANNING / REPLANNING | *"decompose into atomic, verifiable sub-claims"* / *"revise the plan given these gaps"* | `Plan(sub_claims[])` / `PlanRevision(added[], removed[], modified[])` | Coverage signal A is computed against this plan — the planner cannot smuggle a trivial plan and pass A. The **plan critic** (RF-14) rejects bad plans before search, the **replan trigger** (RF-14) revises stale plans during search. |
-| **Plan critic** | PLAN_CRITIQUING | *"does this plan cover the question's intent? is the granularity right? are the claims mutually exclusive?"* | `PlanCritique(approved, issues[], reasoning)` | One re-plan allowed on rejection; second failure → `Stopped(honest_ambiguous, sub_reason=plan_unstable)`. Cheaper than letting a bad plan burn the whole budget. **(RF-14)** |
-| **Judge** | JUDGING | **adversarial** — *"argue why this is NOT enough"* | `JudgeVerdict(sufficient, J, gaps[], rationale)` | Gated by A ∧ D green **and disconfirmation pass complete** (RF-15); capped via `min(S, J)`; rationale must cite A and D (enforced by snapshot test on golden traces). Each ruling computes `|S − J|` and emits a non-blocking `ConfidenceMismatch` event when the delta exceeds 0.3 — trust-flag, not gate. **(RF-15)** |
-| **Synthesizer** | terminal | *"write the answer, cite sources, language = user's"* | free text + citation list | Only runs **after** a `stop=judge_confirmed` decision. Cannot affect the verdict; can only render it. |
+| Role | Model (V1) | Phase | Prompt style | Structured output (instructor) | Guardrails |
+|---|---|---|---|---|---|
+| **Classifier** | `anthropic/claude-haiku-4-5` | CLASSIFYING | *"is this factually answerable? estimate complexity / temporal sensitivity / expected experts"* | `QuestionClassified` | Drives `lane_router.select_lane(...)`. Unanswerable types (predictive without data, opinion, personal) still enter the FSM but converge on `stopped_by_budget` with `answer_kind=best_effort` rather than refusing up-front. |
+| **Planner** | `anthropic/claude-sonnet-4-6` | STANDARD/DEEP planning | *"decompose into atomic, verifiable sub-claims"* (STANDARD) / *"+ generate 2..4 competing hypotheses"* (DEEP) | `Plan(sub_claims[], queries[], preferred_sources[])` (+ `HypothesesGenerated` for DEEP) | Plan self-critique re-invokes the planner synchronously if the critique fails; dynamic re-decomposition (STANDARD analyzer) can append sub-claims mid-loop bounded by `max_redecomposition`. |
+| **Synthesizer** | `anthropic/claude-sonnet-4-6` | STANDARD / DEEP terminal · FAST inline | *"write the answer, cite sources, language = user's"* (shape by `AnswerKind`) | free text + citations + structured shape on demand | Always runs **before** the judge in STANDARD/DEEP (drafts the answer the judge then evaluates); in FAST it runs before the mini-judge. Cannot change the verdict. |
+| **Judge** | `anthropic/claude-sonnet-4-6` | STANDARD JUDGING; DEEP & FAST mini-judge | **adversarial** — *"argue why this is NOT enough"* (full JUDGE_PROMPT) / *"is this sufficient at all?"* (FAST_MINI_JUDGE_PROMPT) | `JudgeVerdict{sufficient, shallow_claim_ids[], j_score}` / `MiniJudgeVerdict{ok, j_score, reason}` | `judge_attempts` capped at `max_judge_attempts=3`. `shallow_claim_ids` drive the deep-fetch escalation (§10 advanced-ai-research). Final confidence = `min(S, J)`. **R6 note:** judge runs on the same family as synthesizer in V1 (cross-family verification deferred — see [ai-services.md §1.3](../technical-phase/ai-services.md)). |
+| **Meta-judge (BRD-26)** | `anthropic/claude-sonnet-4-6` | STANDARD `after_judge` · DEEP `after_cove` | **VoC**: *"is the marginal benefit of another round ≥ `meta_judge_min_delta_s`?"* · **AC**: *"generate 3 adversarial objections; for each say if it is already answered or needs more search"* | `MetaStopVerdict{decision, expected_delta_s, next_action_hypothesis}` + `AdversarialObjectionsGenerated` | **Opt-in** (`META_JUDGE_ENABLED=false` by default). On `stop_best_effort` the orchestrator drafts the best-effort fallback and emits `Stopped(stopped_by_budget)` with `answer_kind=best_effort` and `stop_rationale = VoC.reason`. On `continue` it may mint `DirectedSubclaimsFromObjections` and re-enter the SEARCHING loop. Errors are swallowed (`outcome=skipped`) — never block the run. |
 
 ### Reading guide
 
-- **Yellow boxes** (`#fde68a`) — server-side runtime (FSM, LLM client, role implementations, signal aggregator, dispute resolver, synthesizer).
-- **Green boxes** (`#bbf7d0`) — V1 plugin implementations behind the three seams (Sources, StoppingSignals, OutputRenderers).
-- **Red box** (`#fecaca`) — the only external LLM provider in V1 (GitHub Models).
-- **Cream cylinders** (`#fef3c7`) — persistence: in-memory `Evidence ledger` (transient, lives in `RunState`) and the append-only `events` table (source of truth).
-- **Yellow notes** (`#fff3cd`) — role output contracts (the Pydantic models returned by `instructor`).
+- **Yellow boxes** (`#fde68a`) — server-side runtime (orchestrator, lane router, lane bodies, LLM client, meta-judge helper, signal aggregator).
+- **Green boxes** (`#bbf7d0`) — V1 plugin implementations behind the three seams (4 Sources, 5 StoppingSignals, 2 OutputRenderers).
+- **Red box** (`#fecaca`) — the only external LLM provider active in V1 (Anthropic Claude, via the provider-agnostic `llm.call` interface).
+- **Cream cylinder** (`#fef3c7`) — the append-only `events` table (source of truth).
+- **Yellow notes** (`#fff3cd`) — orchestrator-phase output contracts (the Pydantic models returned by `instructor`).
 - **Dashed edges** — data flow / log write / evaluation; **solid edges** — control flow.
-- **Green-tinted edges** — happy-path gates passing (A & D green → judge); **red** — contradiction path into dispute resolver; **amber** — judge-rejection loopback (gaps re-feed the searcher).
+- **Green-tinted edges** — happy-path terminal (judge confirmed → render); **amber** — lane escalation and meta-judge continue (loop-back into a lane); no longer any red "contradiction" edges because contradictions no longer have a dedicated terminal state (they surface as `Stopped(stopped_by_budget)` with `answer_kind=best_effort` and a descriptive `stop_rationale`, e.g. `cove_contradiction_unresolved` in DEEP).
 
 **Path coverage check.**
 - Every LLM role has a request edge (`role → llm`) and a response edge (`llm → role`, dashed).
-- Every signal has an `evaluate` edge from `state` (deterministic ones directly; B via `sig_a/sig_d → sig_b` after gates) and an aggregation edge to `agg`.
-- The judge has three outgoing destinations: `conf` (confidence gate), `log` (`JudgeRuled` event), and `exec` (gap-driven re-search) — covering the three outcomes *terminate good*, *keep going*, *log only*.
-- Every terminal `stop_reason` has at least one writer to `log`: synthesizer via `rnd_*` for `judge_confirmed`; `sig_f` for `stopped_by_budget` / budget-triggered `honest_unanswerable`; `sig_e` for the remaining `honest_*` variants; `disp_out` for `honest_contradiction`; `cls_out` for the up-front `honest_unanswerable`.
+- Every signal has an `evaluate` edge from `state` and an aggregation edge to `agg`. `JudgeSignal` is the STANDARD-lane verdict adapter; the FAST mini-judge and DEEP mini-judge feed their terminals directly through the lane body rather than the registry.
+- The **meta-judge helper** is the only component that can write three different event types in a single call (`MetaStopVerdict`, optional `AdversarialObjectionsGenerated`, optional `DirectedSubclaimsFromObjections`). It is not a signal — it is invoked from the lanes themselves, with full access to `state.judge_attempts`, `state.last_voc_*`, and the claim list.
+- Every terminal `stop_reason` has at least one writer to `log`:
+  - `judge_confirmed` — `rnd_prose` / `rnd_struct` (after STANDARD judge, DEEP mini-judge, or FAST mini-judge confirms; or after meta-judge confirms).
+  - `stopped_by_budget` — `sig_budget` (cap reached); or `meta` (VoC `stop_best_effort` + best-effort draft); or DEEP lane (`react_steps` budget exhausted) emitted via `orch`.
+  - `user_cancelled` — `sig_cancel`.
+  - `errored` — `orch` after tenacity gives up on an LLM/source call.
 
 ---
 

@@ -4,38 +4,42 @@
 >
 > **Scope:** all services that either run a model or feed evidence to a model. Pure-storage and pure-infrastructure services live in `infrastructure.md`.
 
-## Amendment 2026-05-27 — second LLM provider for the judge (RF-19)
+## Amendment 2026-05-28 — provider-agnostic LLM interface + Anthropic-only V1
 
-Ratified on 2026-05-27 alongside the "always answer" refactor ([research-method-refactor-proposal.md](research-method-refactor-proposal.md) — WP-5). Single change to this catalog: a **second LLM provider** is added for the judge role only.
+This amendment supersedes the 2026-05-27 "second LLM provider for the judge" note (which is now subsumed) and rewrites §1 below.
 
-| # | Service | Role | Type | Cost (V1) | Card? |
-|---|---|---|---|---|---|
-| 4 | **Anthropic Claude Haiku** | **Judge** LLM (default). Replaces GitHub Models for the `LLMRole.JUDGE` only. | LLM provider | Pay-as-you-go (~$0.001/run at Haiku pricing) | Yes |
+**Doctrinal change.** The LLM call layer is a **provider-agnostic interface** (`app/llm/client.py::call` over `litellm`). The system is *prepared* to operate against four providers:
 
-**Routing.** `app/llm/client.py::call` reads two new env vars on the `judge` role:
+1. **Anthropic** (Claude)
+2. **Google** (Gemini)
+3. **OpenAI** (GPT family, direct API)
+4. **GitHub Models** (multi-family gateway: OpenAI, DeepSeek, Meta, Mistral, …)
 
-- `JUDGE_PROVIDER` — `anthropic` (default) | `github` (fallback)
-- `JUDGE_MODEL` — `claude-haiku-...` (default for anthropic) | `deepseek/DeepSeek-V3-0324` (when forced to github)
+**For practical V1 purposes, only Anthropic Claude is enabled.** The other three providers are wired in code and reachable via environment configuration, but disabled by default — no API keys required, no traffic sent.
 
-Planner, synthesizer, and classifier continue to route through GitHub Models unchanged (§1.2 table below).
+**V1 role-to-model assignment (all roles → Anthropic).**
 
-**Graceful degradation.** If the Anthropic call fails for any reason (missing key, 5xx, rate limit after one retry):
+| Role | Model | When it runs |
+|---|---|---|
+| **Classifier** (RF-06) | `anthropic/claude-haiku-4-5` | Once per run, before `PlanCreated`. |
+| **Planner** | `anthropic/claude-sonnet-4-6` | Once per run, emits `PlanCreated`. |
+| **Synthesizer** | `anthropic/claude-sonnet-4-6` | Near terminal state, renders the final answer. |
+| **Judge** (RF-01·B) | `anthropic/claude-sonnet-4-6` | When signals A + D are green. Emits `JudgeRuled`. |
+| **Meta-judge** (BRD-26) | `anthropic/claude-sonnet-4-6` | When divergence between judges crosses threshold. |
 
-1. The agent emits a new `JudgeProviderDegraded(reason, attempted_provider, fallback_provider)` event.
-2. The judge call is retried once on the GitHub-Models judge model.
-3. The UI surfaces a small warning on the confidence badge: *"verifier ran on the same family as the synthesizer on this run."*
+**Required env var (V1):** `ANTHROPIC_API_KEY`. The keys for the other three providers (`GITHUB_TOKEN`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`) remain reserved env vars; if absent, the interface simply rejects requests for those providers at config-load time.
 
-**Why a second provider.** The R6 mitigation (judge sycophancy) the original §1.2 relied on was *cross-family-inside-one-provider* (DeepSeek judge vs OpenAI synthesizer). That is weaker than *cross-provider-and-cross-family*. Anthropic Haiku is the cheapest option that achieves both at once.
+**R6 honesty disclaimer.** The original cross-family-cross-provider judge mitigation (DeepSeek ↔ OpenAI through GitHub Models, then Anthropic-as-second-provider) is **not in force in V1**. With every role on the same Anthropic family, R6 reduces to:
 
-**Cost impact.** Anthropic does not have a meaningful free tier comparable to GitHub Models, so this is the first non-zero line item in V1. Budget: a Claude Haiku judge call is ~500 input tokens + 200 output tokens ≈ $0.0003 per invocation. With 1–3 judge calls per run, real-world cost is **< $0.001 per run**. Practical V1 ceiling: **$5/month** even with 50 runs/day. Acceptable.
+- Adversarial judge prompt that explicitly asks the model to look for sycophancy and hallucinated citations.
+- Hard cap `final_confidence = min(S, J)` so a flattering judge cannot pull confidence above the structural floor.
+- Meta-judge tiebreak (BRD-26) when two judges diverge — still same family, but independent calls.
 
-**Why not OpenRouter or Groq.** OpenRouter routes through other providers and breaks the cross-provider guarantee. Groq's free tier is wide but its model catalog drifts; Anthropic Haiku is stable, well-priced, and SDK-supported in `litellm` without configuration tricks.
+This trade-off is explicit and documented; the UI does **not** advertise cross-family verification on a V1 run. Re-enabling a second provider (e.g. Gemini for the judge) is a one-env-var change once budget allows.
 
-**Env var addition.** `ANTHROPIC_API_KEY` must be exported on the VM and on dev machines. Missing key is **non-fatal** (degradation path above).
+**Cost impact.** Anthropic is **not free**. Per-run estimate: ~6–8 calls of ~1–3k tokens each → **≈ $0.01–0.04 per run** at Sonnet pricing (classifier uses Haiku → negligible). Practical V1 ceiling: **~$5/month** at the project's expected demo + validation cadence (≤ 50 runs/day for a few days, then idle).
 
-**Read-the-doc rule:** wherever §1.2 below assigns the judge role to `deepseek/DeepSeek-V3-0324`, the amendment above wins. DeepSeek-V3 remains the **fallback** judge model when `JUDGE_PROVIDER=github`.
-
----
+**Read-the-doc rule.** Wherever this catalog historically said "GitHub Models is the only V1 provider" or assigned a specific role to `openai/gpt-5` / `deepseek/DeepSeek-V3-0324` / `meta/Llama-4-Scout`, the table above wins. Those models remain *reachable* through the GitHub-Models provider but are **not active** in V1.
 
 ---
 
@@ -43,89 +47,104 @@ Planner, synthesizer, and classifier continue to route through GitHub Models unc
 
 | # | Service | Role in Novum | Type | Cost (V1) | Card required? |
 |---|---|---|---|---|---|
-| 1 | **GitHub Models** | LLM gateway for 4 agent roles (classifier, planner, synthesizer, judge) | LLM provider | $0 (free tier) | No |
+| 1 | **Anthropic Claude** (via the provider-agnostic LLM interface) | LLM gateway for the 5 agent roles (classifier, planner, synthesizer, judge, meta-judge) | LLM provider | ~$5/month ceiling (Sonnet + Haiku pricing) | Yes (Anthropic billing) |
 | 2 | **Tavily** | Web search source for evidence retrieval | Search-for-LLM | $0 (1000 req/mo free tier) | No |
 | 3 | **Wikipedia API** | Encyclopedic source for evidence retrieval | Knowledge base | $0 (unlimited at our scale) | No |
 
-**Total V1 cost: $0/month.** All three are pluggable behind their respective seams (`llm.call` for #1, `Source` seam for #2 and #3).
+**Inactive but wired (no traffic, no cost):** GitHub Models, OpenAI direct, Google Gemini. Each is reachable by setting the corresponding env var (`GITHUB_TOKEN`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`) and pointing one role at it in `app/llm/models.py`.
+
+**Total V1 cost: ≈ $5/month ceiling.** Tavily and Wikipedia stay $0; the LLM line item is the only paid service. All three active services are pluggable behind their respective seams (`llm.call` for #1, `Source` seam for #2 and #3).
 
 ---
 
-## 1. GitHub Models
+## 1. LLM interface layer (provider-agnostic)
 
 ### 1.1 What it is
 
-GitHub's hosted LLM gateway (`https://models.github.ai/inference`). An OpenAI-SDK-compatible endpoint that fronts multiple model families (OpenAI, DeepSeek, Meta, Mistral, …) under a single GitHub PAT.
+A single thin wrapper, `app/llm/client.py::call`, that routes every LLM call through **litellm**. litellm normalises the request/response shape across providers so the agent code never sees provider-specific URLs, auth headers, or response schemas.
 
-### 1.2 Role in Novum
+### 1.2 Supported providers (interface-level)
 
-The **only LLM provider in V1**. Powers the four agent roles defined in the custom FSM:
+| Provider | Status in V1 | Auth env var | Notes |
+|---|---|---|---|
+| **Anthropic** (Claude) | ✅ **Active** — all 5 roles | `ANTHROPIC_API_KEY` | Sole active provider in V1. |
+| **Google** (Gemini) | ⚪ Wired, disabled | `GOOGLE_API_KEY` | Re-enable by pointing a role at `gemini/...`. |
+| **OpenAI** (direct) | ⚪ Wired, disabled | `OPENAI_API_KEY` | Re-enable by pointing a role at `openai/...`. |
+| **GitHub Models** | ⚪ Wired, disabled | `GITHUB_TOKEN` | Multi-family gateway (OpenAI, DeepSeek, Meta, …) — kept as zero-cost fallback. |
+
+"Wired, disabled" means: the code path exists, `litellm` knows how to reach the provider, but no role in `app/llm/models.py` resolves to that provider in V1 → no traffic, no key needed.
+
+### 1.3 V1 role-to-model assignment (Anthropic Claude)
 
 | Role | Model | Family | When it runs |
 |---|---|---|---|
-| **Classifier** (RF-06) | `meta/Llama-4-Scout-17B-16E-Instruct` | Meta | Once per run, before `PlanCreated`. Decides if the question is Type 1–5 (continue) or 6–8 (`honest_unanswerable`). |
-| **Planner** | `deepseek/DeepSeek-V3-0324` | DeepSeek | Once per run, emits `PlanCreated` with sub-claims and `question_type`. |
-| **Synthesizer** | `openai/gpt-5` | OpenAI | Once per run, near terminal state. Renders the final answer via the selected `OutputRenderer` (prose or structured). |
-| **Judge** (RF-01·B) | `deepseek/DeepSeek-V3-0324` | DeepSeek | Invoked when signals A (coverage) and D (agreement) are green. Emits `JudgeRuled { sufficient, confidence, S, J, rationale }`. |
+| **Classifier** (RF-06) | `anthropic/claude-haiku-4-5` | Anthropic | Once per run, before `PlanCreated`. Cheap fast tier. |
+| **Planner** | `anthropic/claude-sonnet-4-6` | Anthropic | Once per run, emits `PlanCreated` with sub-claims and `question_type`. |
+| **Synthesizer** | `anthropic/claude-sonnet-4-6` | Anthropic | Once per run, near terminal state. Renders the final answer via the selected `OutputRenderer`. |
+| **Judge** (RF-01·B) | `anthropic/claude-sonnet-4-6` | Anthropic | Invoked when signals A (coverage) and D (agreement) are green. Emits `JudgeRuled { sufficient, confidence, S, J, rationale }`. |
+| **Meta-judge** (BRD-26) | `anthropic/claude-sonnet-4-6` | Anthropic | Tiebreak when two judge calls diverge beyond threshold. |
 
-**Why two families:** the judge is **cross-family** against the synthesizer (DeepSeek ↔ OpenAI). This is the explicit R6 mitigation against judge sycophancy — a model is less likely to rubber-stamp text generated by a model from a different lineage.
+**On R6 (judge sycophancy).** With every role on the same family, the cross-family verification guarantee is **not in force**. The mitigation in V1 is:
 
-### 1.3 How it works in the codebase
+1. Adversarial judge prompt (explicitly asks the model to look for sycophancy and hallucinated citations).
+2. Hard cap `final_confidence = min(S, J)` (RF-12).
+3. Meta-judge tiebreak on divergence (BRD-26).
+
+The UI does **not** show a "cross-family verified" badge in V1. Re-enabling a second provider for the judge role is a one-line change in `app/llm/models.py` plus exporting the corresponding API key.
+
+### 1.4 How it works in the codebase
 
 Every LLM call goes through one thin wrapper, `app/llm/client.py::call`:
 
 ```python
 async def call(
-    role: Literal["classifier", "planner", "synthesizer", "judge"],
+    role: Literal["classifier", "planner", "synthesizer", "judge", "meta_judge"],
     messages: list[dict],
     response_model: type[BaseModel] | None = None,
 ) -> Any: ...
 ```
 
-- `role` → looked up in `app/llm/models.py` to resolve `(model_id, temperature, max_tokens)`.
-- `litellm` translates the call to GitHub Models with the right URL + auth headers.
+- `role` → looked up in `app/llm/models.py` to resolve `(provider, model_id, temperature, max_tokens)`.
+- `litellm` translates the call to the resolved provider with the right URL + auth headers.
 - `instructor` wraps the call when `response_model` is provided → forces a Pydantic-validated structured response (no manual JSON parsing).
 - `tenacity` retries once on transient errors (rate limit, 5xx, timeout); on second failure → raises `AgentLLMError` → loop emits `AgentErrored`.
 
-Agent code **never** calls `litellm` or `httpx` directly — `llm.call` is the only entry point. This keeps the LLM provider as a "not-seam": swappable by editing one module, not by implementing a protocol.
+Agent code **never** calls `litellm` or `httpx` directly — `llm.call` is the only entry point. The provider is therefore a **"not-seam"**: swappable by editing one module (`app/llm/models.py`), not by implementing a protocol.
 
-### 1.4 Cost and limits
+### 1.5 Cost and limits
 
-| Tier | Limit (May 2026, approximate) | Models affected |
-|---|---|---|
-| Low-tier | ~150 req/day, 50 req/min | `meta/Llama-4-Scout` (classifier) |
-| High-tier | ~50 req/day, 10–15 req/min | `openai/gpt-5` (synthesizer), `deepseek/DeepSeek-V3-0324` (planner + judge) |
+Anthropic pricing (May 2026, approximate):
 
-**Per-run LLM call count:** ~5–8 (1 classifier + 1 planner + N planner-extensions + 1 synthesizer + 1–3 judge invocations).
+| Tier | Input ($/Mtok) | Output ($/Mtok) | Used for |
+|---|---|---|---|
+| Haiku 4.5 | $0.25 | $1.25 | Classifier |
+| Sonnet 4.6 | $3.00 | $15.00 | Planner, Synthesizer, Judge, Meta-judge |
 
-**Practical budget on the free tier:** ~6–8 complete runs per day on the High-tier models. Sufficient for:
-- 4–6 h pair-session build with mocked LLM calls in most tests.
-- ~50 validation runs across multiple days before the demo.
-- 3 live demo runs.
+**Per-run estimate:** ~6–8 LLM calls totalling ~10–30k tokens → **≈ $0.01–0.04 per run**.
 
-**Mitigation during build:** use `meta/Llama-4-Scout` for every role during development (Low tier has 3× headroom); switch to the final assignment for validation and demo.
+**Practical V1 budget:** **~$5/month ceiling** at expected cadence (≤ 50 runs/day during validation + demo; idle otherwise).
 
-**Cost: $0** within free-tier limits. No card required.
+**Rate limits:** Anthropic standard tier-1 limits (50 RPM, 40k input tok/min, 8k output tok/min). One concurrent run uses a fraction of this; the single-server scope (RF-05) means no risk of saturation.
 
-### 1.5 Rationale
+### 1.6 Rationale (Anthropic as V1 active provider)
 
-| Why GitHub Models (over Groq, OpenAI direct, Anthropic, OpenRouter…) | Detail |
+| Why Anthropic Claude in V1 | Detail |
 |---|---|
-| **One key for all four roles** | A single `GITHUB_TOKEN` (a GitHub PAT) authenticates classifier, planner, synthesizer, and judge across three model families. No fan of API keys to manage. |
-| **Free tier is meaningful** | Most competitors give trial credits that expire; GitHub Models is free-as-in-quota indefinitely. |
-| **OpenAI-SDK-compatible** | Native litellm support, no custom client code. |
-| **Cross-family coverage in one provider** | Lets us mitigate R6 (judge sycophancy) without adding a second API. |
-| **No card required** | Aligns with the $0 V1 infrastructure goal. |
-| **Reviewable for the pair session** | "I use a single LLM gateway with three model families, the judge is cross-family to the synthesizer" is a one-line defensible architectural choice. |
+| **Quality leader for structured reasoning** | Sonnet 4.6 ranks at or near the top for plan-decomposition and citation-faithful synthesis tasks. |
+| **Strong instruction-following** | Reduces the failure mode where the synthesizer ignores "cite every claim or say `I don't know`". |
+| **Stable model catalog** | Anthropic deprecates models on a long, well-announced cycle. Lower risk than GitHub Models' rotating preview catalog. |
+| **One key, five roles** | A single `ANTHROPIC_API_KEY` covers the whole agent loop. |
+| **Provider-agnostic interface preserved** | Switching one role to Gemini or GitHub Models is one env var + one line in `app/llm/models.py` — no refactor. |
 
-### 1.6 Risks and caveats
+### 1.7 Risks and caveats
 
 | Risk | Mitigation |
 |---|---|
-| Free-tier limits change at any moment | `litellm` makes swapping to OpenAI-direct or Groq a one-line change. `OPENROUTER_API_KEY` / `GROQ_API_KEY` env vars are reserved but unused in V1 (see tech-stack §5). |
-| Model deprecation (e.g., `gpt-5` removed from GitHub Models) | Same mitigation — change the model ID string in `app/llm/models.py`. |
-| Higher latency than direct OpenAI | Acceptable for an agent that runs over seconds, not milliseconds. |
-| Rate limit hit during live demo | Plan B = throttle UI via `VITE_DEMO_SLOWDOWN`, fall back to localhost with personal API keys via Cloudflare Tunnel (see infrastructure §5.4). |
+| Anthropic outage during demo | Interface is provider-agnostic. Plan B: set `GITHUB_TOKEN` and point all roles at `openai/gpt-5` (or DeepSeek-V3) in `app/llm/models.py`. Documented in infrastructure §5.4. |
+| Cost overrun | Per-run cost is bounded by the token budget (RF-01·F). A run hitting the cap costs ~$0.04. Hard cap on total monthly spend lives in Anthropic billing console, not in code. |
+| Same-family judge (R6 weakening) | Documented above (§1.3). Re-enabling a second provider for the judge role is the explicit V1+ escape hatch. |
+| Model deprecation (e.g., `claude-sonnet-4-6` retired) | Change the model ID string in `app/llm/models.py`. |
+| Higher latency than free-tier alternatives | Acceptable for an agent that runs over seconds, not milliseconds. |
 
 ---
 
@@ -283,11 +302,12 @@ Same `Evidence` contract as Tavily → same downstream consumers (Coverage A, Ag
 
 ## 4. Explicitly out of scope (V1)
 
+> **Note:** "wired but disabled" providers (Google Gemini, OpenAI direct, GitHub Models) are *not* in this list — they are documented in §1.2 as part of the provider-agnostic interface, simply not activated. The table below covers services that are not wired at all.
+
 | Service | Why not |
 |---|---|
-| **OpenAI direct API** | GitHub Models gives access to `gpt-5` for free. Direct API kept as Plan B (`OPENROUTER_API_KEY` env var reserved). |
-| **Anthropic Claude API** | Not available through GitHub Models. Cross-family R6 mitigation already satisfied by OpenAI ↔ DeepSeek. |
-| **Groq / Cerebras** | Reserved as Plan B for latency-critical demo fallback (env vars `GROQ_API_KEY`). |
+| **Groq / Cerebras** | Not wired in `litellm` config; reserved as future option for latency-critical workloads. |
+| **OpenRouter** | Aggregator over other providers — would mask the provider identity and break per-provider cost / quota tracking. |
 | **Perplexity API** | See §2.7 — wrong layer of the stack; would replace Novum instead of feeding it. |
 | **Anthropic Computer Use / OpenAI Operator** | Out of agent-loop scope — Novum does not take actions in the world, it reasons over evidence. |
 | **Pinecone / Weaviate / Chroma (vector DBs)** | V1 does not have a corpus to embed — every search is fresh and live. Vector DB enters only when V2 adds a `PDFCorpusSource` or similar. |
@@ -301,14 +321,14 @@ Same `Evidence` contract as Tavily → same downstream consumers (Coverage A, Ag
 
 ```env
 # Required in V1
-GITHUB_TOKEN=<github_pat>          # GitHub Models (all 4 LLM roles)
+ANTHROPIC_API_KEY=<sk-ant-...>     # Anthropic Claude (all 5 LLM roles)
 TAVILY_API_KEY=<tvly-...>          # Tavily web search
 # Wikipedia: no key required (only a User-Agent header set in client code)
 
-# Reserved Plan B (unused in V1)
-OPENROUTER_API_KEY=<...>
-GROQ_API_KEY=<...>
-OPENAI_API_KEY=<...>
+# Reserved for the wired-but-disabled providers (unused in V1; safe to leave unset)
+GITHUB_TOKEN=<github_pat>          # Enables GitHub Models routing
+OPENAI_API_KEY=<sk-...>            # Enables OpenAI direct routing
+GOOGLE_API_KEY=<...>               # Enables Gemini routing
 ```
 
 All of these are gitignored. See `.gitignore` (the `*api_key*`, `*secret*`, `.env*` rules added during the V1 security pass).

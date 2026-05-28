@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-28
-**Total Lessons:** 28
+**Total Lessons:** 30
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,30 @@
 ---
 
 ## Recent Lessons
+
+## L-030: "Test hang" is often a real network call under tenacity backoff (2026-05-28, IP-26)
+**Context:** `tests/test_agent_orchestrator.py` looked like it hung at session-fixture setup. The summary inherited the diagnosis "fixture hang" from a previous session. Reality: the orchestrator drives `embed()` (via saturation signal + planner similarity pass), which dials litellm → OpenAI 401 (stale `.env.test` key) → GitHub token-pool fallback → rate-limited → tenacity retries with exponential backoff. Looked like a hang, was actually slow real I/O.
+**Diagnostic recipe (in this order):**
+1. Run with `-v -s -x` so stdout is unbuffered and shows the last line before the supposed hang.
+2. Pipe through `Tee-Object` rather than `Out-File` if you want to read partial output mid-run.
+3. Look for `*_start` log lines without a matching `*_complete` — that's where real I/O is blocking.
+4. Suspect any module that calls `aembedding`, `acompletion`, or any `litellm.*` function without a test stub.
+**Fix pattern:** Autouse fixture (per file or in `conftest.py`) that monkeypatches the I/O function AT THE CONSUMER BINDING. Module-level `from X import Y` captures the binding once → patching `X.Y` is useless. You must patch `consumer_module.Y` too. For embeddings: patch BOTH `app.llm.embeddings.embed` AND `app.stopping.signals.saturation.embed`.
+**Reference fixture:** see `_stub_embeddings` in `backend/tests/test_agent_orchestrator.py`.
+
+---
+
+## L-029: Reuse meta-judge orchestration via a hook helper, not by duplicating logic (2026-05-28, IP-26 slice 3b)
+**Context:** Slice 2 placed meta-judge logic inline inside `AgentOrchestrator._maybe_run_meta_judge`. Slice 3b needed the same logic from DEEP lane's `after_cove` lifecycle point — a tempting copy-paste would have diverged immediately (different judge-signal source, different stop-reason mapping, different return semantics).
+**Lesson:** Extract a single async helper that takes a `hook: MetaJudgeHook` literal and returns a `MetaJudgeOutcome` literal (`stop_best_effort` / `confirm` / `continue` / `skipped`). Callers do the lane-specific state mutation (set `state.final_answer`, return the right `StopReason`). The helper owns: skip gating, VoC call, AC pass (when `continue` + `expected_delta_s` threshold), sub-claim minting, and event emission tagged with `hook`.
+**Why it matters:**
+1. Single-place change for AC threshold / event payload shape.
+2. Every hook emits `MetaStopVerdictEvent` with `hook="..."` so FE can attribute the verdict source.
+3. New hooks (e.g. `after_react_observation`) wire in by adding one literal value + one call site — no orchestration logic duplicated.
+**Anti-pattern:** Calling `evaluate_value_of_continuation` and `generate_adversarial_objections` directly from a new lane — you'll re-implement skip gating and sub-claim minting and they'll drift.
+**Critical test-side corollary:** module-level `from app.llm.meta_judge import evaluate_value_of_continuation` in `meta_judge_hook.py` means tests MUST monkeypatch `app.agent.meta_judge_hook.evaluate_value_of_continuation`, NEVER `app.llm.meta_judge.evaluate_value_of_continuation`. Patching the source module has no effect once the consumer's binding is captured. Same rule as L-030.
+
+---
 
 ## L-028: Coder MUST run pyright + full pytest before reporting done (2026-05-28, IP-25 Phase F)
 **Context:** Phase F Coder reported "implementation complete" with only ruff + individual cove tests run. Orchestrator validation revealed 18 pyright errors and 10 test failures (cascading: wrong registry API, `SynthesizedAnswer` passed where `str` expected, missing monkeypatches, ≥2 hypotheses constraint, StrEnum case sensitivity).

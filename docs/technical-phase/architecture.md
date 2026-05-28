@@ -253,13 +253,13 @@ digraph NovumArchitecture {
         fontsize=11;
         margin=12;
 
-        github_models [label=<<B>GitHub Models</B><BR/><FONT POINT-SIZE="9">LLM gateway · Bearer PAT<BR/>Llama Scout · GPT-5 · DeepSeek-V3</FONT>>, fillcolor="#FFFFFF", color="#B0413E"];
+        anthropic_claude [label=<<B>Anthropic Claude</B><BR/><FONT POINT-SIZE="9">LLM provider (V1 active)<BR/>via litellm · x-api-key<BR/>claude-haiku-4-5 · claude-sonnet-4-6</FONT>>, fillcolor="#FFFFFF", color="#B0413E"];
         tavily        [label=<<B>Tavily</B><BR/><FONT POINT-SIZE="9">web search API</FONT>>, fillcolor="#FFFFFF", color="#B0413E"];
         wikipedia     [label=<<B>Wikipedia</B><BR/><FONT POINT-SIZE="9">REST + Action API</FONT>>, fillcolor="#FFFFFF", color="#B0413E"];
         duckdns       [label=<<B>DuckDNS</B><BR/><FONT POINT-SIZE="9">novum-prod.duckdns.org</FONT>>, fillcolor="#FFFFFF", color="#B0413E"];
         letsencrypt   [label=<<B>Let's Encrypt</B><BR/><FONT POINT-SIZE="9">ACME · auto-renewal</FONT>>, fillcolor="#FFFFFF", color="#B0413E"];
 
-        { rank=same; github_models; tavily; wikipedia; duckdns; letsencrypt; }
+        { rank=same; anthropic_claude; tavily; wikipedia; duckdns; letsencrypt; }
     }
 
     // ============================================================
@@ -267,7 +267,7 @@ digraph NovumArchitecture {
     // ============================================================
     { rank=min;  l_client; l_frontend; l_security; l_app; l_data; l_ext; }
     { rank=same; browser; vercel; }
-    { rank=max;  github_models; tavily; wikipedia; duckdns; letsencrypt; }
+    { rank=max;  anthropic_claude; tavily; wikipedia; duckdns; letsencrypt; }
 
     // Invisible "spine" edges that force a clean vertical stack:
     //   Row 1: Legend   →   Row 2: Client + Frontend
@@ -283,7 +283,7 @@ digraph NovumArchitecture {
     browser    -> hcfw           [style=invis, weight=20];
     vercel     -> fail2ban       [style=invis, weight=20];
 
-    backups    -> github_models  [style=invis, weight=30];
+    backups    -> anthropic_claude  [style=invis, weight=30];
     backups    -> tavily         [style=invis, weight=30];
     backups    -> wikipedia      [style=invis, weight=30];
     backups    -> duckdns        [style=invis, weight=30];
@@ -313,7 +313,7 @@ digraph NovumArchitecture {
     pg -> backups           [label="nightly", style=dashed, color="#C97A2B"];
 
     // App → External  (downward to bottom row)
-    llm_client -> github_models [label=<HTTPS<BR/>Bearer PAT>, color="#B0413E"];
+    llm_client -> anthropic_claude [label=<HTTPS<BR/>x-api-key>, color="#B0413E"];
     seams -> tavily             [label="HTTPS", color="#B0413E"];
     seams -> wikipedia          [label="HTTPS", color="#B0413E"];
 
@@ -333,7 +333,7 @@ digraph NovumArchitecture {
 - **Client / Frontend** (blue / purple): the browser pulls a fully static React bundle from Vercel; from there all data calls go to the Hetzner VM over HTTPS.
 - **Hetzner VM** (green box): one machine, one process. Three layers of network filtering (yellow) wrap a single FastAPI app fronted by Caddy. The application plane (uvicorn + FastAPI modules) talks to the data plane (Postgres + Alembic-managed tables) over the Unix socket.
 - **Data plane** (orange): the `events` table with its JSONB payload is the source of truth; everything else is derived. Nightly `pg_dump` to a local directory.
-- **External services (bottom, horizontal)** (red): GitHub Models, Tavily, Wikipedia, DuckDNS, Let's Encrypt — all third-party. Anything outside the green box is untrusted.
+- **External services (bottom, horizontal)** (red): Anthropic Claude (V1 active LLM provider; Gemini / OpenAI / GitHub Models are wired but inactive), Tavily, Wikipedia, DuckDNS, Let's Encrypt — all third-party. Anything outside the green box is untrusted.
 - **Solid arrows** = synchronous request paths in steady state. **Dashed arrows** = control / async / out-of-band flows (event fan-out, backups, ACME, DNS).
 - **Orthogonal routing**: every edge is drawn in right angles for readability.
 
@@ -762,7 +762,7 @@ class OutputRenderer(Protocol):
 
 - **Planner** — the brain; making it swappable is V2.
 - **Storage** — Postgres via SQLAlchemy; swap = repo module + new migrations, not a plugin contract.
-- **LLM provider** — abstracted behind `llm.client.call`, but contract too thin to promote to seam status.
+- **LLM provider** — abstracted behind `llm.client.call` (provider-agnostic via litellm; supports Anthropic / Gemini / OpenAI / GitHub Models, V1 enables only Anthropic). The contract is too thin to promote to seam status, but switching the active provider is one env var + one line in `app/llm/models.py`.
 
 ---
 

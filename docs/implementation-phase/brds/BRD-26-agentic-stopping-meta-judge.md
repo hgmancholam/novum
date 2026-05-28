@@ -459,7 +459,7 @@ If the saturated-run latency target is not met after 2 weeks, lower the VoC cont
 | Meta-judge over-confidence ("just one more round will fix it") leads to runaway continuation | Medium | Medium | Hard caps remain the absolute floor; telemetry alerts when `meta_judge_calls_per_run > max_judge_attempts × 1.5`. |
 | Meta-judge under-confidence stops good runs early | Medium | Medium | The `expected_delta_s ≥ 0.03` threshold is configurable; AC pass is a second chance — if AC finds no unanswered objections the stop is well-founded. |
 | AC objections degenerate to variations of the same concern | Medium | Low | Prompt explicitly forbids variations; unit test on a known degenerate fixture ensures the LLM does not regress. |
-| Meta-judge cost regresses LLM quota | Low | Medium | 4-PAT pool absorbs; if not, lower default to 1 meta-judge call per round (skip AC unless VoC `expected_delta_s ≥ 0.10`). |
+| Meta-judge cost regresses LLM quota | Low | Medium | Anthropic tier-1 rate limits absorb easily; if not, lower default to 1 meta-judge call per round (skip AC unless VoC `expected_delta_s ≥ 0.10`). |
 | Determinism breaks if meta-judge returns slightly different text on replay | High if mishandled | High | All meta-judge outputs persisted verbatim; replay never re-invokes (AC-09). This is the same pattern used for judge and synthesizer outputs. |
 | Meta-judge and judge disagree pathologically (judge approves, VoC says `continue`) | Low | Low | When `judge.verdict == approve` AND `final_confidence ≥ threshold`, the meta-judge is **not invoked** (§4.6 step 1). Disagreement is impossible on the happy path. |
 

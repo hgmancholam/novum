@@ -260,7 +260,7 @@ $$
 
 This forces the judge to populate `reasoning` with skeptical content before the confidence number, which empirically reduces overconfidence and gives the trace a falsifiable rationale.
 
-**Provider separation (planned).** Whenever multiple LLM providers are available, the judge runs on a **different model family** than the synthesizer. This breaks self-reinforcement at the model level. Documented as a stack decision; default-on whenever feasible.
+**Provider separation (interface-ready, deferred in V1).** The `app/llm/client.py::call` interface is provider-agnostic (litellm) and supports Anthropic, Google Gemini, OpenAI direct, and GitHub Models. The ideal R6 mitigation runs the judge on a **different model family** than the synthesizer to break self-reinforcement at the model level. **V1 ships single-provider single-family** (all roles on `anthropic/claude-sonnet-4-6`); re-enabling cross-family judging is a one-line change in `app/llm/models.py` plus exporting the corresponding API key. While deferred, the R6 floor is held by the adversarial judge prompt, the `min(S, J)` cap, and the meta-judge tiebreak (BRD-26).
 
 ---
 
@@ -410,7 +410,7 @@ This makes the formula a **living artifact**, not a magic number set on day one.
 
 | Failure mode | Why it can happen | Mitigation in V1 |
 |---|---|---|
-| **Inflated `J`** (judge agrees with itself) | Same-provider judge + synthesizer | Adversarial prompt; provider separation when available; `min(S, J)` caps the damage; **`ConfidenceMismatch` event surfaces `S_low_J_high` as a yellow trust-flag (RF-15)** |
+| **Inflated `J`** (judge agrees with itself) | Same-family judge + synthesizer (V1 ships both on Anthropic Claude; cross-family judging is supported by the interface but disabled) | Adversarial judge prompt; meta-judge tiebreak (BRD-26); `min(S, J)` caps the damage; **`ConfidenceMismatch` event surfaces `S_low_J_high` as a yellow trust-flag (RF-15)**; provider separation re-enableable post-V1 |
 | **Inflated `C_coverage`** (planner emits trivial sub-claims) | Planner gaming the structural signal | **`plan_critic` LLM call after `PlanCreated` rejects trivial/overlapping plans (RF-14)**; one re-plan attempt allowed; second failure → `Stopped(honest_ambiguous, sub_reason=plan_unstable)`. The judge is also asked to assess sufficiency *of the original question*, not the sub-claim list. |
 | **Inflated `C_agreement` from confirmation bias** | Agent searches only for evidence *for* each claim | **Mandatory disconfirmation pass (RF-15) before A votes `stop`**: one adversarial query per covered claim with `query_intent="refuting"`. Refuting evidence forms its own cluster, lowering `a(c)` correctly. |
 | **Inflated `C_diversity` from echo-chamber domains** | Multiple sources of the same `kind` but the same upstream | **`C_independence` (eTLD+1 domain count) blended 50/50 into `C_diversity` (RF-15)**: five Medium posts no longer score as diverse. |

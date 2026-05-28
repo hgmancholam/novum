@@ -38,11 +38,11 @@
                                 └────────┬────┬────────────────────────┘
                                          │    │
                        ┌─────────────────▼┐  ┌▼──────────────────┐
-                       │ GitHub Models    │  │ Tavily API        │
-                       │ (LLM gateway)    │  │ (web search)      │
-                       └──────────────────┘  └───────────────────┘
-                                              ┌───────────────────┐
-                                              │ Wikipedia API     │
+                       │ Anthropic Claude │  │ Tavily API        │
+                       │ (LLM provider,   │  │ (web search)      │
+                       │  V1 active via   │  └───────────────────┘
+                       │  litellm)        │  ┌───────────────────┐
+                       └──────────────────┘  │ Wikipedia API     │
                                               └───────────────────┘
 ```
 
@@ -167,23 +167,24 @@
 
 ## 4. External providers
 
-### 4.1 LLM · GitHub Models ✅
+### 4.1 LLM · Anthropic Claude (via provider-agnostic interface) ✅
 
 | Property | Value |
 |---|---|
-| Endpoint | `https://models.github.ai/inference` |
-| Auth | `Authorization: Bearer <GITHUB_TOKEN>` (PAT) |
-| Free tier | Daily request limits per tier (Low / High models) |
-| SDK | OpenAI-compatible → wrapped by **litellm** with `model="github/<provider>/<model>"` |
-| Models in use | `meta/Llama-4-Scout`, `deepseek/DeepSeek-V3`, `openai/gpt-5` (see tech-stack §2.3) |
-| Tarjeta | No |
+| Endpoint | `https://api.anthropic.com` (reached via `litellm`) |
+| Auth | `x-api-key: <ANTHROPIC_API_KEY>` |
+| Pricing | Pay-as-you-go (Haiku 4.5 + Sonnet 4.6 tiers — see ai-services.md §1.5) |
+| SDK | Anthropic native, wrapped by **litellm** with `model="anthropic/<model>"` |
+| Models in use (V1) | `anthropic/claude-haiku-4-5` (classifier), `anthropic/claude-sonnet-4-6` (planner / synthesizer / judge / meta-judge) |
+| Tarjeta | **Sí** (Anthropic billing) |
 
-**Free-tier limits (May 2026, approximate):**
-- Low-tier models (Llama Scout): ~150 req/day, 50 req/min.
-- High-tier models (GPT-5, DeepSeek-V3): ~50 req/day, 10–15 req/min.
-- ~5–8 LLM calls per run → ~6–8 full runs per day on the High models on the free tier.
+**Provider-agnostic interface.** `app/llm/client.py::call` supports four providers (Anthropic, Google Gemini, OpenAI direct, GitHub Models). V1 enables only Anthropic; the others are wired but inactive. Switching providers is one line in `app/llm/models.py` + exporting the corresponding API key (`GITHUB_TOKEN`, `OPENAI_API_KEY`, or `GOOGLE_API_KEY`).
 
-**Mitigation during build:** use Llama Scout for every role during development; switch to the final assignment for validation and demo.
+**Rate limits (Anthropic tier 1):** 50 RPM, 40k input tok/min, 8k output tok/min. Single-server scope (RF-05) → no risk of saturation.
+
+**Per-run cost:** ≈ $0.01–0.04 (6–8 calls of ~1–3k tokens each).
+
+**Plan B for outage:** fall back to GitHub Models (zero cost) by setting `GITHUB_TOKEN` and pointing roles at `openai/gpt-5` or `deepseek/DeepSeek-V3-0324` in `app/llm/models.py`. See §5.4.
 
 ### 4.2 Search · Tavily ✅
 
@@ -219,13 +220,13 @@ Heterogeneity provider (RF-04 minimum source set).
 | Vercel Hobby | $0 | Always free for personal use within limits. |
 | Oracle Cloud Ampere | $0 | Always-free tier, no expiration. |
 | PostgreSQL 16 (self-hosted) | $0 | Apt package on the Oracle VM. Uses ~150 MB RAM idle — trivial vs the 12 GB allowance. |
-| GitHub Models | $0 | Within free-tier rate limits. |
+| Anthropic Claude (V1 LLM provider) | ~$0.01–0.04 per run | Pay-as-you-go; **~$5/month ceiling** at expected V1 cadence (≤ 50 runs/day during validation + demo). |
 | Tavily | $0 | Within 1000/month free tier. |
 | Wikipedia API | $0 | Unlimited free. |
 | DuckDNS | $0 | Free DNS service. |
 | Let's Encrypt (via Caddy) | $0 | Free TLS certificates. |
 | GitHub Actions | $0 | Public repo or 2000 min/month free for private. |
-| **Total** | **$0/month** | Indefinite. |
+| **Total** | **≈ $5/month ceiling** | Anthropic is the only paid line item; everything else is free indefinitely. |
 
 ### 5.2 One-time / build-phase cost
 
@@ -233,7 +234,7 @@ Heterogeneity provider (RF-04 minimum source set).
 |---|---|---|
 | Domain name (optional) | $0–$15/year | Skippable — DuckDNS suffices. |
 | Personal time | Yours | Already budgeted as 4–6 h for build + ~1 h for infra setup. |
-| **Total cost to ship V1** | **$0** | If GitHub Models stays free; if reviewer demos exceed limits in one day, ~$5 of OpenAI direct on hand as failsafe. |
+| **Total cost to ship V1** | **~$5/month** | Anthropic API usage during validation + demo. Plan B (GitHub Models free tier) keeps cost at $0 if needed. |
 
 ### 5.3 Cards required
 
@@ -241,7 +242,8 @@ Heterogeneity provider (RF-04 minimum source set).
 |---|---|
 | Vercel | No |
 | Oracle Cloud | **Yes** (verification only — no charges on always-free tier) |
-| GitHub Models | No (just PAT) |
+| Anthropic | **Yes** (billing — pay-as-you-go) |
+| GitHub Models | No (just PAT) — Plan B only |
 | Tavily | No (Google login suffices) |
 | DuckDNS | No (GitHub login suffices) |
 
@@ -251,7 +253,7 @@ Heterogeneity provider (RF-04 minimum source set).
 
 | Aspect | Setup |
 |---|---|
-| Fallback backend | **`localhost:8000` + Cloudflare Tunnel** (`cloudflared tunnel`) |
+| Fallback backend | **`localhost:8000` + Cloudflare Tunnel** (`cloudflared tunnel`) + LLM fallback to GitHub Models free tier (set `GITHUB_TOKEN`, repoint roles in `app/llm/models.py`) |
 | Activation time | ~30 seconds (`cloudflared tunnel --url localhost:8000`) |
 | Cost | $0 |
 | Switch in frontend | Change `VITE_API_URL` in Vercel env vars, redeploy (~30s) |

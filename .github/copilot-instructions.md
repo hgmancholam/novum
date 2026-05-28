@@ -35,11 +35,11 @@ Authoritative sources (read these before proposing changes):
 - **§9** — Technical decisions (TanStack Query, localStorage keys, SSE protocol)
 
 **AI Services is binding for all backend LLM/search work.** It defines:
-- **§1** — GitHub Models: 4 LLM roles (classifier, planner, synthesizer, judge) + model assignments
+- **§1** — Provider-agnostic LLM interface (`app/llm/client.py::call` via litellm) supporting Anthropic, Google Gemini, OpenAI direct, GitHub Models. **V1 active: Anthropic Claude only.** 5 LLM roles (classifier, planner, synthesizer, judge, meta-judge) + model assignments.
 - **§1.3** — All LLM calls through `app/llm/client.py::call` — never call litellm directly
 - **§2** — Tavily: web search Source plugin with `search_depth="advanced"`
 - **§3** — Wikipedia: second Source plugin for source heterogeneity (RF-04)
-- **§5** — Environment variables: `GITHUB_TOKEN`, `TAVILY_API_KEY`
+- **§5** — Environment variables: `ANTHROPIC_API_KEY` (required), `TAVILY_API_KEY` (required), `GITHUB_TOKEN` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` (optional fallbacks, wired-but-disabled in V1)
 
 When the user asks you to change a decision, update the originating doc — do not silently diverge from it in code.
 
@@ -50,7 +50,7 @@ When the user asks you to change a decision, update the originating doc — do n
 ### Backend (`backend/`)
 - **Python 3.12** + **FastAPI** + **Pydantic v2** + **uvicorn --workers 1** (single worker preserves in-process advisory lock).
 - **asyncio** + **anyio** for primitives. **httpx[http2]** for HTTP. **orjson** for serialization.
-- LLM: **litellm** + **instructor** (structured outputs) + **tiktoken** + **tenacity**. Single provider in V1: **GitHub Models** (`GITHUB_TOKEN`).
+- LLM: **litellm** + **instructor** (structured outputs) + **tiktoken** + **tenacity**. **Provider-agnostic interface** (Anthropic / Gemini / OpenAI / GitHub Models). V1 active: **Anthropic Claude** (`ANTHROPIC_API_KEY`).
 - Orchestration: **custom FSM** over a `RunState` Pydantic model — **no LangGraph / LangChain / LlamaIndex** in V1.
 - Search: **tavily-python** (web), **wikipedia-api**.
 - Storage: **PostgreSQL 16** + **SQLAlchemy 2.0 async** + **asyncpg** + **Alembic** migrations. Schema: `users`, `runs`, `events(payload JSONB)`. Single-writer-per-run task registry replaces filelock. **No Redis / vector DB.**
@@ -112,7 +112,7 @@ All code artifacts in **English**: identifiers, comments, docstrings, log messag
 
 Required:
 ```env
-GITHUB_TOKEN=<github_pat>
+ANTHROPIC_API_KEY=<sk-ant-...>
 TAVILY_API_KEY=<tvly-...>
 ```
 

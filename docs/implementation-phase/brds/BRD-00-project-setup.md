@@ -203,12 +203,17 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/novum"
 
-    # LLM
-    github_token: str
-    llm_model_researcher: str = "gpt-4o"
-    llm_model_judge: str = "o1-mini"
-    llm_model_planner: str = "gpt-4o-mini"
-    llm_model_critic: str = "gpt-4o-mini"
+    # LLM (provider-agnostic interface via litellm; V1 active provider = Anthropic Claude)
+    anthropic_api_key: str
+    # Optional fallback providers (wired but disabled in V1)
+    github_token: str | None = None
+    openai_api_key: str | None = None
+    google_api_key: str | None = None
+    llm_model_classifier: str = "anthropic/claude-haiku-4-5"
+    llm_model_planner: str = "anthropic/claude-sonnet-4-6"
+    llm_model_synthesizer: str = "anthropic/claude-sonnet-4-6"
+    llm_model_judge: str = "anthropic/claude-sonnet-4-6"
+    llm_model_meta_judge: str = "anthropic/claude-sonnet-4-6"
 
     # Search
     tavily_api_key: str
@@ -313,8 +318,12 @@ async def get_db() -> AsyncSession:
 # Database
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/novum
 
-# LLM (GitHub Models)
-GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+# LLM — V1 active provider: Anthropic Claude (interface is provider-agnostic via litellm)
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxx
+# Optional fallback providers (wired but disabled in V1 — leave unset unless re-enabling)
+# GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+# OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
+# GOOGLE_API_KEY=xxxxxxxxxxxxxxxxxxxx
 
 # Search
 TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxxxxxx
@@ -702,7 +711,10 @@ Then both commands exit with code 0
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `DATABASE_URL` | Yes | localhost | PostgreSQL connection string |
-| `GITHUB_TOKEN` | Yes | — | GitHub PAT for Models API |
+| `ANTHROPIC_API_KEY` | Yes | — | Anthropic API key (V1 active LLM provider — all 5 roles) |
+| `GITHUB_TOKEN` | No | — | Optional fallback (GitHub Models, wired-but-disabled in V1) |
+| `OPENAI_API_KEY` | No | — | Optional fallback (OpenAI direct, wired-but-disabled in V1) |
+| `GOOGLE_API_KEY` | No | — | Optional fallback (Google Gemini, wired-but-disabled in V1) |
 | `TAVILY_API_KEY` | Yes | — | Tavily search API key |
 | `VITE_API_URL` | No | `""` | Backend URL for frontend |
 

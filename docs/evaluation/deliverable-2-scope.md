@@ -28,7 +28,7 @@ Todo lo demás de este documento es soporte para que esas tres piezas se evalúe
 - [ ] Backend desplegado (Hetzner/Oracle + Caddy + DuckDNS) con URL pública HTTPS.
 - [ ] Login funcional por `username` (sin password — RF de auth ligera).
 - [ ] Al menos un usuario seed o instrucciones claras de cómo loguearse.
-- [ ] Variables de entorno productivas configuradas: `GITHUB_TOKEN`, `TAVILY_API_KEY`, `VITE_API_URL`.
+- [ ] Variables de entorno productivas configuradas: `ANTHROPIC_API_KEY`, `TAVILY_API_KEY`, `VITE_API_URL`. (`GITHUB_TOKEN` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` son opcionales — la interfaz LLM es agnóstica al proveedor pero V1 solo activa Anthropic Claude.)
 - [ ] Health-check del backend respondiendo `200`.
 
 ### 2.2 Código fuente (obligatorio)
@@ -107,7 +107,7 @@ Para evitar over-engineering (el reto explícitamente penaliza el polish vacío)
 - ❌ Storybook, i18n, dark mode toggle, animaciones decorativas.
 - ❌ Métricas/observabilidad (Sentry, Datadog, Prometheus).
 - ❌ Docker/k8s — el build corre directo con `uv` + `npm`.
-- ❌ Migraciones a otros proveedores LLM más allá de GitHub Models.
+- ❌ Activación en producción de proveedores LLM adicionales (Google Gemini, OpenAI directo, GitHub Models). La capa de interfaz ya los soporta vía litellm; V1 solo habilita Anthropic Claude.
 - ❌ Tests E2E (Playwright) — sólo unitarios.
 - ❌ Documentación nueva fuera de las 4 carpetas existentes (`understanding-phase`, `technical-phase`, `implementation-phase`, `evaluation`).
 
@@ -131,6 +131,6 @@ Si cualquiera de los 4 pasos requiere preguntarme algo, el entregable no está l
 | # | Riesgo | Mitigación propuesta |
 |---|--------|----------------------|
 | R1 | Deploy del backend no está confirmado | Verificar URL pública + healthcheck antes de enviar |
-| R2 | `GITHUB_TOKEN` con cuota limitada puede agotarse durante la demo | Tener token de respaldo o cache de respuestas para las 3 preguntas del demo script |
+| R2 | `ANTHROPIC_API_KEY` con cuota / crédito agotado durante la demo | Plan B: exportar `GITHUB_TOKEN` y repuntar roles a `openai/gpt-5` o `deepseek/DeepSeek-V3-0324` en `app/llm/models.py` (interfaz agnóstica). Adicional: cache de respuestas para las 3 preguntas del demo script. |
 | R3 | La nota de cambios crece sin disciplina | Limitarla a 1 página, formato tabla |
-| R4 | El evaluador pide extender algo fuera de los 3 seams | Tener clara la lista de **not-seams** (planner, storage, LLM provider) y por qué |
+| R4 | El evaluador pide extender algo fuera de los 3 seams | Tener clara la lista de **not-seams** (planner, storage, LLM provider — este último aislado tras la interfaz agnóstica `llm.call` con 4 providers soportados) y por qué |

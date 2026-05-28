@@ -4,7 +4,7 @@
 > Updated automatically by agents after each task.
 
 **Last Updated:** 2026-05-28
-**Updated By:** Orchestrator Agent (post IP-25 Phase F approved 9.48/10 — IP-25 COMPLETE)
+**Updated By:** Orchestrator Agent (post IP-26 slice 3 committed `edb0da8` + embed-hang fix `10a68cd`)
 
 ---
 
@@ -47,6 +47,7 @@
 | IP-14 | BRD-14 Trace Panel | 2026-05-26 | Completed | [IP-14](../../../docs/implementation-phase/implementation-plans/IP-14-trace-panel.md) |
 | IP-15 | BRD-15 Fork & Resume from Events | 2026-05-26 | Completed | [IP-15](../../../docs/implementation-phase/implementation-plans/IP-15-fork-resume.md) |
 | IP-23 | BRD-23 Research-Quality Improvements (Temporal · Authority · Deep-Fetch · Query Hygiene) | 2026-05-27 | Draft (F2) | [IP-23](../../../docs/implementation-phase/implementation-plans/IP-23-research-quality-improvements.md) |
+| IP-26 | BRD-26 Agentic Stopping & Meta-Judge | 2026-05-28 | Slices 1–3 committed (local) — slice 3b' deferred (cost-gate) | [IP-26](../../../docs/implementation-phase/implementation-plans/IP-26-agentic-stopping-meta-judge.md) |
 
 ---
 
@@ -76,6 +77,7 @@
 | BRD-20 | Delete Finished Run & History Pagination | 2026-05-27 | Implemented | [BRD-20](../../../docs/implementation-phase/brds/BRD-20-delete-run-and-pagination.md) |
 | BRD-22 | Complexity-Aware Planning + Expected Experts + Instant Cache | 2026-05-27 | Implemented | [BRD-22](../../../docs/implementation-phase/brds/BRD-22-complexity-aware-planning-and-experts.md) |
 | BRD-23 | Research-Quality Improvements (Temporal · Authority · Deep-Fetch · Query Hygiene) | 2026-05-27 | Draft (F1) | [BRD-23](../../../docs/implementation-phase/brds/BRD-23-research-quality-improvements.md) |
+| BRD-26 | Agentic Stopping & Meta-Judge | 2026-05-28 | Implemented (slices 1–3, local) | [BRD-26](../../../docs/implementation-phase/brds/BRD-26-agentic-stopping-meta-judge.md) |
 
 ---
 
