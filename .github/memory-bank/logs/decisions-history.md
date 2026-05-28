@@ -4,11 +4,77 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-29
-**Total Decisions:** 55
+**Total Decisions:** 58
 
 ---
 
 ## Recent Decisions
+
+## D-PUBLIC-MODAL: Suppress login modal auto-open on public routes
+**Date:** 2026-05-29
+**Phase:** Out-of-band UX fix (ad-hoc user request — *"si estoy en / no debería necesitar login porque esa página es pública"*)
+**Artifacts:** [UsernameModalContainer.tsx](../../../frontend/src/components/organisms/UsernameModalContainer.tsx), [usePathname.ts](../../../frontend/src/hooks/usePathname.ts), commit `17d9b59`
+
+### Outcome
+The global `UsernameModalContainer` no longer auto-opens the username modal for unauthenticated visitors on the public `/` route (HowWeWorkPage). Manual `useLoginModal.open()` still works everywhere; `/run` and protected routes keep forcing the modal.
+
+### Mechanics
+- New `frontend/src/hooks/usePathname.ts` subscribes to `router` via `useSyncExternalStore` so components mounted **outside** `RouterProvider` (the modal container is a sibling in `main.tsx`) still react to SPA navigations.
+- `PUBLIC_ROUTES = new Set(["/"])` is the single registry. Adding a future public route = one-line change.
+- Auto-open contract updated: `autoOpen = !isVerifying && !isAuthenticated && !isPublicRoute`.
+- Tests: 2 new specs in `UsernameModalContainer.test.tsx` (no auto-open on `/`, manual open still works on `/`). `main.test.tsx` updated to mock `usePathname` to `/run` so the existing sibling-render assertion stays valid.
+
+### Why not a router-level guard?
+The modal is intentionally global (mounted as a sibling of `RouterProvider`) so it survives across routes and can be opened from anywhere. Moving it into the router tree would force a root layout route + plumbing. The pathname-aware suppression is the smallest change that preserves the global mount.
+
+---
+
+## D-AURORA-MANDATORY: Slate Aurora is binding for the whole app (override clause)
+**Date:** 2026-05-29
+**Phase:** Design-system lock-in (ad-hoc user request — *"los guidelines de diseño tienen que ser mandatorios en el resto de la aplicación… haz que sean patrones irreemplazables"*)
+**Artifacts:** [ui-design.md](../../understanding-phase/ui-design.md), [ui-prototype.md](../../understanding-phase/ui-prototype.md), commit `bb6bc12`
+
+### Outcome
+The visual language established on `HowWeWorkPage` (animated background orbs, glass surfaces, canonical CTA recipes, headline gradient text, `fadeUp + stagger` scroll-reveal, pill chips, top-bar glass header) is now **mandatory** for every screen, modal and component. Reviewers MUST reject PRs that diverge.
+
+### Sections added to `ui-design.md`
+- **§0 binding preamble** — 8 non-negotiable rules (background, surfaces, buttons, headline highlight, scroll-reveal, tokens-only, motion budget, reduced motion).
+- **§2.9** Animated `BackgroundOrbs` (indigo + violet + amber drift loops 14 / 18 / 16 s).
+- **§5.3** `fadeUp + stagger` scroll-reveal preset with the exact Motion variants.
+- **§6.1.1** Canonical button recipes — verbatim Tailwind v4 classes lifted from the hero CTAs.
+- **§6.8** Headline gradient text — whitelist: hero `<h1>` highlight + confirmed-answer confidence value.
+- **§6.9** Pill chip and link badge.
+- **§6.10** Top-bar glass header (`bg-(--bg-secondary)/60 backdrop-blur-xl`).
+- **§11 Pattern lock-in** — 12-row table of irreplaceable patterns + §11.1 procedure to add new patterns + §11.2 override clause.
+
+### Changes to `ui-prototype.md`
+- New binding-precedence header at the top: `ui-design.md` wins on every visual conflict.
+- §1.2 rewritten as the seven mandatory Slate Aurora ingredients.
+- L2 statement no longer says *"no decorative animations"* — the orbs and gradient text are explicitly part of the brand.
+
+### Override clause
+Any prior text in `ui-prototype.md`, in component docstrings, or in `.github/memory-bank/**` that conflicts with §11 of `ui-design.md` is superseded. See L-018 in `lessons-learned.md` for the agent-facing summary.
+
+---
+
+## D-MOBILE-DIAGRAM: Hide PipelineDiagram below `sm` (640 px)
+**Date:** 2026-05-29
+**Phase:** Out-of-band UX fix (ad-hoc user request — *"en móvil no se pueden ver los cuadros del diagrama, ocúltalo en vista móvil"*)
+**Artifacts:** [HowWeWorkPage.tsx](../../../frontend/src/pages/HowWeWorkPage.tsx), commit `77c755a`
+
+### Outcome
+The 1200×520 viewBox `PipelineDiagram` SVG is hidden on viewports < 640 px (all iPhone classes). Tablet and desktop unchanged. Section title + descriptive paragraph remain visible so the narrative still flows on mobile.
+
+### Mechanics
+One-line Tailwind change on the wrapper `motion.div`:
+```tsx
+className="... hidden ... sm:block sm:p-10"
+```
+
+### Generalization
+See **L-020** in `lessons-learned.md` — any decorative SVG with a viewBox ratio wider than ~2.3 : 1 on a section that also has a descriptive paragraph gets `hidden sm:block` by default. Load-bearing diagrams need a mobile-first vertical variant instead.
+
+---
 
 ## D-HOW-WE-WORK: Marketing page `/how-we-work` (storytelling)
 **Date:** 2026-05-29

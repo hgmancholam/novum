@@ -3,15 +3,80 @@
 > Repository of lessons learned during the Novum development.
 > All agents must consult this before starting tasks and update after completing them.
 
-**Last Updated:** 2026-05-27
-**Total Lessons:** 17
+**Last Updated:** 2026-05-29
+**Total Lessons:** 20
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
+> **Reaffirmed 2026-05-29:** L-018 (Slate Aurora is MANDATORY for every screen) — see `docs/understanding-phase/ui-design.md` §0 preamble + §11 Pattern lock-in, and D-AURORA-MANDATORY.
 
 ---
 
 ## Recent Lessons
+
+## L-020 — SVG diagrams that rely on a wide viewBox MUST be hidden below `sm` (640 px)
+**Date:** 2026-05-29 (origin: HowWeWorkPage `PipelineDiagram` — a 1200×520 viewBox SVG with 9 nodes was rendered on iPhone-class viewports and the user reported the boxes were unreadable / invisible).
+
+**Rule:** Any decorative or explanatory SVG whose internal layout assumes ≥ ~800 px of horizontal room MUST be wrapped in a container that carries `hidden sm:block` (or equivalent `md:` if even tablet is too tight). The page keeps the surrounding title + description so the section still makes sense; only the diagram is dropped on mobile.
+
+**Why not just shrink it?** Scaling a 1200-px-wide vector down to 380 px collapses stroke widths, gradient bboxes (see L-019) and label spacing past legibility. Hiding is honest; squashing pretends the diagram still communicates.
+
+**Pattern**
+```tsx
+<motion.div className="hidden sm:block ...">
+  <DiagramSVG />
+</motion.div>
+```
+
+**Symptoms to watch for**
+- Reviewer screenshot from a mobile device shows the diagram container as a black/empty box.
+- Nodes appear but text labels overflow / overlap.
+- A `viewBox` ratio wider than ~2.3 : 1 on a section that also has a descriptive paragraph.
+
+**Mitigation**
+- Default for any new pipeline / lane / timeline SVG: `hidden sm:block`.
+- If the diagram is load-bearing (the section makes no sense without it), build a mobile-first vertical variant instead of cramming the desktop one.
+
+---
+
+## L-019 — Flat horizontal SVG paths cannot use `linearGradient` with default `objectBoundingBox` units
+**Date:** 2026-05-29 (origin: HowWeWorkPage `PipelineDiagram` — three horizontal connectors at y = 260 rendered as invisible strokes because their bounding box has zero height, collapsing the gradient).
+
+**Rule:** `<linearGradient>` defaults to `gradientUnits="objectBoundingBox"`. When a stroked path is perfectly flat on one axis, that axis of the bbox has zero size and the gradient degenerates. For any flat segment, either:
+1. Switch to a solid `stroke="rgba(...)"` token (the fix applied — see commit `974c7c4`), or
+2. Set `gradientUnits="userSpaceOnUse"` on the `<linearGradient>` and provide absolute `x1/y1/x2/y2`.
+
+**Symptoms to watch for**
+- Path is present in the DOM, hit-testable, but visually missing.
+- The same gradient renders fine on curved siblings (which have non-zero bbox on both axes).
+- DevTools shows the path with `stroke="url(#grad-...)"` but no color.
+
+**Mitigation**
+- For connector lines in pipeline diagrams, prefer solid token strokes (`rgba(99,102,241,0.7)` for indigo, `rgba(251,191,36,0.85)` for amber). Reserve gradients for arcs/curves where the bbox is naturally 2D.
+
+---
+
+## L-018 — Slate Aurora is MANDATORY across the whole app, not a landing-page treatment
+**Date:** 2026-05-29 (origin: the HowWeWorkPage `/` landing established the canonical visual language — animated background orbs, glass surfaces, canonical button recipes, gradient-text headline, `fadeUp + stagger` scroll-reveal — and the user explicitly required these patterns to apply everywhere).
+
+**Rule:** Every page, modal, organism and atom MUST implement the Slate Aurora patterns defined in `docs/understanding-phase/ui-design.md` §0 (mandatory preamble) and §11 (Pattern lock-in table, 12 irreplaceable patterns). Reviewers MUST reject PRs that:
+- Use solid `bg-black` / `bg-gray-*` / `bg-slate-*` Tailwind classes instead of token-bound surfaces.
+- Reinvent button styles inline instead of going through the `Button` atom (variants `primary` / `secondary` / `ghost` / `danger`).
+- Skip `BackgroundOrbs` on a full-viewport route (`AppShell` paints it for authenticated pages; standalone pages render it directly).
+- Use gradient text outside the two whitelisted locations (hero `<h1>` highlight and confirmed-answer confidence value).
+- Skip the `fadeUp + stagger` preset for sections below the fold.
+- Hardcode hex / rgb values; tokens are the only allowed source.
+
+**Where to find the canonical recipes**
+- Background orbs: `ui-design.md` §2.9 + `frontend/src/pages/HowWeWorkPage.tsx` lines 84–117 (reference impl).
+- Button CTAs: `ui-design.md` §6.1.1 (verbatim Tailwind classes).
+- Scroll-reveal: `ui-design.md` §5.3 + `frontend/src/lib/motion.ts` (when extracted).
+- Gradient text: `ui-design.md` §6.8.
+- Pill chip + top-bar glass: `ui-design.md` §6.9 / §6.10.
+
+**Override clause:** any prior text in this memory bank, in component docstrings, or in `ui-prototype.md` that contradicts §11 is **superseded by §11**. The lock-in table is the contract.
+
+---
 
 ## L-017 — Subagent edits over large blocks can land in the wrong scope; re-read after every Coder edit
 **Date:** 2026-05-27 (origin: IP-22 Phase 4/5 — Coder injected the `PriorRunHintReplayed` rendering branch inside `formatRelativeTime()` instead of `EventNode`, producing dead JSX and breaking the entire `EventNode.test.tsx` transform).
