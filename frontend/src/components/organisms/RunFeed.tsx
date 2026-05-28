@@ -279,18 +279,17 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
     persistCollapsed(newValue);
   }
 
-  const lastEvent = events[events.length - 1];
-  const lastTimestamp: number = lastEvent?.timestamp_ms ?? 0;
-  // First event with a defined timestamp_ms (the field is optional on the
-  // backend schema; the first emitted event sometimes omits it). Falling
-  // back to 0 produced an absurd elapsed (~Date.now() / 1000 ≈ 1.78e9 s).
-  const firstTimestamp: number =
-    events.find((e) => typeof e.timestamp_ms === "number")?.timestamp_ms ?? 0;
+  // Elapsed counter. The backend does not emit `timestamp_ms` (it's only an
+  // optional decorative field on the FE type), so we cannot derive the span
+  // from events. Instead, capture a client-side start time the first time
+  // any event arrives and either tick every second (live) or freeze at the
+  // moment the run completes.
+  const startMsRef = useRef<number | null>(null);
+  const frozenEndMsRef = useRef<number | null>(null);
+  if (events.length > 0 && startMsRef.current === null) {
+    startMsRef.current = Date.now();
+  }
 
-  // Live elapsed ticker: while the run is streaming the wall-clock should
-  // advance every second so the header doesn't get stuck on "0s" when events
-  // arrive in bursts within the same second. Once complete, freeze the
-  // counter at the span between the first and last event.
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   useEffect(() => {
     if (isComplete || events.length === 0) return;
@@ -298,12 +297,18 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
     return () => { window.clearInterval(tick); };
   }, [isComplete, events.length]);
 
-  const elapsedEndMs = isComplete ? lastTimestamp : Math.max(lastTimestamp, nowMs);
+  if (isComplete && frozenEndMsRef.current === null && startMsRef.current !== null) {
+    frozenEndMsRef.current = Date.now();
+  }
+
+  const startMs = startMsRef.current;
+  const endMs = isComplete ? (frozenEndMsRef.current ?? nowMs) : nowMs;
   const totalSeconds =
-    events.length > 0 && firstTimestamp > 0
-      ? Math.max(0, Math.round((elapsedEndMs - firstTimestamp) / 1000))
-      : 0;
+    startMs !== null ? Math.max(0, Math.round((endMs - startMs) / 1000)) : 0;
   const elapsedLabel = formatElapsed(totalSeconds);
+
+  const lastEvent = events[events.length - 1];
+  const lastTimestamp: number = lastEvent?.timestamp_ms ?? 0;
 
   const idleMessage = useIdleReassurance(
     !isComplete && events.length > 0,

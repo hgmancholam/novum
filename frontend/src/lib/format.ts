@@ -101,9 +101,9 @@ export function truncate(text: string, maxLength: number): string {
  */
 export function formatElapsed(seconds: number): string {
   if (seconds < 60) {
-    return `${Math.round(seconds)}s`;
+    return `${Math.round(seconds).toString()}s`;
   }
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.round(seconds % 60);
-  return `${minutes}m ${remainingSeconds}s`;
+  return `${minutes.toString()}m ${remainingSeconds.toString()}s`;
 }
