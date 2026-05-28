@@ -25,9 +25,9 @@ import {
   FEED_REASONING_TRACE,
 } from "@/lib/microcopy";
 import { useIdleReassurance } from "@/lib/idleMessages";
-import { getEventActivity, getEventLabel, getEventNarrative } from "@/lib/eventLabels";
+import { getEventActivity, getEventLabel, getEventNarrative, COMPLEXITY_LABELS, QUESTION_TYPE_LABELS } from "@/lib/eventLabels";
 import { getEventVisual, TONE_COLOR } from "@/lib/eventVisuals";
-import type { EventType } from "@/types/events";
+import type { ComplexityHint, EventType, QuestionType } from "@/types/events";
 import { cn } from "@/lib/cn";
 
 export interface RunFeedProps {
@@ -82,13 +82,23 @@ function mapStepToView(step: FeedStepData): StepView {
       const subClaims =
         (payload.sub_claims as Array<{ text?: string }> | undefined) ?? [];
       const isRevision = type === "PlanRevised";
-      const label = isRevision ? "Plan revised" : "Plan";
+      const complexityRaw = payload.complexity_hint as string | undefined;
+      const complexityLabel =
+        complexityRaw && complexityRaw in COMPLEXITY_LABELS
+          ? COMPLEXITY_LABELS[complexityRaw as ComplexityHint]
+          : undefined;
+      const baseLabel = isRevision ? "Plan revised" : "Plan";
+      const label = complexityLabel
+        ? `${baseLabel} · ${complexityLabel}`
+        : baseLabel;
       const summary =
         rationale.length > 0
           ? rationale
           : isRevision
             ? "Rethought the approach after reviewing the findings."
-            : "Drafted the search plan.";
+            : complexityLabel
+              ? `Drafted a ${complexityLabel.toLowerCase()} plan.`
+              : "Drafted the search plan.";
       const detail =
         subClaims.length > 0
           ? `${summary} I'll verify ${subClaims.length.toString()} sub-claim${subClaims.length === 1 ? "" : "s"}.`
@@ -206,6 +216,25 @@ function mapStepToView(step: FeedStepData): StepView {
       };
     }
     default: {
+      if (type === "QuestionClassified") {
+        const qTypeRaw = payload.detected_question_type as string | undefined;
+        const hintRaw = payload.complexity_hint as string | undefined;
+        const qLabel =
+          qTypeRaw && qTypeRaw in QUESTION_TYPE_LABELS
+            ? QUESTION_TYPE_LABELS[qTypeRaw as QuestionType]
+            : undefined;
+        const cLabel =
+          hintRaw && hintRaw in COMPLEXITY_LABELS
+            ? COMPLEXITY_LABELS[hintRaw as ComplexityHint]
+            : undefined;
+        const label = cLabel ? `Question type · ${cLabel}` : "Question type";
+        const detail = qLabel
+          ? `Classified as a ${qLabel} question${cLabel ? ` (${cLabel.toLowerCase()}).` : "."}`
+          : cLabel
+            ? `Complexity: ${cLabel}.`
+            : "Figured out what kind of question this is.";
+        return { label, detail, accent: "var(--accent)" };
+      }
       const tone = getEventVisual(type).tone;
       const accent = TONE_COLOR[tone];
       const label = getEventLabel(type);

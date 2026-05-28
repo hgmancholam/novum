@@ -115,9 +115,26 @@ describe("eventLabels", () => {
       expect(result).toContain("Done — judge_confirmed");
     });
 
-    it("falls back to getEventActivity for unmapped types", () => {
+    it("returns the base plan narrative when complexity_hint is absent", () => {
       const result = getEventNarrative("PlanCreated", {});
-      expect(result).toBe(getEventActivity("PlanCreated"));
+      expect(result).toBe("Drafted the search plan");
+    });
+
+    it("appends complexity to the plan narrative when present", () => {
+      const result = getEventNarrative("PlanCreated", {
+        complexity_hint: "deep",
+      });
+      expect(result).toBe("Drafted the search plan — deep investigation");
+    });
+
+    it("surfaces classification and complexity for QuestionClassified", () => {
+      const result = getEventNarrative("QuestionClassified", {
+        detected_question_type: "comparative",
+        complexity_hint: "standard",
+      });
+      expect(result).toBe(
+        "Classified as comparative question — Standard research"
+      );
     });
   });
 });

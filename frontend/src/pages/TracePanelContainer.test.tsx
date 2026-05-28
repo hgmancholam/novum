@@ -79,7 +79,7 @@ describe("TracePanelContainer", () => {
     expect(lastCall.enabled).toBe(false);
   });
 
-  it("T1b: renders PlanPreview and Live indicator when only QuestionAsked has arrived", () => {
+  it("T1b: renders timeline and Live indicator when only QuestionAsked has arrived", () => {
     mockUseRunStream.mockReturnValue(
       streamResult({
         events: [{ type: "QuestionAsked", id: "q1" }],
@@ -90,7 +90,6 @@ describe("TracePanelContainer", () => {
     renderAt("/runs/abc");
 
     expect(screen.getByTestId("trace-timeline")).toBeInTheDocument();
-    expect(screen.getByTestId("plan-preview")).toBeInTheDocument();
     expect(screen.getByTestId("trace-live-indicator")).toBeInTheDocument();
 
     const lastCall = mockUseRunStream.mock.calls.at(-1)?.[0] as unknown as {

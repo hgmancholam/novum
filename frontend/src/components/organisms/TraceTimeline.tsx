@@ -5,8 +5,6 @@
  * Data-only inputs:
  *   - `events`: ordered list of stream frames (RunStreamEvent shape).
  *   - `isComplete`: drives final-state behavior (sticky no longer needed).
- *   - `t1b`: render the `PlanPreview` above the list when the timeline
- *     is in the T1b state (zero events, or only a `QuestionAsked`).
  *
  * Sticky-bottom implementation:
  *   We attach a sentinel `<div ref={bottomRef}/>` after the last node and
@@ -24,10 +22,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { JumpToLatestPill } from "@/components/atoms/JumpToLatestPill";
 import { EventNode, type TraceEventInput } from "@/components/molecules/EventNode";
-import { PlanPreview } from "@/components/molecules/PlanPreview";
 import { cn } from "@/lib/cn";
 import { EXPANDED_BY_DEFAULT } from "@/lib/eventVisuals";
-import type { EventType } from "@/types/events";
+import type { ComplexityHint, EventType, QuestionType } from "@/types/events";
+import { COMPLEXITY_LABELS, QUESTION_TYPE_LABELS } from "@/lib/eventLabels";
 
 export interface TraceTimelineEvent {
   /** Optional uuid from the event log. */
@@ -56,6 +54,32 @@ function keyOf(event: TraceTimelineEvent, index: number): string {
 
 function summaryOf(event: TraceTimelineEvent): string | undefined {
   const payload = event as Record<string, unknown>;
+
+  if (event.type === "QuestionClassified") {
+    const qType = payload["detected_question_type"];
+    const hint = payload["complexity_hint"];
+    const qLabel =
+      typeof qType === "string" && qType in QUESTION_TYPE_LABELS
+        ? QUESTION_TYPE_LABELS[qType as QuestionType]
+        : undefined;
+    const cLabel =
+      typeof hint === "string" && hint in COMPLEXITY_LABELS
+        ? COMPLEXITY_LABELS[hint as ComplexityHint]
+        : undefined;
+    if (qLabel && cLabel) return `${cLabel} · ${qLabel} question`;
+    if (qLabel) return `${qLabel} question`;
+    if (cLabel) return cLabel;
+  }
+
+  if (event.type === "PlanCreated" || event.type === "PlanRevised") {
+    const hint = payload["complexity_hint"];
+    const cLabel =
+      typeof hint === "string" && hint in COMPLEXITY_LABELS
+        ? COMPLEXITY_LABELS[hint as ComplexityHint]
+        : undefined;
+    if (cLabel) return cLabel;
+  }
+
   const candidates = [
     "summary",
     "normalized_question",
@@ -194,10 +218,6 @@ export function TraceTimeline({
     setSticky(true);
   };
 
-  const isT1b =
-    items.length === 0 ||
-    (items.length === 1 && items[0]?.type === "QuestionAsked");
-
   return (
     <div
       ref={containerRef}
@@ -206,7 +226,6 @@ export function TraceTimeline({
       data-complete={isComplete}
       className={cn("relative flex h-full flex-col gap-3", className)}
     >
-      {isT1b ? <PlanPreview /> : null}
       <ol className="flex flex-col gap-2" data-testid="trace-timeline-list">
         {items.map((item) => (
           <EventNode

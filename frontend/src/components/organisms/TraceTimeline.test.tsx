@@ -61,33 +61,14 @@ function evt(
 }
 
 describe("TraceTimeline", () => {
-  it("renders PlanPreview when only a QuestionAsked event is present (T1b)", () => {
-    render(
-      <TraceTimeline
-        events={[evt("QuestionAsked", { id: "q1", question: "why?" })]}
-        isComplete={false}
-      />
-    );
-    expect(screen.getByTestId("plan-preview")).toBeInTheDocument();
-    // The single QuestionAsked is still rendered as a node.
-    expect(screen.getAllByTestId("event-node")).toHaveLength(1);
-  });
-
-  it("does NOT render PlanPreview once non-Question events arrive", () => {
+  it("renders all events as nodes", () => {
     render(
       <TraceTimeline
         events={[evt("QuestionAsked"), evt("PlanCreated"), evt("ToolCalled")]}
         isComplete={false}
       />
     );
-    expect(screen.queryByTestId("plan-preview")).toBeNull();
     expect(screen.getAllByTestId("event-node")).toHaveLength(3);
-  });
-
-  it("renders PlanPreview when events list is empty (T1b)", () => {
-    render(<TraceTimeline events={[]} isComplete={false} />);
-    expect(screen.getByTestId("plan-preview")).toBeInTheDocument();
-    expect(screen.queryAllByTestId("event-node")).toHaveLength(0);
   });
 
   it("seeds JudgeRuled events into the expanded set on arrival", () => {

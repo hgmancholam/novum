@@ -13,7 +13,24 @@
  * back to the raw type. See ui-prototype.md §7 (microcopy).
  */
 
-import type { EventType } from "@/types/events";
+import type { ComplexityHint, EventType, QuestionType } from "@/types/events";
+
+export const COMPLEXITY_LABELS: Record<ComplexityHint, string> = {
+  trivial: "Quick lookup",
+  standard: "Standard research",
+  deep: "Deep investigation",
+};
+
+export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  factual: "factual",
+  comparative: "comparative",
+  definitional: "definitional",
+  state_of_art: "state-of-the-art",
+  causal: "causal",
+  predictive_future: "predictive",
+  subjective_opinion: "opinion",
+  personal_private: "personal",
+};
 
 export const EVENT_LABELS: Record<EventType, string> = {
   QuestionAsked: "Question",
@@ -119,6 +136,41 @@ export function getEventNarrative(
   payload: Record<string, unknown>,
 ): string {
   switch (type) {
+    case "QuestionClassified": {
+      const qType = payload["detected_question_type"];
+      const hint = payload["complexity_hint"];
+      const qLabel =
+        typeof qType === "string" && qType in QUESTION_TYPE_LABELS
+          ? QUESTION_TYPE_LABELS[qType as QuestionType]
+          : undefined;
+      const cLabel =
+        typeof hint === "string" && hint in COMPLEXITY_LABELS
+          ? COMPLEXITY_LABELS[hint as ComplexityHint]
+          : undefined;
+      if (qLabel && cLabel) {
+        return `Classified as ${qLabel} question — ${cLabel}`;
+      }
+      if (qLabel) {
+        return `Classified as ${qLabel} question`;
+      }
+      if (cLabel) {
+        return `Complexity: ${cLabel}`;
+      }
+      return getEventActivity(type);
+    }
+    case "PlanCreated":
+    case "PlanRevised": {
+      const hint = payload["complexity_hint"];
+      const cLabel =
+        typeof hint === "string" && hint in COMPLEXITY_LABELS
+          ? COMPLEXITY_LABELS[hint as ComplexityHint]
+          : undefined;
+      const base =
+        type === "PlanRevised"
+          ? "Rethought the search plan"
+          : "Drafted the search plan";
+      return cLabel ? `${base} — ${cLabel.toLowerCase()}` : base;
+    }
     case "ToolCalled": {
       const query = payload["query"];
       if (typeof query === "string" && query.length > 0) {
