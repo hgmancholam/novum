@@ -53,7 +53,12 @@ export const RunRow = memo(function RunRow({
       <ProviderIcon
         name={run.llmProvider}
         size="xs"
-        className="absolute right-3 top-8"
+        className={cn(
+          "pointer-events-none absolute bottom-2 right-2",
+          "transition-opacity duration-120 ease-out",
+          "group-hover:opacity-0 group-focus-within:opacity-0",
+          "motion-reduce:transition-none"
+        )}
       />
       <p className="mb-1 text-sm font-medium text-(--text-primary)">
         {truncate(run.question, QUESTION_MAX)}
