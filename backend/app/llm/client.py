@@ -51,7 +51,11 @@ def resolve_active_provider() -> str:
     return settings.llm_provider
 
 # Module-level litellm configuration (ai-services.md §1.1).
-litellm.api_base = settings.llm_api_base
+# NOTE: do NOT set ``litellm.api_base`` globally. Each call site passes its
+# own ``api_base`` explicitly (GitHub Models uses ``settings.llm_api_base``;
+# Google/OpenAI/Anthropic use litellm's defaults for their custom_llm_provider).
+# A global override sent every non-GitHub provider's request to the GitHub
+# endpoint and yielded misleading ``Unauthorized`` errors.
 litellm.api_key = settings.github_token
 # Drop provider-unsupported params silently (e.g. gpt-5 rejects any
 # ``temperature`` other than 1, gpt-5.1 rejects ``temperature`` unless
