@@ -4,6 +4,7 @@
  */
 
 import {
+  ElapsedClock,
   LineageBadge,
   MetaRow,
   StatusBadge,
@@ -33,13 +34,14 @@ export function RunHeader({ run, status, className }: RunHeaderProps) {
         className
       )}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <StatusBadge
           status={badgeStatus}
           {...(run.stopReason !== null
             ? { stopReason: run.stopReason }
             : {})}
         />
+        {status === "running" ? <ElapsedClock startedAt={run.startedAt} /> : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <MetaRow
