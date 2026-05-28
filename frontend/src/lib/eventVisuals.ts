@@ -101,6 +101,9 @@ export const EVENT_VISUALS: Record<EventType, EventVisual> = {
   VerificationQuestionsGenerated:   { Icon: ShieldCheck,          tone: "info" },
   CoveContradictionDetected:        { Icon: AlertOctagon,         tone: "warn" },
   DraftSynthesized:                 { Icon: FilePen,              tone: "info" },
+  MetaStopVerdict:                  { Icon: Gavel,                tone: "judge" },
+  AdversarialObjectionsGenerated:   { Icon: MessageSquareWarning, tone: "warn" },
+  DirectedSubclaimsFromObjections:  { Icon: GitBranch,            tone: "info" },
 };
 
 const FALLBACK_VISUAL: EventVisual = { Icon: Flag, tone: "neutral" };
