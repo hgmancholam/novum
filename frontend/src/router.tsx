@@ -22,6 +22,7 @@ import { useUserStore } from "@/stores/userStore";
 const HomePage = lazy(() => import("./pages/HomePage"));
 const RunPage = lazy(() => import("./pages/RunPage"));
 const DiffPage = lazy(() => import("./pages/DiffPage"));
+const HowWeWorkPage = lazy(() => import("./pages/HowWeWorkPage"));
 
 // Loading fallback component
 function PageLoader() {
@@ -67,6 +68,10 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: withSuspense(HomePage),
+  },
+  {
+    path: "/how-we-work",
+    element: withSuspense(HowWeWorkPage),
   },
   {
     path: "/runs/:runId",

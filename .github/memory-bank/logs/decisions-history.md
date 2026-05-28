@@ -3,12 +3,44 @@
 > Chronological log of all decisions made during the Novum development.
 > Each decision follows the decision record template.
 
-**Last Updated:** 2026-05-28
-**Total Decisions:** 54
+**Last Updated:** 2026-05-29
+**Total Decisions:** 55
 
 ---
 
 ## Recent Decisions
+
+## D-HOW-WE-WORK: Marketing page `/how-we-work` (storytelling)
+**Date:** 2026-05-29
+**Phase:** Out-of-band UX addition (no formal BRD; ad-hoc user request)
+**Artifacts:** [HowWeWorkPage.tsx](../../../frontend/src/pages/HowWeWorkPage.tsx), [HowWeWorkPage.test.tsx](../../../frontend/src/pages/HowWeWorkPage.test.tsx), [router.tsx](../../../frontend/src/router.tsx), [AppShell.tsx](../../../frontend/src/components/templates/AppShell.tsx)
+
+### Outcome
+Public storytelling page at `/how-we-work` rendering the layered pipeline from `docs/understanding-phase/building-the-plan.md` (line 294+). Linked from the AppShell top bar. 9 page tests + 2 AppShell link tests + 1 router config test, all green. `tsc --noEmit` clean.
+
+### Sections (Slate Aurora look & feel)
+Hero → ProblemStatement (3 intro cards) → PipelineDiagram (animated SVG: Question → Self-Ask Router → Trivial/Standard/Deep lanes → CoVe → Output) → RouteCards (per-lane explanation) → AnatomyOfARun (sample trace "Colombia inflation 2024", 6-step timeline ending in `judge_confirmed`) → StopReasons (all 7 RF-02 enum values) → StrategyTable (8 strategies, Decomp+Retrieval+CoVe row highlighted) → CostSavings (50/35/15 traffic split, 0.38× cost mock) → ClosingCTA → Footer.
+
+### Key decisions
+1. **`<a>` instead of `<Link>` in AppShell** — using `react-router-dom` `<Link>` in TopBar breaks 17 AppShell tests that render without a Router wrapper (`Cannot destructure 'basename' of useContext(...)`). Trade-off: full page reload on click — acceptable for a marketing link. The page *itself* still uses `<Link>` because it is rendered inside `RouterProvider`.
+2. **Page is public** — placed outside `ProtectedRoute`; no auth required to read it.
+3. **Lazy-loaded** — `lazy(() => import("./pages/HowWeWorkPage"))` + `withSuspense` (consistent with other routes).
+4. **Mobile-aware header link** — icon (`Workflow`) always visible; label hidden below `sm` breakpoint via `hidden sm:inline`.
+5. **stop_reason source of truth** — listed **7 values** per `.github/copilot-instructions.md` §3.3. `docs/understanding-phase/stopping-signal-analysis.md` currently mentions a smaller subset — flagged for future reconciliation.
+6. **Mock metrics** — `0.38× cost`, `50/35/15` distribution, "100% read determinism" are placeholders. Should be replaced with measured values once telemetry lands.
+7. **Tailwind v4 syntax** — used short forms `text-(--var)`, `bg-linear-to-r`, `shadow-(--shadow-glow)` consistently (lint clean for new code).
+8. **Motion strict-typing** — `AnimatedPath` accepts a `dashed: boolean` prop instead of an optional `style?: CSSProperties` (required by `exactOptionalPropertyTypes`).
+9. **jsdom global mocks** — added `IntersectionObserver` mock to `frontend/src/test/setup.ts` because Motion's `whileInView` depends on it (joins existing `matchMedia` + `ResizeObserver` mocks).
+
+### Tests
+- `HowWeWorkPage.test.tsx` (9): hero, diagram a11y label, lane cards, anatomy trace, all 7 stop_reasons, highlighted strategy row, Back-to-Novum link, CTA link, axe a11y.
+- `AppShell.test.tsx` (+2): header link present + reachable on mobile breakpoint.
+- `router.test.tsx` (+1): route table contains `/how-we-work`.
+
+### Heading hierarchy
+ProblemStatement cards demoted from `<h3>` to a styled `<div>` to keep h1 → h2 → h3 order axe-clean (no skip-level violations).
+
+---
 
 ## D-IP24-DONE: IP-24 (Live Center Feed — Claude-style) — COMPLETE
 **Date:** 2026-05-28

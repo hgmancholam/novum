@@ -121,6 +121,19 @@ describe("AppShell", () => {
     );
   });
 
+  it("renders the 'How do we work?' link in the top bar", () => {
+    render(<AppShell forceBreakpoint="desktop" {...slots} />);
+    const link = screen.getByRole("link", { name: /how do we work\?/i });
+    expect(link).toHaveAttribute("href", "/how-we-work");
+  });
+
+  it("keeps the 'How do we work?' link reachable on mobile too", () => {
+    render(<AppShell forceBreakpoint="mobile" {...slots} />);
+    expect(
+      screen.getByRole("link", { name: /how do we work\?/i })
+    ).toBeInTheDocument();
+  });
+
   it("has no a11y violations on desktop", async () => {
     const { container } = render(
       <AppShell forceBreakpoint="desktop" {...slots} />

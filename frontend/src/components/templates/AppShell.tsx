@@ -160,10 +160,11 @@ function TopBar({
       <div className="flex items-center gap-2">
         <a
           href="/how-we-work"
-          className="hidden items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-(--text-secondary) transition-colors hover:bg-(--glass-bg) hover:text-(--text-primary) sm:inline-flex"
+          aria-label="How do we work?"
+          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-(--text-secondary) transition-colors hover:bg-(--glass-bg) hover:text-(--text-primary)"
         >
           <Workflow className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
-          How do we work?
+          <span className="hidden sm:inline">How do we work?</span>
         </a>
         <IdentitySlot />
         {showRightToggle ? (

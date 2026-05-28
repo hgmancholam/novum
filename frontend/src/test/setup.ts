@@ -30,3 +30,18 @@ global.ResizeObserver = class ResizeObserver {
   unobserve() {}
   disconnect() {}
 };
+
+// Mock IntersectionObserver (Motion's whileInView relies on it)
+class IntersectionObserverMock {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+  root: Element | Document | null = null;
+  rootMargin = "";
+  thresholds: ReadonlyArray<number> = [];
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(globalThis as any).IntersectionObserver = IntersectionObserverMock;
