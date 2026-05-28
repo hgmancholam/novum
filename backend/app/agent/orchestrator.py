@@ -169,7 +169,16 @@ class AgentOrchestrator:
 
         try:
             if is_fresh:
-                self.state.transition_to(AgentState.PLANNING)
+                # PR-4 Mejora 4.2: short-circuit STANDARD planning when the
+                # question is ambiguous. With no plan/evidence the synth still
+                # produces a BEST_EFFORT clarification (draft.py reads the
+                # AmbiguityDetected event directly) and the run finishes in
+                # seconds instead of executing PLANNING→SEARCHING→ANALYZING
+                # for a question that cannot be researched.
+                if self.state.has_ambiguity:
+                    self.state.transition_to(AgentState.DRAFTING)
+                else:
+                    self.state.transition_to(AgentState.PLANNING)
             while self.state.current_state not in (
                 AgentState.STOPPED,
                 AgentState.ERRORED,
@@ -262,6 +271,11 @@ class AgentOrchestrator:
             ambiguity_event = None
         if ambiguity_event is not None:
             await self.emit(ambiguity_event)
+            # PR-4 Mejora 4.2: keep live state in sync with the event log so
+            # downstream consumers (lane router, draft.py answer-kind resolver,
+            # short-circuit below) observe ambiguity without depending on a
+            # later replay pass.
+            self.state.has_ambiguity = True
         return True
 
     async def _normalize_question(self) -> None:

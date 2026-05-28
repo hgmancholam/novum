@@ -31,8 +31,7 @@ def test_transition_legal() -> None:
 def test_transition_illegal_raises() -> None:
     state = _build_state()
     with pytest.raises(ValueError, match="Invalid transition"):
-        state.transition_to(AgentState.STOPPED) if False else None
-        state.transition_to(AgentState.DRAFTING)
+        state.transition_to(AgentState.JUDGING)
 
 
 def test_transition_init_to_stopped_is_legal() -> None:

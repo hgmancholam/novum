@@ -136,10 +136,18 @@ async def execute_fast_lane(
             )
 
     # Step 2: Calculate structural confidence
-    # For FAST lane with no sub-claims, use a simplified proxy:
-    # min(1.0, num_evidence_items / 6) as a basic coverage metric
+    # PR-4 Mejora 5.2: weight evidence by authority_tier * relevance instead
+    # of raw count. With FAST's hardcoded authority_tier=None each row scores
+    # 0.90 * relevance, so 3 high-relevance rows from authoritative sources
+    # can pass the threshold while 6 low-relevance scrapes will not.
+    from app.confidence.structural import _authority_multiplier
+
     num_evidence = len(evidence_items)
-    S_effective = min(1.0, num_evidence / 6.0)
+    quality_sum = sum(
+        _authority_multiplier(e.authority_tier) * (e.confidence or 0.0)
+        for e in evidence_items
+    )
+    S_effective = min(1.0, quality_sum / 4.0)
 
     # Check early escalation: insufficient evidence
     if S_effective < _FAST_S_THRESHOLD:
@@ -207,7 +215,12 @@ async def execute_fast_lane(
         return "escalate"
 
     # Step 5: Decision
-    if mini_judge_result.ok and S_effective >= _FAST_S_THRESHOLD:
+    # PR-4 Mejora 5.1: accept on mini_judge.ok OR on strong j_score even when
+    # the binary verdict is False. A conservative mini-judge that flags a
+    # confident answer (j_score ≥ 0.85) should not force a STANDARD escalation
+    # for clean factual questions (Q1 capital_of_japan regression).
+    judge_accepts = mini_judge_result.ok or mini_judge_result.j_score >= 0.85
+    if judge_accepts and S_effective >= _FAST_S_THRESHOLD:
         # Success — finalize and return JUDGE_CONFIRMED
         state.draft_answer = synth_result.prose
         state.draft_payload = synth_result

@@ -21,7 +21,14 @@ class AgentState(StrEnum):
 
 
 TRANSITIONS: dict[AgentState, set[AgentState]] = {
-    AgentState.INIT: {AgentState.PLANNING, AgentState.STOPPED, AgentState.ERRORED},
+    # PR-4 Mejora 4.2: INIT → DRAFTING when the classifier flags ambiguity
+    # (skip PLANNING/SEARCHING/ANALYZING; BEST_EFFORT synth handles it).
+    AgentState.INIT: {
+        AgentState.PLANNING,
+        AgentState.DRAFTING,
+        AgentState.STOPPED,
+        AgentState.ERRORED,
+    },
     AgentState.PLANNING: {AgentState.CRITIQUING, AgentState.SEARCHING, AgentState.STOPPED, AgentState.ERRORED},
     AgentState.CRITIQUING: {
         AgentState.SEARCHING,

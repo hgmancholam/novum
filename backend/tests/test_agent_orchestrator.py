@@ -588,7 +588,7 @@ async def test_error_path_tags_llm_provider_quota_exhausted(
 async def test_illegal_transition_raises() -> None:
     state = _state()
     with pytest.raises(ValueError, match="Invalid transition"):
-        state.transition_to(AgentState.DRAFTING)
+        state.transition_to(AgentState.JUDGING)
 
 
 async def test_evidence_ids_in_claim_covered_match_in_memory(
