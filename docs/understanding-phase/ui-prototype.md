@@ -2,9 +2,15 @@
 
 > Companion to `requirement-understanding.md`. Defines the visual and interaction surface of the V1 build. Reading order: §1 (stack and aesthetic) → §2 (layout) → §3 (state inventory per panel) → §4 (routes) → §5 (RF coverage) → §6 (non-goals) → §7 (microcopy) → §8 (atomic-design architecture) → §9 (technical UI decisions) → §10 (defense).
 >
-> **Visual design language** (colors, typography, depth, motion, interactive treatments) is owned by [`ui-design.md`](./ui-design.md). This file (`ui-prototype.md`) owns: layout (§2), panel states (§3), routes (§4), microcopy (§7), atomic-design architecture (§8), technical decisions (§9). When in conflict, `ui-design.md` wins for look-and-feel; `ui-prototype.md` wins for structure and behavior.
+> ## Binding precedence (READ FIRST)
+>
+> [`ui-design.md`](./ui-design.md) is the **MANDATORY** visual contract for every page, modal and component. The Slate Aurora language defined there — animated background orbs, glass surfaces, canonical button recipes, headline gradient text, `fadeUp + stagger` scroll-reveal, pill chips, top-bar glass header — is **non-negotiable** and applies to the **entire application**, not just the public landing.
+>
+> When a state description, layout sketch, microcopy block or atomic-design note in this file contradicts `ui-design.md`, **`ui-design.md` wins**. The §11 *Pattern lock-in* table in `ui-design.md` is the single source of truth for irreplaceable patterns; reviewers MUST reject PRs that diverge from it.
+>
+> This file owns: layout (§2), panel states (§3), routes (§4), microcopy (§7), atomic-design architecture (§8), technical decisions (§9). It does **not** own visual identity.
 
-The build target is **L2 — UI with product intent**: layout, hierarchy and consistency cared for, but no design-system bloat, no decorative animations, no dark-mode toggle to flip. UI is treated as the surface of the trust contract — if a trace cannot be read, the system does not exist for the user.
+The build target is **L2 — UI with product intent**: layout, hierarchy and consistency cared for, but no design-system bloat, no dark-mode toggle to flip. Motion is restricted to the Slate Aurora budget (`ui-design.md` §5): micro-interactions confirm input, background orbs and gradient text reinforce the brand, and `fadeUp + stagger` reveals content as it enters the viewport. UI is treated as the surface of the trust contract — if a trace cannot be read, the system does not exist for the user.
 
 ---
 
@@ -26,11 +32,21 @@ The build target is **L2 — UI with product intent**: layout, hierarchy and con
 | HTTP | Native `fetch` + a thin `lib/api.ts` wrapper |
 | SSE | Native `EventSource` wrapped in `lib/sse.ts` |
 
-### 1.2 Aesthetic — Slate Aurora (dark, premium, gradient-backed)
+### 1.2 Aesthetic — Slate Aurora (dark, premium, gradient-backed) — **MANDATORY**
 
-> **The visual design language (colors, typography, depth, motion, interactive treatments) lives in [`ui-design.md`](./ui-design.md).** This section summarizes it; that document is authoritative.
+> **The visual design language (colors, typography, depth, motion, interactive treatments) lives in [`ui-design.md`](./ui-design.md). That document is binding for every screen in the app — public, authenticated, modal, embedded.** This section is a summary; if it ever drifts from `ui-design.md`, the design file wins.
 
-Minimalist, refined, generous whitespace, clear typographic hierarchy, soft micro-interactions. The base canvas is **deep slate with a fixed radial gradient** (indigo at top-center, violet at bottom-right) — never solid black. **No** decorative illustrations. **No** light-mode toggle in V1. A single **warm token** (amber) is reserved for trust-critical UI (confirmed answers, headline confidence).
+The Slate Aurora identity is composed of seven mandatory ingredients that MUST coexist on every full-viewport route:
+
+1. **Fixed `--bg-gradient`** on `<body>` (indigo top-center + violet bottom-right + slate base) — never solid black, never plain slate.
+2. **Animated `BackgroundOrbs`** layer (indigo + violet + amber, drifting on 14/18/16 s loops) — see `ui-design.md` §2.9. `AppShell` paints it once for authenticated pages; standalone pages render `<BackgroundOrbs />` directly.
+3. **Glass surfaces** for every container that lifts off the gradient (panels, modals, cards, rows, chips, badges, buttons) — see `ui-design.md` §6.6. Solid fills on interactive surfaces are forbidden.
+4. **Canonical button recipes** (§6.1.1) — the `Button` atom emits the verbatim CTA classes from `HowWeWorkPage`. Inline reinventions are blocked in review.
+5. **Headline gradient text** (`from-(--accent) via-fuchsia-400 to-(--warm)`) — reserved for hero `<h1>` highlight and confirmed-answer confidence value.
+6. **`fadeUp + stagger` scroll-reveal** for every section below the fold — see `ui-design.md` §5.3.
+7. **Warm amber for trust signals only** (confirmed answers, headline confidence, `judge_confirmed` badge). No amber elsewhere.
+
+Minimalist, refined, generous whitespace, clear typographic hierarchy, soft micro-interactions. **No** decorative illustrations. **No** light-mode toggle in V1.
 
 ### 1.3 Color tokens — see [`ui-design.md` §2](./ui-design.md#2-color-system)
 
