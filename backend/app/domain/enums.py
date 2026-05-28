@@ -149,6 +149,8 @@ class SourceType(StrEnum):
 
     TAVILY = "tavily"
     WIKIPEDIA = "wikipedia"
+    SEMANTIC_SCHOLAR = "semantic_scholar"
+    OPENALEX = "openalex"
 
 
 class TemporalSensitivity(StrEnum):

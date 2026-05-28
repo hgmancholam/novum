@@ -17,6 +17,11 @@ from app.agent.sources_authority import AuthorityTier, match
         ("https://www.ox.ac.uk/", AuthorityTier.PRIMARY_AUTHORITATIVE),
         ("https://who.int/data", AuthorityTier.PRIMARY_AUTHORITATIVE),
         ("https://arxiv.org/abs/2401.00001", AuthorityTier.PRIMARY_AUTHORITATIVE),
+        ("https://www.semanticscholar.org/paper/abc123", AuthorityTier.PRIMARY_AUTHORITATIVE),
+        ("https://api.semanticscholar.org/graph/v1/paper/foo", AuthorityTier.PRIMARY_AUTHORITATIVE),
+        ("https://doi.org/10.1234/example", AuthorityTier.PRIMARY_AUTHORITATIVE),
+        ("https://openalex.org/W2741809807", AuthorityTier.PRIMARY_AUTHORITATIVE),
+        ("https://api.openalex.org/works/W123", AuthorityTier.PRIMARY_AUTHORITATIVE),
         ("https://iso.org/standard/1234", AuthorityTier.PRIMARY_AUTHORITATIVE),
         ("https://ietf.org/rfc/rfc1234", AuthorityTier.PRIMARY_AUTHORITATIVE),
     ],
@@ -90,3 +95,47 @@ def test_bare_host_input_supported() -> None:
 def test_empty_input_returns_general() -> None:
     assert match("") == AuthorityTier.GENERAL
     assert match("   ") == AuthorityTier.GENERAL
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        # Spanish-language government TLDs (any country suffix).
+        "https://www.gob.mx/sat",
+        "https://gob.es/presidencia",
+        "https://gob.cl/transparencia",
+        "https://gob.ar/economia",
+        # Military TLDs.
+        "https://www.army.mil/",
+        "https://defensa.mil.co/",
+        # International treaty organisations.
+        "https://un.int/missions",
+        # Academic TLDs in non-UK forms.
+        "https://unam.edu.mx/",
+        "https://unal.edu.co/",
+        "https://utokyo.ac.jp/",
+    ],
+)
+def test_expanded_primary_authoritative_tlds(url: str) -> None:
+    assert match(url) == AuthorityTier.PRIMARY_AUTHORITATIVE
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://something.biz/offer",
+        "https://random.info/deal",
+        "https://shady.xyz/promo",
+        "https://spam.top/landing",
+        "https://sub.example.biz/",
+    ],
+)
+def test_cheap_tlds_classified_low_signal(url: str) -> None:
+    assert match(url) == AuthorityTier.LOW_SIGNAL
+
+
+def test_country_tlds_not_demoted() -> None:
+    """Country code TLDs alone carry no authority signal in either direction."""
+    assert match("https://example.es/") == AuthorityTier.GENERAL
+    assert match("https://example.mx/") == AuthorityTier.GENERAL
+    assert match("https://example.co/") == AuthorityTier.GENERAL

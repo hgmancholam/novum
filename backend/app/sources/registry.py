@@ -8,6 +8,8 @@ import structlog
 
 from app.config import settings
 from app.domain.enums import SourceType
+from app.sources.openalex import OpenAlexSource
+from app.sources.semantic_scholar import SemanticScholarSource
 from app.sources.tavily import TavilySource
 from app.sources.wikipedia import WikipediaSource
 
@@ -25,7 +27,13 @@ class SourceRegistry:
 
     @classmethod
     def build(cls) -> SourceRegistry:
-        sources: dict[SourceType, Source] = {SourceType.WIKIPEDIA: WikipediaSource()}
+        sources: dict[SourceType, Source] = {
+            SourceType.WIKIPEDIA: WikipediaSource(),
+            # Semantic Scholar works on the anonymous free tier; no key needed.
+            SourceType.SEMANTIC_SCHOLAR: SemanticScholarSource(),
+            # OpenAlex is fully free; ``openalex_email`` opts into the polite pool.
+            SourceType.OPENALEX: OpenAlexSource(),
+        }
         if settings.tavily_api_key:
             sources[SourceType.TAVILY] = TavilySource()
         else:

@@ -70,6 +70,14 @@ class Settings(BaseSettings):
 
     # Search
     tavily_api_key: str
+    # Optional Semantic Scholar key — free tier works without one but is rate-limited.
+    semantic_scholar_api_key: SecretStr | None = None
+    # Optional contact email for OpenAlex "polite pool" (faster, more reliable).
+    # OpenAlex has no API key; passing ``mailto`` is the recommended courtesy.
+    openalex_email: str = ""
+    # Optional OpenAlex premium key — sent as ``api_key=`` query param.
+    # Raises rate limits above the anonymous tier.
+    openalex_api_key: SecretStr | None = None
 
     # WP-4: Embeddings (for saturation signal novelty computation)
     embedding_model: str = "openai/text-embedding-3-small"

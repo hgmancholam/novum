@@ -15,15 +15,31 @@ from app.domain.enums import AuthorityTier
 
 _TIER_RULES: list[tuple[str, AuthorityTier]] = [
     # PRIMARY_AUTHORITATIVE
+    # Government TLDs (English + Spanish/Latin, any country suffix).
     (r"(^|\.)gov$", AuthorityTier.PRIMARY_AUTHORITATIVE),
-    (r"(^|\.)gov\.[a-z]{2}$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    (r"(^|\.)gov\.[a-z]{2,3}$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    (r"(^|\.)gob$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    (r"(^|\.)gob\.[a-z]{2,3}$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    # Military TLDs.
+    (r"(^|\.)mil$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    (r"(^|\.)mil\.[a-z]{2,3}$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    # International treaty organisations (restricted registry).
+    (r"(^|\.)int$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    # Academic TLDs (any country suffix).
     (r"(^|\.)edu$", AuthorityTier.PRIMARY_AUTHORITATIVE),
-    (r"(^|\.)ac\.[a-z]{2}$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    (r"(^|\.)edu\.[a-z]{2,3}$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    (r"(^|\.)ac\.[a-z]{2,3}$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    # Specific authoritative hosts.
     (r"^who\.int$", AuthorityTier.PRIMARY_AUTHORITATIVE),
     (r"^nih\.gov$", AuthorityTier.PRIMARY_AUTHORITATIVE),
     (r"^ietf\.org$", AuthorityTier.PRIMARY_AUTHORITATIVE),
     (r"^iso\.org$", AuthorityTier.PRIMARY_AUTHORITATIVE),
     (r"^arxiv\.org$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    # Semantic Scholar: academic graph with peer-reviewed and preprint corpus.
+    (r"(^|\.)semanticscholar\.org$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    (r"^doi\.org$", AuthorityTier.PRIMARY_AUTHORITATIVE),
+    # OpenAlex: open scholarly graph (200M+ works, fully free).
+    (r"(^|\.)openalex\.org$", AuthorityTier.PRIMARY_AUTHORITATIVE),
     # REPUTABLE_SECONDARY
     (r"(^|\.)wikipedia\.org$", AuthorityTier.REPUTABLE_SECONDARY),
     (r"^britannica\.com$", AuthorityTier.REPUTABLE_SECONDARY),
@@ -42,6 +58,11 @@ _TIER_RULES: list[tuple[str, AuthorityTier]] = [
     (r"\.blogspot\.com$", AuthorityTier.LOW_SIGNAL),
     (r"\.wordpress\.com$", AuthorityTier.LOW_SIGNAL),
     (r"\.substack\.com$", AuthorityTier.LOW_SIGNAL),
+    # Cheap/spam-prone TLDs. Generic — do not gate on country.
+    (r"(^|\.)biz$", AuthorityTier.LOW_SIGNAL),
+    (r"(^|\.)info$", AuthorityTier.LOW_SIGNAL),
+    (r"(^|\.)xyz$", AuthorityTier.LOW_SIGNAL),
+    (r"(^|\.)top$", AuthorityTier.LOW_SIGNAL),
 ]
 
 _COMPILED: list[tuple[Pattern[str], AuthorityTier]] = [

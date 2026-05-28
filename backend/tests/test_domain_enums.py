@@ -119,7 +119,7 @@ def test_evidence_polarity_values() -> None:
 
 
 def test_source_type_values() -> None:
-    assert {v.value for v in SourceType} == {"tavily", "wikipedia"}
+    assert {v.value for v in SourceType} == {"tavily", "wikipedia", "semantic_scholar", "openalex"}
 
 
 def test_enums_are_string_subclass() -> None:

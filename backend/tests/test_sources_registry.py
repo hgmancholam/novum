@@ -51,7 +51,11 @@ def test_all_returns_all_registered() -> None:
 def test_tavily_omitted_when_api_key_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(registry_module.settings, "tavily_api_key", "")
     registry = get_registry()
-    assert registry.types() == [SourceType.WIKIPEDIA]
+    assert set(registry.types()) == {
+        SourceType.WIKIPEDIA,
+        SourceType.SEMANTIC_SCHOLAR,
+        SourceType.OPENALEX,
+    }
     with pytest.raises(ValueError):
         registry.get(SourceType.TAVILY)
 
@@ -60,7 +64,12 @@ def test_types_returns_source_type_list() -> None:
     registry = get_registry()
     types = registry.types()
     assert isinstance(types, list)
-    assert set(types) == {SourceType.WIKIPEDIA, SourceType.TAVILY}
+    assert set(types) == {
+        SourceType.WIKIPEDIA,
+        SourceType.TAVILY,
+        SourceType.SEMANTIC_SCHOLAR,
+        SourceType.OPENALEX,
+    }
 
 
 def test_get_source_convenience_function() -> None:
