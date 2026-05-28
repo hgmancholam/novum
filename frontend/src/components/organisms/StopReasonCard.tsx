@@ -6,6 +6,7 @@
  * Token-only styling (BRD-11 §1) — no Tailwind greys, no hardcoded hex.
  */
 
+import { Button } from "@/components/atoms";
 import { cn } from "@/lib/cn";
 import type { StopReason } from "@/types/events";
 
@@ -53,16 +54,28 @@ export interface StopReasonCardProps {
   reason: StopReason;
   /** Optional extra explanation provided in the Stopped event. */
   explanation?: string | undefined;
+  /** When set, an inline "Resume" CTA renders for `errored` / `user_cancelled`. */
+  onResume?: (() => void) | undefined;
+  /** Disables the inline Resume CTA while the mutation is in flight. */
+  isResuming?: boolean | undefined;
   className?: string | undefined;
 }
+
+const RESUMABLE: ReadonlySet<StopReason> = new Set<StopReason>([
+  "errored",
+  "user_cancelled",
+]);
 
 export function StopReasonCard({
   reason,
   explanation,
+  onResume,
+  isResuming = false,
   className,
 }: StopReasonCardProps) {
   const config = stopReasonConfig[reason];
   const color = variantColorToken[config.variant];
+  const showResume = onResume !== undefined && RESUMABLE.has(reason);
 
   return (
     <div
@@ -91,6 +104,21 @@ export function StopReasonCard({
         <p className="mt-3 text-sm text-[var(--text-secondary)]">
           {explanation}
         </p>
+      ) : null}
+      {showResume ? (
+        <div className="mt-4 flex justify-end">
+          <Button
+            variant="primary"
+            size="sm"
+            type="button"
+            onClick={onResume}
+            loading={isResuming}
+            aria-label="Resume run"
+            data-testid="stop-reason-resume-button"
+          >
+            Resume research
+          </Button>
+        </div>
       ) : null}
     </div>
   );

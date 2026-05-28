@@ -60,6 +60,9 @@ export interface CenterPanelViewProps {
   judgeConfidence?: JudgeConfidenceMetrics | null | undefined;
   /** IP-15 §9: hide feed when in post-resume limbo (until new agent work). */
   showPostResumeNotice?: boolean | undefined;
+  /** Resume CTA forwarded to StopReasonCard for errored / user_cancelled runs. */
+  onResume?: (() => void) | undefined;
+  isResuming?: boolean | undefined;
   className?: string | undefined;
 }
 
@@ -76,6 +79,8 @@ export function CenterPanelView({
   sources,
   judgeConfidence,
   showPostResumeNotice = false,
+  onResume,
+  isResuming = false,
   className,
 }: CenterPanelViewProps) {
   const isTerminal = status === "stopped" && run.stopReason !== null;
@@ -234,7 +239,11 @@ export function CenterPanelView({
               judgeConfidence={judgeConfidence}
               sourceCount={sources?.length}
             />
-            <StopReasonCard reason={run.stopReason} />
+            <StopReasonCard
+              reason={run.stopReason}
+              onResume={onResume}
+              isResuming={isResuming}
+            />
           </div>
         </GlassSurface>
       ) : null}

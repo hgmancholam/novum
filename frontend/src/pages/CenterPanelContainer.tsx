@@ -388,6 +388,8 @@ export function CenterPanelContainer() {
               sources={sources}
               judgeConfidence={judgeConfidence}
               showPostResumeNotice={showPostResumeNotice}
+              onResume={resume}
+              isResuming={isResuming}
             />
             {resumeError !== null ? (
               <p

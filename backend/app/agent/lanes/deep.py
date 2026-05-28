@@ -182,21 +182,24 @@ async def execute_deep_lane(
                     run_id=str(state.run_id),
                 )
 
-        # Mini-judge: simplified judge for V1 DEEP lane
+        # Mini-judge: simplified judge for V1 DEEP lane.
+        # FAST_MINI_JUDGE_PROMPT has no {} placeholders — the question/answer
+        # must travel in the user message, mirroring the fast lane pattern.
         from app.llm.models import MiniJudgeVerdict
         from app.llm.prompts import FAST_MINI_JUDGE_PROMPT
 
         judge_response = await llm.call(
             role=LLMRole.JUDGE,
             messages=[
+                {"role": "system", "content": FAST_MINI_JUDGE_PROMPT},
                 {
-                    "role": "system",
-                    "content": FAST_MINI_JUDGE_PROMPT.format(
-                        question=state.question,
-                        answer=draft_text,
+                    "role": "user",
+                    "content": (
+                        f"Question: {state.question}\n\n"
+                        f"Answer: {draft_text}\n\n"
+                        "Sources: (see citations embedded in the answer above)"
                     ),
                 },
-                {"role": "user", "content": "Evaluate this answer."},
             ],
             response_model=MiniJudgeVerdict,
         )
