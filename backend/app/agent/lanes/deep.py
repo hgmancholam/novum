@@ -102,6 +102,7 @@ async def execute_deep_lane(
         draft = await _synthesize_with_react_history(state)
         draft_text = draft.prose
         state.draft_answer = draft_text
+        state.draft_payload = draft
 
         # Phase F: Chain-of-Verification (CoVe)
         logger.info(
@@ -163,6 +164,7 @@ async def execute_deep_lane(
             )
             draft_text = redraft.prose
             state.draft_answer = draft_text
+            state.draft_payload = redraft
 
             logger.info(
                 "deep_lane_cove_redraft_complete",
@@ -237,6 +239,7 @@ async def execute_deep_lane(
     if react_result == StopReason.JUDGE_CONFIRMED:
         draft = await _synthesize_with_react_history(state)
         state.draft_answer = draft.prose
+        state.draft_payload = draft
         state.final_answer = draft.prose
 
     return react_result

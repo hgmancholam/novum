@@ -226,6 +226,7 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
 
             # Success — populate state and return
             state.draft_answer = result.prose
+            state.draft_payload = result
             state.draft_citations = list(result.citations)
             state.draft_sections = [
                 AnswerSection(heading=str(idx + 1), content=kp)
@@ -466,6 +467,7 @@ async def draft_best_effort_fallback(
     result.answer_kind = answer_kind
 
     state.draft_answer = result.prose
+    state.draft_payload = result
     state.draft_citations = list(result.citations)
     state.draft_sections = [
         AnswerSection(heading=str(idx + 1), content=kp)

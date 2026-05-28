@@ -30,6 +30,7 @@ from app.domain.events import (
     SubClaim,
 )
 from app.domain.hypothesis import Hypothesis
+from app.llm.models import SynthesizedAnswer
 
 
 class EvidenceItem(BaseModel):
@@ -125,6 +126,9 @@ class RunState(BaseModel):
     draft_answer: str | None = None
     draft_sections: list[AnswerSection] | None = None
     draft_citations: list[str] = Field(default_factory=list)
+    # PR-2 Mejora 1.1: full typed payload returned by the synthesizer; kept so the
+    # renderer can emit kind-specific blocks instead of regexing the prose.
+    draft_payload: SynthesizedAnswer | None = None
 
     judge_attempts: int = 0
     max_judge_attempts: int = 3

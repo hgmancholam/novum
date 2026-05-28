@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 
+from app.domain.enums import AnswerKind
 from app.domain.structured import (
     KeyPointsBlock,
     KeyValueBlock,
@@ -25,6 +26,7 @@ from app.domain.structured import (
     StructuredAnswerData,
     StructuredBlock,
 )
+from app.llm.models import SynthesizedAnswer
 from app.seams.output import RenderContext, RenderedOutput
 
 
@@ -78,6 +80,14 @@ class StructuredRenderer:
         summary = self._extract_summary(text)
         blocks: list[StructuredBlock] = []
 
+        # PR-2 Mejora 1.3 — render kind-specific payload first so the FE shows
+        # typed structure (weighted/scenario/tradeoff/best_effort) instead of
+        # regexing the prose. Falls back to the legacy pipeline below for the
+        # remaining narrative.
+        payload = getattr(context, "synth_payload", None)
+        if payload is not None and payload.answer_kind is not None:
+            blocks.extend(self._render_kind_blocks(payload))
+
         if not text:
             return StructuredAnswerData(summary=summary, blocks=blocks)
 
@@ -130,6 +140,70 @@ class StructuredRenderer:
     # ------------------------------------------------------------------
     # Block extraction helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _render_kind_blocks(payload: SynthesizedAnswer) -> list[StructuredBlock]:
+        """Emit typed blocks driven by ``payload.answer_kind`` (PR-2 Mejora 1.3).
+
+        Reuses existing block primitives so the frontend contract stays stable;
+        new block types would require regenerating ``events.ts``.
+        """
+        kind = payload.answer_kind
+        out: list[StructuredBlock] = []
+
+        if kind is AnswerKind.WEIGHTED and payload.candidates:
+            rows = [
+                KeyValueRow(
+                    key=f"{c.label} ({c.score:.0%})",
+                    value=c.rationale,
+                )
+                for c in payload.candidates
+            ]
+            out.append(KeyValueBlock(title="Weighted comparison", rows=rows))
+
+        elif kind is AnswerKind.SCENARIO and payload.scenarios:
+            for s in payload.scenarios:
+                items = [s.summary] + [f"Driver: {d}" for d in s.drivers]
+                out.append(
+                    KeyPointsBlock(
+                        title=f"{s.label} ({s.probability_band})",
+                        items=items,
+                    )
+                )
+
+        elif kind is AnswerKind.TRADEOFF and payload.criteria:
+            rows = [
+                KeyValueRow(
+                    key=f"{c.name} (weight {c.weight:.0%})",
+                    value=c.notes,
+                )
+                for c in payload.criteria
+            ]
+            out.append(KeyValueBlock(title="Trade-off criteria", rows=rows))
+
+        elif kind is AnswerKind.BEST_EFFORT and payload.interpretation:
+            out.append(
+                ParagraphBlock(
+                    text=f"Most likely interpretation: {payload.interpretation}"
+                )
+            )
+            if payload.alternative_interpretations:
+                out.append(
+                    KeyPointsBlock(
+                        title="Alternative interpretations",
+                        items=list(payload.alternative_interpretations),
+                    )
+                )
+
+        elif kind is AnswerKind.ETHICAL_REDIRECT and payload.redirect_alternatives:
+            out.append(
+                KeyPointsBlock(
+                    title="Suggested alternatives",
+                    items=list(payload.redirect_alternatives),
+                )
+            )
+
+        return out
 
     @staticmethod
     def _extract_summary(text: str) -> str:

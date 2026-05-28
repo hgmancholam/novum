@@ -723,6 +723,7 @@ class AgentOrchestrator:
                 sources=sources,
                 confidence=self.state.last_judge_confidence or 0.0,
                 stop_reason=reason.value,
+                synth_payload=self.state.draft_payload,
             )
             # Always render prose as the canonical answer_prose
             prose_renderer = renderer_registry.get("prose") or renderer_registry.get_default()
