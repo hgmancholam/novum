@@ -36,26 +36,10 @@ export interface RunFeedProps {
   className?: string | undefined;
 }
 
-const FEED_COLLAPSED_KEY = "novum_run_feed_collapsed";
-
-function getInitialCollapsed(isComplete: boolean): boolean {
-  if (!isComplete) return false;
-  // When the run finishes, default to collapsed so the answer panel takes
-  // focus. The user can still expand it; "0" means "explicitly expanded".
-  try {
-    return localStorage.getItem(FEED_COLLAPSED_KEY) !== "0";
-  } catch {
-    return true;
-  }
-}
-
-function persistCollapsed(value: boolean): void {
-  try {
-    localStorage.setItem(FEED_COLLAPSED_KEY, value ? "1" : "0");
-  } catch {
-    // ignore
-  }
-}
+// No cross-run persistence: when a run completes it always auto-collapses,
+// and the toggle only affects the current view. Persisting in localStorage
+// caused two bugs: every later run inherited an "expanded" preference, and
+// switching runs leaked state across instances.
 
 interface StepView {
   label: string;
@@ -262,20 +246,26 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
     [events, isComplete]
   );
 
-  const [isCollapsed, setIsCollapsed] = useState(() =>
-    getInitialCollapsed(isComplete)
-  );
+  const [isCollapsed, setIsCollapsed] = useState(isComplete);
   const [sticky, setSticky] = useState(true);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // Auto-collapse the moment the run transitions to complete so the answer
+  // panel takes focus. The user can still expand via the toggle.
   useEffect(() => {
     if (isComplete) {
-      setIsCollapsed(getInitialCollapsed(true));
+      setIsCollapsed(true);
     }
   }, [isComplete]);
 
   useEffect(() => {
+    // Once complete, stop tracking stickiness — the user must be free to
+    // scroll up to review the question and answer without being yanked back.
+    if (isComplete) {
+      setSticky(false);
+      return;
+    }
     const sentinel = bottomRef.current;
     if (!sentinel || typeof IntersectionObserver === "undefined") {
       setSticky(true);
@@ -291,22 +281,22 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [isComplete]);
 
   useEffect(() => {
+    // Never auto-scroll after completion — that traps the user at the bottom.
+    if (isComplete) return;
     if (sticky && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [events.length, sticky]);
+  }, [events.length, sticky, isComplete]);
 
   function handleJumpToLatest(): void {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }
 
   function toggleCollapsed(): void {
-    const newValue = !isCollapsed;
-    setIsCollapsed(newValue);
-    persistCollapsed(newValue);
+    setIsCollapsed((prev) => !prev);
   }
 
   const lastEvent = events[events.length - 1];

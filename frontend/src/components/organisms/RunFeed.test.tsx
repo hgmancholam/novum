@@ -77,13 +77,15 @@ describe("RunFeed", () => {
   });
 
   it("renders SearchStepCard for ToolCalled + EvidenceAdded", async () => {
-    localStorage.setItem("novum_run_feed_collapsed", "0");
+    const user = userEvent.setup();
     render(
       <RunFeed
         events={[mockToolCalledEvent, mockEvidenceEvent]}
         isComplete={true}
       />
     );
+    // Auto-collapses on completion; expand to inspect the step content.
+    await user.click(screen.getByRole("button", { name: /show/i }));
     expect(await screen.findByText(/"AI systems"/)).toBeInTheDocument();
     expect(screen.getByText(/1 source/)).toBeInTheDocument();
   });
@@ -98,7 +100,6 @@ describe("RunFeed", () => {
       ],
       timestamp_ms: 1000,
     };
-    localStorage.setItem("novum_run_feed_collapsed", "0");
     render(<RunFeed events={[planEvent]} isComplete={false} />);
     expect(await screen.findByText(/Breaking down the question/)).toBeInTheDocument();
   });
@@ -113,8 +114,10 @@ describe("RunFeed", () => {
       rationale: "Good answer",
       timestamp_ms: 1000,
     };
-    localStorage.setItem("novum_run_feed_collapsed", "0");
+    const user = userEvent.setup();
     render(<RunFeed events={[judgeEvent]} isComplete={true} />);
+    // Auto-collapses on completion; expand to assert the verdict content.
+    await user.click(screen.getByRole("button", { name: /show/i }));
     expect(await screen.findByText(/Confirmed/)).toBeInTheDocument();
     expect(screen.getByText(/85%/)).toBeInTheDocument();
   });
@@ -163,24 +166,6 @@ describe("RunFeed", () => {
     // Collapse again.
     await user.click(screen.getByRole("button", { name: /hide/i }));
     expect(screen.queryByText(/"AI systems"/)).not.toBeInTheDocument();
-  });
-
-  it("persists collapsed state in localStorage", async () => {
-    const user = userEvent.setup();
-    render(
-      <RunFeed
-        events={[mockToolCalledEvent]}
-        isComplete={true}
-      />
-    );
-
-    // Starts collapsed; first click expands and stores "0".
-    await user.click(screen.getByRole("button", { name: /show/i }));
-    expect(localStorage.getItem("novum_run_feed_collapsed")).toBe("0");
-
-    // Second click collapses and stores "1".
-    await user.click(screen.getByRole("button", { name: /hide/i }));
-    expect(localStorage.getItem("novum_run_feed_collapsed")).toBe("1");
   });
 
   it("shows JumpToLatestPill when not sticky", async () => {
