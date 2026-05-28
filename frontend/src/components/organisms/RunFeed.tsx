@@ -314,7 +314,7 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
         />
         <h3 className="text-sm font-medium text-[var(--text-secondary)]">
           {steps.length > 0
-            ? FEED_REASONING_TRACE(steps.length, totalSeconds)
+            ? FEED_REASONING_TRACE(steps.length, totalSeconds, isComplete)
             : "Thinking…"}
         </h3>
         {isComplete && steps.length > 0 ? (

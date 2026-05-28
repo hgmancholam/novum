@@ -45,7 +45,12 @@ export function FEED_RESULTS_COUNT(n: number): string {
   return n === 1 ? "1 result" : `${n.toString()} results`;
 }
 
-export function FEED_REASONING_TRACE(stepCount: number, seconds: number): string {
+export function FEED_REASONING_TRACE(
+  stepCount: number,
+  seconds: number,
+  isComplete: boolean = false
+): string {
   const stepLabel = stepCount === 1 ? "step" : "steps";
-  return `Reasoning (${stepCount.toString()} ${stepLabel} · ${seconds.toString()}s)`;
+  const prefix = isComplete ? "Reasoning trace" : "Reasoning";
+  return `${prefix} (${stepCount.toString()} ${stepLabel} · ${seconds.toString()}s)`;
 }
