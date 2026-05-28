@@ -282,8 +282,21 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
   const firstEvent = events[0];
   const lastTimestamp: number = lastEvent?.timestamp_ms ?? 0;
   const firstTimestamp: number = firstEvent?.timestamp_ms ?? 0;
+
+  // Live elapsed ticker: while the run is streaming the wall-clock should
+  // advance every second so the header doesn't get stuck on "0s" when events
+  // arrive in bursts within the same second. Once complete, freeze the
+  // counter at the span between the first and last event.
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  useEffect(() => {
+    if (isComplete || events.length === 0) return;
+    const tick = window.setInterval(() => { setNowMs(Date.now()); }, 1000);
+    return () => { window.clearInterval(tick); };
+  }, [isComplete, events.length]);
+
+  const elapsedEndMs = isComplete ? lastTimestamp : Math.max(lastTimestamp, nowMs);
   const totalSeconds =
-    events.length > 0 ? Math.round((lastTimestamp - firstTimestamp) / 1000) : 0;
+    events.length > 0 ? Math.max(0, Math.round((elapsedEndMs - firstTimestamp) / 1000)) : 0;
 
   const idleMessage = useIdleReassurance(
     !isComplete && events.length > 0,
