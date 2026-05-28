@@ -241,3 +241,51 @@ def test_search_payload_helper_round_trip() -> None:
     payload = _search_payload([PAPER_FIXTURE])
     encoded = json.dumps(payload)
     assert json.loads(encoded)["data"][0]["paperId"] == "abc123"
+
+
+def test_citation_bump_is_log_scaled_and_capped() -> None:
+    """C6: citation bump must be 0 at 0 cites, monotonic up, capped at +0.30."""
+    from app.sources.semantic_scholar import _citation_bump
+
+    assert _citation_bump(0) == 0.0
+    assert _citation_bump(-5) == 0.0
+    b10 = _citation_bump(10)
+    b100 = _citation_bump(100)
+    b1000 = _citation_bump(1000)
+    b1_000_000 = _citation_bump(1_000_000)
+    assert 0.0 < b10 < b100 < b1000
+    assert b1000 == pytest.approx(0.30, abs=0.005)
+    # Hard cap at +0.30 — extreme citation counts cannot dominate scoring.
+    assert b1_000_000 == pytest.approx(0.30, abs=0.005)
+
+
+@pytest.mark.asyncio
+async def test_search_relevance_score_lifts_well_cited_paper() -> None:
+    """C6: at the same rank position, a well-cited paper outscores an
+    uncited paper because the log-scaled citation bump differentiates
+    them. We push the target to rank 5 (base 0.75) so the +0.30 bump is
+    observable after the [0.0, 1.0] clamp.
+    """
+    cited = dict(PAPER_FIXTURE)  # citationCount=12345
+    uncited = dict(PAPER_FIXTURE)
+    uncited["paperId"] = "zero1"
+    uncited["title"] = "Obscure paper"
+    uncited["citationCount"] = 0
+
+    pad = [dict(PAPER_FIXTURE, paperId=f"p{i}", title=f"pad {i}") for i in range(5)]
+
+    def handler_factory(target: dict[str, Any]):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=_search_payload(pad + [target]))
+
+        return handler
+
+    src_cited = SemanticScholarSource(transport=_mock_transport(handler_factory(cited)))
+    src_uncited = SemanticScholarSource(
+        transport=_mock_transport(handler_factory(uncited))
+    )
+    cited_results = await src_cited.search("q", max_results=6)
+    uncited_results = await src_uncited.search("q", max_results=6)
+    # Target is at index 5 in both lists.
+    assert cited_results[5].relevance_score > uncited_results[5].relevance_score
+    assert cited_results[5].relevance_score <= 1.0

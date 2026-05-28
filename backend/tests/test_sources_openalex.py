@@ -301,3 +301,45 @@ def test_extract_work_id_handles_known_hosts() -> None:
     assert extract("https://api.openalex.org/works/W123") == "W123"
     assert extract("https://doi.org/10.1234/example") == "doi:10.1234/example"
     assert extract("https://example.com/paper/abc") is None
+
+
+def test_citation_bump_is_log_scaled_and_capped() -> None:
+    """C6: same shape as SemanticScholar — 0 at 0, monotonic, capped at +0.30."""
+    from app.sources.openalex import _citation_bump
+
+    assert _citation_bump(0) == 0.0
+    assert _citation_bump(-1) == 0.0
+    assert _citation_bump(10) < _citation_bump(100) < _citation_bump(1000)
+    assert _citation_bump(1000) == pytest.approx(0.30, abs=0.005)
+    assert _citation_bump(1_000_000) == pytest.approx(0.30, abs=0.005)
+
+
+@pytest.mark.asyncio
+async def test_search_relevance_score_lifts_well_cited_work() -> None:
+    """C6: at the same rank, a highly cited OpenAlex work outscores a
+    0-cite work. We push the target to rank 5 (base 0.75) so the +0.30
+    citation bump is observable after the [0.0, 1.0] clamp.
+    """
+    cited = dict(WORK_FIXTURE)  # cited_by_count=99999
+    uncited = dict(WORK_FIXTURE)
+    uncited["id"] = "https://openalex.org/W0"
+    uncited["title"] = "Obscure work"
+    uncited["cited_by_count"] = 0
+
+    pad = [
+        dict(WORK_FIXTURE, id=f"https://openalex.org/Wpad{i}", title=f"pad {i}")
+        for i in range(5)
+    ]
+
+    def handler_factory(target: dict[str, Any]):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=_search_payload(pad + [target]))
+
+        return handler
+
+    src_cited = OpenAlexSource(transport=_mock_transport(handler_factory(cited)))
+    src_uncited = OpenAlexSource(transport=_mock_transport(handler_factory(uncited)))
+    cited_results = await src_cited.search("q", max_results=6)
+    uncited_results = await src_uncited.search("q", max_results=6)
+    assert cited_results[5].relevance_score > uncited_results[5].relevance_score
+    assert cited_results[5].relevance_score <= 1.0

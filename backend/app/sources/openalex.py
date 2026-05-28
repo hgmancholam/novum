@@ -13,6 +13,7 @@ positions). We reconstruct them into plain text on the fly.
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -32,6 +33,18 @@ _SELECT_FIELDS = (
     "id,doi,title,abstract_inverted_index,publication_year,publication_date,"
     "authorships,primary_location,cited_by_count,open_access,type"
 )
+
+
+def _citation_bump(citation_count: int) -> float:
+    """C6: log-scaled relevance bump from citation count.
+
+    Mirrors the SemanticScholar formula so academic results from either
+    source can be compared on a single relevance scale. Caps at +0.30 at
+    ~1000 citations and degrades smoothly to 0 at 0 citations.
+    """
+    if citation_count <= 0:
+        return 0.0
+    return min(0.30, math.log10(1 + citation_count) / math.log10(1001) * 0.30)
 
 
 class OpenAlexSource(BaseSource):
@@ -152,12 +165,20 @@ class OpenAlexSource(BaseSource):
         if content and len(content) > DEFAULT_MAX_CONTENT_CHARS:
             content = content[:DEFAULT_MAX_CONTENT_CHARS] + "..."
 
+        # C6: citation-weighted ranking. Same log-scaled bump as
+        # SemanticScholar so both academic sources are ranked on a
+        # comparable scale before dedup/scoring.
+        adjusted_relevance = min(
+            1.0,
+            relevance_score + _citation_bump(citation_count),
+        )
+
         return SourceResult(
             url=url,
             title=title,
             snippet=snippet,
             content=content,
-            relevance_score=relevance_score,
+            relevance_score=adjusted_relevance,
             published_date=published_date,
         )
 
