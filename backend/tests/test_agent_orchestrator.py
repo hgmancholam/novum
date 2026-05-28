@@ -494,7 +494,41 @@ async def test_error_path_emits_agent_errored(
     errored = [e for e in events if isinstance(e, AgentErroredEvent)]
     assert len(errored) == 1
     assert errored[0].error_type == "RuntimeError"
+    assert errored[0].error_code is None
     assert state.current_state == AgentState.ERRORED
+
+
+async def test_error_path_tags_llm_pool_rate_limited(
+    llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the failure originates from ``LLMPoolExhausted`` (all PATs
+    returned 429), the emitted ``AgentErroredEvent`` carries the
+    ``llm_pool_rate_limited`` error_code so the UI can show the
+    rate-limit modal instead of a generic failure dialog.
+    """
+    from app.llm.client import LLMPoolExhausted
+
+    llm_stub.queue("QuestionClassification", _classify("factual"))
+    llm_stub.queue("PlanOutput", _plan("c1"))
+    llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
+
+    class _RateLimitedSource(_FakeSource):
+        async def search(self, query: str, max_results: int = 5) -> list[SourceResult]:
+            raise LLMPoolExhausted(pool_size=4)
+
+    _install_registry(
+        monkeypatch,
+        {SourceType.TAVILY: _RateLimitedSource(SourceType.TAVILY)},
+    )
+
+    state = _state()
+    orch, events = _make_orchestrator(state)
+    reason = await orch.run()
+
+    assert reason == StopReason.ERRORED
+    errored = [e for e in events if isinstance(e, AgentErroredEvent)]
+    assert len(errored) == 1
+    assert errored[0].error_code == "llm_pool_rate_limited"
 
 
 async def test_illegal_transition_raises() -> None:

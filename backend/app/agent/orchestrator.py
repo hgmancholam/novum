@@ -42,7 +42,7 @@ from app.domain.events import (
     StoppedEvent,
     StopRationale,
 )
-from app.llm.client import count_tokens
+from app.llm.client import LLMPoolExhausted, count_tokens
 from app.stopping import StoppingPolicy
 
 logger = structlog.get_logger(__name__)
@@ -428,11 +428,17 @@ class AgentOrchestrator:
         self.state.transition_to(AgentState.SEARCHING)
 
     async def _handle_error(self, exc: BaseException) -> StopReason:
+        error_code: str | None = None
+        if isinstance(exc, LLMPoolExhausted) or isinstance(
+            exc.__cause__, LLMPoolExhausted
+        ):
+            error_code = "llm_pool_rate_limited"
         logger.error(
             "agent_run_error",
             run_id=str(self.state.run_id),
             error_type=type(exc).__name__,
             error_message=str(exc),
+            error_code=error_code,
         )
         await self.emit(
             AgentErroredEvent(
@@ -441,6 +447,7 @@ class AgentOrchestrator:
                 stack_trace=traceback.format_exc(),
                 recoverable=False,
                 recovery_suggestion=None,
+                error_code=error_code,
             )
         )
         return await self._stop(StopReason.ERRORED)

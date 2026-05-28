@@ -354,6 +354,11 @@ class AgentErroredEvent(BaseEvent):
     stack_trace: str | None = None
     recoverable: bool
     recovery_suggestion: str | None = None
+    # Structured tag for UI differentiation. ``llm_pool_rate_limited``
+    # signals that all PATs in the GitHub Models rotation pool returned
+    # 429 simultaneously; the frontend shows a "rate-limit" modal
+    # instead of a generic failure dialog.
+    error_code: str | None = None
 
 
 class ResumedAfterErrorEvent(BaseEvent):

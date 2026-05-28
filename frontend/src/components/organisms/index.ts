@@ -32,6 +32,8 @@ export { TraceTimeline } from "./TraceTimeline";
 export type { TraceTimelineProps, TraceTimelineEvent } from "./TraceTimeline";
 export { ForkModal } from "./ForkModal";
 export type { ForkModalProps, ForkModalEvent } from "./ForkModal";
+export { RateLimitModal } from "./RateLimitModal";
+export type { RateLimitModalProps } from "./RateLimitModal";
 export { StructuredAnswer } from "./StructuredAnswer";
 export type { StructuredAnswerProps } from "./StructuredAnswer";
 export { StructuredBlocks } from "./StructuredBlocks";

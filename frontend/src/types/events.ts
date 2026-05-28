@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-27T23:35:33.292239+00:00
+// Generated: 2026-05-28T00:07:15.979226+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -244,6 +244,18 @@ export const EventSchema = {
           ],
           "default": null,
           "title": "Recovery Suggestion"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Code"
         }
       },
       "required": [

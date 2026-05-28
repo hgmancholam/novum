@@ -211,3 +211,48 @@ async def test_call_rotates_github_tokens(
 
     tokens = [c.kwargs["api_key"] for c in mock_create.call_args_list]
     assert tokens == ["tok-a", "tok-b", "tok-c", "tok-a"]
+
+
+@pytest.mark.asyncio
+async def test_pool_exhausted_raises_llmpool_exhausted(
+    mock_create: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When every PAT in the rotation pool returns 429 within a single
+    fallback sweep, ``_call_with_token_fallback`` raises
+    ``LLMPoolExhausted`` (not the raw ``RateLimitError``). This lets the
+    error handler tag ``AgentErroredEvent.error_code`` so the frontend
+    distinguishes rate-limit from generic failure.
+    """
+    from itertools import cycle
+
+    from litellm.exceptions import RateLimitError
+
+    monkeypatch.setattr(client_module, "_TOKEN_POOL", ("tok-a", "tok-b"))
+    monkeypatch.setattr(client_module, "_TOKEN_ROTATION", cycle(("tok-a", "tok-b")))
+
+    mock_create.side_effect = RateLimitError(
+        "Too many requests", llm_provider="github", model="gpt-4o-mini"
+    )
+
+    # Disable tenacity retries for this test: we want a single sweep
+    # over the token pool, not 5 retries × 2 tokens = 10 attempts.
+    async def _call_once(
+        role: LLMRole,
+        messages: list[dict[str, str]],
+        response_model: type[Any],
+        max_tokens: int | None = None,
+    ) -> Any:
+        token = client_module._next_token()  # type: ignore[attr-defined]
+        return await client_module._call_with_token_fallback(  # type: ignore[attr-defined]
+            lambda _tok: mock_create(model="x", api_key=_tok)
+        )
+
+    with pytest.raises(client_module.LLMPoolExhausted) as exc_info:
+        await _call_once(
+            LLMRole.CLASSIFIER,
+            [{"role": "user", "content": "q"}],
+            QuestionClassification,
+        )
+
+    assert exc_info.value.pool_size == 2
+    assert isinstance(exc_info.value.__cause__, RateLimitError)

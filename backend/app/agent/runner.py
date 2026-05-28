@@ -47,6 +47,7 @@ from app.domain.events import (
     SubClaim,
 )
 from app.exceptions import RunAlreadyRunningError, RunStillTerminatingError
+from app.llm.client import LLMPoolExhausted
 from app.models import Run
 from app.services.event_service import EventService
 from app.sse.manager import connection_manager
@@ -465,6 +466,12 @@ class AgentRunner:
                     error_type=type(exc).__name__,
                     error_message=str(exc),
                     recoverable=False,
+                    error_code=(
+                        "llm_pool_rate_limited"
+                        if isinstance(exc, LLMPoolExhausted)
+                        or isinstance(exc.__cause__, LLMPoolExhausted)
+                        else None
+                    ),
                 ),
             )
             await event_service.append_event(

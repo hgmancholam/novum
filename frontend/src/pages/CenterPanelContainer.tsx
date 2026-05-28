@@ -18,6 +18,7 @@ import {
   CenterPanelView,
   ForkModal,
   NotFoundCard,
+  RateLimitModal,
   StopReasonCard,
   type ForkModalEvent,
   type SourceEntry,
@@ -69,6 +70,9 @@ export function CenterPanelContainer() {
   const [pendingForkEventId, setPendingForkEventId] = useState<string | null>(
     null
   );
+  const [rateLimitModalDismissedFor, setRateLimitModalDismissedFor] = useState<
+    string | null
+  >(null);
   const navigatedToForkRef = useRef<string | null>(null);
 
   const forkableEvents = useMemo<ForkModalEvent[]>(() => {
@@ -116,6 +120,27 @@ export function CenterPanelContainer() {
 
   const showPostResumeNotice =
     resumeStepIndex !== null && !agentEmittedAfterResume;
+
+  // When the LLM pool is exhausted (all PATs returned 429 in one sweep),
+  // the agent emits AgentErrored with error_code === "llm_pool_rate_limited".
+  // We surface a dedicated modal so the user knows the failure is a
+  // provider quota issue, not a bug. Dismissal is tracked per runId so
+  // the modal does not re-open on the same run after the user closes it.
+  const rateLimitedRunId = useMemo<string | null>(() => {
+    for (const e of events) {
+      if (
+        e.type === "AgentErrored" &&
+        (e as { error_code?: unknown }).error_code === "llm_pool_rate_limited"
+      ) {
+        return runId ?? null;
+      }
+    }
+    return null;
+  }, [events, runId]);
+
+  const isRateLimitModalOpen =
+    rateLimitedRunId !== null &&
+    rateLimitedRunId !== rateLimitModalDismissedFor;
 
   // BRD-16: extract both rendered formats from the terminal Stopped event
   const answerProse = useMemo<string | null>(() => {
@@ -349,6 +374,12 @@ export function CenterPanelContainer() {
         isForking={isForking}
         pendingEventId={pendingForkEventId}
         error={forkError}
+      />
+      <RateLimitModal
+        isOpen={isRateLimitModalOpen}
+        onClose={() => {
+          setRateLimitModalDismissedFor(rateLimitedRunId);
+        }}
       />
     </>
   );

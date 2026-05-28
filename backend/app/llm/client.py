@@ -83,6 +83,24 @@ def _next_token() -> str:
     return cast("str", next(_TOKEN_ROTATION))
 
 
+class LLMPoolExhausted(RateLimitError):
+    """All GitHub PATs in the rotation pool returned 429 in a single
+    fallback sweep. Subclasses ``RateLimitError`` so the tenacity layer
+    still retries it, but the concrete type lets ``_handle_error`` tag
+    the resulting ``AgentErroredEvent`` with ``error_code='llm_pool_rate_limited'``
+    so the frontend can surface a "rate limit" modal instead of a
+    generic failure UI.
+    """
+
+    def __init__(self, pool_size: int) -> None:
+        super().__init__(
+            f"All {pool_size} GitHub Models PATs are rate-limited.",
+            llm_provider="github",
+            model="",
+        )
+        self.pool_size = pool_size
+
+
 R = TypeVar("R")
 
 
@@ -120,7 +138,7 @@ async def _call_with_token_fallback(
                 continue
             raise
     assert last_exc is not None
-    raise last_exc
+    raise LLMPoolExhausted(pool_size=len(_TOKEN_POOL)) from last_exc
 
 
 # WP-5: Track if we've already degraded the judge provider in this run
