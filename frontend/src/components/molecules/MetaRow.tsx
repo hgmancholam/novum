@@ -20,9 +20,18 @@ export interface MetaRowProps {
   className?: string | undefined;
 }
 
-function Chip({ children }: { children: React.ReactNode }) {
+function Chip({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title?: string;
+}) {
   return (
-    <span className="glass-subtle inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
+    <span
+      title={title}
+      className="glass-subtle inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-xs text-[var(--text-secondary)] whitespace-nowrap"
+    >
       {children}
     </span>
   );
@@ -52,38 +61,29 @@ export function MetaRow({
   return (
     <div
       data-testid="meta-row"
-      className={cn("flex flex-wrap items-center gap-2", className)}
+      className={cn("flex flex-wrap items-center gap-1.5", className)}
     >
       <Chip>
         <span className="text-[var(--text-muted)]">@</span>
         {ownerUsername}
       </Chip>
-      <Chip>
-        <span aria-hidden="true">·</span>
-        <span title={new Date(startedAt).toISOString()}>
-          started {formatRelative(startedAt)}
-        </span>
+      <Chip title={new Date(startedAt).toISOString()}>
+        <span>started {formatRelative(startedAt)}</span>
       </Chip>
       {duration !== null ? (
-        <Chip>
-          <span aria-hidden="true">·</span>
-          <span>duration {duration}</span>
+        <Chip title="Total elapsed time">
+          <span>{duration}</span>
         </Chip>
       ) : null}
-      <Chip>
-        <span aria-hidden="true">·</span>
-        <span>format {formatLabel}</span>
+      <Chip title={`Output format: ${formatLabel}`}>
+        <span>{formatLabel}</span>
       </Chip>
-      <Chip>
-        <span aria-hidden="true">·</span>
-        <span title="Confidence threshold (RF-12)">
-          threshold {confidenceThreshold.toFixed(2)}
-        </span>
+      <Chip title="Confidence threshold (RF-12)">
+        <span>threshold {confidenceThreshold.toFixed(2)}</span>
       </Chip>
       {providerLabel !== undefined ? (
-        <Chip>
-          <span aria-hidden="true">·</span>
-          <span title="LLM provider used for this run">{providerLabel}</span>
+        <Chip title="LLM provider used for this run">
+          <span>{providerLabel}</span>
         </Chip>
       ) : null}
     </div>

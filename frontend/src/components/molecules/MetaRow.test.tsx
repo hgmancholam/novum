@@ -15,9 +15,9 @@ describe("MetaRow", () => {
       />
     );
     expect(screen.getByText("alice")).toBeInTheDocument();
-    expect(screen.getByText(/format Structured/)).toBeInTheDocument();
+    expect(screen.getByText("Structured")).toBeInTheDocument();
     expect(screen.getByText(/threshold 0\.70/)).toBeInTheDocument();
-    expect(screen.queryByText(/duration/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Total elapsed time")).not.toBeInTheDocument();
   });
 
   it("renders the duration chip once the run has stopped", () => {
@@ -30,7 +30,7 @@ describe("MetaRow", () => {
         ownerUsername="bob"
       />
     );
-    expect(screen.getByText(/duration 42s/)).toBeInTheDocument();
-    expect(screen.getByText(/format Prose/)).toBeInTheDocument();
+    expect(screen.getByText("42s")).toBeInTheDocument();
+    expect(screen.getByText("Prose")).toBeInTheDocument();
   });
 });
