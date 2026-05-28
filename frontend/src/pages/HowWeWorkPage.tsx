@@ -132,11 +132,11 @@ function TopNav() {
           <span>Novum</span>
         </Link>
         <Link
-          to="/"
+          to="/run"
           className="group inline-flex items-center gap-2 rounded-lg border border-(--glass-border) bg-(--glass-bg) px-3 py-1.5 text-xs text-(--text-secondary) transition-colors hover:bg-(--glass-hover) hover:text-(--text-primary)"
         >
           <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
-          Back to Novum
+          Open Novum
         </Link>
       </div>
     </header>
@@ -1186,7 +1186,7 @@ function ClosingCTA() {
       </p>
       <div className="relative mt-7 flex flex-wrap items-center justify-center gap-3">
         <Link
-          to="/"
+          to="/run"
           className="group inline-flex items-center gap-2 rounded-xl bg-(--accent) px-5 py-2.5 text-sm font-medium text-white shadow-(--shadow-glow) transition-transform hover:-translate-y-0.5 hover:bg-(--accent-hover)"
         >
           Open Novum
@@ -1209,7 +1209,6 @@ function Footer() {
           <Logo size={16} title="" />
           <span>Novum — single-server research agent</span>
         </div>
-        <div>Pipeline doc: <span className="text-(--text-secondary)">building-the-plan.md</span></div>
       </div>
     </footer>
   );

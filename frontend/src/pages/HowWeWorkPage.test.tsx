@@ -19,7 +19,7 @@ import HowWeWorkPage from "./HowWeWorkPage";
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={["/how-we-work"]}>
+    <MemoryRouter initialEntries={["/"]}>
       <HowWeWorkPage />
     </MemoryRouter>
   );
@@ -82,16 +82,20 @@ describe("HowWeWorkPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders a 'Back to Novum' link pointing to /", () => {
+  it("renders an 'Open Novum' top-bar link pointing to /run", () => {
     renderPage();
-    const back = screen.getByRole("link", { name: /back to novum/i });
-    expect(back).toHaveAttribute("href", "/");
+    const links = screen.getAllByRole("link", { name: /open novum/i });
+    expect(links.length).toBeGreaterThanOrEqual(1);
+    // All Open Novum links should target /run
+    links.forEach((link) => {
+      expect(link).toHaveAttribute("href", "/run");
+    });
   });
 
-  it("renders a CTA link 'Open Novum' pointing to /", () => {
+  it("renders a CTA link 'Open Novum' pointing to /run", () => {
     renderPage();
-    const open = screen.getByRole("link", { name: /open novum/i });
-    expect(open).toHaveAttribute("href", "/");
+    const open = screen.getAllByRole("link", { name: /open novum/i });
+    expect(open[0]).toHaveAttribute("href", "/run");
   });
 
   it("has no a11y violations", async () => {

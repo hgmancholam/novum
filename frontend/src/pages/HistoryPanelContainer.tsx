@@ -51,7 +51,7 @@ export function HistoryPanelContainer() {
   );
 
   const handleNewQuestion = useCallback((): void => {
-    void navigate("/");
+    void navigate("/run");
   }, [navigate]);
 
   const handleRetry = useCallback((): void => {

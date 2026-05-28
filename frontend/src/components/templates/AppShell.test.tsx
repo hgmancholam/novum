@@ -124,7 +124,7 @@ describe("AppShell", () => {
   it("renders the 'How do we work?' link in the top bar", () => {
     render(<AppShell forceBreakpoint="desktop" {...slots} />);
     const link = screen.getByRole("link", { name: /how do we work\?/i });
-    expect(link).toHaveAttribute("href", "/how-we-work");
+    expect(link).toHaveAttribute("href", "/");
   });
 
   it("keeps the 'How do we work?' link reachable on mobile too", () => {

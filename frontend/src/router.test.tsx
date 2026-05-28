@@ -56,7 +56,7 @@ describe("ProtectedRoute", () => {
 });
 
 describe("router config", () => {
-  it("registers a public /how-we-work route", () => {
+  it("registers a public / route (HowWeWork) and /run (HomePage)", () => {
     interface RouteLike {
       path?: string;
       children?: RouteLike[];
@@ -66,6 +66,8 @@ describe("router config", () => {
     const paths = flatten(router.routes as RouteLike[])
       .map((r) => r.path)
       .filter((p): p is string => typeof p === "string");
-    expect(paths).toContain("/how-we-work");
+    expect(paths).toContain("/");
+    expect(paths).toContain("/run");
+    expect(paths).not.toContain("/how-we-work");
   });
 });

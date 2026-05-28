@@ -3,12 +3,13 @@
  * See ui-prototype.md §4 (Routes) and §8.3 (folder structure).
  *
  * Routes:
- * - `/` → HomePage (C1 + L + T1)
+ * - `/` → HowWeWorkPage (public marketing / storytelling)
+ * - `/run` → HomePage (C1 + L + T1) — entry point to start a research
  * - `/runs/:runId` → RunPage (C4–C10 + L + T2/T3) — requires auth
  * - `/runs/:runId?fork=:eventId` → RunPage with fork context — requires auth
  * - `/diff/:runA/:runB` → DiffPage (C12 + L + T5) — requires auth
  *
- * ProtectedRoute: redirects unauthenticated users to `/`. While the token
+ * ProtectedRoute: redirects unauthenticated users to `/run`. While the token
  * is still being verified (isVerifying) it shows the loading skeleton so
  * the user is never flashed a redirect on a hard refresh with a valid token.
  */
@@ -58,7 +59,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/run" replace />;
   }
 
   return children;
@@ -67,11 +68,11 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: withSuspense(HomePage),
+    element: withSuspense(HowWeWorkPage),
   },
   {
-    path: "/how-we-work",
-    element: withSuspense(HowWeWorkPage),
+    path: "/run",
+    element: withSuspense(HomePage),
   },
   {
     path: "/runs/:runId",
