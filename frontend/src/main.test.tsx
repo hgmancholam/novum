@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render } from "@testing-library/react";
+
+// Mock pathname so the global UsernameModalContainer (which suppresses
+// auto-open on the public route `/`) renders the modal in these tests.
+vi.mock("@/hooks/usePathname", () => ({
+  usePathname: () => "/run",
+}));
+
 import { AppBoot, __resetAppBootForTests } from "./main";
 import { useUserStore } from "@/stores/userStore";
 

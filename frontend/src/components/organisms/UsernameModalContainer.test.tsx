@@ -1,6 +1,13 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { axe } from "jest-axe";
+
+// Mock pathname so tests can simulate routes without mounting RouterProvider.
+let mockPathname = "/run";
+vi.mock("@/hooks/usePathname", () => ({
+  usePathname: () => mockPathname,
+}));
+
 import { UsernameModalContainer } from "./UsernameModalContainer";
 import { useUserStore } from "@/stores/userStore";
 import { useLoginModal } from "@/hooks/useLoginModal";
@@ -17,6 +24,7 @@ function resetStores(): void {
 describe("UsernameModalContainer", () => {
   beforeEach(() => {
     resetStores();
+    mockPathname = "/run";
   });
 
   it("is hidden while isVerifying", () => {
@@ -89,5 +97,31 @@ describe("UsernameModalContainer", () => {
     });
     const { container } = render(<UsernameModalContainer />);
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it("does NOT auto-open on the public route '/' when unauthenticated", () => {
+    mockPathname = "/";
+    useUserStore.setState({
+      user: null,
+      isVerifying: false,
+      isAuthenticated: false,
+    });
+    render(<UsernameModalContainer />);
+    expect(screen.queryByTestId("username-modal")).not.toBeInTheDocument();
+  });
+
+  it("still opens on '/' when useLoginModal.open() is called manually", () => {
+    mockPathname = "/";
+    useUserStore.setState({
+      user: null,
+      isVerifying: false,
+      isAuthenticated: false,
+    });
+    render(<UsernameModalContainer />);
+    expect(screen.queryByTestId("username-modal")).not.toBeInTheDocument();
+    act(() => {
+      useLoginModal.getState().open();
+    });
+    expect(screen.getByTestId("username-modal")).toBeInTheDocument();
   });
 });
