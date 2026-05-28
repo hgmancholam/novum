@@ -29,11 +29,15 @@ const baseStyles =
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "glass-primary text-white " +
-    "hover:bg-[var(--accent-hover)] hover:shadow-[0_8px_24px_var(--accent-glow)] " +
-    "active:scale-[0.97]",
+    "bg-[var(--accent)] text-white shadow-[var(--shadow-glow)] " +
+    "hover:bg-[var(--accent-hover)] hover:-translate-y-0.5 " +
+    "hover:shadow-[0_12px_28px_var(--accent-glow)] " +
+    "active:translate-y-0 active:scale-[0.98]",
   secondary:
-    "glass text-[var(--text-primary)] hover:bg-[var(--glass-hover)] active:scale-[0.98]",
+    "border border-[var(--glass-border)] bg-[var(--glass-bg)] " +
+    "text-[var(--text-secondary)] backdrop-blur-xl " +
+    "hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] " +
+    "active:scale-[0.98]",
   ghost:
     "bg-transparent text-[var(--text-primary)] " +
     "hover:bg-[var(--glass-bg)] hover:[backdrop-filter:blur(12px)_saturate(150%)] " +
