@@ -32,7 +32,6 @@ from app.exceptions import (
     EventNotFoundError,
     InvalidCursorError,
     RunAlreadyStoppedError,
-    RunForbiddenError,
     RunNotFinishedError,
     RunNotForkableError,
     RunNotFoundError,
@@ -159,25 +158,22 @@ class RunService:
             next_cursor=next_cursor,
         )
 
-    async def delete_run(self, run_id: UUID, username: str) -> None:
-        """Permanently delete an owned, finished run (BRD-20 AC-03..AC-06).
+    async def delete_run(self, run_id: UUID) -> None:
+        """Permanently delete a finished run.
 
-        Order is critical (BRD-20 §4.5 leak guard):
+        Public-by-URL per RF-05: any authenticated user can delete any
+        finished run (the auth check lives at the route layer). Order:
         1. 404 if missing.
-        2. 403 if not owned by ``username`` — BEFORE the terminal check
-           so we never reveal someone else's run state via 409.
-        3. Best-effort ``await_terminal`` (swallow ``RunStillTerminatingError``
-           so the AC-04 409 body is never shadowed).
-        4. 409 if still running (``stop_reason IS NULL``).
-        5. Delete via ORM (cascades through events; ``runs.parent_run_id
-           ON DELETE SET NULL`` orphans forks per AC-06).
-        6. Close any open SSE state (idempotent).
+        2. Best-effort ``await_terminal`` (swallow ``RunStillTerminatingError``
+           so the 409 body is never shadowed).
+        3. 409 if still running (``stop_reason IS NULL``).
+        4. Delete via ORM (cascades through events; ``runs.parent_run_id
+           ON DELETE SET NULL`` orphans forks).
+        5. Close any open SSE state (idempotent).
         """
         run = await self.db.get(Run, run_id)
         if run is None:
             raise RunNotFoundError(str(run_id))
-        if run.owner_username != username:
-            raise RunForbiddenError()
 
         from app.agent.runner import agent_runner
 

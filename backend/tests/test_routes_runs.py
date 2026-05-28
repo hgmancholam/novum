@@ -556,13 +556,13 @@ async def test_delete_run_unknown_returns_404_with_literal_detail(
     assert response.json()["detail"] == f"Run not found: {rid}"
 
 
-async def test_delete_run_not_owned_returns_403_with_literal_detail(
+async def test_delete_run_other_user_returns_204(
     client: AsyncClient,
     sqlite_session: AsyncSession,
     seeded_user: str,
     auth_headers: dict[str, str],
 ) -> None:
-    """BRD-20 AC-05, §14.3: foreign run yields 403 with literal detail."""
+    """Public-by-URL (RF-05): any authenticated user can delete any finished run."""
     from app.services.auth_service import AuthService
 
     auth = AuthService(sqlite_session)
@@ -571,8 +571,7 @@ async def test_delete_run_not_owned_returns_403_with_literal_detail(
 
     run_id = await _create_and_stop(client, sqlite_session, headers_bob)
     response = await client.delete(f"/api/runs/{run_id}", headers=auth_headers)
-    assert response.status_code == 403
-    assert response.json()["detail"] == "Run is not owned by the current user."
+    assert response.status_code == 204
 
 
 async def test_delete_run_in_progress_returns_409_with_literal_detail(

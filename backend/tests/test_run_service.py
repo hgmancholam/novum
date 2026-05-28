@@ -14,7 +14,6 @@ from app.exceptions import (
     EventNotFoundError,
     InvalidCursorError,
     RunAlreadyStoppedError,
-    RunForbiddenError,
     RunNotFinishedError,
     RunNotForkableError,
     RunNotFoundError,
@@ -254,7 +253,7 @@ async def test_delete_run_removes_finished_run(
     run_id = run.id
 
     svc = RunService(sqlite_session)
-    await svc.delete_run(run_id, seeded_user)
+    await svc.delete_run(run_id)
 
     sqlite_session.expire_all()
     assert await sqlite_session.get(Run, run_id) is None
@@ -278,7 +277,7 @@ async def test_delete_run_cascades_events(
     await _stop_run(sqlite_session, run)
 
     svc = RunService(sqlite_session)
-    await svc.delete_run(run.id, seeded_user)
+    await svc.delete_run(run.id)
 
     sqlite_session.expire_all()
     result = await sqlite_session.execute(
@@ -314,7 +313,7 @@ async def test_delete_run_orphans_forks(
     )
     await _stop_run(sqlite_session, parent)
 
-    await svc.delete_run(parent.id, seeded_user)
+    await svc.delete_run(parent.id)
 
     sqlite_session.expire_all()
     fork_row = await sqlite_session.get(Run, fork.id)
@@ -326,13 +325,13 @@ async def test_delete_run_missing_raises_404(
 ) -> None:
     svc = RunService(sqlite_session)
     with pytest.raises(RunNotFoundError):
-        await svc.delete_run(uuid.uuid4(), seeded_user)
+        await svc.delete_run(uuid.uuid4())
 
 
-async def test_delete_run_not_owned_raises_403(
+async def test_delete_run_allows_deleting_other_users_finished_run(
     sqlite_session: AsyncSession, seeded_user: str
 ) -> None:
-    """BRD-20 AC-05: caller must own the run."""
+    """Public-by-URL (RF-05): any authenticated user may delete any finished run."""
     from app.models import User
 
     other = User(username="bob", token_hash="y" * 64)
@@ -342,18 +341,16 @@ async def test_delete_run_not_owned_raises_403(
     await _stop_run(sqlite_session, run)
 
     svc = RunService(sqlite_session)
-    with pytest.raises(RunForbiddenError):
-        await svc.delete_run(run.id, seeded_user)
+    await svc.delete_run(run.id)
+
+    sqlite_session.expire_all()
+    assert await sqlite_session.get(Run, run.id) is None
 
 
-async def test_delete_run_ownership_check_precedes_terminal_check(
+async def test_delete_run_in_progress_raises_409_even_for_other_user(
     sqlite_session: AsyncSession, seeded_user: str
 ) -> None:
-    """BRD-20 §4.5 leak guard: 403 must fire before 409.
-
-    A still-running run owned by someone else must NOT leak its state via
-    a 409 to the caller; it must yield 403.
-    """
+    """In-progress runs cannot be deleted regardless of ownership."""
     from app.models import User
 
     other = User(username="bob", token_hash="y" * 64)
@@ -362,8 +359,8 @@ async def test_delete_run_ownership_check_precedes_terminal_check(
     run = await _create_run(sqlite_session, "bob")  # in-progress (no stop_reason)
 
     svc = RunService(sqlite_session)
-    with pytest.raises(RunForbiddenError):
-        await svc.delete_run(run.id, seeded_user)
+    with pytest.raises(RunNotFinishedError):
+        await svc.delete_run(run.id)
 
 
 async def test_delete_run_in_progress_raises_409(
@@ -374,7 +371,7 @@ async def test_delete_run_in_progress_raises_409(
 
     svc = RunService(sqlite_session)
     with pytest.raises(RunNotFinishedError):
-        await svc.delete_run(run.id, seeded_user)
+        await svc.delete_run(run.id)
 
 
 async def test_delete_run_swallows_run_still_terminating(
@@ -396,7 +393,7 @@ async def test_delete_run_swallows_run_still_terminating(
 
     svc = RunService(sqlite_session)
     with pytest.raises(RunNotFinishedError):
-        await svc.delete_run(run.id, seeded_user)
+        await svc.delete_run(run.id)
 
 
 async def test_delete_run_closes_sse_connection(
@@ -410,7 +407,7 @@ async def test_delete_run_closes_sse_connection(
     await _stop_run(sqlite_session, run)
 
     svc = RunService(sqlite_session)
-    await svc.delete_run(run.id, seeded_user)
+    await svc.delete_run(run.id)
 
     # Idempotent: a second close is a no-op.
     connection_manager.close(run.id)

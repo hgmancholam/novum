@@ -65,11 +65,11 @@ async def get_run(
 async def delete_run(
     run_id: UUID,
     db: DbSession,
-    username: CurrentUsername,
+    username: CurrentUsername,  # noqa: ARG001 — auth gate only; runs are public-by-URL
 ) -> Response:
-    """Delete a finished, owned run (BRD-20 AC-03..AC-06)."""
+    """Delete a finished run — public-by-URL per RF-05."""
     service = RunService(db)
-    await service.delete_run(run_id, username)
+    await service.delete_run(run_id)
     return Response(status_code=204)
 
 
