@@ -53,6 +53,8 @@ jobs:
             ~/.local/bin/uv sync
             
             echo "=== Loading environment variables ==="
+            # Strip CRLF in case .env was edited from Windows
+            sed -i 's/\r$//' .env
             set -a
             source .env
             set +a
