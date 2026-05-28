@@ -18,7 +18,7 @@ describe("JudgeVerdictCard", () => {
         rationale="Answer meets quality threshold"
       />
     );
-    expect(screen.getByText("Confirmado")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed")).toBeInTheDocument();
   });
 
   it('renders "Retry suggested" badge when not passed', () => {
@@ -30,7 +30,7 @@ describe("JudgeVerdictCard", () => {
         rationale="Below threshold"
       />
     );
-    expect(screen.getByText("Sugiero reintentar")).toBeInTheDocument();
+    expect(screen.getByText("Retry suggested")).toBeInTheDocument();
   });
 
   it("displays confidence percentage and threshold", () => {
@@ -43,7 +43,7 @@ describe("JudgeVerdictCard", () => {
       />
     );
     expect(screen.getByText(/85%/)).toBeInTheDocument();
-    expect(screen.getByText(/umbral: 70%/)).toBeInTheDocument();
+    expect(screen.getByText(/threshold: 70%/)).toBeInTheDocument();
   });
 
   it("renders confidence bar with correct width", () => {

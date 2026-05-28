@@ -54,15 +54,15 @@ export function SearchStepCard({
       {sources.length > 0 ? (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-[var(--text-muted)]">Fuentes</span>
+            <span className="text-xs text-[var(--text-muted)]">Sources</span>
             {autoCollapse ? (
               <CollapseToggleButton
                 isCollapsed={isCollapsed}
                 onToggle={() => {
                   setIsCollapsed(!isCollapsed);
                 }}
-                labelCollapse="Ocultar fuentes"
-                labelExpand="Mostrar fuentes"
+                labelCollapse="Hide sources"
+                labelExpand="Show sources"
               />
             ) : null}
           </div>

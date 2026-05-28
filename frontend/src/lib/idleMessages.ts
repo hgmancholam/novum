@@ -1,20 +1,20 @@
 /**
- * Rotating Spanish reassurance messages shown when the agent has been
- * working without emitting new events for a while. Keeps the user
- * engaged on long-running queries.
+ * Rotating reassurance messages shown when the agent has been working
+ * without emitting new events for a while. Keeps the user engaged on
+ * long-running queries.
  */
 
 import { useEffect, useState } from "react";
 
 export const IDLE_REASSURANCE_MESSAGES: readonly string[] = [
-  "Sigo investigando…",
-  "Esto está tomando un poco más de lo esperado…",
-  "Cruzando información de varias fuentes…",
-  "Pensando con calma para no equivocarme…",
-  "Buscando fuentes confiables…",
-  "Verificando lo que encontré…",
-  "Casi listo, dame un momento más…",
-  "Comparando perspectivas para responderte mejor…",
+  "Still researching…",
+  "This is taking a bit longer than expected…",
+  "Cross-checking information across sources…",
+  "Thinking it through carefully…",
+  "Looking for reliable sources…",
+  "Verifying what I found…",
+  "Almost there, just a moment more…",
+  "Comparing perspectives to give you a better answer…",
 ];
 
 /**

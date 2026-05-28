@@ -20,7 +20,7 @@ describe("SearchStepCard", () => {
       <SearchStepCard query="AI systems" sources={mockSources} />
     );
     expect(screen.getByText(/"AI systems"/)).toBeInTheDocument();
-    expect(screen.getByText(/2 resultados/)).toBeInTheDocument();
+    expect(screen.getByText(/2 results/)).toBeInTheDocument();
   });
 
   it("renders all sources when count ≤ 3", () => {
@@ -52,7 +52,7 @@ describe("SearchStepCard", () => {
     ];
     renderInList(<SearchStepCard query="test" sources={manySources} />);
 
-    const toggle = screen.getByRole("button", { name: /mostrar/i });
+    const toggle = screen.getByRole("button", { name: /show/i });
     await user.click(toggle);
 
     expect(screen.getByText("Source 1")).toBeInTheDocument();
@@ -63,8 +63,8 @@ describe("SearchStepCard", () => {
     const { container } = renderInList(
       <SearchStepCard query="test" sources={[]} />
     );
-    expect(container.textContent).toContain("0 resultados");
-    expect(screen.queryByText("Fuentes")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("0 results");
+    expect(screen.queryByText("Sources")).not.toBeInTheDocument();
   });
 
   it("passes isActive to FeedStep", () => {

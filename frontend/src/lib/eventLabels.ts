@@ -1,5 +1,5 @@
 /**
- * Friendly labels for the 20 event types emitted by the agent.
+ * Friendly labels for the event types emitted by the agent.
  *
  * Two related maps:
  *
@@ -9,67 +9,66 @@
  *   "researching" indicator (e.g. "Drafting a plan" while `PlanCreated`
  *   is the latest event).
  *
- * Both are keyed by the raw `EventType` string so unknown values (e.g.
- * future event types not yet generated into `types/events.ts`) fall back
- * to the raw type. See ui-prototype.md §7 (microcopy).
+ * Both are keyed by the raw `EventType` string so unknown values fall
+ * back to the raw type. See ui-prototype.md §7 (microcopy).
  */
 
 import type { EventType } from "@/types/events";
 
 export const EVENT_LABELS: Record<EventType, string> = {
-  QuestionAsked: "Pregunta",
-  QuestionNormalized: "Pregunta replanteada",
-  QuestionClassified: "Tipo de pregunta",
-  PlanCreated: "Plan de búsqueda",
-  PlanCritiqued: "Revisión del plan",
-  PlanRevised: "Plan ajustado",
-  ToolCalled: "Búsqueda",
-  EvidenceAdded: "Evidencia",
-  ClaimCovered: "Afirmación cubierta",
-  ClaimUncoverable: "Afirmación sin evidencia",
-  SourceFailed: "Fuente no disponible",
-  AmbiguityDetected: "Ambigüedad",
-  ContradictionDetected: "Contradicción",
-  ContradictionResolved: "Contradicción resuelta",
-  UserContextChallenged: "Contexto cuestionado",
-  PriorRunHintReplayed: "Resultado reutilizado",
-  JudgeRuled: "Veredicto del juez",
-  ConfidenceMismatch: "Inconsistencia en la confianza",
-  AgentErrored: "Error del agente",
-  ResumedAfterError: "Retomado tras error",
-  ResumedAfterCancel: "Retomado tras cancelación",
-  Stopped: "Listo",
-  SaturationDetected: "Saturación",
-  JudgeProviderDegraded: "Juez degradado",
-  DeepFetchPerformed: "Lectura profunda",
+  QuestionAsked: "Question",
+  QuestionNormalized: "Question rephrased",
+  QuestionClassified: "Question type",
+  PlanCreated: "Plan",
+  PlanCritiqued: "Plan critique",
+  PlanRevised: "Plan revised",
+  ToolCalled: "Search",
+  EvidenceAdded: "Evidence",
+  ClaimCovered: "Claim covered",
+  ClaimUncoverable: "Claim without evidence",
+  SourceFailed: "Source unavailable",
+  AmbiguityDetected: "Ambiguity",
+  ContradictionDetected: "Contradiction",
+  ContradictionResolved: "Contradiction resolved",
+  UserContextChallenged: "Context challenged",
+  PriorRunHintReplayed: "Prior result reused",
+  JudgeRuled: "Judge verdict",
+  ConfidenceMismatch: "Confidence mismatch",
+  AgentErrored: "Agent error",
+  ResumedAfterError: "Resumed after error",
+  ResumedAfterCancel: "Resumed after cancel",
+  Stopped: "Done",
+  SaturationDetected: "Saturation",
+  JudgeProviderDegraded: "Judge degraded",
+  DeepFetchPerformed: "Deep read",
 };
 
 export const EVENT_ACTIVITIES: Record<EventType, string> = {
-  QuestionAsked: "Recibí tu pregunta",
-  QuestionNormalized: "Reescribiendo la pregunta para entenderla mejor",
-  QuestionClassified: "Analizando de qué se trata",
-  PlanCreated: "Vamos a construir el plan de búsqueda",
-  PlanCritiqued: "Revisando el plan antes de seguir",
-  PlanRevised: "Replanteando el enfoque",
-  ToolCalled: "Buscando en la web",
-  EvidenceAdded: "Leyendo lo que encontré",
-  ClaimCovered: "Marcando una afirmación como cubierta",
-  ClaimUncoverable: "Identificando vacíos de información",
-  SourceFailed: "Reintentando una fuente",
-  AmbiguityDetected: "Detectando ambigüedad en la pregunta",
-  ContradictionDetected: "Encontré información contradictoria",
-  ContradictionResolved: "Reconciliando lo que dicen las fuentes",
-  UserContextChallenged: "Necesito un poco más de contexto",
-  PriorRunHintReplayed: "Recuperando una respuesta anterior",
-  JudgeRuled: "Evaluando si la respuesta es suficiente",
-  ConfidenceMismatch: "Revisando los niveles de confianza",
-  AgentErrored: "Recuperándome de un error",
-  ResumedAfterError: "Retomando desde donde quedé",
-  ResumedAfterCancel: "Retomando desde donde quedé",
-  Stopped: "Cerrando todo",
-  SaturationDetected: "Detectando saturación",
-  JudgeProviderDegraded: "Cambiando el juez de respaldo",
-  DeepFetchPerformed: "Leyendo la página completa",
+  QuestionAsked: "Got your question",
+  QuestionNormalized: "Rephrasing the question to understand it better",
+  QuestionClassified: "Figuring out what kind of question this is",
+  PlanCreated: "Drafting a search plan",
+  PlanCritiqued: "Reviewing the plan before moving on",
+  PlanRevised: "Rethinking the approach",
+  ToolCalled: "Searching the web",
+  EvidenceAdded: "Reading what I found",
+  ClaimCovered: "Marking a claim as covered",
+  ClaimUncoverable: "Identifying gaps in the evidence",
+  SourceFailed: "Retrying a source",
+  AmbiguityDetected: "Detecting ambiguity in the question",
+  ContradictionDetected: "Found contradictory information",
+  ContradictionResolved: "Reconciling what the sources say",
+  UserContextChallenged: "I need a bit more context",
+  PriorRunHintReplayed: "Recovering a previous answer",
+  JudgeRuled: "Judging whether the answer is good enough",
+  ConfidenceMismatch: "Reviewing confidence levels",
+  AgentErrored: "Recovering from an error",
+  ResumedAfterError: "Picking up where I left off",
+  ResumedAfterCancel: "Picking up where I left off",
+  Stopped: "Wrapping up",
+  SaturationDetected: "Detecting saturation",
+  JudgeProviderDegraded: "Switching to a backup judge",
+  DeepFetchPerformed: "Reading the full page",
 };
 
 export function getEventLabel(type: string): string {
@@ -78,16 +77,14 @@ export function getEventLabel(type: string): string {
 
 export function getEventActivity(type: string | undefined): string {
   if (type === undefined || type === "") {
-    return "Trabajando en ello";
+    return "Working on it";
   }
-  return EVENT_ACTIVITIES[type as EventType] ?? "Trabajando en ello";
+  return EVENT_ACTIVITIES[type as EventType] ?? "Working on it";
 }
 
 /**
- * Enhanced narrative for feed display (IP-24) — returns a richer natural-language
+ * Enhanced narrative for feed display — returns a richer natural-language
  * phrase than EVENT_ACTIVITIES. Falls back to getEventActivity for unmapped types.
- *
- * Uses `Record<string, unknown>` to avoid coupling to backend event payload shape.
  */
 export function getEventNarrative(
   type: EventType,
@@ -97,9 +94,9 @@ export function getEventNarrative(
     case "ToolCalled": {
       const query = payload["query"];
       if (typeof query === "string" && query.length > 0) {
-        return `Busqué en la web: "${query}"`;
+        return `Searched the web: "${query}"`;
       }
-      return "Busqué en la web";
+      return "Searched the web";
     }
     case "EvidenceAdded": {
       const title = payload["source_title"];
@@ -107,26 +104,26 @@ export function getEventNarrative(
       if (typeof title === "string" && typeof url === "string") {
         try {
           const hostname = new URL(url).hostname.replace(/^www\./, "");
-          return `Leí "${title}" (${hostname})`;
+          return `Read "${title}" (${hostname})`;
         } catch {
-          return `Leí "${title}"`;
+          return `Read "${title}"`;
         }
       }
-      return "Leí una fuente";
+      return "Read a source";
     }
     case "JudgeRuled": {
       const confidence = payload["final_confidence"];
       if (typeof confidence === "number") {
-        return `Veredicto del juez: confianza ${confidence.toFixed(2)}`;
+        return `Judge verdict: confidence ${confidence.toFixed(2)}`;
       }
-      return "El juez evaluó la respuesta";
+      return "The judge evaluated the answer";
     }
     case "Stopped": {
       const stopReason = payload["stop_reason"];
       if (typeof stopReason === "string") {
-        return `Terminé — ${stopReason}`;
+        return `Done — ${stopReason}`;
       }
-      return "Terminé";
+      return "Done";
     }
     default:
       return getEventActivity(type);

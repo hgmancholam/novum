@@ -40,8 +40,8 @@ describe("eventLabels", () => {
   });
 
   it("getEventLabel returns the friendly name", () => {
-    expect(getEventLabel("PlanCreated")).toBe("Plan de búsqueda");
-    expect(getEventLabel("ToolCalled")).toBe("Búsqueda");
+    expect(getEventLabel("PlanCreated")).toBe("Plan");
+    expect(getEventLabel("ToolCalled")).toBe("Search");
   });
 
   it("getEventLabel falls back to the raw type for unknown events", () => {
@@ -50,13 +50,13 @@ describe("eventLabels", () => {
 
   it("getEventActivity returns a present-continuous phrase", () => {
     expect(getEventActivity("PlanCreated")).toMatch(/plan/i);
-    expect(getEventActivity("ToolCalled")).toMatch(/busc/i);
+    expect(getEventActivity("ToolCalled")).toMatch(/search/i);
   });
 
   it("getEventActivity falls back to a generic activity", () => {
-    expect(getEventActivity(undefined)).toBe("Trabajando en ello");
-    expect(getEventActivity("")).toBe("Trabajando en ello");
-    expect(getEventActivity("Unknown")).toBe("Trabajando en ello");
+    expect(getEventActivity(undefined)).toBe("Working on it");
+    expect(getEventActivity("")).toBe("Working on it");
+    expect(getEventActivity("Unknown")).toBe("Working on it");
   });
 
   // IP-24 (Phase 0)
@@ -65,13 +65,13 @@ describe("eventLabels", () => {
       const result = getEventNarrative("ToolCalled", {
         query: "AI systems replacing engineers",
       });
-      expect(result).toContain("Busqué en la web");
+      expect(result).toContain("Searched the web");
       expect(result).toContain("AI systems replacing engineers");
     });
 
     it("for ToolCalled without query falls back gracefully", () => {
       const result = getEventNarrative("ToolCalled", {});
-      expect(result).toBe("Busqué en la web");
+      expect(result).toBe("Searched the web");
     });
 
     it("for EvidenceAdded includes title and hostname", () => {
@@ -79,7 +79,7 @@ describe("eventLabels", () => {
         source_title: "Understanding AI",
         source_url: "https://www.example.com/article",
       });
-      expect(result).toContain("Leí \"Understanding AI\"");
+      expect(result).toContain("Read \"Understanding AI\"");
       expect(result).toContain("example.com");
     });
 
@@ -97,14 +97,14 @@ describe("eventLabels", () => {
         source_title: "Document",
         source_url: "not a url",
       });
-      expect(result).toContain("Leí \"Document\"");
+      expect(result).toContain("Read \"Document\"");
     });
 
     it("for JudgeRuled includes confidence", () => {
       const result = getEventNarrative("JudgeRuled", {
         final_confidence: 0.85,
       });
-      expect(result).toContain("Veredicto del juez: confianza");
+      expect(result).toContain("Judge verdict: confidence");
       expect(result).toContain("0.85");
     });
 
@@ -112,7 +112,7 @@ describe("eventLabels", () => {
       const result = getEventNarrative("Stopped", {
         stop_reason: "judge_confirmed",
       });
-      expect(result).toContain("Terminé — judge_confirmed");
+      expect(result).toContain("Done — judge_confirmed");
     });
 
     it("falls back to getEventActivity for unmapped types", () => {

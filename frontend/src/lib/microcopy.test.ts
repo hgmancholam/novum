@@ -23,7 +23,7 @@ describe("microcopy — IP-24 (Phase 0)", () => {
     expect(FEED_LET_ME_THINK).toBeTruthy();
     expect(FEED_SEARCHED_WEB).toBeTruthy();
     expect(FEED_FETCHED_PAGE).toBeTruthy();
-    expect(FEED_DONE).toBe("Listo");
+    expect(FEED_DONE).toBe("Done");
     expect(FEED_TOGGLE_COLLAPSE).toBeTruthy();
     expect(FEED_TOGGLE_EXPAND).toBeTruthy();
     expect(TRACE_PANEL_COLLAPSE).toBeTruthy();
@@ -33,8 +33,8 @@ describe("microcopy — IP-24 (Phase 0)", () => {
   });
 
   it("FEED_RESULTS_COUNT pluralizes correctly", () => {
-    expect(FEED_RESULTS_COUNT(0)).toBe("0 resultados");
-    expect(FEED_RESULTS_COUNT(1)).toBe("1 resultado");
-    expect(FEED_RESULTS_COUNT(5)).toBe("5 resultados");
+    expect(FEED_RESULTS_COUNT(0)).toBe("0 results");
+    expect(FEED_RESULTS_COUNT(1)).toBe("1 result");
+    expect(FEED_RESULTS_COUNT(5)).toBe("5 results");
   });
 });

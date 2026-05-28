@@ -84,7 +84,7 @@ describe("RunFeed", () => {
       />
     );
     expect(await screen.findByText(/"AI systems"/)).toBeInTheDocument();
-    expect(screen.getByText(/1 fuente/)).toBeInTheDocument();
+    expect(screen.getByText(/1 source/)).toBeInTheDocument();
   });
 
   it("renders PlanStepCard for PlanCreated", async () => {
@@ -112,7 +112,7 @@ describe("RunFeed", () => {
       timestamp_ms: 1000,
     };
     render(<RunFeed events={[judgeEvent]} isComplete={true} />);
-    expect(await screen.findByText(/Confirmado/)).toBeInTheDocument();
+    expect(await screen.findByText(/Confirmed/)).toBeInTheDocument();
     expect(screen.getByText(/85%/)).toBeInTheDocument();
   });
 
@@ -123,7 +123,7 @@ describe("RunFeed", () => {
         isComplete={true}
       />
     );
-    expect(screen.getByRole("button", { name: /ocultar/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /hide/i })).toBeInTheDocument();
   });
 
   it("does not show collapse button when not complete", () => {
@@ -133,7 +133,7 @@ describe("RunFeed", () => {
         isComplete={false}
       />
     );
-    expect(screen.queryByRole("button", { name: /ocultar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /hide/i })).not.toBeInTheDocument();
   });
 
   it("collapses feed when toggle is clicked", async () => {
@@ -145,7 +145,7 @@ describe("RunFeed", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: /ocultar/i });
+    const toggle = screen.getByRole("button", { name: /hide/i });
     await user.click(toggle);
 
     expect(screen.queryByText(/"AI systems"/)).not.toBeInTheDocument();
@@ -160,7 +160,7 @@ describe("RunFeed", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: /ocultar/i });
+    const toggle = screen.getByRole("button", { name: /hide/i });
     await user.click(toggle);
 
     expect(localStorage.getItem("novum_run_feed_collapsed")).toBe("1");

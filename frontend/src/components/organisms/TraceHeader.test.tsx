@@ -19,12 +19,12 @@ describe("TraceHeader", () => {
       <TraceHeader eventCount={0} isStreaming={false} />
     );
     expect(screen.getByTestId("trace-header")).toHaveTextContent(
-      "sin eventos aún"
+      "no events yet"
     );
     rerender(<TraceHeader eventCount={1} isStreaming={false} />);
-    expect(screen.getByTestId("trace-header")).toHaveTextContent("1 evento");
+    expect(screen.getByTestId("trace-header")).toHaveTextContent("1 event");
     rerender(<TraceHeader eventCount={7} isStreaming={false} />);
-    expect(screen.getByTestId("trace-header")).toHaveTextContent("7 eventos");
+    expect(screen.getByTestId("trace-header")).toHaveTextContent("7 events");
   });
 
   it("renders the 'Trace' title", () => {

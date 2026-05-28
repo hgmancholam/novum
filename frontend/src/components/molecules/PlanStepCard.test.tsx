@@ -21,7 +21,7 @@ describe("PlanStepCard", () => {
         subClaims={mockClaims}
       />
     );
-    expect(screen.getByText("Construí el plan de búsqueda")).toBeInTheDocument();
+    expect(screen.getByText("Drafted the search plan")).toBeInTheDocument();
   });
 
   it("renders title for revision", () => {
@@ -32,7 +32,7 @@ describe("PlanStepCard", () => {
         isRevision
       />
     );
-    expect(screen.getByText("Replantee el plan")).toBeInTheDocument();
+    expect(screen.getByText("Revised the plan")).toBeInTheDocument();
   });
 
   it("renders complexity hint when provided", () => {
@@ -87,7 +87,7 @@ describe("PlanStepCard", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: /mostrar/i });
+    const toggle = screen.getByRole("button", { name: /show/i });
     await user.click(toggle);
 
     const rationaleEl = container.querySelector("p");

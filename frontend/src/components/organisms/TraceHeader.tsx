@@ -39,10 +39,10 @@ export function TraceHeader({
           <h2 className="text-sm font-medium text-[var(--text-primary)]">Trace</h2>
           <span className="text-[10px] text-[var(--text-muted)]">
             {eventCount === 0
-              ? "sin eventos aún"
+              ? "no events yet"
               : eventCount === 1
-                ? "1 evento"
-                : `${eventCount.toString()} eventos`}
+                ? "1 event"
+                : `${eventCount.toString()} events`}
           </span>
         </div>
       ) : null}

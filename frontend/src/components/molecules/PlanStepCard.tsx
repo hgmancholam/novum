@@ -48,7 +48,7 @@ export function PlanStepCard({
 }: PlanStepCardProps) {
   const [isRationaleExpanded, setIsRationaleExpanded] = useState(false);
 
-  const title = isRevision ? "Replantee el plan" : "Construí el plan de búsqueda";
+  const title = isRevision ? "Revised the plan" : "Drafted the search plan";
   const shouldTruncate = rationale.length > 160;
 
   return (
@@ -69,15 +69,15 @@ export function PlanStepCard({
 
       <div className="mb-3">
         <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="text-xs text-[var(--text-muted)]">Razonamiento</span>
+          <span className="text-xs text-[var(--text-muted)]">Reasoning</span>
           {shouldTruncate ? (
             <CollapseToggleButton
               isCollapsed={!isRationaleExpanded}
               onToggle={() => {
                 setIsRationaleExpanded(!isRationaleExpanded);
               }}
-              labelCollapse="Ocultar razonamiento"
-              labelExpand="Mostrar razonamiento"
+              labelCollapse="Hide reasoning"
+              labelExpand="Show reasoning"
             />
           ) : null}
         </div>
@@ -94,7 +94,7 @@ export function PlanStepCard({
       {subClaims.length > 0 ? (
         <div>
           <span className="text-xs text-[var(--text-muted)] block mb-2">
-            Lo que voy a verificar
+            What I'm going to verify
           </span>
           <ul className="flex flex-col gap-2">
             {subClaims.map((claim) => {

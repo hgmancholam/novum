@@ -31,7 +31,7 @@ export function JudgeVerdictCard({
   return (
     <FeedStep
       type="JudgeRuled"
-      title="Veredicto del juez"
+      title="Judge verdict"
       deltaMs={deltaMs}
       className={className}
     >
@@ -45,10 +45,10 @@ export function JudgeVerdictCard({
           ) : (
             <XCircle aria-hidden="true" width={12} height={12} />
           )}
-          {passed ? "Confirmado" : "Sugiero reintentar"}
+          {passed ? "Confirmed" : "Retry suggested"}
         </Badge>
         <span className="text-xs text-[var(--text-muted)]">
-          {percentage.toString()}% (umbral: {thresholdPercentage.toString()}%)
+          {percentage.toString()}% (threshold: {thresholdPercentage.toString()}%)
         </span>
       </div>
 
@@ -59,7 +59,7 @@ export function JudgeVerdictCard({
           aria-valuenow={percentage}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label="Confianza final"
+          aria-label="Final confidence"
           className="relative h-2 w-full overflow-hidden rounded-full bg-[var(--bg-tertiary)]"
         >
           <div
@@ -84,7 +84,7 @@ export function JudgeVerdictCard({
       {/* Rationale (always expanded per IP-24) */}
       <div>
         <span className="text-xs text-[var(--text-muted)] block mb-1">
-          Razonamiento
+          Reasoning
         </span>
         <p className="text-sm text-[var(--text-secondary)]">{rationale}</p>
       </div>

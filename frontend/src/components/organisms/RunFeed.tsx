@@ -80,16 +80,16 @@ function mapStepToView(step: FeedStepData): StepView {
       const subClaims =
         (payload.sub_claims as Array<{ text?: string }> | undefined) ?? [];
       const isRevision = type === "PlanRevised";
-      const label = isRevision ? "Plan ajustado" : "Plan";
+      const label = isRevision ? "Plan revised" : "Plan";
       const summary =
         rationale.length > 0
           ? rationale
           : isRevision
-            ? "Replanteé el enfoque tras revisar los hallazgos."
-            : "Construí el plan de búsqueda.";
+            ? "Rethought the approach after reviewing the findings."
+            : "Drafted the search plan.";
       const detail =
         subClaims.length > 0
-          ? `${summary} Voy a verificar ${subClaims.length.toString()} sub-afirmación${subClaims.length === 1 ? "" : "es"}.`
+          ? `${summary} I'll verify ${subClaims.length.toString()} sub-claim${subClaims.length === 1 ? "" : "s"}.`
           : summary;
       const children: ReactNode =
         subClaims.length > 0 ? (
@@ -99,7 +99,7 @@ function mapStepToView(step: FeedStepData): StepView {
                 key={idx}
                 className="rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] px-2.5 py-0.5 text-[11px] text-[var(--text-secondary)]"
               >
-                {c.text ?? `Sub-afirmación ${(idx + 1).toString()}`}
+                {c.text ?? `Sub-claim ${(idx + 1).toString()}`}
               </li>
             ))}
           </ul>
@@ -117,8 +117,8 @@ function mapStepToView(step: FeedStepData): StepView {
         (payload.sources as Array<{ url?: string; title?: string }> | undefined) ?? [];
       const detail =
         query.length > 0
-          ? `Busqué en la web: "${query}" → ${sources.length.toString()} fuente${sources.length === 1 ? "" : "s"}.`
-          : `Encontré ${sources.length.toString()} fuente${sources.length === 1 ? "" : "s"}.`;
+          ? `Searched the web: "${query}" → ${sources.length.toString()} source${sources.length === 1 ? "" : "s"}.`
+          : `Found ${sources.length.toString()} source${sources.length === 1 ? "" : "s"}.`;
       const children: ReactNode =
         sources.length > 0 ? (
           <ul className="mt-1 space-y-1">
@@ -144,19 +144,19 @@ function mapStepToView(step: FeedStepData): StepView {
                     </span>
                   </a>
                 ) : (
-                  <span className="truncate">{s.title ?? "Fuente"}</span>
+                  <span className="truncate">{s.title ?? "Source"}</span>
                 )}
               </motion.li>
             ))}
             {sources.length > 5 ? (
               <li className="text-[11px] text-[var(--text-muted)]">
-                +{(sources.length - 5).toString()} más…
+                +{(sources.length - 5).toString()} more…
               </li>
             ) : null}
           </ul>
         ) : null;
       return {
-        label: "Búsqueda",
+        label: "Search",
         accent: "#22d3ee",
         detail,
         ...(children !== null ? { children } : {}),
@@ -167,8 +167,8 @@ function mapStepToView(step: FeedStepData): StepView {
       const finalConfidence = (payload.final_confidence as number | undefined) ?? 0;
       const threshold = (payload.threshold as number | undefined) ?? 0.7;
       const rationale = (payload.rationale as string | undefined) ?? "";
-      const verdict = passed ? "Confirmado" : "Sugiero reintentar";
-      const detail = `Veredicto: ${verdict} · confianza ${(finalConfidence * 100).toFixed(0)}% (umbral ${(threshold * 100).toFixed(0)}%).`;
+      const verdict = passed ? "Confirmed" : "Retry suggested";
+      const detail = `Verdict: ${verdict} · confidence ${(finalConfidence * 100).toFixed(0)}% (threshold ${(threshold * 100).toFixed(0)}%).`;
       const children: ReactNode =
         rationale.length > 0 ? (
           <p className="mt-1 text-[12px] italic text-[var(--text-muted)]">
@@ -176,7 +176,7 @@ function mapStepToView(step: FeedStepData): StepView {
           </p>
         ) : null;
       return {
-        label: "Juez",
+        label: "Judge",
         accent: "var(--warm)",
         detail,
         ...(children !== null ? { children } : {}),
@@ -184,23 +184,23 @@ function mapStepToView(step: FeedStepData): StepView {
     }
     case "ambiguity":
       return {
-        label: "Ambigüedad",
+        label: "Ambiguity",
         accent: "var(--semantic-warning)",
-        detail: "Detecté que la pregunta tiene varias interpretaciones posibles.",
+        detail: "Detected that the question has multiple possible interpretations.",
       };
     case "contradiction":
       return {
-        label: "Contradicción",
+        label: "Contradiction",
         accent: "var(--semantic-warning)",
-        detail: "Las fuentes no coinciden en datos clave.",
+        detail: "The sources disagree on key data.",
       };
     case "done": {
       const stopReason = (payload.stop_reason as string | undefined) ?? "unknown";
       const confirmed = stopReason === "judge_confirmed";
       return {
-        label: "Resultado verificado",
+        label: "Verified result",
         accent: confirmed ? "var(--semantic-success)" : "var(--semantic-neutral)",
-        detail: `Terminé — motivo: ${stopReason}.`,
+        detail: `Done — reason: ${stopReason}.`,
       };
     }
     default: {
@@ -315,7 +315,7 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
         <h3 className="text-sm font-medium text-[var(--text-secondary)]">
           {steps.length > 0
             ? FEED_REASONING_TRACE(steps.length, totalSeconds)
-            : "Pensando…"}
+            : "Thinking…"}
         </h3>
         {isComplete && steps.length > 0 ? (
           <div className="ml-auto">
