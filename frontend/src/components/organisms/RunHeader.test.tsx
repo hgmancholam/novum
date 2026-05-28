@@ -29,14 +29,14 @@ function renderWithRouter(ui: React.ReactElement) {
 }
 
 describe("RunHeader", () => {
-  it("shows the Researching badge and elapsed clock while running", () => {
+  it("shows the Researching badge while running (no elapsed clock — RunFeed owns elapsed)", () => {
     renderWithRouter(<RunHeader run={makeRun()} status="running" />);
     expect(screen.getByText("Researching…")).toBeInTheDocument();
-    expect(screen.getByTestId("elapsed-clock")).toBeInTheDocument();
+    expect(screen.queryByTestId("elapsed-clock")).not.toBeInTheDocument();
     expect(screen.getByTestId("meta-row")).toBeInTheDocument();
   });
 
-  it("shows the stop_reason microcopy when terminal and hides the clock", () => {
+  it("shows the stop_reason microcopy when terminal", () => {
     const run = makeRun({
       stoppedAt: "2026-05-26T00:00:10Z",
       stopReason: "judge_confirmed",
