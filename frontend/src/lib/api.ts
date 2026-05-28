@@ -102,6 +102,7 @@ export interface RunListItemDto {
     | "user_cancelled"
     | "errored"
     | null;
+  llm_provider?: string;
 }
 
 export interface ListRunsParams {

@@ -19,6 +19,7 @@ function makeRun(overrides: Partial<Run> = {}): Run {
     stopReason: "stopped_by_budget",
     parentRunId: null,
     forkedAtEventId: null,
+    llmProvider: "github",
     ...overrides,
   };
 }

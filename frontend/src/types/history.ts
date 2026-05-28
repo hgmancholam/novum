@@ -17,6 +17,7 @@ export interface RunSummary {
   stopReason: StopReason | null;
   startedAt: string;
   stoppedAt: string | null;
+  llmProvider: string;
 }
 
 export interface HistoryFilterValues {

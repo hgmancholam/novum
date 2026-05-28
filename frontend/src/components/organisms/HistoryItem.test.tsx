@@ -14,6 +14,7 @@ function run(overrides: Partial<RunSummary> = {}): RunSummary {
     stopReason: "judge_confirmed",
     startedAt: new Date(Date.now() - 60_000).toISOString(),
     stoppedAt: null,
+    llmProvider: "github",
     ...overrides,
   };
 }

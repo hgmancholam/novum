@@ -42,6 +42,7 @@ export function mapRun(dto: RunListItemDto): RunSummary {
     stopReason: dto.stop_reason,
     startedAt: dto.started_at,
     stoppedAt: dto.stopped_at,
+    llmProvider: dto.llm_provider ?? "github",
   };
 }
 

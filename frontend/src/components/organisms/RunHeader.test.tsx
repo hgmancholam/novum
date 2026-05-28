@@ -19,6 +19,7 @@ function makeRun(overrides: Partial<Run> = {}): Run {
     stopReason: null,
     parentRunId: null,
     forkedAtEventId: null,
+    llmProvider: "github",
     ...overrides,
   };
 }

@@ -14,6 +14,7 @@ const sampleRuns: RunSummary[] = [
     stopReason: "judge_confirmed",
     startedAt: new Date(Date.now() - 60_000).toISOString(),
     stoppedAt: null,
+    llmProvider: "github",
   },
   {
     id: "r2",
@@ -23,6 +24,7 @@ const sampleRuns: RunSummary[] = [
     stopReason: null,
     startedAt: new Date(Date.now() - 120_000).toISOString(),
     stoppedAt: null,
+    llmProvider: "google",
   },
   {
     id: "r3",
@@ -32,6 +34,7 @@ const sampleRuns: RunSummary[] = [
     stopReason: "stopped_by_budget",
     startedAt: new Date(Date.now() - 180_000).toISOString(),
     stoppedAt: null,
+    llmProvider: "openai",
   },
 ];
 

@@ -13,6 +13,7 @@ const baseRun: RunSummary = {
   stopReason: "judge_confirmed",
   startedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
   stoppedAt: null,
+  llmProvider: "github",
 };
 
 describe("RunRow", () => {

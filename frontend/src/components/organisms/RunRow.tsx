@@ -8,6 +8,7 @@
 import { memo } from "react";
 
 import { StatusDot } from "@/components/molecules";
+import { ProviderIcon } from "@/components/atoms";
 import { cn } from "@/lib/cn";
 import { formatISO, formatRelative, truncate } from "@/lib/format";
 import type { RunSummary } from "@/types/history";
@@ -48,6 +49,11 @@ export const RunRow = memo(function RunRow({
         status={run.status}
         {...(run.stopReason !== null ? { stopReason: run.stopReason } : {})}
         className="absolute right-3 top-3"
+      />
+      <ProviderIcon
+        name={run.llmProvider}
+        size="xs"
+        className="absolute right-3 top-8"
       />
       <p className="mb-1 text-sm font-medium text-(--text-primary)">
         {truncate(run.question, QUESTION_MAX)}

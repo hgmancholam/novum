@@ -7,6 +7,7 @@
 
 import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { PROVIDER_LABELS, type LlmProviderName } from "@/lib/providers";
 import { formatElapsed } from "./ElapsedClock";
 
 export interface MetaRowProps {
@@ -15,6 +16,7 @@ export interface MetaRowProps {
   outputFormat: "prose" | "structured";
   confidenceThreshold: number;
   ownerUsername: string;
+  llmProvider?: string;
   className?: string | undefined;
 }
 
@@ -32,6 +34,7 @@ export function MetaRow({
   outputFormat,
   confidenceThreshold,
   ownerUsername,
+  llmProvider,
   className,
 }: MetaRowProps) {
   const duration =
@@ -41,6 +44,10 @@ export function MetaRow({
         )
       : null;
   const formatLabel = outputFormat === "structured" ? "Structured" : "Prose";
+  const providerLabel =
+    llmProvider !== undefined && llmProvider in PROVIDER_LABELS
+      ? PROVIDER_LABELS[llmProvider as LlmProviderName]
+      : llmProvider;
 
   return (
     <div
@@ -73,6 +80,14 @@ export function MetaRow({
           threshold {confidenceThreshold.toFixed(2)}
         </span>
       </Chip>
+      {providerLabel !== undefined ? (
+        <Chip>
+          <span aria-hidden="true">·</span>
+          <span title="LLM provider used for this run">
+            provider {providerLabel}
+          </span>
+        </Chip>
+      ) : null}
     </div>
   );
 }

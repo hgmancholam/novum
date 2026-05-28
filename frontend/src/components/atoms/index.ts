@@ -15,6 +15,8 @@ export { AnimatedDots } from "./AnimatedDots";
 export type { AnimatedDotsProps } from "./AnimatedDots";
 export { ProviderSelect } from "./ProviderSelect";
 export type { ProviderSelectProps } from "./ProviderSelect";
+export { ProviderIcon } from "./ProviderIcon";
+export type { ProviderIconProps } from "./ProviderIcon";
 export { Logo } from "./Logo";
 export type { LogoProps } from "./Logo";
 export { OutcomeBar } from "./OutcomeBar";

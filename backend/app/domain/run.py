@@ -63,6 +63,7 @@ class RunListItem(BaseModel):
     started_at: datetime
     stopped_at: datetime | None
     stop_reason: StopReason | None
+    llm_provider: str = "github"
 
 
 class RunListPage(BaseModel):

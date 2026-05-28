@@ -19,6 +19,7 @@ export interface Run {
   questionType: QuestionType | null;
   outputFormat: OutputFormat;
   confidenceThreshold: number;
+  llmProvider: string;
   startedAt: string;
   stoppedAt: string | null;
   stopReason: StopReason | null;
@@ -42,6 +43,7 @@ export function mapRun(dto: RunResponseDto): Run {
     questionType: dto.question_type,
     outputFormat: dto.output_format,
     confidenceThreshold: dto.confidence_threshold,
+    llmProvider: dto.llm_provider ?? "github",
     startedAt: dto.started_at,
     stoppedAt: dto.stopped_at,
     stopReason: dto.stop_reason,

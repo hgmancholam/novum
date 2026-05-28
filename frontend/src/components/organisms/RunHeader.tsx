@@ -50,6 +50,7 @@ export function RunHeader({ run, status, className }: RunHeaderProps) {
           outputFormat={run.outputFormat}
           confidenceThreshold={run.confidenceThreshold}
           ownerUsername={run.ownerUsername}
+          llmProvider={run.llmProvider}
         />
         <LineageBadge parentRunId={run.parentRunId} />
       </div>
