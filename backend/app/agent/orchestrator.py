@@ -401,7 +401,24 @@ class AgentOrchestrator:
 
         # Judge sub-loop safety net (O-07): not part of the layered policy.
         if self.state.judge_attempts >= self.state.max_judge_attempts:
-            # O-09: never silently confirm.
+            # C3: before stopping with STOPPED_BY_BUDGET, regenerate the
+            # surfaced answer as a BEST_EFFORT fallback so the user sees a
+            # constructive Spanish reply (what we found, what's missing,
+            # how to refine) instead of the rejected draft. O-09 still
+            # holds: the stop_reason stays STOPPED_BY_BUDGET — we never
+            # silently flip to JUDGE_CONFIRMED here.
+            try:
+                from app.agent.tasks.draft import draft_best_effort_fallback
+
+                await draft_best_effort_fallback(
+                    self.state,
+                    judge_issues=list(judge_event.suggested_improvements or []),
+                )
+            except Exception:  # pragma: no cover — never block stop on fallback
+                logger.exception(
+                    "best_effort_fallback_failed",
+                    run_id=str(self.state.run_id),
+                )
             await self._stop(StopReason.STOPPED_BY_BUDGET)
             return
 

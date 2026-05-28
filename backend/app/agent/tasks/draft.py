@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.agent.run_state import RunState
 from app.agent.tasks.select_answer_kind import AnswerKindInputs, select_answer_kind
 from app.confidence import calculate_structural_confidence
-from app.domain.enums import EventType
+from app.domain.enums import AnswerKind, EventType
 from app.domain.events import (
     AnswerSection,
     JudgeRuledEvent,
@@ -372,3 +372,85 @@ async def map_issues_to_claims(issues: list[str], sub_claims: list[SubClaim]) ->
     )
     valid_ids = {c.id for c in sub_claims}
     return [cid for cid in result.claim_ids if cid in valid_ids]
+
+
+async def draft_best_effort_fallback(
+    state: RunState,
+    judge_issues: list[str] | None = None,
+) -> SynthesizedAnswer:
+    """C3: regenerate the draft as a BEST_EFFORT answer when the judge cap fires.
+
+    Triggered from the orchestrator when ``judge_attempts >= max_judge_attempts``.
+    Instead of stopping with a stale draft the judge already rejected, we run
+    the synthesizer one more time pinned to ``AnswerKind.BEST_EFFORT`` with an
+    explicit fallback directive: summarise what was found, acknowledge what is
+    missing, and suggest how the user can refine the question. The run still
+    terminates with ``StopReason.STOPPED_BY_BUDGET`` afterwards — only the
+    answer text changes from "failed draft" to "honest best-effort".
+    """
+    answer_kind = AnswerKind.BEST_EFFORT
+    state.selected_answer_kind = answer_kind
+
+    evidence_list = [
+        {"url": e.source_url, "title": e.source_title, "snippet": e.text}
+        for e in state.evidence
+    ]
+
+    system_prompt, max_tokens = build_synthesizer_prompt(
+        question=state.question,
+        evidence=evidence_list,
+        answer_kind=answer_kind,
+        user_language="es",
+        requires_contradictions=False,
+    )
+
+    issues_block = ""
+    if judge_issues:
+        bullets = "\n".join(f"- {iss}" for iss in judge_issues[:5])
+        issues_block = (
+            f"\n\nThe prior synthesis was rejected by the judge "
+            f"{state.judge_attempts} times. Latest issues:\n{bullets}"
+        )
+
+    fallback_directive = (
+        "\n\n=== FALLBACK MODE ===\n"
+        "The research loop reached its judge-attempt cap without a confirmed "
+        "answer. Do NOT retry the failing strategy. Produce an HONEST "
+        "best-effort answer that:\n"
+        "  1. States plainly that a confident answer could not be reached.\n"
+        "  2. Summarises what the evidence DID establish (if anything).\n"
+        "  3. Names the specific gaps or ambiguities that blocked closure.\n"
+        "  4. Offers 1-3 concrete ways the user can refine the question "
+        "(narrower scope, explicit timeframe, specific entity, etc.).\n"
+        "Tone: collaborative, not apologetic. Reply in Spanish.\n"
+        f"{issues_block}"
+    )
+    system_prompt = system_prompt + fallback_directive
+
+    raw_payload = await llm.call(
+        role=LLMRole.SYNTHESIZER,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": state.question},
+        ],
+        response_model=_RawSynthesizerPayload,
+        max_tokens=max_tokens,
+    )
+    payload_dict = (
+        raw_payload.model_dump() if hasattr(raw_payload, "model_dump") else raw_payload
+    )
+    payload_dict = _coerce_synthesizer_payload(payload_dict)
+    result = SynthesizedAnswer.model_validate(
+        payload_dict,
+        context={"_requires_contradictions": False},
+    )
+    # Pin the kind even if the LLM omitted it.
+    result.answer_kind = answer_kind
+
+    state.draft_answer = result.prose
+    state.draft_citations = list(result.citations)
+    state.draft_sections = [
+        AnswerSection(heading=str(idx + 1), content=kp)
+        for idx, kp in enumerate(result.key_points)
+    ]
+    return result

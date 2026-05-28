@@ -148,3 +148,42 @@ async def test_map_issues_empty_returns_empty(mock_create: AsyncMock) -> None:
     result = await draft_mod.map_issues_to_claims([], [])
     assert result == []
     mock_create.assert_not_called()
+
+
+async def test_draft_best_effort_fallback_pins_kind_and_updates_state(
+    mock_create: AsyncMock,
+) -> None:
+    """C3: when the judge-cap fires, the fallback synthesizer call must
+    produce a BEST_EFFORT answer, stamp the kind on state, and surface
+    fresh prose (not the rejected draft).
+    """
+    from app.domain.enums import AnswerKind
+
+    mock_create.return_value = {
+        "prose": "No pude llegar a una conclusión definitiva. Lo que sí encontré: …",
+        "key_points": ["Hallazgo parcial 1", "Hallazgo parcial 2"],
+        "citations": ["https://example.com/1"],
+        "interpretation": "Lectura más defensible de la pregunta.",
+        "alternative_interpretations": ["Otra lectura posible"],
+        "remaining_uncertainties": ["Falta marco temporal"],
+        "answer_kind": AnswerKind.BEST_EFFORT.value,
+    }
+    state = _state(threshold=0.7)
+    state.draft_answer = "Stale rejected draft"
+    state.judge_attempts = 3
+
+    result = await draft_mod.draft_best_effort_fallback(
+        state,
+        judge_issues=["claim X is not supported", "missing recent evidence"],
+    )
+
+    assert state.selected_answer_kind == AnswerKind.BEST_EFFORT
+    assert result.answer_kind == AnswerKind.BEST_EFFORT
+    assert state.draft_answer is not None
+    assert state.draft_answer.startswith("No pude")
+    # The fallback directive must appear in the system prompt the LLM saw.
+    messages = mock_create.call_args.kwargs["messages"]
+    system_msg = next(m["content"] for m in messages if m["role"] == "system")
+    assert "FALLBACK MODE" in system_msg
+    assert "rejected by the judge" in system_msg
+    assert "claim X is not supported" in system_msg
