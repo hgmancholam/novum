@@ -20,7 +20,6 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Button, ProviderSelect } from "@/components/atoms";
 import { cn } from "@/lib/cn";
 import {
-  DEFAULT_PROVIDER,
   getStoredProvider,
   setStoredProvider,
   type LlmProviderName,

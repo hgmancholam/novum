@@ -56,6 +56,7 @@ function makeDto(overrides: Partial<RunResponseDto> = {}): RunResponseDto {
     stop_reason: null,
     parent_run_id: null,
     forked_at_event_id: null,
+    llm_provider: "github",
     ...overrides,
   };
 }
