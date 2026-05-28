@@ -3,8 +3,8 @@
 > Repository of lessons learned during the Novum development.
 > All agents must consult this before starting tasks and update after completing them.
 
-**Last Updated:** 2026-05-29
-**Total Lessons:** 20
+**Last Updated:** 2026-05-28
+**Total Lessons:** 21
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,36 @@
 ---
 
 ## Recent Lessons
+
+## L-021 — UI microcopy stays English; only the LLM-generated answer follows the user's language
+**Date:** 2026-05-28 (origin: a prior session shipped Spanish storytelling labels in `RunFeed` / `Trace` per a user request, then this session the user reversed the directive — "todo debe ser en inglés, solo las respuestas podrían ser en otro idioma si es que el usuario pregunta en un idioma diferente").
+
+**Rule:** Every hardcoded UI string in the frontend (labels, buttons, aria-labels, narratives, idle reassurance, microcopy constants, fallback strings) MUST be English. The only multilingual surface is the final LLM-generated answer, which the system prompt (`backend/app/llm/prompts.py`) tells the model to render in the user's language. Do NOT translate UI strings to match the user's chat language, even if the user previously asked for it — the project language policy overrides single-session requests.
+
+**Why this trips people up**
+- A user writing Spanish naturally feels Spanish UI is "nicer"; agents over-fit to the conversation language.
+- Spanish UI strings then leak into Vitest assertions, doubling the migration cost when the policy is re-enforced (this session: 10 test files + 9 source files churned).
+
+**Pattern**
+- Source of truth for copy: `frontend/src/lib/microcopy.ts`, `frontend/src/lib/eventLabels.ts`, `frontend/src/lib/idleMessages.ts`. All English.
+- Component fallbacks (e.g. `"Working on it"`, `"Thinking…"`, `"no events yet"`) → English.
+- LLM answer language → governed by prompt, never by UI strings.
+- Assistant chat replies to the user MAY follow user language (this is meta-conversation, not product UI).
+
+**Symptoms to watch for**
+- A grep `[áéíóúñ]` over `frontend/src/**/*.{ts,tsx}` returning matches outside test fixtures.
+- Vitest assertions like `/ocultar/i`, `expect(...).toHaveTextContent("evento")`, `screen.getByText("Confirmado")`.
+- New PRs adding Spanish strings to atoms / molecules.
+
+**Mitigation**
+- Before shipping, run: `Select-String -Path frontend/src/**/*.{ts,tsx} -Pattern "ocultar|mostrar|fuente|resultado|veredicto|confianza|umbral|razonamiento|pensando|trabajando"`.
+- Treat user requests like "ponlo en español" as scoped to the chat reply, NOT to product strings; confirm before changing UI copy.
+
+**Reference commits**
+- `5e070bc` (this session) — translates feed/trace microcopy back to English after `8040be8` + `144e500` accidentally landed Spanish copy.
+- Memory: `/memories/language-policy.md` updated to explicitly list "UI microcopy" under hardcoded strings.
+
+---
 
 ## L-020 — SVG diagrams that rely on a wide viewBox MUST be hidden below `sm` (640 px)
 **Date:** 2026-05-29 (origin: HowWeWorkPage `PipelineDiagram` — a 1200×520 viewBox SVG with 9 nodes was rendered on iPhone-class viewports and the user reported the boxes were unreadable / invisible).

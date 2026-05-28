@@ -3,12 +3,35 @@
 > Chronological log of all decisions made during the Novum development.
 > Each decision follows the decision record template.
 
-**Last Updated:** 2026-05-29
-**Total Decisions:** 58
+**Last Updated:** 2026-05-28
+**Total Decisions:** 59
 
 ---
 
 ## Recent Decisions
+
+## D-UI-ENGLISH: Revert feed/trace microcopy to English (language policy reaffirmed)
+**Date:** 2026-05-28
+**Phase:** Out-of-band UX fix (user request — *"el runfeed y el trace me están dando feedback en español. corrígelo, todo debe ser en inglés, solo las respuestas podrían ser en otro idioma si es que el usuario pregunta en un idioma diferente"*)
+**Artifacts:** [eventLabels.ts](../../../frontend/src/lib/eventLabels.ts), [microcopy.ts](../../../frontend/src/lib/microcopy.ts), [idleMessages.ts](../../../frontend/src/lib/idleMessages.ts), [RunFeed.tsx](../../../frontend/src/components/organisms/RunFeed.tsx), [JudgeVerdictCard.tsx](../../../frontend/src/components/molecules/JudgeVerdictCard.tsx), [PlanStepCard.tsx](../../../frontend/src/components/molecules/PlanStepCard.tsx), [SearchStepCard.tsx](../../../frontend/src/components/molecules/SearchStepCard.tsx), [TraceHeader.tsx](../../../frontend/src/components/organisms/TraceHeader.tsx), [ThinkingDots.tsx](../../../frontend/src/components/atoms/ThinkingDots.tsx), commit `5e070bc`
+
+### Outcome
+All hardcoded UI strings in the feed, trace, judge card, plan card, search card and thinking indicator are back in English. The user's chat experience stays multilingual only through the LLM-generated final answer (controlled by `backend/app/llm/prompts.py`, untouched in this change).
+
+### Mechanics
+- `EVENT_LABELS`, `EVENT_ACTIVITIES`, `getEventNarrative`, `IDLE_MESSAGES`, `FEED_*`/`TRACE_*`/`ANSWER_*` constants → English.
+- Component fallback strings (`"Working on it"`, `"Thinking…"`, `"no events yet"`, `"Hide reasoning"`, `"Confirmed" / "Retry suggested"`, `"threshold: X%"`) → English.
+- 10 test files migrated (assertions updated from `/ocultar/i`, `"Confirmado"`, `"umbral"`, `"X eventos"`, etc. to their English equivalents).
+- Verification: `vitest run` → 598 passed, 1 skipped, only the pre-existing `UsernameModal` baseline still fails.
+
+### Why this matters as a recorded decision
+This is the second flip on UI language (commits `8040be8` + `144e500` had landed Spanish copy at user request before this reversal). The decision codifies that the project language policy (English UI, multilingual answers) is the stable rule and overrides single-session translation requests. Memory file `/memories/language-policy.md` updated to explicitly list UI microcopy under the English-only bucket; cross-reference L-021 in `lessons-learned.md`.
+
+### Non-goals
+- `backend/app/llm/prompts.py` was NOT touched — the LLM still tells answers in the user's language (Spanish by default).
+- The assistant's own chat replies to the project owner continue to be Spanish; that is meta-conversation, not product UI.
+
+---
 
 ## D-PUBLIC-MODAL: Suppress login modal auto-open on public routes
 **Date:** 2026-05-29
