@@ -35,16 +35,18 @@ from app.confidence import (
 )
 from app.domain.enums import ComplexityHint, Lane, QuestionType, StopReason
 from app.domain.events import (
+    AdversarialObjectionsGeneratedEvent,
     AgentErroredEvent,
     BaseEvent,
     ConfidenceMismatchEvent,
+    MetaStopVerdictEvent,
     QuestionAskedEvent,
     QuestionClassifiedEvent,
     RouteSelectedEvent,
     StoppedEvent,
     StopRationale,
 )
-from app.llm.client import LLMPoolExhausted, LLMProviderQuotaExhausted, count_tokens
+from app.llm.client import LLMPoolExhausted, LLMProviderQuotaExhausted, count_tokens, llm
 from app.stopping import StoppingPolicy
 
 logger = structlog.get_logger(__name__)
@@ -593,6 +595,31 @@ class AgentOrchestrator:
             await self._stop(StopReason.JUDGE_CONFIRMED)
             return
 
+        # IP-26 / BRD-26 §4.6: reflective meta-judge runs after every judge
+        # ruling on STANDARD/DEEP. It can short-circuit the regular stopping
+        # policy into a best-effort stop when continuing is not worth it, or
+        # confirm the draft when the adversarial reviewer finds no real gap.
+        meta_outcome = await self._maybe_run_meta_judge(judge_event)
+        if meta_outcome == "stop_best_effort":
+            self.state.budget_exhausted_kind = "search_rounds"
+            try:
+                from app.agent.tasks.draft import draft_best_effort_fallback
+
+                await draft_best_effort_fallback(
+                    self.state,
+                    judge_issues=list(judge_event.suggested_improvements or []),
+                )
+            except Exception:  # pragma: no cover — never block stop on fallback
+                logger.exception(
+                    "meta_judge_best_effort_fallback_failed",
+                    run_id=str(self.state.run_id),
+                )
+            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            return
+        if meta_outcome == "confirm":
+            await self._stop(StopReason.JUDGE_CONFIRMED)
+            return
+
         result = await self._stopping_policy.evaluate(
             self.state,
             judge_confidence=judge_event.judge_confidence,
@@ -685,6 +712,107 @@ class AgentOrchestrator:
                 return
 
         self.state.transition_to(AgentState.SEARCHING)
+
+    async def _maybe_run_meta_judge(
+        self, judge_event: Any
+    ) -> Literal["stop_best_effort", "confirm", "continue", "skipped"]:
+        """Run VoC + Adversarial Completeness when enabled (BRD-26 §4.6).
+
+        Skipped silently when the meta-judge flag is off, on the FAST lane,
+        when the judge already approved, when the judge sub-loop is about
+        to be force-stopped by the safety net, or when the LLM call fails
+        (meta-judge never blocks the run).
+        """
+        from app.config import settings
+
+        if not settings.meta_judge_enabled:
+            return "skipped"
+        if self.state.selected_lane == Lane.FAST:
+            return "skipped"
+        if judge_event.passed:
+            return "skipped"
+        if self.state.judge_attempts >= self.state.max_judge_attempts:
+            return "skipped"
+
+        from app.llm.meta_judge import (
+            MetaJudgeContext,
+            evaluate_value_of_continuation,
+            generate_adversarial_objections,
+        )
+
+        rounds_remaining = max(0, self.state.max_searches - self.state.search_count)
+        authority_mix: dict[str, int] = {}
+        for item in self.state.evidence:
+            tier = getattr(item, "authority_tier", None)
+            key = str(tier.value) if hasattr(tier, "value") else str(tier or "unknown")
+            authority_mix[key] = authority_mix.get(key, 0) + 1
+
+        ctx = MetaJudgeContext(
+            question=self.state.question,
+            answer_kind=(
+                self.state.selected_answer_kind.value
+                if self.state.selected_answer_kind is not None
+                else None
+            ),
+            lane=(
+                self.state.selected_lane.value
+                if self.state.selected_lane is not None
+                else "standard"
+            ),
+            subclaim_count=len(self.state.sub_claims),
+            evidence_count=len(self.state.evidence),
+            authority_mix=authority_mix,
+            structural_confidence=judge_event.structural_confidence,
+            judge_confidence=judge_event.judge_confidence,
+            threshold=self.state.confidence_threshold,
+            rounds_used=self.state.search_count,
+            rounds_remaining=rounds_remaining,
+            last_judge_rationale=judge_event.rationale,
+            draft_prose=self.state.draft_answer,
+        )
+
+        lane = self.state.selected_lane or Lane.STANDARD
+
+        try:
+            voc = await evaluate_value_of_continuation(llm, ctx)
+        except Exception:  # pragma: no cover — meta-judge never blocks the run
+            logger.exception("meta_judge_voc_failed", run_id=str(self.state.run_id))
+            return "skipped"
+
+        await self.emit(
+            MetaStopVerdictEvent(
+                lane=lane,
+                hook="after_judge",
+                verdict=voc,
+                confidence_at_check=judge_event.final_confidence,
+                rounds_used=self.state.search_count,
+                rounds_remaining=rounds_remaining,
+            )
+        )
+
+        if voc.decision == "stop_best_effort":
+            return "stop_best_effort"
+
+        if voc.decision == "stop":
+            return "continue"  # let the regular flow decide the StopReason
+
+        # decision == "continue" — gate Adversarial Completeness on the
+        # configured minimum expected ΔS so we don't waste a call when the
+        # meta-judge itself signalled negligible improvement.
+        if voc.expected_delta_s < settings.meta_judge_min_delta_s:
+            return "continue"
+
+        try:
+            ac = await generate_adversarial_objections(llm, ctx)
+        except Exception:  # pragma: no cover — never block the run
+            logger.exception("meta_judge_ac_failed", run_id=str(self.state.run_id))
+            return "continue"
+
+        await self.emit(AdversarialObjectionsGeneratedEvent(lane=lane, verdict=ac))
+
+        if ac.all_answered:
+            return "confirm"
+        return "continue"
 
     async def _handle_error(self, exc: BaseException) -> StopReason:
         error_code: str | None = None

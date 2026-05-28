@@ -2,9 +2,9 @@
 
 This document describes the **exact research plan Novum executes for every
 question**, in the order events are emitted. It is grounded in the current
-codebase (post IP-25) and the requirements catalogue (RF-01..RF-19). Anything
-not listed here is deliberately not implemented in V1 — see "What Novum does
-NOT do" at the bottom.
+codebase (post IP-25 + BRD-26) and the requirements catalogue (RF-01..RF-19).
+Anything not listed here is deliberately not implemented in V1 — see "What
+Novum does NOT do" at the bottom.
 
 The contract is simple:
 
@@ -25,6 +25,11 @@ The contract is simple:
 > [building-the-plan.md](building-the-plan.md). The phased rollout (Phase 0
 > = parallel search fix, Phases A–F = lane architecture) lives in
 > [IP-25](../implementation-phase/implementation-plans/IP-25-three-lane-research-flow.md).
+> The **agentic stopping layer** (Value-of-Continuation + Adversarial
+> Completeness meta-judge that decides termination on top of the hard caps)
+> lives in
+> [BRD-26](../implementation-phase/brds/BRD-26-agentic-stopping-meta-judge.md)
+> and is summarised in §7.6 below.
 
 ---
 
@@ -475,7 +480,8 @@ lane-specific:
 | DEEP | each ReAct `AgentObservation` and each CoVe pass |
 
 The orchestrator iterates every configured `StoppingSignal` plugin in
-priority order. Three categories:
+priority order. Four categories: hard global signals, anti-stall, early-exit
+checkpoints, and the agentic meta-judge decision (BRD-26).
 
 ## 7.1 Hard global signals (all lanes)
 
@@ -505,17 +511,112 @@ cutting marginal cases.
 | `hypotheses_all_refuted` | DEEP | Inside ReAct loop | All hypotheses `refuted` with `primary_authoritative` evidence | Terminates ReAct → `stopped_by_budget` + `best_effort` |
 | `cove_no_contradictions` | DEEP | After first CoVe pass | 0 contradictions Y `j_score ≥ threshold` | CoVe re-draft |
 
-## 7.4 Hard caps (no-confidence-dependent floor)
+## 7.4 Hard caps (safety floors, no longer the decision)
+
+Since BRD-26 the hard caps are **floors that guarantee termination**, not the
+mechanism that *decides* termination. The agentic meta-judge in §7.6 owns
+the decision ("is another round worth it?"); the cap only fires when the
+meta-judge has already said `continue` N times in a row.
 
 | Cap | Default | Lane(s) | On reach |
 |---|---|---|---|
 | `max_redecomposition` | 1 (STANDARD), 2 (DEEP) | STANDARD | Force synthesis with current evidence |
-| `max_judge_attempts` | 2 (STANDARD), 3 (DEEP) | STANDARD, DEEP | Invoke `draft_best_effort_fallback` |
+| `max_judge_attempts` | 5 (STANDARD), 3 (DEEP) | STANDARD, DEEP | Invoke `draft_best_effort_fallback` (BRD-26 raised STANDARD from 2 → 5 because the meta-judge usually stops earlier) |
 | `max_deep_fetch_per_run` | 2 (STANDARD), 3 (DEEP) | STANDARD, DEEP | Accept shallow evidence |
 | `max_react_steps` | 8 | DEEP | Force synthesis with ReAct history |
 | `max_cove_rounds` | 1 | DEEP | Accept draft without further verification |
 
-## 7.5 The four `stop_reason` enum values
+## 7.5 Agentic stopping decision — VoC + AC meta-judge (BRD-26)
+
+The stopping decision is **delegated to a small LLM reasoning step** that
+runs after every standard candidate-stop point. It does **not** replace the
+judge of §9 — the judge owns *is-the-draft-supported*, the meta-judge owns
+*is-another-round-worth-it*. Two distinct LLM responsibilities, two distinct
+prompts, two distinct persisted events.
+
+Lives in `app/stopping/signals/meta_judge_voc.py` and
+`meta_judge_adversarial.py` — both plain `StoppingSignal` plugins, no new
+seam. Default model family: same as the judge (`deepseek/DeepSeek-V3-0324`
+in prod). Overridable via `META_JUDGE_PROVIDER` + `META_JUDGE_MODEL_<provider>`.
+
+### 7.5.1 Hook points per lane
+
+| Lane | Hook | When |
+|---|---|---|
+| FAST | none | Cost-prohibitive — FAST only spends 2 LLM calls; the existing mini-judge already plays the binary stop role at the right cost level. |
+| STANDARD | `after_judge` | Right after `JudgeRuled`, **before** evaluating `max_judge_attempts`. |
+| DEEP | `after_react_observation` | After each `AgentObservation`, replacing the previous direct `max_react_steps` evaluation as the *decision*. |
+| DEEP | `after_cove` | After the explicit CoVe pass, **before** evaluating `max_cove_rounds`. |
+
+Happy path is cheap: when `judge.verdict == approve` AND
+`final_confidence ≥ threshold`, the meta-judge is **not invoked**. It only
+runs when the cheap path failed to terminate.
+
+### 7.5.2 Value of Continuation (VoC)
+
+First meta-judge pass. Asks: *"If we ran one more round, what concrete
+search would we issue, and what is the expected gain on `S_effective`?"*
+
+Returns a structured `ValueOfContinuationVerdict` persisted as a
+`MetaStopVerdict` event:
+
+| Field | Meaning |
+|---|---|
+| `decision` | `stop` / `continue` / `stop_best_effort` |
+| `expected_delta_s` | Realistic estimate of how much `S_effective` would move with one more round, in `[0, 1]` |
+| `next_action_hypothesis` | A **concrete** next query, or `null` if the model cannot name one |
+| `reason` | One-sentence English rationale, persisted verbatim |
+
+Decision rules (applied in order inside the prompt):
+
+1. No concrete `next_action_hypothesis` → `stop_best_effort`.
+2. `expected_delta_s < 0.03` → `stop_best_effort`.
+3. `S_effective ≥ threshold` AND judge approved → `stop`.
+4. Otherwise → `continue`.
+
+### 7.5.3 Adversarial Completeness (AC)
+
+Fires **only** when VoC returns `continue` with `expected_delta_s ≥ 0.03`.
+Asks the same model to play **skeptical reviewer**: produce exactly 3
+different objections against the current draft, each classified as:
+
+- `answered_by_evidence` — existing cited evidence already covers it; the
+  evidence ids that answer it are listed.
+- `unanswered_needs_search` — a new search could answer it; carries a
+  `suggested_query` (≤ 6 tokens, query-hygiene rules from §3.2).
+- `unanswered_no_search_possible` — real objection, but no available source
+  can decide it (e.g. requires non-public data).
+
+Persisted as `AdversarialObjectionsGenerated`. Two outcomes:
+
+- **All 3 answered** → terminate `judge_confirmed` immediately, regardless
+  of `judge_attempt_count`. The strongest possible "we are done" signal:
+  the LLM was asked to attack the draft and failed.
+- **Any unanswered (and budget allows)** → convert each
+  `unanswered_needs_search` objection into a new `SubClaim` (STANDARD) or
+  route it to a matching pending `Hypothesis.evaluate_hypothesis(...)`
+  target (DEEP, token-overlap heuristic ≥ 0.5). Emit
+  `DirectedSubclaimsFromObjections`, increment `judge_attempt_count`,
+  transition `ANALYZING → SEARCHING` for a **directed** round (the
+  research goes toward a named gap, not toward another generic search).
+
+### 7.5.4 Cost
+
+- STANDARD: +1 VoC call per non-happy-path round; +1 AC call only when VoC
+  said `continue`. Telemetry target: `meta_judge_calls_per_run ≤ 3`.
+- DEEP `after_react_observation`: +1 VoC call per ReAct step (≤ 8).
+- DEEP `after_cove`: +1 VoC call. AC fires on the same conditions as STANDARD.
+
+Absorbed by the 4-PAT GitHub Models pool in V1.
+
+### 7.5.5 Replay determinism (RF-08)
+
+Every meta-judge output is persisted verbatim. On read, the FE renders from
+the event log; the meta-judge is **never** re-invoked. Forking from a point
+**before** a `MetaStopVerdict` re-runs the meta-judge on the fork — that is
+the intended fork semantics (replay = read, fork = re-run).
+
+## 7.6 The four `stop_reason` enum values
 
 All lanes terminate in one of:
 
@@ -592,25 +693,37 @@ Since commit C2 (2026-05-28), `final_confidence` is **recorded as a metric
 on the `Stopped` event and shown in the UI**, but it is **not** re-checked
 as a stopping gate — the judge LLM owns the approve/reject call (§7).
 
-## 9.2 Judge-cap best-effort fallback (commit C3, 2026-05-28)
+## 9.2 Best-effort fallback (BRD-26-aware)
 
-The judge can reject a draft. When that happens the orchestrator loops back
-to `ANALYZING` (or `SEARCHING` if deep-fetch §9 applies) and re-drafts. To
-avoid spinning forever, attempts are capped by `max_judge_attempts`.
+The judge can reject a draft. When that happens the orchestrator first runs
+the meta-judge (§7.5) — which now owns the loop-or-stop decision — and only
+loops back to `ANALYZING` (or `SEARCHING` if deep-fetch §10 applies) when
+the meta-judge says `continue`. `max_judge_attempts` remains as the absolute
+safety floor (default 5 in STANDARD post BRD-26, see §7.4).
 
-If the cap is reached **without** an `approve` verdict, the orchestrator
-does **not** terminate as `STOPPED_BY_BUDGET` with a rejected draft. Instead
-it invokes `draft_best_effort_fallback(state)`, which:
+There are now **two routes** into the best-effort fallback:
+
+1. **Meta-judge route (preferred).** VoC returns `stop_best_effort`
+   (saturation: no concrete next action, or `expected_delta_s < 0.03`).
+   The `stop_rationale` quotes `ValueOfContinuationVerdict.reason`
+   verbatim — the user sees *why* we stopped, not just *that* we stopped.
+2. **Hard-cap route (safety floor).** `judge_attempt_count` reaches
+   `max_judge_attempts` while the meta-judge is still saying `continue`.
+   The `stop_rationale` cites the cap.
+
+Both routes invoke `draft_best_effort_fallback(state)`, which:
 
 1. Reuses the synthesizer system prompt with a *FALLBACK MODE* directive.
 2. Pins `AnswerKind.BEST_EFFORT` so the UI can render the distinct
    *best-effort* badge (`CenterPanelView` warning banner) instead of
    presenting the answer as confirmed.
 3. Structures the reply in 4 explicit parts: what evidence we have / what
-   we couldn't confirm / our best current take / what would close the gap.
+   we couldn't confirm **and why we couldn't confirm it** (populated from
+   the meta-judge `reason` on the meta-judge route) / our best current
+   take / what specific new evidence would close the gap.
 
-The run then terminates as `STOPPED_BY_BUDGET` **with an honest
-best-effort answer**, not a silent failure.
+The run terminates as `STOPPED_BY_BUDGET` **with an honest best-effort
+answer**, not a silent failure.
 
 ## 9.3 Explicit CoVe in DEEP (IP-25 Phase F)
 
@@ -685,7 +798,7 @@ These run continuously throughout the pipeline:
 
 | Guarantee | Mechanism |
 |---|---|
-| **Append-only audit log** | `events` table, ~36 event types post IP-25, additive schema (`extra="allow"`) |
+| **Append-only audit log** | `events` table, ~39 event types post IP-25 + BRD-26, additive schema (`extra="allow"`) |
 | **SSE resume** | `Last-Event-ID`, 15 s heartbeat |
 | **Read determinism** | No LLM on read paths |
 | **Replay safety** | Fork/resume append; never mutate |
@@ -696,9 +809,9 @@ These run continuously throughout the pipeline:
 | **Parallel search within a round** | `asyncio.gather` over pending claims (IP-25 Phase 0) |
 | **Lane isolation** | Each lane has its own state-machine path but shares the `Source` / `StoppingSignal` / `OutputRenderer` seams |
 
-## Event taxonomy (post IP-25)
+## Event taxonomy (post IP-25 + BRD-26)
 
-The 11 events added by IP-25, all additive (RF-03):
+The 11 events added by IP-25 + the 3 events added by BRD-26, all additive (RF-03):
 
 | Event | Lane(s) | Phase reference |
 |---|---|---|
@@ -713,6 +826,9 @@ The 11 events added by IP-25, all additive (RF-03):
 | `HypothesisEvaluated` | DEEP | §5.5 |
 | `HistorySummarized` | DEEP | §5.5 |
 | `VerificationQuestionsGenerated` / `CoveContradictionDetected` | DEEP | §9.3 |
+| `MetaStopVerdict` | STANDARD + DEEP | §7.5.2 |
+| `AdversarialObjectionsGenerated` | STANDARD + DEEP | §7.5.3 |
+| `DirectedSubclaimsFromObjections` | STANDARD + DEEP | §7.5.3 |
 
 ---
 
@@ -720,7 +836,7 @@ The 11 events added by IP-25, all additive (RF-03):
 
 | Requirement | How Novum implements it |
 |---|---|
-| **Decide when enough evidence is collected** | §7 stopping signals (hard + anti-stall + early-exit checkpoints) + §9 judge + §6 structural confidence (`min(S, J)`) |
+| **Decide when enough evidence is collected** | §7 stopping signals (hard floors + anti-stall + early-exit checkpoints) + §7.5 agentic meta-judge (VoC + AC, BRD-26) + §9 judge + §6 structural confidence (`min(S, J)`) |
 | **Every run fully inspectable** | §0 event log + FE trust surface (RF-13) |
 | **Runs re-examinable and re-attemptable** | §11.3 fork from any past event |
 | **Handle messy reality** | §1.3 temporal sensitivity + §1.5 ambiguity resolver + §6 conflict component + `best_effort` ceiling + `stopped_by_budget` as success |
@@ -742,7 +858,8 @@ To keep the system honest, we list what is deliberately absent **after IP-25**:
 | **Explicit CoVe (separate from the judge)** | ✅ | DEEP only (§9.3). FAST has a mini-CoVe degraded version. STANDARD relies on the judge for verification. |
 | **Long-term memory across runs** | ❌ | Each run is isolated. Memory across runs would break read determinism. |
 | **Knowledge graph construction** | ❌ | Out of V1 scope. |
-| **Multi-agent debate** | ❌ | One planner, one synthesizer, one judge. Adversarial agents not justified for the cost. |
+| **Multi-agent debate** | ❌ | One planner, one synthesizer, one judge, one meta-judge. The meta-judge plays a *skeptical reviewer* role (BRD-26 §7.5.3 Adversarial Completeness) but as a single reasoning step, not a debate. |
+| **Agentic stopping decision (VoC + Adversarial Completeness)** | ✅ | BRD-26 (§7.5). STANDARD + DEEP; FAST stays with mini-judge for cost reasons. |
 | **Tree-of-Thoughts** | ❌ | Quadratic cost not justified; ReAct + abductive hypotheses covers the multi-path exploration case. |
 | **Real-time browser navigation** | ❌ | We fetch URLs (deep-fetch) but do not interact with pages. |
 | **Distributed execution** | ❌ | Single server, single worker (RF-05). |

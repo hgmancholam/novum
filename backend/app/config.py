@@ -125,6 +125,14 @@ class Settings(BaseSettings):
     early_stop_min_agreement: float = 0.9
     early_stop_min_judge: float = 0.85
 
+    # IP-26 / BRD-26 Area 6: reflective meta-judge.
+    # Disabled by default so the orchestrator's behaviour is unchanged when
+    # the meta-judge model is unavailable or in unit tests that mock only the
+    # primary judge. Set to True to enable VoC + Adversarial Completeness
+    # after every judge rejection on STANDARD/DEEP lanes.
+    meta_judge_enabled: bool = False
+    meta_judge_min_delta_s: float = 0.03
+
     # BRD-23 WP-1: stale-citation kind-ceiling penalty multiplier for AnswerKind.DIRECT
     # when temporal_sensitivity is volatile/realtime and >=50% citations are stale.
     temporal_stale_penalty: float = 0.85

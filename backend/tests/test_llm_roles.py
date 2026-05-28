@@ -10,14 +10,16 @@ def test_llm_role_enum_values() -> None:
     assert LLMRole.PLANNER.value == "planner"
     assert LLMRole.SYNTHESIZER.value == "synthesizer"
     assert LLMRole.JUDGE.value == "judge"
+    assert LLMRole.META_JUDGE.value == "meta_judge"
 
 
-def test_role_configs_has_all_four_roles() -> None:
+def test_role_configs_has_all_roles() -> None:
     assert set(ROLE_CONFIGS.keys()) == {
         LLMRole.CLASSIFIER,
         LLMRole.PLANNER,
         LLMRole.SYNTHESIZER,
         LLMRole.JUDGE,
+        LLMRole.META_JUDGE,
     }
 
 
