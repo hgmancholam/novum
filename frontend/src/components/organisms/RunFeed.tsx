@@ -29,7 +29,6 @@ import { getEventActivity, getEventLabel, getEventNarrative } from "@/lib/eventL
 import { getEventVisual, TONE_COLOR } from "@/lib/eventVisuals";
 import type { EventType } from "@/types/events";
 import { cn } from "@/lib/cn";
-import { formatElapsed } from "@/lib/format";
 
 export interface RunFeedProps {
   events: readonly RunStreamEvent[];
@@ -279,34 +278,6 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
     persistCollapsed(newValue);
   }
 
-  // Elapsed counter. The backend does not emit `timestamp_ms` (it's only an
-  // optional decorative field on the FE type), so we cannot derive the span
-  // from events. Instead, capture a client-side start time the first time
-  // any event arrives and either tick every second (live) or freeze at the
-  // moment the run completes.
-  const startMsRef = useRef<number | null>(null);
-  const frozenEndMsRef = useRef<number | null>(null);
-  if (events.length > 0 && startMsRef.current === null) {
-    startMsRef.current = Date.now();
-  }
-
-  const [nowMs, setNowMs] = useState<number>(() => Date.now());
-  useEffect(() => {
-    if (isComplete || events.length === 0) return;
-    const tick = window.setInterval(() => { setNowMs(Date.now()); }, 1000);
-    return () => { window.clearInterval(tick); };
-  }, [isComplete, events.length]);
-
-  if (isComplete && frozenEndMsRef.current === null && startMsRef.current !== null) {
-    frozenEndMsRef.current = Date.now();
-  }
-
-  const startMs = startMsRef.current;
-  const endMs = isComplete ? (frozenEndMsRef.current ?? nowMs) : nowMs;
-  const totalSeconds =
-    startMs !== null ? Math.max(0, Math.round((endMs - startMs) / 1000)) : 0;
-  const elapsedLabel = formatElapsed(totalSeconds);
-
   const lastEvent = events[events.length - 1];
   const lastTimestamp: number = lastEvent?.timestamp_ms ?? 0;
 
@@ -339,7 +310,7 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
         />
         <h3 className="text-sm font-medium text-[var(--text-secondary)]">
           {steps.length > 0
-            ? FEED_REASONING_TRACE(steps.length, elapsedLabel, isComplete)
+            ? FEED_REASONING_TRACE(steps.length, isComplete)
             : "Thinking…"}
         </h3>
         {isComplete && steps.length > 0 ? (

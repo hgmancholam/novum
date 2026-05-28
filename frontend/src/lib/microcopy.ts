@@ -53,10 +53,9 @@ export function FEED_RESULTS_COUNT(n: number): string {
 
 export function FEED_REASONING_TRACE(
   stepCount: number,
-  elapsed: string,
   isComplete: boolean = false
 ): string {
   const stepLabel = stepCount === 1 ? "step" : "steps";
   const prefix = isComplete ? "Reasoning trace" : "Reasoning";
-  return `${prefix} (${stepCount.toString()} ${stepLabel} · ${elapsed})`;
+  return `${prefix} (${stepCount.toString()} ${stepLabel})`;
 }
