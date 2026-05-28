@@ -120,6 +120,9 @@ class ScenarioBranch(BaseModel):
     probability_band: str = Field(..., pattern="^(low|medium|high)$")
     summary: str
     drivers: list[str]
+    # PR-5 Mejora 7.2: explicit assumptions a reader could falsify. Optional
+    # with a default so historical payloads still validate.
+    assumptions: list[str] = Field(default_factory=list)
 
 
 class WeightedCandidate(BaseModel):

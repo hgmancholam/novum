@@ -151,6 +151,18 @@ class StructuredRenderer:
         kind = payload.answer_kind
         out: list[StructuredBlock] = []
 
+        # PR-5 Mejora 7.1: surface contradictions ahead of the typed payload
+        # so disagreements between sources are visible in the answer body
+        # instead of being buried in the JudgeRuled event.
+        contradictions = list(getattr(payload, "contradictions", None) or [])
+        if contradictions:
+            out.append(
+                KeyPointsBlock(
+                    title="Contradictions detected",
+                    items=contradictions,
+                )
+            )
+
         if kind is AnswerKind.WEIGHTED and payload.candidates:
             rows = [
                 KeyValueRow(
@@ -163,7 +175,11 @@ class StructuredRenderer:
 
         elif kind is AnswerKind.SCENARIO and payload.scenarios:
             for s in payload.scenarios:
+                # PR-5 Mejora 7.2: surface assumptions next to drivers so the
+                # reader can falsify the scenario, not just admire it.
                 items = [s.summary] + [f"Driver: {d}" for d in s.drivers]
+                for a in getattr(s, "assumptions", None) or []:
+                    items.append(f"Assumption: {a}")
                 out.append(
                     KeyPointsBlock(
                         title=f"{s.label} ({s.probability_band})",

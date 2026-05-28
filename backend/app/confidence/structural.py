@@ -142,8 +142,8 @@ def apply_echo_chamber_penalty(
 
     Checks each claim for echo-chamber conditions:
     - N ≥ 3 evidence items with non-null source_published_date
-    - All dates fall within < 7 days
-    - C_agreement == 1.0 for that claim
+    - All dates fall within < 14 days (PR-5 Mejora 8.1: widened from 7d)
+    - C_agreement ≥ 0.9 for that claim (PR-5 Mejora 8.1: relaxed from 1.0)
 
     When triggered, multiplies diversity_score by 0.85 and emits event.
     Only one penalty applied per call (first matching claim triggers it).
@@ -173,10 +173,10 @@ def apply_echo_chamber_penalty(
 
         # Check agreement for this claim
         agreement = calculate_agreement(claim_evidence)
-        if agreement < 1.0:
+        if agreement < 0.9:
             continue
 
-        # Check date clustering (< 7 days window)
+        # Check date clustering (< 14 days window)
         dates = [e.source_published_date for e in dated_evidence if e.source_published_date is not None]
         if not dates:
             continue
@@ -184,7 +184,7 @@ def apply_echo_chamber_penalty(
         max_date = max(dates)
         window_days = (max_date - min_date).days
 
-        if window_days < 7:
+        if window_days < 14:
             # Echo chamber detected
             event = EchoChamberDetectedEvent(
                 target_claim_id=claim_id,

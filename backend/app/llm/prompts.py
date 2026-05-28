@@ -271,7 +271,11 @@ Reply in {user_language}. Output MUST validate against the SynthesizedAnswer sch
     AnswerKind.SCENARIO: """
 AnswerKind = SCENARIO.
 Payload shape: populate `scenarios` (2-4 `ScenarioBranch` entries each with
-label, probability_band ∈ {{low, medium, high}}, summary, drivers list).
+label, probability_band ∈ {{low, medium, high}}, summary, drivers list,
+assumptions list). Every branch MUST list at least 2 `drivers` (mechanisms
+that would push the scenario toward reality) and at least 1 `assumption`
+(a claim a reader could falsify). If you cannot name them from the
+evidence, drop the scenario — do not invent them.
 `prose` MUST be a substantive synthesis: state the most likely outcome (or
 range of outcomes), cite the evidence [n] that supports it, and call out
 the key drivers and uncertainties. Do NOT use `prose` to "frame" the

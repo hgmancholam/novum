@@ -464,11 +464,16 @@ class AgentOrchestrator:
 
         # Check re-decomposition conditions:
         # 1. Haven't hit max re-decompositions
-        # 2. S_raw is below threshold + 0.10 buffer
+        # 2. S_raw is below threshold + buffer
         # 3. Budget allows more search
+        # PR-5 Mejora 8.2: widen the buffer to 0.20 on the FIRST re-decomp so
+        # borderline runs (S just above threshold + 0.10 but still uncertain)
+        # get at least one identify_plan_gaps round before drafting. Subsequent
+        # rounds keep the tighter 0.10 cap.
+        redecomp_buffer = 0.20 if self.state.redecomposition_count == 0 else 0.10
         if (
             self.state.redecomposition_count < self.state.max_redecomposition
-            and S_raw < self.state.confidence_threshold + 0.10
+            and S_raw < self.state.confidence_threshold + redecomp_buffer
             and self.state.search_count < self.state.max_searches - 1  # Need room for at least one more round
         ):
             gaps = await identify_plan_gaps(self.state)
