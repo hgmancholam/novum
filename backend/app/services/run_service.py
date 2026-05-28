@@ -77,6 +77,7 @@ def _to_list_item(r: Run) -> RunListItem:
         started_at=r.started_at,
         stopped_at=r.stopped_at,
         stop_reason=StopReason(r.stop_reason) if r.stop_reason else None,
+        llm_provider=r.llm_provider,
     )
 
 

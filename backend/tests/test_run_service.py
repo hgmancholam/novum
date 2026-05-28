@@ -109,6 +109,26 @@ async def test_list_runs_keyset_truncates_long_questions(
     assert page.next_cursor is None
 
 
+async def test_list_runs_keyset_preserves_llm_provider(
+    sqlite_session: AsyncSession, seeded_user: str
+) -> None:
+    """Regression: history list must report the actual provider, not 'github' default."""
+    run = Run(
+        owner_username=seeded_user,
+        question="q",
+        output_format="prose",
+        confidence_threshold=0.7,
+        llm_provider="google",
+    )
+    sqlite_session.add(run)
+    await sqlite_session.commit()
+
+    svc = RunService(sqlite_session)
+    page = await svc.list_runs_keyset(seeded_user)
+    assert len(page.items) == 1
+    assert page.items[0].llm_provider == "google"
+
+
 async def test_list_runs_keyset_owner_scoped_excludes_other_users(
     sqlite_session: AsyncSession, seeded_user: str
 ) -> None:
