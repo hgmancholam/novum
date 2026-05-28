@@ -54,6 +54,25 @@ def mock_llm(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     return mock
 
 
+@pytest.fixture(autouse=True)
+def _stub_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid real embedding calls (saturation signal + planner similarity).
+
+    Same rationale as test_agent_orchestrator.py: real litellm dials out
+    under tenacity retries and looks like a multi-minute hang.
+    """
+    import numpy as np
+
+    from app.llm import embeddings as embeddings_module
+    from app.stopping.signals import saturation as saturation_module
+
+    async def _fake_embed(texts: list[str], *, model: str | None = None) -> list[np.ndarray]:
+        return [np.zeros(1536, dtype=np.float32) for _ in texts]
+
+    monkeypatch.setattr(embeddings_module, "embed", _fake_embed)
+    monkeypatch.setattr(saturation_module, "embed", _fake_embed)
+
+
 @pytest.mark.asyncio
 async def test_cancel_during_trivial_path_before_searching(mock_llm: AsyncMock) -> None:
     """Cancel during trivial path (after PlanCreated, before SEARCHING) → user_cancelled."""

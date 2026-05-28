@@ -94,6 +94,26 @@ def llm_stub(monkeypatch: pytest.MonkeyPatch) -> _LLMStub:
     return stub
 
 
+@pytest.fixture(autouse=True)
+def _stub_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid real OpenAI/GitHub embedding calls in orchestrator e2e tests.
+
+    Without this stub the saturation signal and the planner's similarity
+    pass dial out to litellm, which under tenacity retries + rate-limited
+    GitHub token pool looks like a hang (multi-minute per test).
+    """
+    import numpy as np
+
+    from app.llm import embeddings as embeddings_module
+    from app.stopping.signals import saturation as saturation_module
+
+    async def _fake_embed(texts: list[str], *, model: str | None = None) -> list[np.ndarray]:
+        return [np.zeros(1536, dtype=np.float32) for _ in texts]
+
+    monkeypatch.setattr(embeddings_module, "embed", _fake_embed)
+    monkeypatch.setattr(saturation_module, "embed", _fake_embed)
+
+
 class _FakeSource:
     def __init__(
         self,
