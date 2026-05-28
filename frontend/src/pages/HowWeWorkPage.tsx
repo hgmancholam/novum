@@ -342,7 +342,7 @@ function PipelineDiagram() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.15 }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className="relative overflow-hidden rounded-3xl border border-(--glass-border) bg-(--bg-secondary)/40 p-6 backdrop-blur-xl sm:p-10"
+        className="relative hidden overflow-hidden rounded-3xl border border-(--glass-border) bg-(--bg-secondary)/40 p-6 backdrop-blur-xl sm:block sm:p-10"
       >
         <DiagramSVG />
       </motion.div>
