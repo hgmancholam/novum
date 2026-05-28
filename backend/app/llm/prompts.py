@@ -312,12 +312,12 @@ Reply in {user_language}. Output MUST validate against the SynthesizedAnswer sch
 }
 
 _MAX_TOKENS_PER_KIND = {
-    AnswerKind.DIRECT: 800,
-    AnswerKind.BEST_EFFORT: 800,
-    AnswerKind.ETHICAL_REDIRECT: 400,
-    AnswerKind.SCENARIO: 1200,
-    AnswerKind.TRADEOFF: 1200,
-    AnswerKind.WEIGHTED: 1500,
+    AnswerKind.DIRECT: 1800,
+    AnswerKind.BEST_EFFORT: 1800,
+    AnswerKind.ETHICAL_REDIRECT: 800,
+    AnswerKind.SCENARIO: 2500,
+    AnswerKind.TRADEOFF: 2500,
+    AnswerKind.WEIGHTED: 3000,
 }
 
 
