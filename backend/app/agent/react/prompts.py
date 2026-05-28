@@ -36,7 +36,7 @@ Your Thought: {thought}
 ## Guidelines
 - Use **search** when you need new information
 - Use **deep_fetch** when you found a promising source but need full content
-- Use **evaluate_hypothesis** only when you have strong evidence
+- Use **evaluate_hypothesis** as soon as the gathered evidence supports a verdict — prefer emitting one or more of these BEFORE **finish** so the loop records structured verdicts (not just prose reasoning)
 - Use **finish** when you've evaluated enough or reached the step limit
 
 Choose the most appropriate action and provide required parameters.

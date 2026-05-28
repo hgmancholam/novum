@@ -755,6 +755,13 @@ class AgentOrchestrator:
                     f"{self.state.judge_attempts} attempts"
                 )
                 budget_signal = "judge_cap"
+            elif self.state.selected_lane == Lane.DEEP:
+                # DEEP lane uses react_step_count, not search_count.
+                budget_summary = (
+                    f"Reached ReAct step limit "
+                    f"({self.state.react_step_count}/{self.state.max_react_steps} steps)"
+                )
+                budget_signal = "budget"
             else:
                 budget_summary = (
                     f"Reached search limit ({self.state.search_count} rounds)"

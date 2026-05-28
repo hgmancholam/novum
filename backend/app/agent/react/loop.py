@@ -466,15 +466,31 @@ async def _execute_finish(
     """Execute finish action."""
     observation = f"Finishing: {action.reason}"
 
-    # Decide stop reason based on state
-    # If at least one hypothesis confirmed with sufficient confidence → judge path
+    # Decide stop reason based on what the agent gathered.
+    # Two acceptance paths:
+    #   1) Explicit hypothesis evaluation: at least one confirmed AND
+    #      structural confidence already meets threshold (FAST-style runs
+    #      where last_structural_confidence is populated).
+    #   2) Evidence-grounded finish: the DEEP lane does NOT update
+    #      last_structural_confidence, so a confirmed-hypothesis run with
+    #      sufficient gathered evidence is also accepted. This prevents the
+    #      loop from silently downgrading a voluntary finish to forced_synth
+    #      whenever the agent reasoned in prose without emitting an
+    #      EvaluateHypothesisAction (a frequent failure mode that surfaced
+    #      to users as a misleading "Reached search limit (0 rounds)" stop).
     confirmed_count = sum(1 for h in state.hypotheses if h.verdict == "confirmed")
+    structural_ok = (state.last_structural_confidence or 0.0) >= 0.75
+    has_substantial_evidence = len(state.evidence) >= 3
 
-    if confirmed_count > 0 and (state.last_structural_confidence or 0.0) >= 0.75:
+    if confirmed_count > 0 and structural_ok:
         return observation, StopReason.JUDGE_CONFIRMED
-    else:
-        # Force synthesis with current evidence
-        return observation, "forced_synth"
+    if has_substantial_evidence:
+        # Trust the agent's voluntary finish when grounded in evidence.
+        # Returning JUDGE_CONFIRMED routes to the direct-synthesis path in
+        # the DEEP lane (skipping the secondary CoVe + mini-judge gate).
+        return observation, StopReason.JUDGE_CONFIRMED
+    # Otherwise force synthesis with whatever evidence exists.
+    return observation, "forced_synth"
 
 
 async def _maybe_summarize_history(
