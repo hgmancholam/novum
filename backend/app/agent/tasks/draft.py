@@ -287,16 +287,27 @@ async def evaluate_with_judge(
     WP-5: Merges judge.contradictions_detected into final event.
     """
     draft = state.draft_answer or ""
+    threshold = state.confidence_threshold
 
     # WP-4: Include evidence saturation in judge context
     saturation_note = ""
     if state.last_novelty is not None:
         saturation_note = f"\n\nEvidence saturation (novelty): {state.last_novelty:.3f} (lower = more repetitive)"
 
+    # C2: the run's confidence threshold is the single gate. The judge
+    # applies it internally when deciding verdict=approve|reject. The
+    # stopping signal no longer re-checks min(S,J) >= threshold.
+    threshold_rule = (
+        f"\n\nConfidence threshold for this run: {threshold:.2f}.\n"
+        f"Return verdict=\"approve\" ONLY if your confidence is >= {threshold:.2f} "
+        f"AND the answer is factually sound, well-grounded and complete. "
+        f"If your confidence would be below {threshold:.2f}, you MUST return verdict=\"reject\"."
+    )
+
     user_msg = (
         f"Question: {state.question}\n\n"
         f"Draft answer:\n{draft}\n\n"
-        f"Evaluate factuality, completeness and grounding.{saturation_note}"
+        f"Evaluate factuality, completeness and grounding.{saturation_note}{threshold_rule}"
     )
     verdict = await llm.call(
         role=LLMRole.JUDGE,
@@ -307,8 +318,10 @@ async def evaluate_with_judge(
     judge_confidence = verdict.confidence
     structural_confidence = calculate_structural_confidence(state).score
     final_confidence = min(judge_confidence, structural_confidence)
-    threshold = state.confidence_threshold
-    passed = final_confidence >= threshold and verdict.verdict.lower() == "approve"
+    # C2: threshold is enforced inside the judge LLM (see threshold_rule
+    # above); the verdict alone is the gate here. final_confidence stays
+    # as a logged metric so the UI can still surface it.
+    passed = verdict.verdict.lower() == "approve"
 
     # WP-5: Merge judge.contradictions_detected into synthesized answer if present
     if verdict.contradictions_detected:

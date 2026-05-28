@@ -1,16 +1,17 @@
-"""Judge signal — confirms a run when all three gates pass (RF-12, RF-15).
+"""Judge signal — confirms a run when all gates pass (RF-12, RF-15).
 
-Gates (in order, IP-09 O-04):
+Gates (in order, IP-09 O-04; C2 unified-threshold model):
   1. ``judge_confidence`` is available (we are in or after JUDGING).
-  2. ``coverage >= 0.8`` — enough sub-claims covered.
-  3. ``agreement >= 0.7`` — evidence broadly aligns.
-  4. ``min(structural, judge) >= threshold`` — final-confidence rule
-     (RF-12: ``final_confidence = min(S, J)``).
+  2. ``judge_passed`` is True (i.e. judge verdict was approve).
+  3. ``coverage >= 0.8`` — enough sub-claims covered.
+  4. ``agreement >= 0.7`` — evidence broadly aligns.
 
-Only when all four hold does the signal emit ``STOP{JUDGE_CONFIRMED}``.
-Otherwise it returns ``CONTINUE`` (the policy will fall through to
-``CONTINUE`` and the orchestrator will iterate again, unless an
-earlier-priority signal stopped it).
+The run's ``confidence_threshold`` is no longer re-applied here as a
+``min(S, J) >= threshold`` gate. It is passed into the judge prompt so
+the judge LLM applies it itself when deciding approve vs reject; this
+removes the double-gate that caused stuck runs (commit 9a961fc context).
+``final = min(S, J)`` is still computed and surfaced in the explanation
+for observability (RF-12 stays the displayed confidence formula).
 """
 
 from __future__ import annotations
@@ -65,25 +66,18 @@ class JudgeSignal:
                 confidence=context.structural_confidence,
             )
 
+        # C2: threshold is enforced by the judge LLM itself (see judge
+        # prompt). Once judge_passed is True and coverage/agreement gates
+        # pass we STOP. final=min(S,J) is logged for RF-12 observability.
         final = min(context.structural_confidence, context.judge_confidence)
-        if final >= context.threshold:
-            return StopSignalOutput(
-                signal_name=self.name,
-                result=SignalResult.STOP,
-                stop_reason=StopReason.JUDGE_CONFIRMED,
-                explanation=(
-                    f"All gates passed; final=min(S={context.structural_confidence:.2f}, "
-                    f"J={context.judge_confidence:.2f})={final:.2f} >= "
-                    f"threshold={context.threshold:.2f}"
-                ),
-                confidence=final,
-            )
-
         return StopSignalOutput(
             signal_name=self.name,
-            result=SignalResult.CONTINUE,
+            result=SignalResult.STOP,
+            stop_reason=StopReason.JUDGE_CONFIRMED,
             explanation=(
-                f"Final confidence {final:.2f} below threshold {context.threshold:.2f}"
+                f"All gates passed; final=min(S={context.structural_confidence:.2f}, "
+                f"J={context.judge_confidence:.2f})={final:.2f} "
+                f"(threshold {context.threshold:.2f} applied by judge LLM)"
             ),
             confidence=final,
         )

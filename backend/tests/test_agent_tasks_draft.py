@@ -86,14 +86,38 @@ async def test_evaluate_with_judge_passes_when_above_threshold(
     assert event.passed is True
 
 
-async def test_evaluate_with_judge_fails_when_below_threshold(
+async def test_evaluate_with_judge_passes_through_verdict_approve(
     mock_create: AsyncMock,
 ) -> None:
+    """C2: threshold is enforced inside the judge LLM. When the (mocked)
+    judge returns verdict=approve we trust it; passed must be True even
+    when min(S,J) would have been below the run threshold under the old
+    double-gate rule. final_confidence stays logged for RF-12.
+    """
     mock_create.return_value = JudgeVerdict(confidence=0.4, verdict="approve", rationale="ok")
     state = _state(threshold=0.7)
     event = await draft_mod.evaluate_with_judge(state)
-    assert event.passed is False
+    assert event.passed is True
     assert event.final_confidence == pytest.approx(0.4)
+
+
+async def test_evaluate_with_judge_includes_threshold_in_user_message(
+    mock_create: AsyncMock,
+) -> None:
+    """C2: the run's confidence_threshold is forwarded to the judge prompt
+    so the LLM applies it when picking approve vs reject.
+    """
+    mock_create.return_value = JudgeVerdict(confidence=0.9, verdict="approve", rationale="ok")
+    state = _state(threshold=0.73)
+    await draft_mod.evaluate_with_judge(state)
+    # Inspect the user message the judge was called with. llm.call prepends
+    # the role's system prompt, so the user payload is the last entry.
+    call_kwargs = mock_create.call_args.kwargs
+    messages = call_kwargs["messages"]
+    user_msg = messages[-1]["content"]
+    assert messages[-1]["role"] == "user"
+    assert "0.73" in user_msg
+    assert "threshold" in user_msg.lower()
 
 
 async def test_evaluate_with_judge_fails_when_verdict_reject(

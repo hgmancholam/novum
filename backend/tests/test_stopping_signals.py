@@ -206,32 +206,44 @@ async def test_judge_agreement_gate_blocks() -> None:
     assert "Agreement gate" in (out.explanation or "")
 
 
-async def test_judge_under_threshold_continues() -> None:
+async def test_judge_stops_when_passed_true_regardless_of_threshold() -> None:
+    """C2: threshold is enforced by the judge LLM, not by this signal.
+
+    Once judge_passed=True and coverage/agreement gates pass, the signal
+    stops with JUDGE_CONFIRMED even if min(S, J) < threshold. The judge
+    LLM is trusted to have applied the threshold itself.
+    """
     out = await JudgeSignal().evaluate(
         _ctx(
             coverage=0.85,
             agreement=0.80,
             structural_confidence=0.8,
             judge_confidence=0.5,
+            judge_passed=True,
             threshold=0.7,
         )
     )
-    assert out.result is SignalResult.CONTINUE
+    assert out.result is SignalResult.STOP
+    assert out.stop_reason is StopReason.JUDGE_CONFIRMED
+    # final = min(0.8, 0.5) = 0.5 is logged but not gated
+    assert out.confidence == pytest.approx(0.5)
 
 
-async def test_judge_final_uses_min_S_J() -> None:
+async def test_judge_final_min_S_J_surfaced_in_explanation() -> None:
+    """C2: min(S, J) is still computed and surfaced (RF-12) even when low."""
     out = await JudgeSignal().evaluate(
         _ctx(
             coverage=0.85,
             agreement=0.80,
             structural_confidence=0.4,
             judge_confidence=0.9,
+            judge_passed=True,
             threshold=0.7,
         )
     )
-    assert out.result is SignalResult.CONTINUE
-    # final = min(0.4, 0.9) = 0.4 < 0.7
+    assert out.result is SignalResult.STOP
     assert out.confidence == pytest.approx(0.4)
+    assert "final=" in (out.explanation or "")
 
 
 def test_judge_priority_is_40() -> None:
