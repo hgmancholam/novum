@@ -83,9 +83,7 @@ export function MetaRow({
       {providerLabel !== undefined ? (
         <Chip>
           <span aria-hidden="true">·</span>
-          <span title="LLM provider used for this run">
-            provider {providerLabel}
-          </span>
+          <span title="LLM provider used for this run">{providerLabel}</span>
         </Chip>
       ) : null}
     </div>
