@@ -537,6 +537,54 @@ async def test_error_path_tags_llm_pool_rate_limited(
     assert errored[0].error_code == "llm_pool_rate_limited"
 
 
+async def test_error_path_tags_llm_provider_quota_exhausted(
+    llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the failure originates from ``LLMProviderQuotaExhausted``
+    (non-github provider returned a permanent quota error such as
+    Gemini's free-tier daily cap), the emitted ``AgentErroredEvent``
+    carries the ``llm_provider_quota_exhausted`` error_code and an
+    error_message naming the provider, so the UI can tell the user
+    to switch providers instead of retrying."""
+    from litellm.exceptions import RateLimitError
+
+    from app.llm.client import LLMProviderQuotaExhausted
+
+    llm_stub.queue("QuestionClassification", _classify("factual"))
+    llm_stub.queue("PlanOutput", _plan("c1"))
+    llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
+
+    quota_exc = LLMProviderQuotaExhausted(
+        "google",
+        RateLimitError(
+            "RESOURCE_EXHAUSTED",
+            llm_provider="google",
+            model="gemini/gemini-2.5-flash",
+        ),
+    )
+
+    class _QuotaSource(_FakeSource):
+        async def search(
+            self, query: str, max_results: int = 5, **_kwargs: object
+        ) -> list[SourceResult]:
+            raise quota_exc
+
+    _install_registry(
+        monkeypatch,
+        {SourceType.TAVILY: _QuotaSource(SourceType.TAVILY)},
+    )
+
+    state = _state()
+    orch, events = _make_orchestrator(state)
+    reason = await orch.run()
+
+    assert reason == StopReason.ERRORED
+    errored = [e for e in events if isinstance(e, AgentErroredEvent)]
+    assert len(errored) == 1
+    assert errored[0].error_code == "llm_provider_quota_exhausted"
+    assert "google" in errored[0].error_message
+
+
 async def test_illegal_transition_raises() -> None:
     state = _state()
     with pytest.raises(ValueError, match="Invalid transition"):

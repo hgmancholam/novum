@@ -42,7 +42,7 @@ from app.domain.events import (
     StoppedEvent,
     StopRationale,
 )
-from app.llm.client import LLMPoolExhausted, count_tokens
+from app.llm.client import LLMPoolExhausted, LLMProviderQuotaExhausted, count_tokens
 from app.stopping import StoppingPolicy
 
 logger = structlog.get_logger(__name__)
@@ -456,7 +456,19 @@ class AgentOrchestrator:
 
     async def _handle_error(self, exc: BaseException) -> StopReason:
         error_code: str | None = None
-        if isinstance(exc, LLMPoolExhausted) or isinstance(
+        error_message = str(exc)
+        if isinstance(exc, LLMProviderQuotaExhausted) or isinstance(
+            exc.__cause__, LLMProviderQuotaExhausted
+        ):
+            quota_exc = exc if isinstance(exc, LLMProviderQuotaExhausted) else exc.__cause__
+            assert isinstance(quota_exc, LLMProviderQuotaExhausted)
+            error_code = "llm_provider_quota_exhausted"
+            error_message = (
+                f"LLM provider '{quota_exc.provider}' returned a quota-exhausted "
+                f"error. The run cannot continue with this provider until the "
+                f"quota resets. Try another provider or wait."
+            )
+        elif isinstance(exc, LLMPoolExhausted) or isinstance(
             exc.__cause__, LLMPoolExhausted
         ):
             error_code = "llm_pool_rate_limited"
@@ -470,7 +482,7 @@ class AgentOrchestrator:
         await self.emit(
             AgentErroredEvent(
                 error_type=type(exc).__name__,
-                error_message=str(exc),
+                error_message=error_message,
                 stack_trace=traceback.format_exc(),
                 recoverable=False,
                 recovery_suggestion=None,

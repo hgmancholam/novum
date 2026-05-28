@@ -122,6 +122,38 @@ class LLMPoolExhausted(RateLimitError):
         self.pool_size = pool_size
 
 
+class LLMProviderQuotaExhausted(Exception):
+    """User-selected non-github provider returned a permanent quota error.
+
+    Distinct from a transient per-minute rate-limit: covers daily/free-tier
+    exhaustion (``insufficient_quota``, ``RESOURCE_EXHAUSTED``, etc.) where
+    retrying within the request window cannot succeed. Deliberately NOT a
+    subclass of ``RateLimitError`` so tenacity does not retry it — the run
+    fails fast and the orchestrator surfaces a clear error to the user.
+    """
+
+    def __init__(self, provider: str, original: BaseException) -> None:
+        super().__init__(f"Provider '{provider}' quota exhausted: {original}")
+        self.provider = provider
+        self.original = original
+
+
+_QUOTA_EXHAUSTED_MARKERS: tuple[str, ...] = (
+    "insufficient_quota",
+    "resource_exhausted",
+    "exceeded your current quota",
+    "freetier",
+    "per_day",
+    "perday",
+)
+
+
+def _is_quota_exhausted(exc: BaseException) -> bool:
+    """Return True when ``exc`` signals a non-recoverable provider quota cap."""
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _QUOTA_EXHAUSTED_MARKERS)
+
+
 R = TypeVar("R")
 
 
@@ -309,13 +341,29 @@ class LLMClient:
 
             provider = get_provider(active_provider)
             effective_max = max_tokens if max_tokens is not None else config.max_tokens
-            result = await provider.complete(
-                role=role,
-                messages=messages,
-                response_model=response_model,
-                temperature=config.temperature,
-                max_tokens=effective_max,
-            )
+            try:
+                result = await provider.complete(
+                    role=role,
+                    messages=messages,
+                    response_model=response_model,
+                    temperature=config.temperature,
+                    max_tokens=effective_max,
+                )
+            except (RateLimitError, InstructorRetryException) as exc:
+                # Per-day / free-tier exhaustion is NOT recoverable inside
+                # the run's lifetime. Surface as a typed error so tenacity
+                # skips it (LLMProviderQuotaExhausted is not a RateLimitError
+                # subclass) and the orchestrator fails the run with a
+                # clear provider-level message.
+                if _is_quota_exhausted(exc):
+                    logger.warning(
+                        "llm_provider_quota_exhausted",
+                        provider=active_provider,
+                        role=role.value,
+                        error=str(exc),
+                    )
+                    raise LLMProviderQuotaExhausted(active_provider, exc) from exc
+                raise
             logger.info(
                 "llm_call_complete",
                 role=role.value,

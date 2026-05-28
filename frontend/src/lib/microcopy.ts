@@ -18,12 +18,12 @@ export const FORK_MODAL_DESCRIPTION =
 
 export const LINEAGE_BADGE_LABEL = "Forked from earlier run";
 
-export const RATE_LIMIT_MODAL_TITLE = "AI providers are rate-limiting us";
+export const RATE_LIMIT_MODAL_TITLE = "The LLM provider is rate-limiting us";
 
 export const RATE_LIMIT_MODAL_DESCRIPTION =
-  "All GitHub Models tokens in our pool returned 429 (Too Many Requests). This is a temporary quota limit from the provider — not a bug in the app. The per-minute window typically resets in under a minute; the daily quota resets at 00:00 UTC.";
+  "The selected LLM provider returned a quota / 429 error and the run was stopped. This is a temporary limit from the provider — not a bug in the app. Per-minute windows usually reset in under a minute; daily free-tier quotas reset on the provider's UTC clock.";
 
 export const RATE_LIMIT_MODAL_HINT =
-  "Wait ~60 seconds and try again. If it keeps failing, you may have hit the daily quota.";
+  "Pick a different provider from the header chip, or wait for the quota window to reset and try again.";
 
 export const RATE_LIMIT_MODAL_CLOSE = "Got it";

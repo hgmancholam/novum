@@ -256,3 +256,123 @@ async def test_pool_exhausted_raises_llmpool_exhausted(
 
     assert exc_info.value.pool_size == 2
     assert isinstance(exc_info.value.__cause__, RateLimitError)
+
+
+# ---------------------------------------------------------------------------
+# Non-github provider quota exhaustion
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "insufficient_quota",
+        "RESOURCE_EXHAUSTED",
+        "You exceeded your current quota",
+        "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+    ],
+)
+def test_is_quota_exhausted_detects_known_markers(marker: str) -> None:
+    """``_is_quota_exhausted`` matches the daily-quota signals emitted by
+    OpenAI / Google / Anthropic so the orchestrator can fail fast instead
+    of letting tenacity burn a multi-minute retry budget."""
+    exc = Exception(f"... 429 {marker} ...")
+    assert client_module._is_quota_exhausted(exc) is True  # type: ignore[attr-defined]
+
+
+def test_is_quota_exhausted_ignores_transient_rate_limit() -> None:
+    """Per-minute 429s without a quota marker stay retryable."""
+    exc = Exception("429 Too Many Requests, please slow down")
+    assert client_module._is_quota_exhausted(exc) is False  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_non_github_provider_quota_raises_typed_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When ``provider.complete`` raises a RateLimitError carrying a
+    quota-exhausted message, ``LLMClient.call`` converts it into
+    ``LLMProviderQuotaExhausted`` so tenacity does NOT retry and the
+    orchestrator can tag ``error_code='llm_provider_quota_exhausted'``."""
+    from litellm.exceptions import RateLimitError
+
+    token = client_module.current_provider.set("google")
+    try:
+        quota_exc = RateLimitError(
+            "geminiException - 429 RESOURCE_EXHAUSTED: "
+            "Quota exceeded for generate_content_free_tier_requests",
+            llm_provider="google",
+            model="gemini/gemini-2.5-flash",
+        )
+
+        class _StubProvider:
+            name = "google"
+
+            def model_for(self, _role: LLMRole) -> str:
+                return "gemini/gemini-2.5-flash"
+
+            async def complete(self, **_kwargs: Any) -> Any:
+                raise quota_exc
+
+        monkeypatch.setattr(
+            "app.llm.factory.get_provider", lambda _name=None: _StubProvider()
+        )
+
+        with pytest.raises(client_module.LLMProviderQuotaExhausted) as exc_info:
+            await client_module.llm.call(
+                LLMRole.CLASSIFIER,
+                [{"role": "user", "content": "q"}],
+                QuestionClassification,
+            )
+
+        assert exc_info.value.provider == "google"
+        assert exc_info.value.original is quota_exc
+        # Critical: NOT a RateLimitError subclass → tenacity will not retry.
+        assert not isinstance(exc_info.value, RateLimitError)
+    finally:
+        client_module.current_provider.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_non_github_provider_transient_rate_limit_still_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transient (non-quota) RateLimitError bubbles up unchanged so the
+    standard tenacity retry path still gets to handle it."""
+    from litellm.exceptions import RateLimitError
+
+    token = client_module.current_provider.set("openai")
+    try:
+        transient = RateLimitError(
+            "429 Too Many Requests — slow down",
+            llm_provider="openai",
+            model="gpt-5",
+        )
+
+        class _StubProvider:
+            name = "openai"
+
+            def model_for(self, _role: LLMRole) -> str:
+                return "gpt-5"
+
+            async def complete(self, **_kwargs: Any) -> Any:
+                raise transient
+
+        monkeypatch.setattr(
+            "app.llm.factory.get_provider", lambda _name=None: _StubProvider()
+        )
+
+        with pytest.raises(RateLimitError) as exc_info:
+            await client_module.llm.call(
+                LLMRole.CLASSIFIER,
+                [{"role": "user", "content": "q"}],
+                QuestionClassification,
+            )
+
+        # The raw RateLimitError comes through after tenacity exhausts
+        # its 5 retries (each retry hits the same stub which keeps
+        # raising). It must NOT be wrapped as LLMProviderQuotaExhausted.
+        assert not isinstance(exc_info.value, client_module.LLMProviderQuotaExhausted)
+    finally:
+        client_module.current_provider.reset(token)
+

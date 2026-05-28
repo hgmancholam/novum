@@ -121,18 +121,23 @@ export function CenterPanelContainer() {
   const showPostResumeNotice =
     resumeStepIndex !== null && !agentEmittedAfterResume;
 
-  // When the LLM pool is exhausted (all PATs returned 429 in one sweep),
-  // the agent emits AgentErrored with error_code === "llm_pool_rate_limited".
-  // We surface a dedicated modal so the user knows the failure is a
-  // provider quota issue, not a bug. Dismissal is tracked per runId so
-  // the modal does not re-open on the same run after the user closes it.
+  // When the LLM pool / provider quota is exhausted (GitHub pool sweep with
+  // 429, or a non-github provider returns insufficient_quota / RESOURCE_EXHAUSTED),
+  // the agent emits AgentErrored with error_code in {"llm_pool_rate_limited",
+  // "llm_provider_quota_exhausted"}. We surface a dedicated modal so the user
+  // knows the failure is a provider quota issue, not a bug. Dismissal is
+  // tracked per runId so the modal does not re-open on the same run after
+  // the user closes it.
   const rateLimitedRunId = useMemo<string | null>(() => {
     for (const e of events) {
-      if (
-        e.type === "AgentErrored" &&
-        (e as { error_code?: unknown }).error_code === "llm_pool_rate_limited"
-      ) {
-        return runId ?? null;
+      if (e.type === "AgentErrored") {
+        const code = (e as { error_code?: unknown }).error_code;
+        if (
+          code === "llm_pool_rate_limited" ||
+          code === "llm_provider_quota_exhausted"
+        ) {
+          return runId ?? null;
+        }
       }
     }
     return null;
