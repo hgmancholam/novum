@@ -8,7 +8,7 @@
  */
 
 import { Link } from "react-router-dom";
-import { motion, useReducedMotion, type Variants } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -27,25 +27,8 @@ import {
   Workflow,
   Zap,
 } from "lucide-react";
-import { Logo } from "@/components/atoms";
-
-// ---------------------------------------------------------------------------
-// Motion presets
-// ---------------------------------------------------------------------------
-
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 24 },
-  visible: (i: number = 0) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.55, delay: i * 0.08, ease: [0.16, 1, 0.3, 1] },
-  }),
-};
-
-const stagger: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
-};
+import { BackgroundOrbs, Logo } from "@/components/atoms";
+import { fadeUp, stagger } from "@/lib/motion";
 
 // ---------------------------------------------------------------------------
 // Page
@@ -70,48 +53,6 @@ export default function HowWeWorkPage() {
       </main>
 
       <Footer />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Decorative background
-// ---------------------------------------------------------------------------
-
-function BackgroundOrbs() {
-  const reduce = useReducedMotion();
-  return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <motion.div
-        className="absolute -top-40 left-1/2 h-160 w-160 -translate-x-1/2 rounded-full"
-        style={{
-          background:
-            "radial-gradient(closest-side, rgba(99,102,241,0.28), transparent 70%)",
-          filter: "blur(20px)",
-        }}
-        animate={reduce ? {} : { y: [0, 18, 0] }}
-        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute top-1/3 -right-32 h-105 w-105 rounded-full"
-        style={{
-          background:
-            "radial-gradient(closest-side, rgba(168,85,247,0.18), transparent 70%)",
-          filter: "blur(24px)",
-        }}
-        animate={reduce ? {} : { y: [0, -22, 0] }}
-        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute bottom-0 left-0 h-95 w-95 rounded-full"
-        style={{
-          background:
-            "radial-gradient(closest-side, rgba(251,191,36,0.10), transparent 70%)",
-          filter: "blur(28px)",
-        }}
-        animate={reduce ? {} : { y: [0, 14, 0] }}
-        transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
-      />
     </div>
   );
 }

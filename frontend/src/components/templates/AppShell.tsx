@@ -16,7 +16,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Menu, PanelRight, Workflow } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Logo } from "@/components/atoms";
+import { BackgroundOrbs, Logo } from "@/components/atoms";
 import { IdentitySlot } from "@/components/molecules";
 import { useSelectionStore } from "@/stores/selectionStore";
 
@@ -89,7 +89,7 @@ function Drawer({ side, open, onClose, children, labelledBy }: DrawerProps) {
         <>
           <motion.div
             data-testid={`drawer-overlay-${side}`}
-            className="fixed inset-0 z-40 bg-black/60"
+            className="fixed inset-0 z-40 bg-(--overlay-scrim) backdrop-blur-[8px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -104,7 +104,7 @@ function Drawer({ side, open, onClose, children, labelledBy }: DrawerProps) {
             data-testid={`drawer-${side}`}
             className={cn(
               "fixed inset-y-0 z-50 flex w-[88vw] max-w-[360px] flex-col " +
-                "bg-[var(--bg-secondary)] shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
+                "glass-strong shadow-(--shadow-lg)",
               side === "left" ? "left-0" : "right-0"
             )}
             initial={{ x: side === "left" ? "-100%" : "100%" }}
@@ -136,7 +136,10 @@ function TopBar({
   return (
     <div
       data-testid="top-bar"
-      className="flex h-12 items-center justify-between border-b border-[var(--glass-border)] bg-[var(--bg-secondary)] px-3"
+      className={cn(
+        "relative z-20 flex h-12 items-center justify-between px-3 sm:h-14",
+        "border-b border-(--glass-border) bg-(--bg-secondary)/60 backdrop-blur-xl"
+      )}
     >
       <div className="flex items-center gap-2">
         {showLeftToggle ? (
@@ -144,14 +147,14 @@ function TopBar({
             type="button"
             onClick={onOpenLeft}
             aria-label="Open history"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-primary)] hover:bg-[var(--glass-bg)]"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-(--text-primary) transition-colors hover:bg-(--glass-bg)"
           >
             <Menu className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
           </button>
         ) : null}
         <span
           id="appshell-title"
-          className="inline-flex items-center gap-2 text-base font-medium text-[var(--text-primary)]"
+          className="inline-flex items-center gap-2 text-base font-medium text-(--text-primary)"
         >
           <Logo size={20} title="" />
           Novum
@@ -161,7 +164,12 @@ function TopBar({
         <a
           href="/"
           aria-label="How do we work?"
-          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-(--text-secondary) transition-colors hover:bg-(--glass-bg) hover:text-(--text-primary)"
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full",
+            "border border-(--glass-border) bg-(--glass-bg) backdrop-blur",
+            "px-3 py-1 text-xs text-(--text-secondary)",
+            "transition-colors hover:bg-(--glass-hover) hover:text-(--text-primary)"
+          )}
         >
           <Workflow className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
           <span className="hidden sm:inline">How do we work?</span>
@@ -172,7 +180,7 @@ function TopBar({
             type="button"
             onClick={onOpenRight}
             aria-label="Open trace"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-primary)] hover:bg-[var(--glass-bg)]"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-(--text-primary) transition-colors hover:bg-(--glass-bg)"
           >
             <PanelRight className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
           </button>
@@ -199,13 +207,14 @@ export function AppShell({ left, center, right, forceBreakpoint }: AppShellProps
     <div
       data-testid="app-shell"
       data-breakpoint={breakpoint}
-      className="flex h-[100dvh] w-full overflow-hidden bg-transparent text-[var(--text-primary)]"
+      className="relative flex h-[100dvh] w-full overflow-hidden bg-transparent text-(--text-primary)"
     >
+      <BackgroundOrbs />
       {showLeftAsDrawer ? null : (
         <aside
           data-testid="app-shell-left"
           aria-label="History"
-          className="h-full w-[260px] flex-shrink-0 border-r border-[var(--glass-border)]"
+          className="relative z-10 h-full w-[260px] flex-shrink-0 border-r border-(--glass-border)"
         >
           {left}
         </aside>
@@ -213,7 +222,7 @@ export function AppShell({ left, center, right, forceBreakpoint }: AppShellProps
 
       <main
         data-testid="app-shell-main"
-        className="flex h-full min-w-0 flex-1 flex-col"
+        className="relative z-10 flex h-full min-w-0 flex-1 flex-col"
       >
         <TopBar
           showLeftToggle={showLeftAsDrawer}
@@ -229,7 +238,7 @@ export function AppShell({ left, center, right, forceBreakpoint }: AppShellProps
           data-testid="app-shell-right"
           aria-label="Trace"
           className={cn(
-            "h-full flex-shrink-0 border-l border-[var(--glass-border)]",
+            "relative z-10 h-full flex-shrink-0 border-l border-(--glass-border)",
             // IP-24 Phase 5: Narrow width when collapsed
             isTracePanelCollapsed
               ? "w-10"

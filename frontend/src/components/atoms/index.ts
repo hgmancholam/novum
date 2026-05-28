@@ -19,6 +19,7 @@ export { ProviderIcon } from "./ProviderIcon";
 export type { ProviderIconProps } from "./ProviderIcon";
 export { Logo } from "./Logo";
 export type { LogoProps } from "./Logo";
+export { BackgroundOrbs } from "./BackgroundOrbs";
 export { OutcomeBar } from "./OutcomeBar";
 export type { OutcomeBarProps, OutcomeVariant } from "./OutcomeBar";
 export { EventIcon } from "./EventIcon";

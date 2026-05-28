@@ -172,9 +172,8 @@ export function QuestionForm({
       data-testid="question-form"
       aria-describedby={errorMessage !== null ? `${questionId}-error` : undefined}
       className={cn(
-        "mx-auto flex w-full max-w-3xl flex-col gap-4",
-        "rounded-[var(--radius-lg)] border border-[var(--glass-border)]",
-        "bg-[var(--bg-secondary)] p-6 shadow-sm",
+        "glass mx-auto flex w-full max-w-3xl flex-col gap-4",
+        "rounded-[var(--radius-lg)] p-6 shadow-(--shadow-md)",
         className
       )}
     >
@@ -199,10 +198,12 @@ export function QuestionForm({
           aria-required="true"
           className={cn(
             "min-h-[88px] w-full resize-y rounded-[var(--radius-md)] border",
-            "border-[var(--glass-border)] bg-[var(--bg-tertiary)] px-3 py-2",
-            "text-base text-[var(--text-primary)]",
-            "placeholder:text-[var(--text-muted)]",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            "border-(--glass-border) bg-(--bg-tertiary) px-3 py-2",
+            "text-base text-(--text-primary)",
+            "placeholder:text-(--text-muted)",
+            "transition-[border-color,box-shadow] duration-150 ease-out",
+            "focus-visible:outline-none focus-visible:border-(--accent)",
+            "focus-visible:shadow-[0_0_0_3px_var(--accent-soft)]"
           )}
         />
         <div className="flex items-center justify-between text-xs">
@@ -232,7 +233,13 @@ export function QuestionForm({
             }}
             aria-expanded={contextOpen}
             aria-controls={contextId}
-            className="text-xs text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full",
+              "border border-(--glass-border) bg-(--glass-bg) backdrop-blur",
+              "px-3 py-1 text-xs text-(--text-secondary)",
+              "transition-colors hover:bg-(--glass-hover) hover:text-(--text-primary)",
+              "focus-visible:outline-2 focus-visible:outline-(color:--accent) focus-visible:outline-offset-2"
+            )}
           >
             {contextOpen ? "Hide context \u25BE" : "Add context (optional) \u25B8"}
           </button>
@@ -265,10 +272,12 @@ export function QuestionForm({
               aria-invalid={contextOver || undefined}
               className={cn(
                 "w-full resize-y rounded-[var(--radius-md)] border",
-                "border-[var(--glass-border)] bg-[var(--bg-tertiary)] px-3 py-2",
-                "text-sm text-[var(--text-primary)]",
-                "placeholder:text-[var(--text-muted)]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                "border-(--glass-border) bg-(--bg-tertiary) px-3 py-2",
+                "text-sm text-(--text-primary)",
+                "placeholder:text-(--text-muted)",
+                "transition-[border-color,box-shadow] duration-150 ease-out",
+                "focus-visible:outline-none focus-visible:border-(--accent)",
+                "focus-visible:shadow-[0_0_0_3px_var(--accent-soft)]"
               )}
             />
             <span className={cn("self-end text-xs tabular-nums", counterColor)}>
@@ -286,14 +295,20 @@ export function QuestionForm({
           }}
           aria-expanded={advancedOpen}
           aria-controls={`${formatId}-group`}
-          className="self-start text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          className={cn(
+            "inline-flex items-center gap-1 self-start rounded-full",
+            "border border-(--glass-border) bg-(--glass-bg) backdrop-blur",
+            "px-3 py-1 text-xs text-(--text-secondary)",
+            "transition-colors hover:bg-(--glass-hover) hover:text-(--text-primary)",
+            "focus-visible:outline-2 focus-visible:outline-(color:--accent) focus-visible:outline-offset-2"
+          )}
         >
           {advancedOpen ? "Advanced ▾" : "Advanced ▸"}
         </button>
         {advancedOpen ? (
           <div
             id={`${formatId}-group`}
-            className="grid gap-4 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--bg-tertiary)] p-3 sm:grid-cols-2"
+            className="glass-subtle grid gap-4 rounded-[var(--radius-md)] p-3 sm:grid-cols-2"
           >
             <fieldset className="flex flex-col gap-1">
               <legend
@@ -307,10 +322,10 @@ export function QuestionForm({
                   <label
                     key={opt}
                     className={cn(
-                      "cursor-pointer rounded-[var(--radius-sm)] border px-2 py-1 text-xs",
+                      "cursor-pointer rounded-[var(--radius-sm)] border px-2 py-1 text-xs transition-colors",
                       outputFormat === opt
-                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--text-primary)]"
-                        : "border-[var(--glass-border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]"
+                        ? "border-(--accent) bg-(--accent) text-white"
+                        : "glass-subtle text-(--text-secondary) hover:text-(--text-primary)"
                     )}
                   >
                     <input
@@ -342,10 +357,10 @@ export function QuestionForm({
                   <label
                     key={p}
                     className={cn(
-                      "cursor-pointer rounded-[var(--radius-sm)] border px-2 py-1 text-xs",
+                      "cursor-pointer rounded-[var(--radius-sm)] border px-2 py-1 text-xs transition-colors",
                       thresholdPreset === p
-                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--text-primary)]"
-                        : "border-[var(--glass-border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]"
+                        ? "border-(--accent) bg-(--accent) text-white"
+                        : "glass-subtle text-(--text-secondary) hover:text-(--text-primary)"
                     )}
                   >
                     <input

@@ -14,6 +14,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
 
 import {
   QuestionForm,
@@ -23,6 +24,7 @@ import { SuggestionChips, TypeDisclosure } from "@/components/molecules";
 import { useCreateRun } from "@/hooks/useCreateRun";
 import { useLoginModal } from "@/hooks/useLoginModal";
 import { useUserStore } from "@/stores/userStore";
+import { fadeUp, stagger } from "@/lib/motion";
 
 export function NewRunContainer() {
   const navigate = useNavigate();
@@ -56,32 +58,46 @@ export function NewRunContainer() {
   const submitError = error !== null ? error.message : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
-      <header className="text-center">
-        <h1 className="text-3xl font-semibold text-[var(--text-primary)]">
-          Novum
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={stagger}
+      className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10"
+    >
+      <motion.header variants={fadeUp} className="text-center">
+        <h1 className="text-[2rem] font-semibold leading-tight tracking-tight text-(--text-primary)">
+          Ask.{" "}
+          <span className="bg-linear-to-r from-(--accent) via-fuchsia-400 to-(--warm) bg-clip-text text-transparent">
+            Earn the answer.
+          </span>
         </h1>
-        <p className="mt-1 text-base text-[var(--text-secondary)]">
+        <p className="mt-2 text-base text-(--text-secondary)">
           Research agent that earns its conclusions.
         </p>
-      </header>
+      </motion.header>
 
-      <QuestionForm
-        onSubmit={(payload) => {
-          void handleSubmit(payload);
-        }}
-        isSubmitting={isPending || isVerifying}
-        submitError={submitError}
-        initialQuestion={draft}
-      />
+      <motion.div variants={fadeUp}>
+        <QuestionForm
+          onSubmit={(payload) => {
+            void handleSubmit(payload);
+          }}
+          isSubmitting={isPending || isVerifying}
+          submitError={submitError}
+          initialQuestion={draft}
+        />
+      </motion.div>
 
-      <SuggestionChips
-        onPick={(q) => {
-          setDraft(q);
-        }}
-      />
+      <motion.div variants={fadeUp}>
+        <SuggestionChips
+          onPick={(q) => {
+            setDraft(q);
+          }}
+        />
+      </motion.div>
 
-      <TypeDisclosure />
-    </div>
+      <motion.div variants={fadeUp}>
+        <TypeDisclosure />
+      </motion.div>
+    </motion.div>
   );
 }

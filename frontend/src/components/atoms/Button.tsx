@@ -1,10 +1,13 @@
 /**
  * Button atom.
- * See ui-design.md §6.1 (glass button variants) and §1 (glass as the
- * default surface treatment). Sizes: sm | md | lg.
+ * Canonical CTA recipe — ui-design.md §6.1.1 (primary/secondary) and §11
+ * pattern #4. All variants are glass: translucent fill, backdrop blur,
+ * 1 px tinted border. Hierarchy lives in the tint, not the chrome.
  *
- * All four variants use a glass surface (translucent fill + backdrop blur +
- * 1px tinted border). Hierarchy is encoded in the tint, not in the chrome.
+ * Sizes:
+ *   - sm: compact / icon-row actions (rounded-lg, px-3 py-1.5)
+ *   - md: canonical CTA (rounded-xl, px-5 py-2.5, text-sm font-medium)
+ *   - lg: hero CTA (rounded-xl, px-6 py-3, text-base font-medium)
  */
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
@@ -21,37 +24,38 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const baseStyles =
-  "inline-flex items-center justify-center font-medium rounded-[12px] " +
-  "transition-[background-color,transform,box-shadow,opacity] duration-150 ease-out " +
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 " +
-  "focus-visible:ring-[var(--accent)] focus-visible:ring-offset-[var(--bg-primary)] " +
+  "group inline-flex items-center justify-center gap-2 " +
+  "transition-[background-color,transform,box-shadow,opacity,color] " +
+  "duration-200 ease-out " +
+  "focus-visible:outline-2 " +
+  "focus-visible:outline-(color:--accent) focus-visible:outline-offset-2 " +
   "disabled:pointer-events-none disabled:opacity-50";
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-[var(--accent)] text-white shadow-[var(--shadow-glow)] " +
-    "hover:bg-[var(--accent-hover)] hover:-translate-y-0.5 " +
+    "bg-(--accent) text-white font-medium shadow-(--shadow-glow) " +
+    "hover:bg-(--accent-hover) hover:-translate-y-0.5 " +
     "hover:shadow-[0_12px_28px_var(--accent-glow)] " +
     "active:translate-y-0 active:scale-[0.98]",
   secondary:
-    "border border-[var(--glass-border)] bg-[var(--glass-bg)] " +
-    "text-[var(--text-secondary)] backdrop-blur-xl " +
-    "hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] " +
+    "border border-(--glass-border) bg-(--glass-bg) backdrop-blur-xl " +
+    "text-(--text-secondary) " +
+    "hover:bg-(--glass-hover) hover:text-(--text-primary) " +
     "active:scale-[0.98]",
   ghost:
-    "bg-transparent text-[var(--text-primary)] " +
-    "hover:bg-[var(--glass-bg)] hover:[backdrop-filter:blur(12px)_saturate(150%)] " +
+    "bg-transparent text-(--text-primary) " +
+    "hover:bg-(--glass-bg) hover:backdrop-blur-md " +
     "active:scale-[0.98]",
   danger:
-    "glass-danger text-[var(--text-primary)] " +
+    "glass-danger text-(--text-primary) font-medium " +
     "hover:bg-[color-mix(in_srgb,var(--semantic-danger)_32%,transparent)] " +
     "hover:shadow-[0_8px_24px_rgba(239,68,68,0.4)] active:scale-[0.97]",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-xs",
-  md: "h-10 px-4 text-sm",
-  lg: "h-12 px-6 text-base",
+  sm: "rounded-lg px-3 py-1.5 text-xs",
+  md: "rounded-xl px-5 py-2.5 text-sm",
+  lg: "rounded-xl px-6 py-3 text-base",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -85,7 +89,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {loading ? (
           <span
-            className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent"
+            className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent"
             aria-hidden="true"
             data-testid="button-spinner"
           />

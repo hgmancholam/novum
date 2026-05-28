@@ -22,7 +22,7 @@ export function SuggestionChips({ onPick, className }: SuggestionChipsProps) {
       data-testid="suggestion-chips"
       className={cn("flex flex-col gap-2", className)}
     >
-      <p className="text-xs text-[var(--text-secondary)]">Try one of these:</p>
+      <p className="text-xs text-(--text-secondary)">Try one of these:</p>
       <div className="flex flex-wrap gap-2">
         {DEFAULT_SUGGESTIONS.map((q) => (
           <button
@@ -32,11 +32,11 @@ export function SuggestionChips({ onPick, className }: SuggestionChipsProps) {
               onPick(q);
             }}
             className={cn(
-              "rounded-[var(--radius-sm)] border border-[var(--glass-border)]",
-              "bg-[var(--bg-tertiary)] px-3 py-1.5 text-xs",
-              "text-[var(--text-primary)] transition-colors duration-150",
-              "hover:bg-[var(--glass-bg)]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              "inline-flex items-center gap-2 rounded-full",
+              "border border-(--glass-border) bg-(--glass-bg) backdrop-blur",
+              "px-3 py-1 text-xs text-(--text-secondary)",
+              "transition-colors hover:bg-(--glass-hover) hover:text-(--text-primary)",
+              "focus-visible:outline-2 focus-visible:outline-(color:--accent) focus-visible:outline-offset-2"
             )}
           >
             {q}
