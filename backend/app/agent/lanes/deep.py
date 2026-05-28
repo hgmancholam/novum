@@ -207,6 +207,54 @@ async def execute_deep_lane(
                     run_id=str(state.run_id),
                 )
 
+        # BRD-26 §4.6: reflective meta-judge on DEEP runs at the
+        # ``after_cove`` hook, right before the mini-judge. It can short-
+        # circuit the mini-judge into a best-effort stop or confirm the
+        # current draft when adversarial completeness finds no real gap.
+        from app.agent.meta_judge_hook import maybe_run_meta_judge
+
+        class _CoveSignal:
+            __slots__ = (
+                "passed",
+                "judge_confidence",
+                "structural_confidence",
+                "final_confidence",
+                "rationale",
+                "suggested_improvements",
+            )
+
+            def __init__(self) -> None:
+                self.passed = False
+                self.judge_confidence = state.last_judge_confidence or 0.0
+                self.structural_confidence = state.last_structural_confidence or 0.0
+                self.final_confidence = min(
+                    self.judge_confidence, self.structural_confidence
+                )
+                self.rationale = (
+                    "after_cove pre-judge: no judge ruling yet on this draft"
+                )
+                self.suggested_improvements: list[str] = []
+
+        meta_outcome = await maybe_run_meta_judge(
+            state, emit, _CoveSignal(), hook="after_cove"
+        )
+        if meta_outcome == "stop_best_effort":
+            state.final_answer = draft_text
+            state.budget_exhausted_kind = "react_steps"
+            logger.info(
+                "deep_lane_meta_judge_best_effort_stop",
+                run_id=str(state.run_id),
+            )
+            return StopReason.STOPPED_BY_BUDGET
+        if meta_outcome == "confirm":
+            state.final_answer = draft_text
+            state.last_judge_confidence = state.last_judge_confidence or 0.0
+            logger.info(
+                "deep_lane_meta_judge_confirmed",
+                run_id=str(state.run_id),
+            )
+            return StopReason.JUDGE_CONFIRMED
+
         # Mini-judge: simplified judge for V1 DEEP lane.
         # FAST_MINI_JUDGE_PROMPT has no {} placeholders — the question/answer
         # must travel in the user message, mirroring the fast lane pattern.

@@ -136,5 +136,51 @@ describe("eventLabels", () => {
         "Classified as comparative question — Standard research"
       );
     });
+
+    // IP-26 slice 3c — meta-judge event narratives (BRD-26).
+    it("for MetaStopVerdict surfaces decision and expected delta", () => {
+      const result = getEventNarrative("MetaStopVerdict", {
+        verdict: { decision: "stop_best_effort", expected_delta_s: 0.01 },
+      });
+      expect(result).toContain("stop_best_effort");
+      expect(result).toContain("0.01");
+    });
+
+    it("for MetaStopVerdict without delta still includes the decision", () => {
+      const result = getEventNarrative("MetaStopVerdict", {
+        verdict: { decision: "continue" },
+      });
+      expect(result).toContain("continue");
+    });
+
+    it("for MetaStopVerdict with no verdict falls back to a generic phrase", () => {
+      const result = getEventNarrative("MetaStopVerdict", {});
+      expect(result).toMatch(/meta-judge/i);
+    });
+
+    it("for AdversarialObjectionsGenerated highlights all_answered=true", () => {
+      const result = getEventNarrative("AdversarialObjectionsGenerated", {
+        verdict: { all_answered: true },
+      });
+      expect(result).toMatch(/already answered/i);
+    });
+
+    it("for AdversarialObjectionsGenerated highlights unresolved objections", () => {
+      const result = getEventNarrative("AdversarialObjectionsGenerated", {
+        verdict: { all_answered: false },
+      });
+      expect(result).toMatch(/unresolved/i);
+    });
+
+    it("for DirectedSubclaimsFromObjections pluralises by id count", () => {
+      const single = getEventNarrative("DirectedSubclaimsFromObjections", {
+        new_subclaim_ids: ["a"],
+      });
+      expect(single).toBe("Added 1 new sub-claim from an unresolved objection");
+      const multi = getEventNarrative("DirectedSubclaimsFromObjections", {
+        new_subclaim_ids: ["a", "b", "c"],
+      });
+      expect(multi).toBe("Added 3 new sub-claims from unresolved objections");
+    });
   });
 });

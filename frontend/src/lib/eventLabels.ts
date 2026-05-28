@@ -73,6 +73,9 @@ export const EVENT_LABELS: Record<EventType, string> = {
   VerificationQuestionsGenerated: "Verification questions",
   CoveContradictionDetected: "Contradiction detected",
   DraftSynthesized: "Draft ready",
+  MetaStopVerdict: "Meta-judge verdict",
+  AdversarialObjectionsGenerated: "Adversarial review",
+  DirectedSubclaimsFromObjections: "New sub-claims from objections",
 };
 
 export const EVENT_ACTIVITIES: Record<EventType, string> = {
@@ -116,6 +119,9 @@ export const EVENT_ACTIVITIES: Record<EventType, string> = {
   VerificationQuestionsGenerated: "Generating verification questions",
   CoveContradictionDetected: "Verifying the draft answer",
   DraftSynthesized: "Drafting the answer",
+  MetaStopVerdict: "Deciding whether another round is worth it",
+  AdversarialObjectionsGenerated: "Stress-testing the draft for blind spots",
+  DirectedSubclaimsFromObjections: "Adding new sub-claims to investigate",
 };
 
 export function getEventLabel(type: string): string {
@@ -206,6 +212,44 @@ export function getEventNarrative(
         return `Done — ${stopReason}`;
       }
       return "Done";
+    }
+    case "MetaStopVerdict": {
+      const verdict = payload["verdict"];
+      if (verdict && typeof verdict === "object") {
+        const decision = (verdict as Record<string, unknown>)["decision"];
+        const delta = (verdict as Record<string, unknown>)["expected_delta_s"];
+        if (typeof decision === "string") {
+          if (typeof delta === "number") {
+            return `Meta-judge: ${decision} (expected ΔS ${delta.toFixed(2)})`;
+          }
+          return `Meta-judge: ${decision}`;
+        }
+      }
+      return "Meta-judge weighed continuing vs stopping";
+    }
+    case "AdversarialObjectionsGenerated": {
+      const verdict = payload["verdict"];
+      if (verdict && typeof verdict === "object") {
+        const allAnswered = (verdict as Record<string, unknown>)["all_answered"];
+        if (allAnswered === true) {
+          return "Adversarial review: all 3 objections already answered";
+        }
+        if (allAnswered === false) {
+          return "Adversarial review: at least one objection unresolved";
+        }
+      }
+      return "Generated 3 adversarial objections to stress-test the draft";
+    }
+    case "DirectedSubclaimsFromObjections": {
+      const ids = payload["new_subclaim_ids"];
+      const count = Array.isArray(ids) ? ids.length : 0;
+      if (count === 1) {
+        return "Added 1 new sub-claim from an unresolved objection";
+      }
+      if (count > 1) {
+        return `Added ${count} new sub-claims from unresolved objections`;
+      }
+      return "Routed unresolved objections back into the plan";
     }
     default:
       return getEventActivity(type);

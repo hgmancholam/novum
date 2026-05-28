@@ -176,6 +176,9 @@ export function useRunStream(
       "AgentErrored",
       "ResumedAfterError",
       "ResumedAfterCancel",
+      "MetaStopVerdict",
+      "AdversarialObjectionsGenerated",
+      "DirectedSubclaimsFromObjections",
     ] as const;
 
     const teardowns: Array<() => void> = [
