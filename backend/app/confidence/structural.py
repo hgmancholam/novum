@@ -11,7 +11,9 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from app.agent.experts import match as expert_match
+from app.config import settings
 from app.domain.confidence import StructuralConfidence
+from app.domain.enums import AuthorityTier
 
 if TYPE_CHECKING:
     from app.agent.run_state import EvidenceItem, RunState
@@ -19,11 +21,37 @@ if TYPE_CHECKING:
 _DIVERSITY_TABLE: dict[int, float] = {0: 0.0, 1: 0.3, 2: 0.5, 3: 0.7, 4: 0.9}
 
 
+def _authority_multiplier(tier: AuthorityTier | None) -> float:
+    """Return BRD-23 §4.7 multiplier for *tier* (``GENERAL`` when ``None``)."""
+    effective = tier if tier is not None else AuthorityTier.GENERAL
+    match effective:
+        case AuthorityTier.PRIMARY_AUTHORITATIVE:
+            return settings.authority_multiplier_primary
+        case AuthorityTier.REPUTABLE_SECONDARY:
+            return settings.authority_multiplier_reputable
+        case AuthorityTier.GENERAL:
+            return settings.authority_multiplier_general
+        case AuthorityTier.LOW_SIGNAL:
+            return settings.authority_multiplier_low
+
+
 def calculate_coverage(state: RunState) -> float:
-    """C_coverage: covered claims / total sub-claims (0.0 when none)."""
+    """C_coverage: covered claims / total sub-claims, authority-weighted (BRD-23 §4.7).
+
+    Each covered claim contributes the mean authority multiplier of its
+    supporting evidence rows; claims with no evidence contribute 1.0
+    (pre-BRD-23 baseline). Result is clamped to ``[0.0, 1.0]``.
+    """
     if not state.sub_claims:
         return 0.0
-    return len(state.covered_claims) / len(state.sub_claims)
+    total = 0.0
+    for claim_id in state.covered_claims:
+        rows = [e for e in state.evidence if e.claim_id == claim_id]
+        if not rows:
+            total += 1.0
+            continue
+        total += sum(_authority_multiplier(r.authority_tier) for r in rows) / len(rows)
+    return max(0.0, min(1.0, total / len(state.sub_claims)))
 
 
 def calculate_agreement(
@@ -84,12 +112,23 @@ def _extract_domain(url: str) -> str:
 
 
 def calculate_diversity(evidence: list[EvidenceItem]) -> float:
-    """C_diversity: unique-domain count mapped through a fixed table."""
+    """C_diversity: unique-domain count mapped through a fixed table,
+    then scaled by the mean authority multiplier across unique domains
+    (BRD-23 §4.7). Clamped to ``[0.0, 1.0]``.
+    """
     if not evidence:
         return 0.0
-    domains = {_extract_domain(e.source_url) for e in evidence}
-    count = len(domains)
-    return _DIVERSITY_TABLE.get(count, 1.0)
+    # Best (highest-multiplier) tier seen per domain.
+    best_per_domain: dict[str, float] = {}
+    for e in evidence:
+        host = _extract_domain(e.source_url)
+        mult = _authority_multiplier(e.authority_tier)
+        if mult > best_per_domain.get(host, 0.0):
+            best_per_domain[host] = mult
+    count = len(best_per_domain)
+    base = _DIVERSITY_TABLE.get(count, 1.0)
+    mean_mult = sum(best_per_domain.values()) / count
+    return max(0.0, min(1.0, base * mean_mult))
 
 
 def calculate_no_conflict(state: RunState) -> float:

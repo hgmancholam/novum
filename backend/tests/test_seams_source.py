@@ -78,9 +78,14 @@ def test_source_protocol_is_runtime_checkable() -> None:
             return "fake"
 
         async def search(
-            self, query: str, max_results: int = 5
+            self, query: str, max_results: int = 5, *, days: int | None = None
         ) -> list[SourceResult]:
             return []
+
+        async def fetch_full(
+            self, url: str, *, timeout: float = 10.0
+        ) -> SourceResult | None:
+            return None
 
         async def health_check(self) -> bool:
             return True

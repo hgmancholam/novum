@@ -248,10 +248,17 @@ export function CenterPanelContainer() {
             : ("neutral" as const);
       const confidence =
         typeof e.confidence === "number" ? e.confidence : 0;
+      const authorityTier =
+        e.authority_tier === "primary_authoritative" ||
+        e.authority_tier === "reputable_secondary" ||
+        e.authority_tier === "general" ||
+        e.authority_tier === "low_signal"
+          ? e.authority_tier
+          : null;
 
       const existing = byUrl.get(url);
       if (existing === undefined || confidence > existing.confidence) {
-        byUrl.set(url, { url, title, sourceType, polarity, confidence });
+        byUrl.set(url, { url, title, sourceType, polarity, confidence, authorityTier });
       }
     }
     return [...byUrl.values()];

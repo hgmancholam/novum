@@ -124,6 +124,9 @@ class EventType(StrEnum):
     # WP-5: Judge provider degradation
     JUDGE_PROVIDER_DEGRADED = "JudgeProviderDegraded"
 
+    # BRD-23 WP-2: deep-fetch escalation
+    DEEP_FETCH_PERFORMED = "DeepFetchPerformed"
+
     # Error & Recovery
     AGENT_ERRORED = "AgentErrored"
     RESUMED_AFTER_ERROR = "ResumedAfterError"
@@ -146,3 +149,30 @@ class SourceType(StrEnum):
 
     TAVILY = "tavily"
     WIKIPEDIA = "wikipedia"
+
+
+class TemporalSensitivity(StrEnum):
+    """Temporal-sensitivity bucket per BRD-23 §4.4 (WP-1).
+
+    Drives planner source routing, Tavily ``days`` filter, and the
+    stale-citation ceiling penalty inside ``kind_ceiling``.
+    """
+
+    STATIC = "static"
+    SLOW_CHANGING = "slow_changing"
+    VOLATILE = "volatile"
+    REALTIME = "realtime"
+
+
+class AuthorityTier(StrEnum):
+    """Authority-tier bucket per BRD-23 §4.4 / §4.7 (WP-3).
+
+    Multiplies the evidence row's contribution to ``C_coverage`` and
+    ``C_independence`` inside ``confidence/structural.py``. ``C_agreement``
+    and ``C_no_conflict`` are untouched.
+    """
+
+    PRIMARY_AUTHORITATIVE = "primary_authoritative"
+    REPUTABLE_SECONDARY = "reputable_secondary"
+    GENERAL = "general"
+    LOW_SIGNAL = "low_signal"

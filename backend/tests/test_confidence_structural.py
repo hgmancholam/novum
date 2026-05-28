@@ -14,6 +14,7 @@ from app.confidence.structural import (
     calculate_no_conflict,
     calculate_structural_confidence,
 )
+from app.domain.enums import AuthorityTier
 from app.domain.events import (
     ContradictionDetectedEvent,
     ContradictionSource,
@@ -45,6 +46,7 @@ def _ev(url: str, polarity: str = "supports", confidence: float = 0.8) -> Eviden
         text="x",
         polarity=polarity,
         confidence=confidence,
+        authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
     )
 
 

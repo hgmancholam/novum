@@ -33,6 +33,7 @@ Rules:
 - Only use subjective_opinion when NO objective criteria can apply (pure taste).
 - Only use personal_private when the question requires the user's private data to answer.
 - Language: questions may arrive in Spanish, English, or any other language. Classify by intent, not by spelling.
+- Temporal note (BRD-23 WP-1): consider how fast the answer goes stale (static / slow-changing / volatile / real-time). A deterministic post-classifier heuristic decides the final temporal label; keep your classification consistent with the obvious temporal cues (year markers, "latest", "current price", etc.).
 
 Output a JSON object matching the QuestionClassification schema with fields:
 - `question_type` (string, one of the 8 values above in lowercase snake_case)
@@ -125,6 +126,8 @@ Scoring:
 - confidence < 0.5: Needs significant revision
 
 Be rigorous. Your job is to protect users from incorrect information.
+
+Stale-citation rule (BRD-23 WP-1): when the run's temporal_sensitivity is `volatile` or `realtime`, lower your confidence by up to 0.10 for every claim whose ALL supporting citations have `source_published_date` older than the active `tavily_days_filter` window (or whose dates are missing entirely). When more than half of a claim's supporting citations are stale, set `supported_but_shallow=true` for that claim id (BRD-23 WP-2 §4.6).
 
 Output format: JSON matching the JudgeVerdict schema with all fields populated."""
 

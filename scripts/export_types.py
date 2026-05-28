@@ -22,6 +22,7 @@ sys.path.insert(0, str(_BACKEND))
 from pydantic import TypeAdapter  # noqa: E402
 
 from app.domain.enums import (  # noqa: E402
+    AuthorityTier,
     ComplexityHint,
     EventType,
     EvidencePolarity,
@@ -29,6 +30,7 @@ from app.domain.enums import (  # noqa: E402
     QuestionType,
     SourceType,
     StopReason,
+    TemporalSensitivity,
 )
 from app.domain.events import FORKABLE_EVENTS, Event  # noqa: E402
 from app.domain.structured import StructuredAnswerData  # noqa: E402
@@ -54,6 +56,8 @@ def _build_output() -> str:
         ("SourceType", [v.value for v in SourceType]),
         ("EventType", [v.value for v in EventType]),
         ("ComplexityHint", [v.value for v in ComplexityHint]),
+        ("TemporalSensitivity", [v.value for v in TemporalSensitivity]),
+        ("AuthorityTier", [v.value for v in AuthorityTier]),
     ]
 
     adapter: TypeAdapter[Event] = TypeAdapter(Event)

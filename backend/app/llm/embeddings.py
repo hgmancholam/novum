@@ -13,6 +13,7 @@ from __future__ import annotations
 import numpy as np
 import structlog
 from litellm import aembedding
+from litellm.exceptions import AuthenticationError, RateLimitError
 
 from app.config import settings
 from app.llm.client import _TOKEN_POOL, _call_with_token_fallback
@@ -49,16 +50,7 @@ async def embed(
         num_texts=len(texts),
     )
 
-    # Prefer dedicated OpenAI key when present; otherwise rotate through
-    # the GitHub PAT pool so embeddings benefit from the same per-token
-    # fallback as chat completions.
-    if settings.openai_api_key:
-        response = await aembedding(
-            model=model_id,
-            input=texts,
-            api_key=settings.openai_api_key.get_secret_value(),
-        )
-    else:
+    async def _via_github_pool():
         async def _do(token: str):
             return await aembedding(
                 model=model_id,
@@ -67,7 +59,30 @@ async def embed(
                 api_key=token,
             )
 
-        response = await _call_with_token_fallback(_do) if _TOKEN_POOL else await _do(settings.github_token)
+        if _TOKEN_POOL:
+            return await _call_with_token_fallback(_do)
+        return await _do(settings.github_token)
+
+    # Prefer dedicated OpenAI key when present; on quota/auth failures
+    # fall back to the GitHub Models endpoint (which also serves
+    # ``openai/text-embedding-3-small`` against the PAT pool) so a dead
+    # OpenAI quota never blocks the saturation signal.
+    if settings.openai_api_key:
+        try:
+            response = await aembedding(
+                model=model_id,
+                input=texts,
+                api_key=settings.openai_api_key.get_secret_value(),
+            )
+        except (RateLimitError, AuthenticationError) as exc:
+            logger.warning(
+                "embedding_openai_fallback_to_github",
+                model=model_id,
+                error=str(exc),
+            )
+            response = await _via_github_pool()
+    else:
+        response = await _via_github_pool()
 
     embeddings = [np.array(item["embedding"], dtype=np.float32) for item in response.data]
 

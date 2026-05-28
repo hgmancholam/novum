@@ -180,13 +180,19 @@ class AgentOrchestrator:
         # BRD-22 Task 3.4: Store complexity_hint in RunState for planner
         self.state.complexity_hint = complexity_hint
 
-        # Emit QuestionClassifiedEvent with BRD-22 fields
+        # BRD-23 WP-1: derive temporal sensitivity deterministically (no LLM)
+        from app.agent.tasks.classify import derive_temporal_sensitivity
+        temporal = derive_temporal_sensitivity(self.state.question, mapped)
+        self.state.temporal_sensitivity = temporal
+
+        # Emit QuestionClassifiedEvent with BRD-22 + BRD-23 fields
         await self.emit(
             QuestionClassifiedEvent(
                 question_type=mapped,
                 classifier_confidence=verdict.confidence or 1.0,
                 complexity_hint=complexity_hint,
                 heuristic_signals=heuristic_signals,
+                temporal_sensitivity=temporal,
             )
         )
 
@@ -232,6 +238,7 @@ class AgentOrchestrator:
             self.state.question,
             question_type=self.state.question_type,
             complexity_hint=self.state.complexity_hint,
+            temporal_sensitivity=self.state.temporal_sensitivity,
         )
         self.state.sub_claims = list(event.sub_claims)
 
@@ -424,6 +431,26 @@ class AgentOrchestrator:
                         c.status = "pending"
                         if cid in self.state.covered_claims:
                             self.state.covered_claims.remove(cid)
+
+        # BRD-23 WP-2: deep-fetch escalation for shallow citations.
+        # We only attempt it when the judge did NOT pass and flagged at
+        # least one claim as supported_but_shallow. Success transitions
+        # back to ANALYZING for a fresh judge pass; failure falls through
+        # to the normal SEARCHING re-route below.
+        shallow_ids = getattr(judge_event, "supported_but_shallow_claim_ids", None)
+        if not judge_event.passed and shallow_ids and not self._cancelled:
+            from app.agent.tasks.deep_fetch import maybe_deep_fetch
+            from app.sources.registry import get_registry
+
+            advanced = await maybe_deep_fetch(
+                self.state,
+                shallow_ids,
+                registry=get_registry(),
+                emit=self.emit,
+            )
+            if advanced and not self._cancelled:
+                self.state.transition_to(AgentState.ANALYZING)
+                return
 
         self.state.transition_to(AgentState.SEARCHING)
 

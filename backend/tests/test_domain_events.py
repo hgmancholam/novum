@@ -30,6 +30,7 @@ from app.domain.events import (
     ContradictionDetectedEvent,
     ContradictionResolvedEvent,
     ContradictionSource,
+    DeepFetchPerformedEvent,
     Event,
     EvidenceAddedEvent,
     JudgeRuledEvent,
@@ -169,6 +170,15 @@ def _payload_for(event_type: EventType) -> dict[str, object]:
                 "error_message": "boom",
                 "recoverable": True,
             }
+        case EventType.DEEP_FETCH_PERFORMED:
+            extra = {
+                "source_type": SourceType.TAVILY.value,
+                "url": "https://example.com/page",
+                "triggered_by_claim_id": "c1",
+                "fetch_ms": 123,
+                "content_length": 1500,
+                "success": True,
+            }
         case EventType.AMBIGUITY_DETECTED:
             extra = {
                 "ambiguous_phrase": "p",
@@ -266,6 +276,7 @@ _EXPECTED_CLASS: dict[EventType, type] = {
     EventType.CLAIM_COVERED: ClaimCoveredEvent,
     EventType.CLAIM_UNCOVERABLE: ClaimUncoverableEvent,
     EventType.SOURCE_FAILED: SourceFailedEvent,
+    EventType.DEEP_FETCH_PERFORMED: DeepFetchPerformedEvent,
     EventType.AMBIGUITY_DETECTED: AmbiguityDetectedEvent,
     EventType.CONTRADICTION_DETECTED: ContradictionDetectedEvent,
     EventType.CONTRADICTION_RESOLVED: ContradictionResolvedEvent,
@@ -318,8 +329,8 @@ def test_extra_fields_preserved_in_model_extra() -> None:
 
 
 def test_event_type_enum_has_22_values() -> None:
-    """AC-04 (WP-4/5 + BRD-22): there are exactly 24 event types."""
-    assert len(EventType) == 24
+    """AC-04 (WP-4/5 + BRD-22 + BRD-23 WP-2): there are exactly 25 event types."""
+    assert len(EventType) == 25
 
 
 def test_forkable_events_exact_membership() -> None:
@@ -336,12 +347,12 @@ def test_forkable_events_exact_membership() -> None:
 def test_event_type_map_covers_every_event_type() -> None:
     """Every ``EventType`` value must map to a concrete class."""
     assert set(EVENT_TYPE_MAP.keys()) == {v.value for v in EventType}
-    assert len(EVENT_TYPE_MAP) == 24
+    assert len(EVENT_TYPE_MAP) == 25
 
 
 def test_event_type_map_values_are_unique_classes() -> None:
     classes = list(EVENT_TYPE_MAP.values())
-    assert len(set(classes)) == len(classes) == 24
+    assert len(set(classes)) == len(classes) == 25
 
 
 # ---------------------------------------------------------------------------
@@ -371,3 +382,40 @@ def test_question_asked_round_trip_question_type() -> None:
     parsed = _EVENT_ADAPTER.validate_json(raw)
     assert isinstance(parsed, QuestionAskedEvent)
     assert parsed.detected_question_type == QuestionType.FACTUAL
+
+
+def test_evidence_added_event_accepts_authority_tier() -> None:
+    """BRD-23 WP-3: ``authority_tier`` is an optional EvidenceAddedEvent field."""
+    from app.domain.enums import AuthorityTier
+
+    event = EvidenceAddedEvent(
+        source_type=SourceType.TAVILY,
+        source_url="https://cdc.gov/x",
+        source_title="t",
+        extracted_text="x",
+        polarity=EvidencePolarity.SUPPORTS,
+        target_claim_id="c1",
+        confidence=0.9,
+        authority_tier=AuthorityTier.PRIMARY_AUTHORITATIVE,
+    )
+    raw = event.model_dump_json()
+    parsed = _EVENT_ADAPTER.validate_json(raw)
+    assert isinstance(parsed, EvidenceAddedEvent)
+    assert parsed.authority_tier == AuthorityTier.PRIMARY_AUTHORITATIVE
+
+
+def test_evidence_added_event_authority_tier_defaults_to_none() -> None:
+    """Replay safety: pre-BRD-23 events without ``authority_tier`` parse as ``None``."""
+    payload = {
+        "type": "EvidenceAdded",
+        "source_type": "tavily",
+        "source_url": "https://example.com/x",
+        "source_title": "t",
+        "extracted_text": "x",
+        "polarity": "supports",
+        "target_claim_id": "c1",
+        "confidence": 0.7,
+    }
+    parsed = _EVENT_ADAPTER.validate_python(payload)
+    assert isinstance(parsed, EvidenceAddedEvent)
+    assert parsed.authority_tier is None

@@ -35,6 +35,8 @@ def _state(threshold: float = 0.7) -> RunState:
         ],
     )
     s.covered_claims = ["c1", "c2"]
+    from app.domain.enums import AuthorityTier
+
     s.evidence = [
         EvidenceItem(
             claim_id="c1",
@@ -43,6 +45,7 @@ def _state(threshold: float = 0.7) -> RunState:
             text="x",
             polarity="neutral",
             confidence=0.7,
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
         )
     ]
     return s

@@ -13,12 +13,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import (
     AnswerKind,
+    AuthorityTier,
     ComplexityHint,
     EventType,
     EvidencePolarity,
     QuestionType,
     SourceType,
     StopReason,
+    TemporalSensitivity,
 )
 from app.domain.structured import StructuredAnswerData
 
@@ -77,6 +79,7 @@ class QuestionClassifiedEvent(BaseEvent):
     classifier_confidence: float
     complexity_hint: ComplexityHint | None = None
     heuristic_signals: dict[str, Any] | None = None
+    temporal_sensitivity: TemporalSensitivity | None = None  # BRD-23 WP-1
 
 class SubClaim(BaseModel):
     """A sub-claim in the research plan."""
@@ -97,6 +100,7 @@ class PlanCreatedEvent(BaseEvent):
     complexity_hint: ComplexityHint | None = None  # BRD-22 (mirrored from classifier)
     expected_experts: list[str] | None = None  # BRD-22 (planner-emitted)
     preferred_sources: list[str] | None = None  # BRD-22 (e.g. ["wikipedia"] for trivial-factual)
+    temporal_sensitivity: TemporalSensitivity | None = None  # BRD-23 WP-1 (mirrored)
 
 
 class PlanCritiquedEvent(BaseEvent):
@@ -159,6 +163,8 @@ class EvidenceAddedEvent(BaseEvent):
     polarity: EvidencePolarity
     target_claim_id: str
     confidence: float
+    source_published_date: datetime | None = None  # BRD-23 WP-1 (stale-citation judge input)
+    authority_tier: AuthorityTier | None = None  # BRD-23 WP-3 (authority multiplier)
 
 
 class ClaimCoveredEvent(BaseEvent):
@@ -190,6 +196,24 @@ class SourceFailedEvent(BaseEvent):
     error_message: str
     recoverable: bool
 
+
+class DeepFetchPerformedEvent(BaseEvent):
+    """Full-content fetch performed for a shallow citation (BRD-23 WP-2).
+
+    Emitted after the judge flags a claim as ``supported_but_shallow``.
+    Informational: the underlying evidence row may be updated with the
+    extracted full text. Replay tolerates absence (pre-WP-2 traces lack
+    this event entirely).
+    """
+
+    type: Literal[EventType.DEEP_FETCH_PERFORMED] = EventType.DEEP_FETCH_PERFORMED
+    source_type: SourceType
+    url: str
+    triggered_by_claim_id: str
+    fetch_ms: int
+    content_length: int
+    success: bool
+    failure_reason: str | None = None
 
 # =============================================================================
 # Detection Events (RF-04)
@@ -448,7 +472,7 @@ class StoppedEvent(BaseEvent):
 
 
 Event = Annotated[
-    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
+    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | DeepFetchPerformedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
     Field(discriminator="type"),
 ]
 
@@ -466,6 +490,7 @@ EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
     EventType.CLAIM_COVERED: ClaimCoveredEvent,
     EventType.CLAIM_UNCOVERABLE: ClaimUncoverableEvent,
     EventType.SOURCE_FAILED: SourceFailedEvent,
+    EventType.DEEP_FETCH_PERFORMED: DeepFetchPerformedEvent,
     EventType.AMBIGUITY_DETECTED: AmbiguityDetectedEvent,
     EventType.CONTRADICTION_DETECTED: ContradictionDetectedEvent,
     EventType.CONTRADICTION_RESOLVED: ContradictionResolvedEvent,

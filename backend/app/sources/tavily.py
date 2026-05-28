@@ -30,17 +30,29 @@ class TavilySource(BaseSource):
     def name(self) -> str:
         return "Tavily Web Search"
 
-    async def search(self, query: str, max_results: int = 5) -> list[SourceResult]:
-        """Search the web using Tavily's advanced search depth."""
-        logger.debug("tavily_search_start", query=query, max_results=max_results)
+    async def search(
+        self,
+        query: str,
+        max_results: int = 5,
+        *,
+        days: int | None = None,
+    ) -> list[SourceResult]:
+        """Search the web using Tavily's advanced search depth.
+
+        BRD-23 WP-1: optional ``days`` recency filter forwarded to Tavily.
+        """
+        logger.debug("tavily_search_start", query=query, max_results=max_results, days=days)
         try:
-            response: dict[str, Any] = await self._client.search(
+            kwargs: dict[str, Any] = dict(
                 query=query,
                 max_results=max(1, min(max_results, 10)),
                 include_answer=False,
                 include_raw_content=True,
                 search_depth="advanced",
             )
+            if days is not None:
+                kwargs["days"] = days
+            response: dict[str, Any] = await self._client.search(**kwargs)
         except Exception as exc:
             logger.error("tavily_search_error", query=query, error=str(exc))
             raise SourceError(
@@ -77,3 +89,44 @@ class TavilySource(BaseSource):
             return True
         except Exception:
             return False
+
+    async def fetch_full(
+        self, url: str, *, timeout: float = 10.0
+    ) -> SourceResult | None:
+        """Deep-fetch full page content via Tavily extract (BRD-23 WP-2).
+
+        Returns ``None`` on timeout, error, or empty extraction. Content is
+        capped at ``DEFAULT_MAX_CONTENT_CHARS * 4`` (~20 000 chars) to stay
+        within token budgets when re-fed to the judge.
+        """
+        import anyio
+
+        from app.sources.base import DEFAULT_MAX_CONTENT_CHARS
+
+        try:
+            with anyio.fail_after(timeout):
+                response: dict[str, Any] = await self._client.extract(urls=[url])
+        except TimeoutError:
+            logger.warning("tavily_fetch_full_timeout", url=url, timeout=timeout)
+            return None
+        except Exception as exc:
+            logger.warning("tavily_fetch_full_error", url=url, error=str(exc))
+            return None
+
+        results = response.get("results") or []
+        if not results:
+            return None
+        item = results[0]
+        raw = item.get("raw_content") or item.get("content") or ""
+        if not raw:
+            return None
+        max_chars = DEFAULT_MAX_CONTENT_CHARS * 4
+        content = raw if len(raw) <= max_chars else raw[:max_chars] + "..."
+        return SourceResult(
+            url=item.get("url", url),
+            title=item.get("title", ""),
+            snippet=content[:500],
+            content=content,
+            relevance_score=None,
+            published_date=item.get("published_date"),
+        )

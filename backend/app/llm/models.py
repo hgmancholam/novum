@@ -253,6 +253,10 @@ class JudgeVerdict(BaseModel):
         description="How well the answer_kind fits the question (WP-3 G5)",
     )
 
+    # BRD-23 WP-2: claim IDs whose support is shallow (snippet-only / stale)
+    # and would benefit from a full-content fetch before re-judging.
+    supported_but_shallow_claim_ids: list[str] | None = None
+
     @model_validator(mode="before")
     @classmethod
     def _unwrap(cls, v: Any) -> Any:

@@ -32,6 +32,7 @@ const ALL_EVENT_TYPES: readonly EventType[] = [
   "ResumedAfterError",
   "ResumedAfterCancel",
   "Stopped",
+  "DeepFetchPerformed",
 ];
 
 describe("eventVisuals", () => {

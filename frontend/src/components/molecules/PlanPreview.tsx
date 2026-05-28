@@ -12,12 +12,14 @@ import { Compass } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ComplexityBadge } from "@/components/molecules/ComplexityBadge";
 import { ExpectedExpertsList } from "@/components/molecules/ExpectedExpertsList";
-import type { ComplexityHint } from "@/types/events";
+import { TemporalSensitivityBadge } from "@/components/molecules/TemporalSensitivityBadge";
+import type { ComplexityHint, TemporalSensitivity } from "@/types/events";
 
 export interface PlanPreviewProps {
   className?: string | undefined;
   complexityHint?: ComplexityHint | null | undefined;
   expectedExperts?: string[] | null | undefined;
+  temporalSensitivity?: TemporalSensitivity | null | undefined;
 }
 
 export const PLAN_PREVIEW_STEPS: readonly string[] = [
@@ -33,6 +35,7 @@ export function PlanPreview({
   className,
   complexityHint,
   expectedExperts,
+  temporalSensitivity,
 }: PlanPreviewProps) {
   return (
     <section
@@ -53,10 +56,16 @@ export function PlanPreview({
         <span className="text-xs font-medium">Novum will:</span>
       </header>
       
-      {complexityHint !== undefined &&
-      complexityHint !== null ? (
-        <div className="mt-2">
+      {complexityHint !== undefined && complexityHint !== null ? (
+        <div className="mt-2 flex flex-wrap gap-2">
           <ComplexityBadge hint={complexityHint} />
+          {temporalSensitivity !== undefined && temporalSensitivity !== null ? (
+            <TemporalSensitivityBadge sensitivity={temporalSensitivity} />
+          ) : null}
+        </div>
+      ) : temporalSensitivity !== undefined && temporalSensitivity !== null ? (
+        <div className="mt-2">
+          <TemporalSensitivityBadge sensitivity={temporalSensitivity} />
         </div>
       ) : null}
       

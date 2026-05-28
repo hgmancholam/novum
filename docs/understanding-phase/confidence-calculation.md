@@ -2,6 +2,33 @@
 
 > The exact method by which Novum computes the `final_confidence` value that gates `judge_confirmed` against the user-set `confidence_threshold` (RF-12).
 
+## Amendment 2026-05-28 — Per-evidence-row authority-tier multiplier (BRD-23 WP-3)
+
+Ratified alongside BRD-23 §4.7 ([BRD-23](../implementation-phase/brds/BRD-23-research-quality-improvements.md)) and required to ship in the same PR (BRD §15.3 Q6 — hard gate).
+
+**Change.** Every evidence row carries an `authority_tier ∈ {primary_authoritative, reputable_secondary, general, low_signal}` (classified statically from the source host, see [`backend/app/agent/sources_authority/tiers.py`](../../backend/app/agent/sources_authority/tiers.py)). When `S` is composed, the row's contribution to **`C_coverage` and `C_diversity` (only)** is multiplied by the BRD §4.7 table:
+
+| `AuthorityTier`         | Multiplier |
+|---|---:|
+| `PRIMARY_AUTHORITATIVE` | **1.05** |
+| `REPUTABLE_SECONDARY`   | **1.00** |
+| `GENERAL`               | **0.90** |
+| `LOW_SIGNAL`            | **0.50** |
+
+After multiplication each component is clamped to `[0.0, 1.0]` (so a single `.gov` source cannot push `C_coverage` above 1.0). Missing `authority_tier` (e.g. pre-BRD-23 traces being replayed) falls back to `GENERAL` — replay-safe.
+
+**Scope (intentional restriction).** The multiplier touches `C_coverage` and `C_diversity` only. `C_agreement` and `C_no_conflict` are **untouched** because authority is about *who* speaks, not *whether speakers agree* nor *whether anyone contradicts*. This keeps the WP-3 multiplier orthogonal to BRD-22's expert-credibility boost (which acts on `C_agreement`).
+
+**Asymmetric design (`1.05` vs `0.50`).** Authority is asymmetric in real life: knowing a source is a primary authority is weak positive evidence (the source can still be wrong, hence only `+5 %`), but knowing a source is content-mill / SEO-farm is strong negative evidence (the source is structurally incentivised against accuracy, hence the steep `−50 %`). The `[0, 1]` clamp absorbs over-saturation when many primary sources stack on one claim.
+
+**RF-12 invariant preserved.** The change is internal to `S`; `final_confidence = min(S_effective, J)` is unchanged. The judge score `J` is not affected by tier. The mismatch flag (§3.6) still triggers on `|S_effective − J| > 0.3` regardless of how `S` was composed.
+
+**Replay tolerance.** `EvidenceAddedEvent.authority_tier` is optional with default `None`. The fold layer (`backend/app/agent/runner.py::_fold_events`) tolerates absence and missing values; runs predating BRD-23 replay byte-identically except that all evidence rows inherit `GENERAL` (multiplier `0.90`) — the same value the legacy formula assumed implicitly when it weighted every row by `1.0` minus the diversity penalty.
+
+See BRD-23 §4.7 for the full domain table and §15.3 Q6 for the doc-gate rationale.
+
+---
+
 ## Amendment 2026-05-27 — `AnswerKind` ceiling + `C_kind_appropriateness`
 
 Ratified on 2026-05-27 alongside the "always answer" refactor ([research-method-refactor-proposal.md](research-method-refactor-proposal.md)). Two changes to the formula in this document; everything else (the four `C_*` components, the disconfirmation/independence extensions, the mismatch flag) stays as written.

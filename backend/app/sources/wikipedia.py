@@ -35,7 +35,13 @@ class WikipediaSource(BaseSource):
     def name(self) -> str:
         return f"Wikipedia ({self._language})"
 
-    async def search(self, query: str, max_results: int = 5) -> list[SourceResult]:
+    async def search(
+        self,
+        query: str,
+        max_results: int = 5,
+        *,
+        days: int | None = None,  # BRD-23 WP-1: accepted for signature parity; Wikipedia ignores recency.
+    ) -> list[SourceResult]:
         """Look up the article whose title matches ``query``.
 
         If the direct lookup misses, try a small set of title variations.
@@ -101,3 +107,46 @@ class WikipediaSource(BaseSource):
             return page.exists()
         except Exception:
             return False
+
+    async def fetch_full(
+        self, url: str, *, timeout: float = 10.0
+    ) -> SourceResult | None:
+        """Deep-fetch the full Wikipedia article body (BRD-23 WP-2).
+
+        The ``url`` is the Wikipedia ``fullurl``; we derive the title from
+        the trailing path segment, look up the page, and return the
+        article ``text`` truncated to ``DEFAULT_MAX_CONTENT_CHARS * 4``
+        characters.
+        """
+        from urllib.parse import unquote, urlparse
+
+        from app.sources.base import DEFAULT_MAX_CONTENT_CHARS
+
+        title = unquote(urlparse(url).path.rsplit("/", 1)[-1]).replace("_", " ")
+        if not title:
+            return None
+
+        try:
+            with anyio.fail_after(timeout):
+                page = await anyio.to_thread.run_sync(self._wiki.page, title)
+        except TimeoutError:
+            logger.warning("wikipedia_fetch_full_timeout", url=url, timeout=timeout)
+            return None
+        except Exception as exc:
+            logger.warning("wikipedia_fetch_full_error", url=url, error=str(exc))
+            return None
+
+        if not page.exists():
+            return None
+        text = page.text or ""
+        if not text:
+            return None
+        max_chars = DEFAULT_MAX_CONTENT_CHARS * 4
+        content = text if len(text) <= max_chars else text[:max_chars] + "..."
+        return SourceResult(
+            url=page.fullurl,
+            title=page.title,
+            snippet=(page.summary or content)[:500],
+            content=content,
+            relevance_score=None,
+        )

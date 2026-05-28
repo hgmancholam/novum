@@ -113,7 +113,9 @@ class _FakeSource:
     def name(self) -> str:
         return self._source_type.value
 
-    async def search(self, query: str, max_results: int = 5) -> list[SourceResult]:
+    async def search(
+        self, query: str, max_results: int = 5, **_kwargs: object
+    ) -> list[SourceResult]:
         if self._error is not None:
             raise self._error
         return self._results
@@ -481,7 +483,9 @@ async def test_error_path_emits_agent_errored(
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
 
     class _ExplodingSource(_FakeSource):
-        async def search(self, query: str, max_results: int = 5) -> list[SourceResult]:
+        async def search(
+            self, query: str, max_results: int = 5, **_kwargs: object
+        ) -> list[SourceResult]:
             raise RuntimeError("boom")
 
     _install_registry(monkeypatch, {SourceType.TAVILY: _ExplodingSource(SourceType.TAVILY)})
@@ -513,7 +517,9 @@ async def test_error_path_tags_llm_pool_rate_limited(
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
 
     class _RateLimitedSource(_FakeSource):
-        async def search(self, query: str, max_results: int = 5) -> list[SourceResult]:
+        async def search(
+            self, query: str, max_results: int = 5, **_kwargs: object
+        ) -> list[SourceResult]:
             raise LLMPoolExhausted(pool_size=4)
 
     _install_registry(

@@ -9,6 +9,7 @@ longer short-circuit); ``AnswerKind`` introduced (RF-17).
 
 from app.domain.enums import (
     AnswerKind,
+    AuthorityTier,
     ComplexityHint,
     EventType,
     EvidencePolarity,
@@ -78,8 +79,8 @@ def test_output_format_values() -> None:
 
 
 def test_event_type_has_exactly_24_values() -> None:
-    """BRD-22: Added QuestionClassified and PriorRunHintReplayed (24 total)."""
-    assert len(EventType) == 24
+    """BRD-22 + BRD-23 WP-2: 25 event types after DeepFetchPerformed."""
+    assert len(EventType) == 25
 
 
 def test_event_type_values() -> None:
@@ -108,6 +109,7 @@ def test_event_type_values() -> None:
         "Stopped",
         "SaturationDetected",
         "JudgeProviderDegraded",
+            "DeepFetchPerformed",
     }
     assert {v.value for v in EventType} == expected
 
@@ -136,3 +138,15 @@ def test_complexity_hint_values() -> None:
     """BRD-22: trivial, standard, deep."""
     expected = {"trivial", "standard", "deep"}
     assert {v.value for v in ComplexityHint} == expected
+
+
+def test_authority_tier_values() -> None:
+    """BRD-23 §4.7: 4 tiers."""
+    expected = {
+        "primary_authoritative",
+        "reputable_secondary",
+        "general",
+        "low_signal",
+    }
+    assert {v.value for v in AuthorityTier} == expected
+    assert AuthorityTier.PRIMARY_AUTHORITATIVE == "primary_authoritative"

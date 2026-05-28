@@ -41,6 +41,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   Stopped: "Stopped",
   SaturationDetected: "Saturation",
   JudgeProviderDegraded: "Judge degraded",
+  DeepFetchPerformed: "Deep fetch",
 };
 
 export const EVENT_ACTIVITIES: Record<EventType, string> = {
@@ -68,6 +69,7 @@ export const EVENT_ACTIVITIES: Record<EventType, string> = {
   Stopped: "Wrapping up",
   SaturationDetected: "Detecting saturation",
   JudgeProviderDegraded: "Switching judge provider",
+  DeepFetchPerformed: "Fetching full page",
 };
 
 export function getEventLabel(type: string): string {

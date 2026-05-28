@@ -8,6 +8,7 @@ import pytest
 
 from app.agent.run_state import EvidenceItem, RunState
 from app.confidence.calculator import ConfidenceCalculator
+from app.domain.enums import AuthorityTier
 from app.domain.events import SubClaim
 
 
@@ -22,6 +23,7 @@ def _state_full(coverage_ratio: float = 1.0) -> RunState:
             text="x",
             polarity="supports",
             confidence=0.9,
+            authority_tier=AuthorityTier.REPUTABLE_SECONDARY,
         )
         for d in ("a", "b", "c", "d", "e")
     ]

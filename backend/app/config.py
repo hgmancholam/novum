@@ -117,6 +117,24 @@ class Settings(BaseSettings):
     early_stop_min_agreement: float = 0.9
     early_stop_min_judge: float = 0.85
 
+    # BRD-23 WP-1: stale-citation kind-ceiling penalty multiplier for AnswerKind.DIRECT
+    # when temporal_sensitivity is volatile/realtime and >=50% citations are stale.
+    temporal_stale_penalty: float = 0.85
+
+    # BRD-23 WP-3: authority-tier multipliers applied inside C_coverage / C_diversity.
+    authority_multiplier_primary: float = 1.05
+    authority_multiplier_reputable: float = 1.00
+    authority_multiplier_general: float = 0.90
+    authority_multiplier_low: float = 0.50
+
+    # BRD-23 WP-2: deep-fetch escalation budget and thresholds.
+    deep_fetch_min_snippet_chars: int = 400
+    deep_fetch_top_k: int = 2
+    deep_fetch_timeout_s: float = 10.0
+    deep_fetch_max_per_run_trivial: int = 0
+    deep_fetch_max_per_run_standard: int = 2
+    deep_fetch_max_per_run_deep: int = 3
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

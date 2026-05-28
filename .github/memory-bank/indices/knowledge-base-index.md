@@ -123,6 +123,10 @@
 | CR-07-001 | BRD-07 Agent FSM & Research Loop | 1 | 9.4/10 | Approved | [CR-07-001](../../../docs/implementation-phase/reviews/CR-07-001-agent-fsm.md) |
 | CR-09-001 | BRD-09 Stopping Signal Policy | 1 | 9.83/10 | Approved | [CR-09-001](../../../docs/implementation-phase/reviews/CR-09-001-stopping-signals.md) |
 | CR-15-001 | BRD-15 Fork & Resume from Events | 1 | 9.73/10 | Approved | [CR-15-001](../../../docs/implementation-phase/reviews/CR-15-001-fork-resume.md) |
+| REVIEW-IP-23-phase1-iter1 | IP-23 Phase 1 (WP-4 Query Hygiene) | 1 | 9.5/10 | Approved | [REVIEW-IP-23-phase1-iter1](../../../docs/implementation-phase/reviews/REVIEW-IP-23-phase1-iter1.md) |
+| REVIEW-IP-23-phase2-iter1 | IP-23 Phase 2 (WP-1 Temporal Sensitivity) | 1 | 9.5/10 | Approved | [REVIEW-IP-23-phase2-iter1](../../../docs/implementation-phase/reviews/REVIEW-IP-23-phase2-iter1.md) |
+| REVIEW-IP-23-phase3-iter1 | IP-23 Phase 3 (WP-3 Authority Tiering) | 1 | 9.6/10 | Approved | [REVIEW-IP-23-phase3-iter1](../../../docs/implementation-phase/reviews/REVIEW-IP-23-phase3-iter1.md) |
+| REVIEW-IP-23-phase4-iter1 | IP-23 Phase 4 (WP-2 Deep-Fetch) | 1 | 9.6/10 | Approved | [REVIEW-IP-23-phase4-iter1](../../../docs/implementation-phase/reviews/REVIEW-IP-23-phase4-iter1.md) |
 
 ---
 
@@ -131,6 +135,8 @@
 | ID | Plan Reference | Date | Location |
 |----|----------------|------|----------|
 | UT-11-iter2 | IP-11 iter 2 — Auth Wiring | 2026-05-26 | [UT-11 iter 2](../../../docs/implementation-phase/unit-tests/UT-11-frontend-layout-iter2.md) |
+| UT-IP-23-phase3-iter1 | IP-23 Phase 3 (WP-3) | 2026-05-28 | [UT-IP-23-phase3-iter1](../../../docs/implementation-phase/unit-tests/UT-IP-23-phase3-iter1.md) |
+| UT-IP-23-phase4-iter1 | IP-23 Phase 4 (WP-2) | 2026-05-28 | [UT-IP-23-phase4-iter1](../../../docs/implementation-phase/unit-tests/UT-IP-23-phase4-iter1.md) |
 
 ---
 
@@ -147,7 +153,7 @@
 | SSE Client | Frontend | `frontend/src/lib/sse.ts` | EventSource wrapper | ✅ Created |
 | Event Types | Frontend | `frontend/src/types/events.ts` | TypeScript types (placeholder) | ✅ Created |
 | Domain Enums | Backend | `backend/app/domain/enums.py` | StopReason, QuestionType, OutputFormat, EventType, EvidencePolarity, SourceType | ✅ BRD-02 |
-| Event Models | Backend | `backend/app/domain/events.py` | 19 Pydantic event classes + discriminated union + `EVENT_TYPE_MAP` + `FORKABLE_EVENTS` | ✅ BRD-02 |
+| Event Models | Backend | `backend/app/domain/events.py` | 25 Pydantic event classes + discriminated union + `EVENT_TYPE_MAP` + `FORKABLE_EVENTS` (latest: `DeepFetchPerformedEvent` from IP-23 WP-2) | ✅ BRD-02 / IP-23 |
 | Run DTOs | Backend | `backend/app/domain/run.py` | `RunCreate`, `RunResponse`, `RunListItem`, `RunForkRequest` | ✅ BRD-02 |
 | Confidence DTOs | Backend | `backend/app/domain/confidence.py` | `StructuralConfidence` (weighted score), `ConfidenceResult` | ✅ BRD-02 |
 | Type Exporter | Scripts | `scripts/export_types.py` | Pydantic → TypeScript generator | ✅ BRD-02 |

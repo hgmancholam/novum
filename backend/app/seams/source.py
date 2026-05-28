@@ -58,6 +58,17 @@ class Source(Protocol):
     @property
     def name(self) -> str: ...
 
-    async def search(self, query: str, max_results: int = 5) -> list[SourceResult]: ...
+    async def search(
+        self,
+        query: str,
+        max_results: int = 5,
+        *,
+        days: int | None = None,  # BRD-23 WP-1: Tavily-style recency filter (None=ignore).
+    ) -> list[SourceResult]: ...
+
+    async def fetch_full(
+        self, url: str, *, timeout: float = 10.0
+    ) -> SourceResult | None:  # BRD-23 WP-2: optional deep-fetch.
+        ...
 
     async def health_check(self) -> bool: ...

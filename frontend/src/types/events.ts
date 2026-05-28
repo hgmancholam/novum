@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-28T01:25:24.366529+00:00
+// Generated: 2026-05-28T02:19:08.568165+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -56,6 +56,7 @@ export type EventType =
   | "ConfidenceMismatch"
   | "SaturationDetected"
   | "JudgeProviderDegraded"
+  | "DeepFetchPerformed"
   | "AgentErrored"
   | "ResumedAfterError"
   | "ResumedAfterCancel"
@@ -65,6 +66,18 @@ export type ComplexityHint =
   | "trivial"
   | "standard"
   | "deep";
+
+export type TemporalSensitivity =
+  | "static"
+  | "slow_changing"
+  | "volatile"
+  | "realtime";
+
+export type AuthorityTier =
+  | "primary_authoritative"
+  | "reputable_secondary"
+  | "general"
+  | "low_signal";
 
 // ---------------------------------------------------------------------------
 // Forkable events (RF-03): user-selectable branch points.
@@ -411,6 +424,17 @@ export const EventSchema = {
       ],
       "title": "AnswerSection",
       "type": "object"
+    },
+    "AuthorityTier": {
+      "description": "Authority-tier bucket per BRD-23 \u00a74.4 / \u00a74.7 (WP-3).\n\nMultiplies the evidence row's contribution to ``C_coverage`` and\n``C_independence`` inside ``confidence/structural.py``. ``C_agreement``\nand ``C_no_conflict`` are untouched.",
+      "enum": [
+        "primary_authoritative",
+        "reputable_secondary",
+        "general",
+        "low_signal"
+      ],
+      "title": "AuthorityTier",
+      "type": "string"
     },
     "Citation": {
       "additionalProperties": true,
@@ -1039,6 +1063,127 @@ export const EventSchema = {
       "title": "ContradictionSource",
       "type": "object"
     },
+    "DeepFetchPerformedEvent": {
+      "additionalProperties": true,
+      "description": "Full-content fetch performed for a shallow citation (BRD-23 WP-2).\n\nEmitted after the judge flags a claim as ``supported_but_shallow``.\nInformational: the underlying evidence row may be updated with the\nextracted full text. Replay tolerates absence (pre-WP-2 traces lack\nthis event entirely).",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "DeepFetchPerformed",
+          "default": "DeepFetchPerformed",
+          "title": "Type",
+          "type": "string"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "triggered_by_claim_id": {
+          "title": "Triggered By Claim Id",
+          "type": "string"
+        },
+        "fetch_ms": {
+          "title": "Fetch Ms",
+          "type": "integer"
+        },
+        "content_length": {
+          "title": "Content Length",
+          "type": "integer"
+        },
+        "success": {
+          "title": "Success",
+          "type": "boolean"
+        },
+        "failure_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Reason"
+        }
+      },
+      "required": [
+        "source_type",
+        "url",
+        "triggered_by_claim_id",
+        "fetch_ms",
+        "content_length",
+        "success"
+      ],
+      "title": "DeepFetchPerformedEvent",
+      "type": "object"
+    },
     "EvidenceAddedEvent": {
       "additionalProperties": true,
       "description": "Evidence collected from a source.",
@@ -1138,6 +1283,30 @@ export const EventSchema = {
         "confidence": {
           "title": "Confidence",
           "type": "number"
+        },
+        "source_published_date": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Published Date"
+        },
+        "authority_tier": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuthorityTier"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1736,6 +1905,17 @@ export const EventSchema = {
           ],
           "default": null,
           "title": "Preferred Sources"
+        },
+        "temporal_sensitivity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalSensitivity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -2297,6 +2477,17 @@ export const EventSchema = {
           ],
           "default": null,
           "title": "Heuristic Signals"
+        },
+        "temporal_sensitivity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalSensitivity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -3171,6 +3362,17 @@ export const EventSchema = {
       "title": "SubClaim",
       "type": "object"
     },
+    "TemporalSensitivity": {
+      "description": "Temporal-sensitivity bucket per BRD-23 \u00a74.4 (WP-1).\n\nDrives planner source routing, Tavily ``days`` filter, and the\nstale-citation ceiling penalty inside ``kind_ceiling``.",
+      "enum": [
+        "static",
+        "slow_changing",
+        "volatile",
+        "realtime"
+      ],
+      "title": "TemporalSensitivity",
+      "type": "string"
+    },
     "ToolCalledEvent": {
       "additionalProperties": true,
       "description": "Search tool invocation.",
@@ -3406,6 +3608,7 @@ export const EventSchema = {
       "ConfidenceMismatch": "#/$defs/ConfidenceMismatchEvent",
       "ContradictionDetected": "#/$defs/ContradictionDetectedEvent",
       "ContradictionResolved": "#/$defs/ContradictionResolvedEvent",
+      "DeepFetchPerformed": "#/$defs/DeepFetchPerformedEvent",
       "EvidenceAdded": "#/$defs/EvidenceAddedEvent",
       "JudgeProviderDegraded": "#/$defs/JudgeProviderDegradedEvent",
       "JudgeRuled": "#/$defs/JudgeRuledEvent",
@@ -3459,6 +3662,9 @@ export const EventSchema = {
     },
     {
       "$ref": "#/$defs/SourceFailedEvent"
+    },
+    {
+      "$ref": "#/$defs/DeepFetchPerformedEvent"
     },
     {
       "$ref": "#/$defs/AmbiguityDetectedEvent"
@@ -3528,6 +3734,7 @@ export const EventSchema = {
 //   | ConfidenceMismatchEvent
 //   | SaturationDetectedEvent
 //   | JudgeProviderDegradedEvent
+//   | DeepFetchPerformedEvent
 //   | AgentErroredEvent
 //   | ResumedAfterErrorEvent
 //   | ResumedAfterCancelEvent

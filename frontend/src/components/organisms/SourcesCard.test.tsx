@@ -112,4 +112,22 @@ describe("SourcesCard", () => {
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
+
+  it("renders the AuthorityTierChip when a source carries an authorityTier", () => {
+    const withTiers: SourceEntry[] = [
+      { ...SOURCES[0]!, authorityTier: "primary_authoritative" },
+      { ...SOURCES[1]!, authorityTier: "low_signal" },
+    ];
+    render(<SourcesCard sources={withTiers} />);
+    expect(screen.getByText("Primary")).toBeInTheDocument();
+    expect(screen.getByText("Low signal")).toBeInTheDocument();
+  });
+
+  it("hides the AuthorityTierChip when a source has no authorityTier", () => {
+    render(<SourcesCard sources={SOURCES} />);
+    expect(screen.queryByText("Primary")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reputable")).not.toBeInTheDocument();
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+    expect(screen.queryByText("Low signal")).not.toBeInTheDocument();
+  });
 });

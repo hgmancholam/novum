@@ -40,6 +40,8 @@ TRANSITIONS: dict[AgentState, set[AgentState]] = {
     AgentState.DRAFTING: {AgentState.JUDGING, AgentState.STOPPED, AgentState.ERRORED},
     AgentState.JUDGING: {
         AgentState.SEARCHING,
+        AgentState.ANALYZING,  # BRD-23 WP-2: re-analyze after deep-fetch
+        AgentState.DRAFTING,
         AgentState.STOPPED,
         AgentState.ERRORED,
     },

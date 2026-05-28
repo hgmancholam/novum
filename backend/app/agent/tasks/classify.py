@@ -17,7 +17,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.agent.complexity import derive_complexity_hint
-from app.domain.enums import ComplexityHint, QuestionType
+from app.domain.enums import ComplexityHint, QuestionType, TemporalSensitivity
 from app.domain.events import AmbiguityDetectedEvent
 from app.llm import LLMRole, QuestionClassification, llm
 
@@ -29,6 +29,64 @@ _EMPTY_COMPARATIVE_MARKERS = (
     "vale la pena",
     "worth it",
 )
+
+# BRD-23 §4.5: temporal-sensitivity markers (all lowercase, whitespace-tokenised).
+_REALTIME_MARKERS: frozenset[str] = frozenset({
+    "current price", "right now", "today", "live", "now playing",
+    "breaking", "happening now", "as i write", "score", "stock price",
+    "precio actual", "ahora mismo", "hoy",
+})
+_VOLATILE_KEYWORDS: frozenset[str] = frozenset({
+    "latest", "newest", "recent", "trending", "emerging", "state of the art",
+    "sota", "cutting-edge", "this year", "last year", "último", "reciente",
+})
+_SLOW_CHANGING_MARKERS: frozenset[str] = frozenset({
+    "population", "ranking", "top", "as of", "población", "ranking de",
+})
+_VOLATILE_QUESTION_TYPES: frozenset[QuestionType] = frozenset({
+    QuestionType.STATE_OF_ART,
+    QuestionType.COMPARATIVE,
+})
+_RECENT_YEAR_THRESHOLD = 2024  # months-old < 18 ≈ since 2024 at time of writing.
+
+
+def derive_temporal_sensitivity(
+    question: str, question_type: QuestionType
+) -> TemporalSensitivity:
+    """Deterministic heuristic per BRD-23 §4.5 (WP-1). Pure, no LLM call.
+
+    Priority order: realtime markers > recent-year markers > volatile types >
+    slow-changing markers > static default for FACTUAL/DEFINITIONAL > slow_changing default.
+    """
+    q = question.lower()
+
+    for marker in _REALTIME_MARKERS:
+        if marker in q:
+            return TemporalSensitivity.REALTIME
+
+    import re
+    year_matches = [int(m) for m in re.findall(r"\b(20\d{2})\b", q)]
+    if any(y >= _RECENT_YEAR_THRESHOLD for y in year_matches):
+        return TemporalSensitivity.VOLATILE
+
+    for kw in _VOLATILE_KEYWORDS:
+        if kw in q:
+            return TemporalSensitivity.VOLATILE
+
+    if question_type in _VOLATILE_QUESTION_TYPES:
+        return TemporalSensitivity.VOLATILE
+
+    for marker in _SLOW_CHANGING_MARKERS:
+        if marker in q:
+            return TemporalSensitivity.SLOW_CHANGING
+
+    if year_matches:
+        # explicit year reference but not recent → slow_changing
+        return TemporalSensitivity.SLOW_CHANGING
+
+    if question_type in (QuestionType.FACTUAL, QuestionType.DEFINITIONAL):
+        return TemporalSensitivity.STATIC
+    return TemporalSensitivity.SLOW_CHANGING
 
 
 class AmbiguityDimensions(BaseModel):

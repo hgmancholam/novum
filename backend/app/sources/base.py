@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from app.seams.source import SourceResult
+
 DEFAULT_MAX_CONTENT_CHARS = 5000
 
 
@@ -17,3 +19,8 @@ class BaseSource:
         if len(content) <= max_chars:
             return content
         return content[:max_chars] + "..."
+
+    async def fetch_full(
+        self, url: str, *, timeout: float = 10.0
+    ) -> SourceResult | None:  # BRD-23 WP-2: optional deep-fetch (default no-op).
+        return None

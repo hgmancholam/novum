@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import structlog
 
-from app.domain.enums import ComplexityHint, QuestionType
+from app.domain.enums import ComplexityHint, QuestionType, TemporalSensitivity
 from app.domain.events import (
     PlanCreatedEvent,
     PlanCritiquedEvent,
@@ -184,6 +184,7 @@ async def create_plan(
     question: str,
     question_type: QuestionType | None = None,
     complexity_hint: ComplexityHint | None = None,
+    temporal_sensitivity: TemporalSensitivity | None = None,
 ) -> PlanCreatedEvent:
     """Create the initial plan for ``question`` (WP-6 + BRD-22).
 
@@ -272,12 +273,19 @@ async def create_plan(
     ):
         preferred_sources = ["wikipedia"]
 
+    # BRD-23 WP-1: temporal routing overrides trivial wiki-first when topic is volatile/realtime
+    if temporal_sensitivity == TemporalSensitivity.REALTIME:
+        preferred_sources = ["tavily"]
+    elif temporal_sensitivity == TemporalSensitivity.VOLATILE:
+        preferred_sources = ["tavily", "wikipedia"]
+
     return PlanCreatedEvent(
         sub_claims=sub_claims,
         rationale=result.overall_rationale,
         complexity_hint=coerced_hint,
         expected_experts=expected_experts,
         preferred_sources=preferred_sources,
+        temporal_sensitivity=temporal_sensitivity,
     )
 
 

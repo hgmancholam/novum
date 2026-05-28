@@ -574,3 +574,36 @@ Add a lesson when:
 - A deployment fails
 - A misunderstanding causes rework
 - A better approach is discovered after implementation
+
+
+---
+
+---
+
+## L-018 — Anchor TLD subdomain regexes with `(^|\.)` (2026-05-28, IP-23 Phase 3)
+
+**Context:** Authority tiering classifier matched `foogov.uk` and `notgov.uk` as primary-authoritative because the regex was `gov\.uk$` without a subdomain anchor.
+
+**Lesson:** When matching a TLD-style suffix that is only authoritative when it appears as its own subdomain (`gov.uk`, `ac.uk`, `co.jp`, …), the regex MUST be `(^|\.)gov\.uk$` — never the bare `gov\.uk$`. The leading `(^|\.)` requires either the very start of the host string or a literal dot before the suffix.
+
+**Counter-example to avoid:**
+
+```python
+# WRONG — matches foogov.uk
+re.search(r"gov\.uk$", host)
+
+# RIGHT
+re.search(r"(^|\.)gov\.uk$", host)
+```
+
+**Mini-test pattern:**
+
+```python
+for bad in ["foogov.uk", "notgov.uk", "pseudogov.uk"]:
+    assert classify_authority(f"https://{bad}/x") is not AuthorityTier.PRIMARY_AUTHORITATIVE
+
+for good in ["gov.uk", "cabinet.gov.uk", "dwp.gov.uk"]:
+    assert classify_authority(f"https://{good}/x") is AuthorityTier.PRIMARY_AUTHORITATIVE
+```
+
+**Applies to:** any TLD/suffix matcher in `backend/app/sources/authority.py` and any future seam that relies on host-suffix matching.

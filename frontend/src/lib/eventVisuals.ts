@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Compass,
+  Download,
   FilePen,
   FileText,
   FileWarning,
@@ -74,6 +75,7 @@ export const EVENT_VISUALS: Record<EventType, EventVisual> = {
   SaturationDetected:     { Icon: MinusCircle,          tone: "neutral" },
   JudgeProviderDegraded:  { Icon: AlertCircle,          tone: "warn" },
   PriorRunHintReplayed:   { Icon: Recycle,              tone: "info" },
+  DeepFetchPerformed:     { Icon: Download,             tone: "info" },
 };
 
 const FALLBACK_VISUAL: EventVisual = { Icon: Flag, tone: "neutral" };

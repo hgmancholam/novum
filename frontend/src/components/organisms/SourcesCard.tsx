@@ -10,8 +10,9 @@
 import { ExternalLink, BookOpen, Globe } from "lucide-react";
 
 import { Badge } from "@/components/atoms/Badge";
+import { AuthorityTierChip } from "@/components/molecules/AuthorityTierChip";
 import { cn } from "@/lib/cn";
-import type { EvidencePolarity, SourceType } from "@/types/events";
+import type { AuthorityTier, EvidencePolarity, SourceType } from "@/types/events";
 
 export interface SourceEntry {
   url: string;
@@ -19,6 +20,7 @@ export interface SourceEntry {
   sourceType: SourceType;
   polarity: EvidencePolarity;
   confidence: number;
+  authorityTier?: AuthorityTier | null | undefined;
 }
 
 export interface SourcesCardProps {
@@ -180,6 +182,9 @@ export function SourcesCard({ sources, className }: SourcesCardProps) {
                   >
                     {polarityLabel(src.polarity)}
                   </Badge>
+                  {src.authorityTier !== undefined && src.authorityTier !== null ? (
+                    <AuthorityTierChip tier={src.authorityTier} />
+                  ) : null}
                   <ConfidenceBar value={src.confidence} />
                   <span className="text-[10px] text-(--text-muted)">
                     {Math.round(src.confidence * 100)}%

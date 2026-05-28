@@ -39,7 +39,9 @@ class _FakeSource:
     def name(self) -> str:
         return self._source_type.value
 
-    async def search(self, query: str, max_results: int = 5) -> list[SourceResult]:
+    async def search(
+        self, query: str, max_results: int = 5, **_kwargs: object
+    ) -> list[SourceResult]:
         self.calls.append(query)
         if self._error is not None:
             raise self._error

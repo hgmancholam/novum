@@ -13,7 +13,15 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.agent.states import AgentState, can_transition
-from app.domain.enums import AnswerKind, ComplexityHint, EventType, QuestionType, StopReason
+from app.domain.enums import (
+    AnswerKind,
+    AuthorityTier,
+    ComplexityHint,
+    EventType,
+    QuestionType,
+    StopReason,
+    TemporalSensitivity,
+)
 from app.domain.events import (
     AnswerSection,
     BaseEvent,
@@ -34,6 +42,10 @@ class EvidenceItem(BaseModel):
     text: str
     polarity: str
     confidence: float = Field(ge=0.0, le=1.0)
+    # BRD-23 WP-1: forwarded from EvidenceAddedEvent.source_published_date when available.
+    source_published_date: datetime | None = None
+    # BRD-23 WP-3: forwarded from EvidenceAddedEvent.authority_tier when available.
+    authority_tier: AuthorityTier | None = None
 
 
 class RunState(BaseModel):
@@ -64,6 +76,10 @@ class RunState(BaseModel):
     critique_passes_completed: int = 0  # Recomputed during fold (never persisted)
     expected_experts: list[str] = Field(default_factory=list)
     preferred_sources: list[str] = Field(default_factory=list)
+
+    # BRD-23 WP-1: temporal sensitivity + last Tavily days-filter (folded from events).
+    temporal_sensitivity: TemporalSensitivity | None = None
+    tavily_days_filter: int | None = None
 
     current_state: AgentState = AgentState.INIT
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

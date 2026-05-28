@@ -10,6 +10,37 @@
 
 ## Recent Decisions
 
+## D-IP23-PHASE2-DONE: IP-23 Phase 2 (WP-1 Temporal Sensitivity) — COMPLETE
+**Date:** 2026-05-28
+**Phase:** F3+F4 self-loop, iter 1, score 9.5/10
+**Artifacts:** [REVIEW-IP-23-phase2-iter1](../../../docs/implementation-phase/reviews/REVIEW-IP-23-phase2-iter1.md), [UT-IP-23-phase2-iter1](../../../docs/implementation-phase/unit-tests/UT-IP-23-phase2-iter1.md)
+
+### Outcome
+APPROVED 9.5/10. Backend 686/686 green. FE 469/470 (one pre-existing UsernameModal test unrelated to IP-23).
+
+### Key autonomous decisions
+1. `classify_question` 4-tuple preserved; temporal flows via separate `derive_temporal_sensitivity` to avoid breaking 13 callers.
+2. Test fakes widened with `**_kwargs` instead of `inspect` magic in production.
+3. `is_stale_majority` treats missing publication dates as stale (conservative).
+
+### Files changed (28)
+16 backend src + 2 FE src + 1 export script + 1 regen types + 8 tests (4 new, 4 widened).
+
+### Next action
+Phase 3 (WP-3 Authority Tiering) — 13 tasks T-23-3-01…13. Hard gate T-23-3-10: ship confidence-calculation.md amendment in same PR.
+
+---
+
+## D-IP23-PHASE1-DONE: IP-23 Phase 1 (WP-4 Query Hygiene) — COMPLETE
+**Date:** 2026-05-27
+**Phase:** F3+F4 self-loop, iter 1, score 9.5/10
+**Artifacts:** REVIEW-IP-23-phase1-iter1.md, UT-IP-23-phase1-iter1.md
+
+### Outcome
+APPROVED 9.5/10. Backend 669/669 green. Query hygiene normalization + `tavily_days_filter` event field + `query_length_tokens` counter shipped.
+
+---
+
 ## D-IP23-AUDIT-F2-ITER1: IP-23 F2 audit — APPROVED (9.0/10, iter 1)
 **Date:** 2026-05-27
 **Phase:** F2 — PLAN (Auditor sub-loop, iter 1 of max 3)
@@ -1626,3 +1657,54 @@ equires_contradictions = state.has_event(EventType.CONTRADICTION_DETECTED), pass
 - GITHUB_TOKENS (comma-separated) is the new canonical env; GITHUB_TOKEN remains as a single-token fallback.
 - answer_structured_data is the new primary payload for the FE; legacy answer_structured markdown remains as fallback (additive, schema-safe).
 - Smoke runs on Q2/Q3 may take up to ~18 min — this is expected and within max_rounds=20 budget.
+
+
+---
+
+## D-IP23-PHASE3-DONE — IP-23 Phase 3 (WP-3 Authority Tiering) APPROVED (2026-05-28)
+
+**Decision:** Authority Tiering shipped (REVIEW 9.6/10, backend 732/0, frontend 476/1 DEGRADED). Multipliers applied to C_coverage + C_diversity only (Q3 in §15.3); C_agreement and C_no_conflict untouched. UI surface added via molecule + chip.
+
+**Autonomous decisions:**
+- Factory-only baseline classifier (no I/O at import time) to keep tests pure.
+- gov.uk subdomain regex anchored with `(^|\\.)` to avoid matching `foogov.uk`-style hosts → logged as L-016.
+- Did NOT introduce a new seam — extended the existing classify path inside `search.py`.
+
+**Files touched:** see REVIEW-IP-23-phase3-iter1.md.
+
+---
+
+## D-IP23-PHASE4-DONE — IP-23 Phase 4 (WP-2 Deep-Fetch) APPROVED (2026-05-28)
+
+**Decision:** Deep-Fetch on shallow evidence shipped (REVIEW 9.6/10, backend 747/0, frontend 481/1 DEGRADED). Reuses the existing `Source.fetch_full` hook on Tavily + Wikipedia. New event `DeepFetchPerformed` (#25) is additive; `JudgeRuledEvent.supported_but_shallow_claim_ids` is optional via `extra="llow"`. Orchestrator routes JUDGING → ANALYZING on success.
+
+**Autonomous decisions:**
+- Live deep-fetch counter stored in `state.metadata["deep_fetch_count_live"]` instead of a new typed `RunState` field (per L-015); effective count = `max(folded_from_events, live_metadata)`.
+- `maybe_deep_fetch` signature simplified to `(state, shallow_claim_ids: list[str] | None, ...)` because the orchestrator only holds the persisted `JudgeRuledEvent` (not a live `JudgeVerdict`).
+- Added JUDGING → ANALYZING transition (instead of recycling through SEARCHING) — the new evidence text is already indexed, another search round would waste budget.
+- `SourceResult.content` used as the carrier for full page text; `evidence.text` overwrite is a one-liner with no shape change.
+- Truncation cap `DEFAULT_MAX_CONTENT_CHARS * 4` (~20 000 chars) for both Tavily and Wikipedia.
+
+**Files touched:** see REVIEW-IP-23-phase4-iter1.md.
+
+---
+
+## D-IP23-COMPLETE — IP-23 (Confidence Calibration) Phase 5 closure (2026-05-28)
+
+**Decision:** IP-23 complete end-to-end. Four phases delivered:
+
+| Phase | WP | Review | Iter |
+|-------|----|--------|------|
+| 1 | WP-4 Query Hygiene | 9.5/10 | 1 |
+| 2 | WP-1 Temporal Sensitivity | 9.5/10 | 1 |
+| 3 | WP-3 Authority Tiering | 9.6/10 | 1 |
+| 4 | WP-2 Deep-Fetch | 9.6/10 | 1 |
+
+**Test posture:** backend 747/0 pass; frontend 481/1 (UsernameModal DEGRADED, pre-existing, out of scope per resume prompt).
+
+**No git operations performed** per resume prompt directive (no commit, no push, no PR).
+
+**Open follow-ups (Phase 6 candidates):**
+- Full orchestrator integration test exercising the JUDGING → ANALYZING deep-fetch loop end-to-end.
+- Golden JSONL trace fixture under `tests/fixtures/runs/` exercising a full deep-fetch round.
+- Fix UsernameModal `data-variant` drift (Phase 3 + 4 both report it).

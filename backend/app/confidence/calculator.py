@@ -53,11 +53,17 @@ class ConfidenceCalculator:
             expected_experts=state.expected_experts or None,
         )
         s_raw = structural.score
-        s_effective = (
-            apply_ceiling(s_raw, answer_kind)
-            if answer_kind is not None
-            else s_raw
-        )
+        if answer_kind is not None:
+            from app.confidence.kind_ceiling import is_stale_majority
+            stale = is_stale_majority(state.evidence, state.tavily_days_filter)
+            s_effective = apply_ceiling(
+                s_raw,
+                answer_kind,
+                temporal_sensitivity=state.temporal_sensitivity,
+                stale_majority=stale,
+            )
+        else:
+            s_effective = s_raw
         final = min(s_effective, judge_confidence)
         return ConfidenceResult(
             structural=structural,

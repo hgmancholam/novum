@@ -334,6 +334,8 @@ async def evaluate_with_judge(
         coherence=verdict.coherence if verdict.coherence != 1.0 else None,
         contradictions_detected=verdict.contradictions_detected or None,
         missing_evidence=verdict.missing_evidence or None,
+        # BRD-23 WP-2: shallow claim IDs forwarded via extra="allow"
+        supported_but_shallow_claim_ids=verdict.supported_but_shallow_claim_ids or None,
     )
 
 
