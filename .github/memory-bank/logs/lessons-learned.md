@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-28
-**Total Lessons:** 21
+**Total Lessons:** 23
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,67 @@
 ---
 
 ## Recent Lessons
+
+## L-023 — A bounded additive bump cannot differentiate samples whose base score already sits at the clamp ceiling
+**Date:** 2026-05-28 (origin: C6 citation-weighted ranking — first run of the new tests for `semantic_scholar` and `openalex` failed with `assert 1.0 > 1.0` because both the cited and uncited fixtures landed at rank 0, where base `relevance_score = max(0.1, 1.0 - 0*0.05) = 1.0`. The +0.30 citation bump was clipped by `min(1.0, base + bump)` and the cited result tied the uncited one).
+
+**Rule:** When testing (or relying on) a score-adjustment helper of the form `final = clamp(base + delta(x))`, the assertion `final(x_high) > final(x_low)` only holds where `base + delta(x_high) < ceiling`. If you control the fixture, put the sample at a rank/base that leaves headroom for `delta_max`; never test the differentiation property at a position where the clamp is guaranteed to bite.
+
+**Pattern**
+- Source plugins assign `base = max(0.1, 1.0 - rank * step)`. For `step = 0.05` and `delta_max = 0.30`, headroom appears at `rank >= 6`. The C6 tests pad with 5 placeholders so the target sits at rank 5 (base 0.75): cited → `min(1.0, 0.75 + 0.30) = 1.0`, uncited → `0.75 + 0 = 0.75`. The differentiation is now observable.
+- Mirror the math in the test docstring so a future reader sees *why* rank 5 was chosen, not just that it works.
+- Keep the bump itself uncapped-by-clamp in unit-tests of the helper (`_citation_bump` is tested in isolation: log-scaled, monotonic, capped at 0.30); only test the *integration* property at a non-saturated base.
+
+**Why this trips people up**
+- The production effect is real: citation bumps DO break ties at lower ranks where search-engine relevance is uncertain. They DON'T (and shouldn't) override a top-ranked Tavily/Wikipedia hit. The test must reflect the production scenario where the bump matters, not the impossible-to-differentiate edge case.
+- It's tempting to "fix" the failure by raising `delta_max` or removing the clamp. Both are wrong: the clamp is the contract (`relevance_score ∈ [0, 1]`), and `delta_max = 0.30` is what keeps search-engine ranking dominant.
+
+**Symptoms to watch for**
+- Tests of the shape `assert score_high > score_low` failing with `1.0 > 1.0` (or `0.0 == 0.0` at the floor).
+- A flaky differentiation test that passes only when the fixture happens to land at a non-zero rank.
+
+**Mitigation**
+- For any new ranking/scoring helper added to a Source plugin: write three tests — (a) helper-in-isolation (math), (b) helper-in-integration at a non-saturated rank, (c) idempotence at the ceiling/floor (no NaN, no exception).
+- When padding fixtures to reach a target rank, comment the base-score arithmetic next to the pad list.
+
+**Reference commits**
+- `87252c4` (this session, C6) — Semantic Scholar + OpenAlex citation-weighted ranking. Tests `test_search_relevance_score_lifts_well_cited_paper` / `_work` pad with 5 placeholders so the target sits at rank 5.
+- Cross-reference: D-AGENT-ROBUSTNESS in `decisions-history.md`.
+
+---
+
+## L-022 — `llm.call` prepends the system prompt; tests must inspect `messages[-1]`, not `messages[0]`
+**Date:** 2026-05-28 (origin: C2 unified-judge-threshold test — the assertion `"0.73" in messages[0]["content"]` failed because `app/llm/client.py::call` injects `{"role": "system", "content": ROLE_PROMPTS[role]}` as the first message before forwarding to `litellm.acompletion`. The mocked `client.chat.completions.create` therefore receives `messages=[system, user]` and the threshold string lives on the user message at index `-1`).
+
+**Rule:** Any unit test that mocks the LLM transport and inspects the prompt payload MUST address messages by role or by `[-1]` (the most recent user turn), NEVER by `[0]`. This holds for every agent task (`classify`, `plan`, `analyze`, `draft`, `judge`, `decompose`) because all of them route through `llm.call(role, user_messages, …)`.
+
+**Pattern**
+```python
+# CORRECT — assert against the user turn
+messages = mock_create.call_args.kwargs["messages"]
+assert messages[-1]["role"] == "user"
+assert "0.73" in messages[-1]["content"]
+
+# BROKEN — messages[0] is always the system prompt
+assert "0.73" in mock_create.call_args.kwargs["messages"][0]["content"]
+```
+
+**Why this trips people up**
+- The `llm.call` signature accepts `user_messages: list[ChatMessage]` so the natural mental model is "index 0 is what I passed in". The system-prompt injection is a layer below that the agent code never sees.
+- A passing test that asserts on `[0]` is a sign the role prompt itself contains the expected substring — which means the test isn't actually verifying the agent task's own behaviour.
+
+**Symptoms to watch for**
+- `AssertionError: assert '<short string>' in '<long system prompt>'`.
+- Tests that pass with the assertion text matching well-known role-prompt vocabulary ("You are a judge", "approve", "reject", …).
+
+**Mitigation**
+- New helper recommended for `tests/conftest.py` (not yet added): `def user_message(mock_create) -> dict: return mock_create.call_args.kwargs["messages"][-1]`.
+- When auditing existing tests, grep `messages\[0\]\["content"\]` under `backend/tests/` — anything inspecting prompt body should switch to `[-1]`.
+
+**Reference commits**
+- `4c918a5` (this session, C2) — `refactor(judge): unify threshold`. Test `test_judge_prompt_includes_threshold` was authored against `[0]`, then corrected to `[-1]` in the same commit after the first pytest run failed.
+
+---
 
 ## L-021 — UI microcopy stays English; only the LLM-generated answer follows the user's language
 **Date:** 2026-05-28 (origin: a prior session shipped Spanish storytelling labels in `RunFeed` / `Trace` per a user request, then this session the user reversed the directive — "todo debe ser en inglés, solo las respuestas podrían ser en otro idioma si es que el usuario pregunta en un idioma diferente").

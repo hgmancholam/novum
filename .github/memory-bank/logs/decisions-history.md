@@ -4,11 +4,55 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-28
-**Total Decisions:** 59
+**Total Decisions:** 60
 
 ---
 
 ## Recent Decisions
+
+## D-AGENT-ROBUSTNESS: Six-commit agent robustness series (stop-reason clarity, unified judge threshold, best-effort fallback, academic sources, smart routing, citation-weighted ranking)
+**Date:** 2026-05-28
+**Phase:** Out-of-band backend enhancement (multi-commit plan — agreed with *"adelante con el orden que propones"* and resumed with *"actrualiza el contexto, pero continua con el mismo requerimiento"*).
+**Artifacts:**
+- C1 `3b72839` — [orchestrator.py](../../../backend/app/agent/orchestrator.py), [enums.py](../../../backend/app/domain/enums.py): `STOPPED_BY_BUDGET` disambiguation (judge_cap vs. budget exhaustion).
+- C2 `4c918a5` — [stopping/signals/judge.py](../../../backend/app/stopping/signals/judge.py), [agent/tasks/draft.py](../../../backend/app/agent/tasks/draft.py), [test_stopping_signals.py](../../../backend/tests/test_stopping_signals.py), [test_agent_tasks_draft.py](../../../backend/tests/test_agent_tasks_draft.py): unify the threshold — only the judge LLM applies it; the stopping signal stops gating on `final >= threshold` and only relays the verdict.
+- C3 `3ccc064` — [agent/tasks/draft.py](../../../backend/app/agent/tasks/draft.py), [agent/orchestrator.py](../../../backend/app/agent/orchestrator.py): new `draft_best_effort_fallback(state)` pinned to `AnswerKind.BEST_EFFORT`; orchestrator invokes it when judge attempts hit `max_judge_attempts` so the user gets an honest best-effort answer instead of a rejected draft with `STOPPED_BY_BUDGET`.
+- C4 `69400ad` — [sources/semantic_scholar.py](../../../backend/app/sources/semantic_scholar.py), [sources/openalex.py](../../../backend/app/sources/openalex.py), enums + tests: two new `Source` plugins (Semantic Scholar Graph API, OpenAlex Works API) behind the existing seam.
+- C5 `eb1fbfb` — [agent/tasks/plan.py](../../../backend/app/agent/tasks/plan.py), [test_agent_tasks_plan.py](../../../backend/tests/test_agent_tasks_plan.py): planner appends `["semantic_scholar", "openalex"]` to `preferred_sources` when `question_type ∈ {STATE_OF_ART, PREDICTIVE_FUTURE, CAUSAL, COMPARATIVE}` AND `complexity ∈ {STANDARD, DEEP}` AND `temporal_sensitivity != REALTIME`.
+- C6 `87252c4` — [sources/semantic_scholar.py](../../../backend/app/sources/semantic_scholar.py), [sources/openalex.py](../../../backend/app/sources/openalex.py) + tests: shared `_citation_bump(c) = min(0.30, log10(1+c) / log10(1001) * 0.30)` adds a log-scaled, capped boost to `relevance_score` before the [0, 1] clamp.
+
+### Outcome
+The agent now (a) emits an unambiguous `stop_reason` when the judge cap fires, (b) never double-applies the confidence threshold, (c) returns a best-effort Spanish answer (per LLM prompt language policy) instead of a rejected one when the judge runs out of patience, (d) reaches academic sources for state-of-art / predictive / causal / comparative questions, and (e) surfaces well-cited papers first within those sources without overriding search-engine topical relevance.
+
+### Mechanics
+- **C1 / C2:** `final_confidence = min(S, J)` (RF-12) is preserved as a logged metric only — no longer a stopping gate. The judge LLM is told the threshold and decides; `JudgeSignal` (priority 40) just maps `verdict.verdict == "approve"` to `STOP{JUDGE_CONFIRMED}`. Eliminates the bug where a judge `approve` could still be vetoed by the structural score.
+- **C3:** `draft_best_effort_fallback` reuses the synthesizer system prompt and appends a FALLBACK MODE directive (Spanish reply, 4-step structure: "what evidence we have / what we couldn't confirm / our best current take / what would close the gap"). Pins `AnswerKind.BEST_EFFORT` so the UI badge can later differentiate this from a confirmed answer (out of scope for this series — see Pending in lessons L-021).
+- **C5:** Routing key is `(question_type, coerced_complexity, temporal_sensitivity)`. Realtime topics are intentionally excluded — peer-reviewed sources are stale by definition. `coerced_complexity` is the planner's complexity coercion (already in place pre-C5).
+- **C6:** Bump formula is shared verbatim between sources for cross-source rank comparability. Cap at +0.30 ≈ headroom at rank 6+; below that, search-engine ranking dominates (intentional — citations break ties, they don't override topical fit).
+- **Test scope:** 48 stopping-signal tests + 44 orchestrator tests + 8 draft tests + 36 orchestrator tests + 10 plan tests + 39 source tests all green per commit. Total run-time impact: negligible.
+
+### Why this matters as a recorded decision
+Three of the six commits change agent *behaviour at terminal states*, which is exactly the RF-02 / RF-12 surface the UI promises honesty about. The decision codifies that:
+1. `JUDGE_CONFIRMED` is the LLM judge's call alone (no structural override).
+2. `STOPPED_BY_BUDGET` and judge-cap are different terminal states deserving different UX (C1 enum split + C3 fallback together).
+3. Academic source coverage is gated by question-type routing rather than always-on, so we don't burn Semantic Scholar quota on `FACTUAL` / `DEFINITIONAL` questions.
+4. Citation weighting stays subordinate to search-engine rank (cap at +0.30) so the seam contract `relevance_score ∈ [0, 1]` is preserved.
+
+### Non-goals
+- No UI work — `AnswerKind.BEST_EFFORT` is not yet rendered as a distinct badge in `AnswerPanel`. Logged as a follow-up.
+- No Hetzner redeploy of the backend in this session; commits live on `main` only.
+- No changes to the three non-seams (planner architecture, storage, LLM provider). The planner *behaviour* changed in C5; the planner *is still not pluggable*.
+
+### Pending follow-ups
+1. Smoke-test the chain end-to-end with a state-of-art question to observe SS + OpenAlex selection and citation lift in a real run.
+2. Deploy backend to Hetzner.
+3. Frontend: surface `AnswerKind.BEST_EFFORT` in `AnswerPanel` so the user can see the run is a fallback, not a confirmed answer.
+
+### Cross-references
+- L-022 (lessons-learned) — `messages[-1]` vs `messages[0]` pitfall, surfaced while writing the C2 test.
+- L-023 (lessons-learned) — bounded-additive-bump-vs-clamp-ceiling pitfall, surfaced while writing the C6 tests.
+
+---
 
 ## D-UI-ENGLISH: Revert feed/trace microcopy to English (language policy reaffirmed)
 **Date:** 2026-05-28
