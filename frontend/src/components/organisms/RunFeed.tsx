@@ -29,6 +29,7 @@ import { getEventActivity, getEventLabel, getEventNarrative } from "@/lib/eventL
 import { getEventVisual, TONE_COLOR } from "@/lib/eventVisuals";
 import type { EventType } from "@/types/events";
 import { cn } from "@/lib/cn";
+import { formatElapsed } from "@/lib/format";
 
 export interface RunFeedProps {
   events: readonly RunStreamEvent[];
@@ -279,9 +280,12 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
   }
 
   const lastEvent = events[events.length - 1];
-  const firstEvent = events[0];
   const lastTimestamp: number = lastEvent?.timestamp_ms ?? 0;
-  const firstTimestamp: number = firstEvent?.timestamp_ms ?? 0;
+  // First event with a defined timestamp_ms (the field is optional on the
+  // backend schema; the first emitted event sometimes omits it). Falling
+  // back to 0 produced an absurd elapsed (~Date.now() / 1000 ≈ 1.78e9 s).
+  const firstTimestamp: number =
+    events.find((e) => typeof e.timestamp_ms === "number")?.timestamp_ms ?? 0;
 
   // Live elapsed ticker: while the run is streaming the wall-clock should
   // advance every second so the header doesn't get stuck on "0s" when events
@@ -296,7 +300,10 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
 
   const elapsedEndMs = isComplete ? lastTimestamp : Math.max(lastTimestamp, nowMs);
   const totalSeconds =
-    events.length > 0 ? Math.max(0, Math.round((elapsedEndMs - firstTimestamp) / 1000)) : 0;
+    events.length > 0 && firstTimestamp > 0
+      ? Math.max(0, Math.round((elapsedEndMs - firstTimestamp) / 1000))
+      : 0;
+  const elapsedLabel = formatElapsed(totalSeconds);
 
   const idleMessage = useIdleReassurance(
     !isComplete && events.length > 0,
@@ -327,7 +334,7 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
         />
         <h3 className="text-sm font-medium text-[var(--text-secondary)]">
           {steps.length > 0
-            ? FEED_REASONING_TRACE(steps.length, totalSeconds, isComplete)
+            ? FEED_REASONING_TRACE(steps.length, elapsedLabel, isComplete)
             : "Thinking…"}
         </h3>
         {isComplete && steps.length > 0 ? (
