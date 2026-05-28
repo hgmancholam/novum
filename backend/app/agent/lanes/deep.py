@@ -214,8 +214,11 @@ async def execute_deep_lane(
             )
             return StopReason.JUDGE_CONFIRMED
         else:
-            # Judge rejected, but we've exhausted budget
+            # Judge rejected, but we've exhausted budget.
+            # PR-1 Mejora 2.1: mark the actual budget that fired so _stop
+            # reports "ReAct step limit" instead of "search limit (0 rounds)".
             state.final_answer = draft_text
+            state.budget_exhausted_kind = "react_steps"
             logger.info(
                 "deep_lane_stopped_by_budget",
                 run_id=str(state.run_id),

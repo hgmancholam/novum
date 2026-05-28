@@ -588,6 +588,11 @@ class StopRationale(BaseModel):
     triggering_signal: str  # e.g. "judge", "budget", "early_stop"
     summary: str  # <= 280 chars, human-readable
     confidence: float | None = None
+    # PR-1 Mejora 2.2: discriminator so the UI can render "Confianza estructural
+    # 0.58 · juez no confirmado" instead of treating a null judge confidence as
+    # 0 %. Set to ``"judge"`` when ``confidence`` is the judge score, to
+    # ``"structural"`` when it falls back to the structural score S.
+    confidence_kind: Literal["judge", "structural"] | None = None
 
 
 class AnswerSection(BaseModel):

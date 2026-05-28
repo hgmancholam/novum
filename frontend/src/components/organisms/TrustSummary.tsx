@@ -21,10 +21,22 @@ export interface JudgeConfidenceMetrics {
   passed: boolean;
 }
 
+/**
+ * Best-effort structural fallback surfaced when the judge never confirmed
+ * (e.g. DEEP lane hit the ReAct budget). Mirrors `stop_rationale.confidence`
+ * with `confidence_kind = "structural"` (backend PR-1 Mejora 2.2).
+ */
+export interface StructuralConfidenceFallback {
+  confidence: number;
+  kind: "structural";
+}
+
 export interface TrustSummaryProps {
   run: Run;
   /** Confidence metrics from the JudgeRuled event (RF-12). */
   judgeConfidence?: JudgeConfidenceMetrics | null | undefined;
+  /** Structural fallback from `stop_rationale` when judge did not confirm. */
+  structuralFallback?: StructuralConfidenceFallback | null | undefined;
   /** Total unique sources collected (from EvidenceAdded events). */
   sourceCount?: number | null | undefined;
   className?: string | undefined;
@@ -35,7 +47,8 @@ export interface TrustSummaryProps {
  */
 function buildSummaryLine(
   run: Run,
-  judgeConfidence?: JudgeConfidenceMetrics | null
+  judgeConfidence?: JudgeConfidenceMetrics | null,
+  structuralFallback?: StructuralConfidenceFallback | null
 ): string {
   const reason: StopReason | null = run.stopReason;
   const threshold = run.confidenceThreshold.toFixed(2);
@@ -50,8 +63,13 @@ function buildSummaryLine(
           : "—";
       return `✓ Judge confirmed · confidence ${confStr} / threshold ${threshold}`;
     }
-    case "stopped_by_budget":
+    case "stopped_by_budget": {
+      if (structuralFallback !== null && structuralFallback !== undefined) {
+        const pct = Math.round(structuralFallback.confidence * 100);
+        return `⚠ Stopped on budget · structural confidence ${pct}% · judge not confirmed`;
+      }
       return "⚠ Stopped on budget · best-effort answer";
+    }
     case "user_cancelled":
       return "⊘ Cancelled · partial trace preserved";
     case "errored":
@@ -130,6 +148,37 @@ interface ElapsedValueProps {
   stoppedAt: string | Date | null;
 }
 
+function StructuralFallbackRow({
+  fallback,
+}: {
+  fallback: StructuralConfidenceFallback;
+}) {
+  const pct = Math.round(fallback.confidence * 100);
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        role="progressbar"
+        aria-label={`Structural confidence ${pct}%`}
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        className="relative h-2 w-32 overflow-hidden rounded-full bg-(--bg-tertiary)"
+      >
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-(--semantic-warning) transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-sm font-semibold tabular-nums text-(--semantic-warning)">
+        {pct}%
+      </span>
+      <span className="text-xs text-(--text-muted)">
+        structural · judge not confirmed
+      </span>
+    </div>
+  );
+}
+
 function toMs(value: string | Date): number {
   return value instanceof Date ? value.getTime() : new Date(value).getTime();
 }
@@ -153,14 +202,19 @@ function ElapsedValue({ startedAt, stoppedAt }: ElapsedValueProps) {
 export function TrustSummary({
   run,
   judgeConfidence,
+  structuralFallback,
   sourceCount,
   className,
 }: TrustSummaryProps) {
   const reasonTitle =
     run.stopReason !== null ? stopReasonConfig[run.stopReason].title : "Running";
-  const summaryLine = buildSummaryLine(run, judgeConfidence);
+  const summaryLine = buildSummaryLine(run, judgeConfidence, structuralFallback);
   const hasLiveMetrics =
     judgeConfidence !== null && judgeConfidence !== undefined;
+  const hasStructuralFallback =
+    !hasLiveMetrics &&
+    structuralFallback !== null &&
+    structuralFallback !== undefined;
 
   return (
     <section
@@ -197,6 +251,8 @@ export function TrustSummary({
         >
           {hasLiveMetrics ? (
             <ConfidenceRow metrics={judgeConfidence} />
+          ) : hasStructuralFallback ? (
+            <StructuralFallbackRow fallback={structuralFallback} />
           ) : (
             <div className="flex items-center gap-2">
               <div

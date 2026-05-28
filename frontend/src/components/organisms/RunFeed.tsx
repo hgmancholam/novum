@@ -160,7 +160,13 @@ function mapStepToView(step: FeedStepData): StepView {
     }
     case "judge": {
       const passed = (payload.passed as boolean | undefined) ?? false;
-      const finalConfidence = (payload.final_confidence as number | undefined) ?? 0;
+      const rawFinalConfidence = payload.final_confidence as number | undefined;
+      const finalConfidence = rawFinalConfidence ?? null;
+      const confidenceStr =
+        finalConfidence === null
+          ? "—"
+          : `${(finalConfidence * 100).toFixed(0)}%`;
+      const detail = `Verdict: ${verdict} · confidence ${confidenceStr} (threshold ${(threshold * 100).toFixed(0)}%).`;
       const threshold = (payload.threshold as number | undefined) ?? 0.7;
       const rationale = (payload.rationale as string | undefined) ?? "";
       const verdict = passed ? "Confirmed" : "Retry suggested";

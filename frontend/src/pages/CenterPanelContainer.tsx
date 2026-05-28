@@ -254,6 +254,39 @@ export function CenterPanelContainer() {
   }, [events]);
 
   /**
+   * PR-1 Mejora 2.2 — Structural-confidence fallback from `Stopped.stop_rationale`.
+   * Used to render an honest "structural N% · judge not confirmed" badge instead
+   * of treating a null judge confidence as 0 %.
+   */
+  const structuralFallback = useMemo<{
+    confidence: number;
+    kind: "structural";
+  } | null>(() => {
+    if (judgeConfidence !== null) {
+      return null;
+    }
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      const e = events[i];
+      if (e === undefined || e.type !== "Stopped") {
+        continue;
+      }
+      const rationale = (e as Record<string, unknown>)["stop_rationale"] as
+        | Record<string, unknown>
+        | null
+        | undefined;
+      if (rationale === null || rationale === undefined) {
+        continue;
+      }
+      const kind = rationale["confidence_kind"];
+      const confidence = rationale["confidence"];
+      if (kind === "structural" && typeof confidence === "number") {
+        return { confidence, kind: "structural" };
+      }
+    }
+    return null;
+  }, [events, judgeConfidence]);
+
+  /**
    * Deduplicated source list from EvidenceAdded events.
    * Each URL appears at most once; when duplicated the highest confidence wins.
    */
@@ -387,6 +420,7 @@ export function CenterPanelContainer() {
               onViewFormatChange={setViewFormat}
               sources={sources}
               judgeConfidence={judgeConfidence}
+              structuralFallback={structuralFallback}
               showPostResumeNotice={showPostResumeNotice}
               onResume={resume}
               isResuming={isResuming}

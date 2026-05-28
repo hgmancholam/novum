@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import traceback
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 
@@ -488,6 +488,13 @@ class AgentOrchestrator:
         if self._stopping_policy.should_stop(result):
             if result.stop_reason is None:
                 raise RuntimeError("Stopping signal returned STOP without a stop_reason")
+            # PR-1 Mejora 2.1: mark the search budget kind when the BudgetSignal
+            # is the one that fired, so _stop renders "search rounds" honestly.
+            if (
+                result.stop_reason is StopReason.STOPPED_BY_BUDGET
+                and result.signal_name == "Budget"
+            ):
+                self.state.budget_exhausted_kind = "search_rounds"
             # WP-3: budget stops with any coverage proceed to draft (resolver decides kind).
             if result.stop_reason is StopReason.STOPPED_BY_BUDGET:
                 self.state.transition_to(AgentState.DRAFTING)
@@ -559,11 +566,21 @@ class AgentOrchestrator:
         if self._stopping_policy.should_stop(result):
             if result.stop_reason is None:
                 raise RuntimeError("Stopping signal returned STOP without a stop_reason")
+            # PR-1 Mejora 2.1: mark the search budget kind when the BudgetSignal
+            # fired (rather than a higher-priority signal that happened to map
+            # to STOPPED_BY_BUDGET).
+            if (
+                result.stop_reason is StopReason.STOPPED_BY_BUDGET
+                and result.signal_name == "Budget"
+            ):
+                self.state.budget_exhausted_kind = "search_rounds"
             await self._stop(result.stop_reason)
             return
 
         # Judge sub-loop safety net (O-07): not part of the layered policy.
         if self.state.judge_attempts >= self.state.max_judge_attempts:
+            # PR-1 Mejora 2.1: explicit budget kind for the rationale.
+            self.state.budget_exhausted_kind = "judge_attempts"
             # C3: before stopping with STOPPED_BY_BUDGET, regenerate the
             # surfaced answer as a BEST_EFFORT fallback so the user sees a
             # constructive Spanish reply (what we found, what's missing,
@@ -745,33 +762,53 @@ class AgentOrchestrator:
                 confidence=self.state.last_judge_confidence,
             )
         elif reason == StopReason.STOPPED_BY_BUDGET:
-            # Two distinct paths terminate as STOPPED_BY_BUDGET (enum stable,
-            # RF-02): the search-round cap and the judge-attempts cap. The
-            # summary disambiguates them so the UI does not mislead the user
-            # with "search limit" when the judge cap actually fired.
-            if self.state.judge_attempts >= self.state.max_judge_attempts:
+            # PR-1 Mejora 2.1: prefer the explicit budget_exhausted_kind set by
+            # the lane / policy. Fall back to inference for back-compat with
+            # paths that have not yet been wired.
+            kind = self.state.budget_exhausted_kind
+            if kind is None:
+                if self.state.judge_attempts >= self.state.max_judge_attempts:
+                    kind = "judge_attempts"
+                elif self.state.selected_lane == Lane.DEEP:
+                    kind = "react_steps"
+                else:
+                    kind = "search_rounds"
+            if kind == "judge_attempts":
                 budget_summary = (
                     f"Judge rejected the draft after "
                     f"{self.state.judge_attempts} attempts"
                 )
                 budget_signal = "judge_cap"
-            elif self.state.selected_lane == Lane.DEEP:
-                # DEEP lane uses react_step_count, not search_count.
+            elif kind == "react_steps":
                 budget_summary = (
                     f"Reached ReAct step limit "
                     f"({self.state.react_step_count}/{self.state.max_react_steps} steps)"
                 )
                 budget_signal = "budget"
-            else:
+            else:  # search_rounds
                 budget_summary = (
-                    f"Reached search limit ({self.state.search_count} rounds)"
+                    f"Reached search limit "
+                    f"({self.state.search_count}/{self.state.max_searches} rounds)"
                 )
                 budget_signal = "budget"
+            # PR-1 Mejora 2.2: when the judge never confirmed but we have a
+            # structural confidence S, surface it as a best-effort score with
+            # the discriminator so the UI distinguishes it from a judge score.
+            if self.state.last_judge_confidence is not None:
+                rationale_confidence = self.state.last_judge_confidence
+                confidence_kind: Literal["judge", "structural"] | None = "judge"
+            elif self.state.last_structural_confidence is not None:
+                rationale_confidence = self.state.last_structural_confidence
+                confidence_kind = "structural"
+            else:
+                rationale_confidence = None
+                confidence_kind = None
             stop_rationale = StopRationale(
                 reason=reason,
                 triggering_signal=budget_signal,
                 summary=budget_summary,
-                confidence=self.state.last_judge_confidence,
+                confidence=rationale_confidence,
+                confidence_kind=confidence_kind,
             )
         elif reason == StopReason.USER_CANCELLED:
             stop_rationale = StopRationale(

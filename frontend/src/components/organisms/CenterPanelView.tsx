@@ -34,7 +34,7 @@ import { SourcesCard, type SourceEntry } from "./SourcesCard";
 import { StopReasonCard } from "./StopReasonCard";
 import { StructuredAnswer } from "./StructuredAnswer";
 import { StructuredBlocks } from "./StructuredBlocks";
-import { TrustSummary, type JudgeConfidenceMetrics } from "./TrustSummary";
+import { TrustSummary, type JudgeConfidenceMetrics, type StructuralConfidenceFallback } from "./TrustSummary";
 import { RunFeed } from "./RunFeed";
 
 export interface CenterPanelViewProps {
@@ -58,6 +58,8 @@ export interface CenterPanelViewProps {
   sources?: readonly SourceEntry[] | undefined;
   /** Confidence metrics from the JudgeRuled event (RF-12). */
   judgeConfidence?: JudgeConfidenceMetrics | null | undefined;
+  /** Structural fallback surfaced when the judge never confirmed (PR-1 Mejora 2.2). */
+  structuralFallback?: StructuralConfidenceFallback | null | undefined;
   /** IP-15 §9: hide feed when in post-resume limbo (until new agent work). */
   showPostResumeNotice?: boolean | undefined;
   /** Resume CTA forwarded to StopReasonCard for errored / user_cancelled runs. */
@@ -78,6 +80,7 @@ export function CenterPanelView({
   onViewFormatChange,
   sources,
   judgeConfidence,
+  structuralFallback,
   showPostResumeNotice = false,
   onResume,
   isResuming = false,
@@ -237,6 +240,7 @@ export function CenterPanelView({
             <TrustSummary
               run={run}
               judgeConfidence={judgeConfidence}
+              structuralFallback={structuralFallback}
               sourceCount={sources?.length}
             />
             <StopReasonCard

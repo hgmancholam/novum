@@ -7,7 +7,7 @@ ephemeral working memory. Schema evolution uses ``extra="allow"``.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -134,6 +134,10 @@ class RunState(BaseModel):
     last_agreement: float = 0.0  # WP-3 G8: for early-stop check
 
     stop_reason: StopReason | None = None
+    # PR-1 Mejora 2.1: explicit source-of-truth for which budget exhausted, so
+    # ``_stop`` can build an accurate ``stop_rationale.summary`` instead of
+    # heuristically guessing from ``selected_lane``.
+    budget_exhausted_kind: Literal["react_steps", "search_rounds", "judge_attempts"] | None = None
     final_answer: str | None = None
 
     # ``total_tokens`` is a best-effort lower bound (O-12).

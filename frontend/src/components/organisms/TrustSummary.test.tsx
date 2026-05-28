@@ -61,4 +61,46 @@ describe("TrustSummary", () => {
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
+
+  // PR-1 Mejora 2.3 — structural confidence fallback.
+  it("renders structural fallback badge instead of 0%/em-dash when the judge did not confirm", () => {
+    render(
+      <TrustSummary
+        run={makeRun({ stopReason: "stopped_by_budget" })}
+        structuralFallback={{ confidence: 0.58, kind: "structural" }}
+      />
+    );
+    expect(
+      screen.getByRole("progressbar", { name: /Structural confidence 58%/i })
+    ).toBeInTheDocument();
+    expect(screen.getByText("58%")).toBeInTheDocument();
+    expect(screen.getByText(/structural · judge not confirmed/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/structural confidence 58%/i)
+    ).toBeInTheDocument();
+    // The bug we fixed surfaced "0%" — make sure it is absent.
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
+  });
+
+  it("prefers judgeConfidence over structuralFallback when both present", () => {
+    const metrics = {
+      finalConfidence: 0.85,
+      structuralConfidence: 0.9,
+      judgeConfidence: 0.85,
+      passed: true,
+    };
+    render(
+      <TrustSummary
+        run={makeRun({ stopReason: "judge_confirmed" })}
+        judgeConfidence={metrics}
+        structuralFallback={{ confidence: 0.58, kind: "structural" }}
+      />
+    );
+    expect(
+      screen.queryByRole("progressbar", { name: /Structural confidence/i })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", { name: /Confidence 85%/i })
+    ).toBeInTheDocument();
+  });
 });
