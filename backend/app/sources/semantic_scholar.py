@@ -276,6 +276,8 @@ class SemanticScholarSource(BaseSource):
 
         A direct paper lookup is one cheap request, not a paginated search query,
         which reduces the risk of triggering rate limits during health probes.
+        A 429 (rate-limited) is treated as a live service — the API is reachable
+        and authenticating; the probe just hit a per-IP quota window.
         """
         try:
             url = "https://api.semanticscholar.org/graph/v1/paper/arXiv:1706.03762"
@@ -284,6 +286,6 @@ class SemanticScholarSource(BaseSource):
                 headers["x-api-key"] = self._api_key
             async with httpx.AsyncClient(timeout=1.5, headers=headers) as client:
                 response = await client.get(url, params={"fields": "title"})
-            return response.status_code == 200
+            return response.status_code in (200, 429)
         except Exception:
             return False
