@@ -7,6 +7,7 @@
 import { AppShell, CenterPanel, TracePanel } from "@/components/templates";
 import { TraceEmpty } from "@/components/molecules/TraceEmpty";
 import { TraceHeader } from "@/components/organisms/TraceHeader";
+import { useSelectionStore } from "@/stores/selectionStore";
 import { HistoryPanelContainer } from "./HistoryPanelContainer";
 import { NewRunContainer } from "./NewRunContainer";
 
@@ -19,10 +20,20 @@ function CenterStart() {
 }
 
 function TracePlaceholder() {
+  const isCollapsed = useSelectionStore((s) => s.isTracePanelCollapsed);
+  const toggleCollapse = useSelectionStore((s) => s.toggleTracePanelCollapsed);
   return (
     <TracePanel
-      header={<TraceHeader eventCount={0} isStreaming={false} />}
-      body={<TraceEmpty />}
+      isCollapsed={isCollapsed}
+      header={
+        <TraceHeader
+          eventCount={0}
+          isStreaming={false}
+          isCollapsed={isCollapsed}
+          onToggleCollapse={toggleCollapse}
+        />
+      }
+      body={isCollapsed ? null : <TraceEmpty />}
     />
   );
 }
