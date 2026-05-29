@@ -14,8 +14,9 @@
  * the user is never flashed a redirect on a hard refresh with a valid token.
  */
 
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
+import { ServiceStatusBar } from "@/components/organisms";
 
 import { useUserStore } from "@/stores/userStore";
 
@@ -40,6 +41,21 @@ function withSuspense(Component: React.ComponentType) {
     <Suspense fallback={<PageLoader />}>
       <Component />
     </Suspense>
+  );
+}
+
+/**
+ * Layout for /run and /runs/:runId — renders the page outlet plus the
+ * service-health footer bar at the bottom of the viewport.
+ */
+function RunShell() {
+  return (
+    <>
+      <Outlet />
+      <div className="fixed bottom-0 left-0 right-0 z-40">
+        <ServiceStatusBar />
+      </div>
+    </>
   );
 }
 
@@ -71,12 +87,17 @@ export const router = createBrowserRouter([
     element: withSuspense(HowWeWorkPage),
   },
   {
-    path: "/run",
-    element: withSuspense(HomePage),
-  },
-  {
-    path: "/runs/:runId",
-    element: <ProtectedRoute>{withSuspense(RunPage)}</ProtectedRoute>,
+    element: <RunShell />,
+    children: [
+      {
+        path: "/run",
+        element: withSuspense(HomePage),
+      },
+      {
+        path: "/runs/:runId",
+        element: <ProtectedRoute>{withSuspense(RunPage)}</ProtectedRoute>,
+      },
+    ],
   },
   {
     path: "/diff/:runA/:runB",

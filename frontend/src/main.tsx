@@ -5,7 +5,6 @@ import { RouterProvider } from "react-router-dom";
 import { router } from "./router";
 import { queryClient } from "@/lib/queryClient";
 import { UsernameModalContainer } from "@/components/organisms";
-import { ServiceStatusBar } from "@/components/organisms";
 import { Toaster } from "@/components/molecules";
 import { useUserStore } from "@/stores/userStore";
 import "./index.css";
@@ -34,9 +33,6 @@ export function AppBoot({ children }: AppBootProps) {
       {children}
       <UsernameModalContainer />
       <Toaster />
-      <div className="fixed bottom-0 left-0 right-0 z-40">
-        <ServiceStatusBar />
-      </div>
     </>
   );
 }

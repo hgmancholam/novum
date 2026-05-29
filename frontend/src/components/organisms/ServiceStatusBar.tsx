@@ -1,11 +1,18 @@
 /**
  * ServiceStatusBar organism — slim footer bar with one pill per upstream service
- * (BRD-27 §4.7). Mounted once at the shell level and polled every 60 s by
- * `useServiceHealth`. Failures are silent; the bar keeps the last known
- * snapshot so the UI never flashes empty.
+ * (BRD-27 §4.7). Mounted via RunShell layout only on /run and /runs/:runId.
+ * Polled every 60 s by `useServiceHealth`. Failures are silent; the bar keeps
+ * the last known snapshot so the UI never flashes empty.
  */
 
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
+import {
+  BrainCircuit,
+  Globe,
+  BookOpen,
+  Database,
+  type LucideProps,
+} from "lucide-react";
 
 import { ServiceStatusDot } from "@/components/atoms/ServiceStatusDot";
 import { ServiceStatusPill } from "@/components/molecules/ServiceStatusPill";
@@ -19,6 +26,16 @@ const CATEGORY_ORDER: readonly ServiceCategory[] = [
   "knowledge",
   "storage",
 ] as const;
+
+const CATEGORY_ICONS: Record<
+  ServiceCategory,
+  React.ComponentType<LucideProps>
+> = {
+  llm: BrainCircuit,
+  search: Globe,
+  knowledge: BookOpen,
+  storage: Database,
+};
 
 const SKELETON_DOT_COUNT = 9;
 
@@ -70,35 +87,53 @@ export function ServiceStatusBar({ className }: ServiceStatusBarProps) {
           ))}
         </div>
       ) : (
-        CATEGORY_ORDER.flatMap((cat, catIdx) => {
-          const services = grouped.get(cat) ?? [];
-          if (services.length === 0) return [];
-          const nodes = services.map((svc, idx) => (
-            <span key={svc.id} className="inline-flex items-center gap-3">
-              <ServiceStatusPill service={svc} />
-              {idx < services.length - 1 ? (
-                <span
-                  aria-hidden="true"
-                  className="text-(--text-tertiary)/60"
-                >
-                  ·
+        <>
+          {CATEGORY_ORDER.map((cat, catIdx) => {
+            const services = grouped.get(cat) ?? [];
+            if (services.length === 0) return null;
+            const Icon = CATEGORY_ICONS[cat];
+            return (
+              <Fragment key={cat}>
+                {catIdx > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="px-0.5 text-(--text-tertiary)/40"
+                  >
+                    |
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5">
+                  <Icon
+                    aria-hidden="true"
+                    className="h-3 w-3 shrink-0 text-(--text-tertiary)"
+                  />
+                  {services.map((svc, idx) => (
+                    <span
+                      key={svc.id}
+                      className="inline-flex items-center gap-1.5"
+                    >
+                      <ServiceStatusPill service={svc} />
+                      {idx < services.length - 1 ? (
+                        <span
+                          aria-hidden="true"
+                          className="text-(--text-tertiary)/60"
+                        >
+                          ·
+                        </span>
+                      ) : null}
+                    </span>
+                  ))}
                 </span>
-              ) : null}
-            </span>
-          ));
-          if (catIdx < CATEGORY_ORDER.length - 1) {
-            nodes.push(
-              <span
-                key={`sep-${cat}`}
-                aria-hidden="true"
-                className="px-1 text-(--text-tertiary)/40"
-              >
-                |
-              </span>,
+              </Fragment>
             );
-          }
-          return nodes;
-        })
+          })}
+          <span
+            aria-hidden="true"
+            className="ml-auto shrink-0 text-[10px] tracking-wide text-(--text-tertiary)/50"
+          >
+            External services
+          </span>
+        </>
       )}
     </footer>
   );
