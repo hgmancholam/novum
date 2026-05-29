@@ -77,6 +77,13 @@ export function useRunHistory(
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: 30 * 1000,
+    // Silent background refresh: poll every 15s while the panel is mounted
+    // and the tab is visible. `isFetching` toggles during background fetches,
+    // but `HistoryPanelContainer` only forwards manual refresh state to the
+    // refresh button so the UI stays quiet.
+    refetchInterval: enabled ? 30 * 1000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 }
 

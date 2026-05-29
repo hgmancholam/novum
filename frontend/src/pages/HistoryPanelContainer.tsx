@@ -27,6 +27,7 @@ export function HistoryPanelContainer() {
   const username = useUserStore((s) => s.user?.username ?? null);
 
   const [filters, setFilters] = useState<HistoryFilterValues>({});
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const {
     data,
@@ -34,7 +35,6 @@ export function HistoryPanelContainer() {
     isError,
     error,
     refetch,
-    isFetching,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -56,7 +56,8 @@ export function HistoryPanelContainer() {
   }, [navigate]);
 
   const handleRetry = useCallback((): void => {
-    void refetch();
+    setIsManualRefreshing(true);
+    void refetch().finally(() => { setIsManualRefreshing(false); });
   }, [refetch]);
 
   const handleLoadMore = useCallback((): void => {
@@ -97,7 +98,7 @@ export function HistoryPanelContainer() {
           {...(error instanceof Error ? { errorMessage: error.message } : {})}
           onRetry={handleRetry}
           onRefresh={handleRetry}
-          isRefreshing={isFetching}
+          isRefreshing={isManualRefreshing}
           hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
           onLoadMore={handleLoadMore}
