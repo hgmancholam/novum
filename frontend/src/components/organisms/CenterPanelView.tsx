@@ -15,6 +15,7 @@
 import { OutcomeBar, GlassSurface } from "@/components/atoms";
 import { AnswerToolbar, type AnswerViewMode } from "@/components/molecules";
 import { cn } from "@/lib/cn";
+import { structuredAnswerToMarkdown } from "@/lib/structuredAnswerMarkdown";
 import { useCallback, useState } from "react";
 import type { Run, RunStatus } from "@/types/run";
 import type { AnswerKind, StructuredAnswerData, RunStreamEvent } from "@/types/events";
@@ -111,17 +112,22 @@ export function CenterPanelView({
 
   const isStructured = viewFormat === "structured";
 
-  // Determine which markdown content to show as fallback (when no JSON data).
-  const activeContent: string | null = isStructured
-    ? (answerStructured ?? answerProse ?? null)
-    : (answerProse ?? null);
-
   // Show JSON-block view when in structured mode AND backend provided typed data.
   const showStructuredBlocks =
     hasAnswer &&
     isStructured &&
     answerStructuredData !== null &&
     answerStructuredData !== undefined;
+
+  // Determine which content to feed the Copy button so the clipboard matches
+  // what is visible. When typed JSON data drives the view, serialize it back
+  // to Markdown (summary + titled blocks); otherwise fall back to the raw
+  // structured or prose markdown string.
+  const activeContent: string | null = showStructuredBlocks
+    ? structuredAnswerToMarkdown(answerStructuredData!)
+    : isStructured
+      ? (answerStructured ?? answerProse ?? null)
+      : (answerProse ?? null);
 
   // Show format toggle when a structured rendering is available alongside
   // the prose answer. Without an alternative rendering the toggle would be a
