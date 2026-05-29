@@ -35,7 +35,7 @@ describe("QuestionForm", () => {
     expect(submit).not.toBeDisabled();
   });
 
-  it("submits the question with defaults (Structured, 0.6 threshold)", () => {
+  it("submits the question with defaults (Structured)", () => {
     const { onSubmit } = setup();
     fireEvent.change(screen.getByLabelText(/your question/i), {
       target: { value: "What is event sourcing?" },
@@ -45,7 +45,6 @@ describe("QuestionForm", () => {
       question: "What is event sourcing?",
       userContext: null,
       outputFormat: "structured",
-      confidenceThreshold: 0.6,
       llmProvider: "anthropic",
     });
   });
@@ -68,45 +67,15 @@ describe("QuestionForm", () => {
     );
   });
 
-  it("submits high threshold via the inline preset (outputFormat is fixed to structured)", () => {
-    const { onSubmit } = setup();
-    fireEvent.change(screen.getByLabelText(/your question/i), {
-      target: { value: "Why is the sky blue?" },
-    });
-    fireEvent.click(screen.getByLabelText(/High \(0\.85\)/));
-    fireEvent.click(screen.getByTestId("submit-question"));
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        outputFormat: "structured",
-        confidenceThreshold: 0.85,
-      })
-    );
-  });
-
-  it("does not render an Advanced disclosure or a Custom threshold preset", () => {
+  it("does not render an Advanced disclosure, a threshold control or a Custom preset", () => {
     setup();
     expect(screen.queryByRole("button", { name: /^advanced/i })).toBeNull();
     expect(screen.queryByLabelText(/^Prose$/)).toBeNull();
     expect(screen.queryByLabelText(/Structured \(recommended\)/i)).toBeNull();
     expect(screen.queryByLabelText(/Custom/i)).toBeNull();
-  });
-
-  it("updates the slider value when a preset is clicked and submits that value", () => {
-    const { onSubmit } = setup();
-    fireEvent.change(screen.getByLabelText(/your question/i), {
-      target: { value: "What is event sourcing?" },
-    });
-    expect(screen.getByTestId("threshold-value")).toHaveTextContent("0.60");
-    fireEvent.click(screen.getByLabelText(/Low \(0\.4\)/));
-    expect(screen.getByTestId("threshold-value")).toHaveTextContent("0.40");
-    fireEvent.change(screen.getByTestId("threshold-slider"), {
-      target: { value: "0.75" },
-    });
-    expect(screen.getByTestId("threshold-value")).toHaveTextContent("0.75");
-    fireEvent.click(screen.getByTestId("submit-question"));
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ confidenceThreshold: 0.75 })
-    );
+    expect(screen.queryByText(/confidence threshold/i)).toBeNull();
+    expect(screen.queryByTestId("threshold-slider")).toBeNull();
+    expect(screen.queryByTestId("threshold-value")).toBeNull();
   });
 
   it("renders the loading copy while submitting", () => {

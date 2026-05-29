@@ -5,9 +5,10 @@
  *   - <textarea>  required, 10-2000 chars (matches backend `RunCreate`)
  *   - Optional context disclosure (RF-07): textarea, max 1000 chars
  *     counter turns amber at ≥ 900, red at = 1000
- *   - Inline confidence-threshold control: Low / Standard / High presets +
- *     read-only slider showing the active value (default Standard).
  *   - Submit "Start research" / "Starting…"
+ *
+ * The confidence threshold is no longer exposed in the form — the backend
+ * applies its server-side default.
  *
  * Pure presentational: the page-level container (`NewRunContainer`) handles
  * auth gate + mutation + navigation. Per `eslint.config.js` organisms must
@@ -34,7 +35,6 @@ export interface QuestionFormValues {
   question: string;
   userContext: string | null;
   outputFormat: OutputFormat;
-  confidenceThreshold: number;
   llmProvider: LlmProviderName;
 }
 
@@ -47,20 +47,6 @@ export interface QuestionFormProps {
   className?: string | undefined;
 }
 
-type ThresholdPreset = "low" | "standard" | "high";
-
-const presetValues: Record<ThresholdPreset, number> = {
-  low: 0.4,
-  standard: 0.6,
-  high: 0.85,
-};
-
-const presetLabels: Record<ThresholdPreset, string> = {
-  low: "Low (0.4)",
-  standard: "Standard (0.6)",
-  high: "High (0.85)",
-};
-
 export function QuestionForm({
   onSubmit,
   isSubmitting = false,
@@ -70,7 +56,6 @@ export function QuestionForm({
 }: QuestionFormProps) {
   const questionId = useId();
   const contextId = useId();
-  const thresholdId = useId();
 
   const [question, setQuestion] = useState<string>(initialQuestion ?? "");
   const [contextOpen, setContextOpen] = useState<boolean>(false);
@@ -79,7 +64,6 @@ export function QuestionForm({
   // user toggles the rendering format inside the answer card, not at
   // submission time.
   const outputFormat: OutputFormat = "structured";
-  const [threshold, setThreshold] = useState<number>(presetValues.standard);
   const [localError, setLocalError] = useState<string | null>(null);
   // Provider selection — every new question form starts on the project
   // default (Anthropic Claude). The user can still switch per-run; the
@@ -119,8 +103,6 @@ export function QuestionForm({
     !tooLong &&
     !contextOver;
 
-  const threshold01 = Math.min(1, Math.max(0, threshold));
-
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLocalError(null);
@@ -147,7 +129,6 @@ export function QuestionForm({
       question: trimmedQuestion,
       userContext: ctx,
       outputFormat,
-      confidenceThreshold: threshold01,
       llmProvider,
     });
   }
@@ -282,72 +263,6 @@ export function QuestionForm({
           </div>
         ) : null}
       </div>
-
-      <fieldset className="flex flex-col gap-2">
-        <legend
-          id={thresholdId}
-          className="text-xs font-medium text-(--text-primary)"
-          title="Higher threshold = the agent searches longer and may honest-stop more often."
-        >
-          Confidence threshold
-        </legend>
-        <div
-          role="radiogroup"
-          aria-labelledby={thresholdId}
-          className="flex flex-wrap gap-2"
-        >
-          {(["low", "standard", "high"] as const).map((p) => {
-            const active = threshold01 === presetValues[p];
-            return (
-              <label
-                key={p}
-                className={cn(
-                  "cursor-pointer rounded-(--radius-sm) border px-2 py-1 text-xs transition-colors",
-                  active
-                    ? "border-(--accent) bg-(--accent) text-white"
-                    : "glass-subtle text-(--text-secondary) hover:text-(--text-primary)"
-                )}
-              >
-                <input
-                  type="radio"
-                  name="threshold-preset"
-                  value={p}
-                  checked={active}
-                  onChange={() => {
-                    setThreshold(presetValues[p]);
-                  }}
-                  className="sr-only"
-                />
-                {presetLabels[p]}
-              </label>
-            );
-          })}
-        </div>
-        <div className="mt-1 flex items-center gap-2">
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={threshold01}
-            onChange={(e) => {
-              setThreshold(parseFloat(e.target.value));
-            }}
-            aria-label="Confidence threshold value"
-            aria-valuemin={0}
-            aria-valuemax={1}
-            aria-valuenow={threshold01}
-            data-testid="threshold-slider"
-            className="w-full accent-(--accent)"
-          />
-          <span
-            data-testid="threshold-value"
-            className="w-10 shrink-0 text-right text-xs tabular-nums text-(--text-secondary)"
-          >
-            {threshold01.toFixed(2)}
-          </span>
-        </div>
-      </fieldset>
 
       {errorMessage !== null && errorMessage !== "" ? (
         <p
