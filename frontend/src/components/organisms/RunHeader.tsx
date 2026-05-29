@@ -54,8 +54,6 @@ export function RunHeader({ run, status, answerKind, className }: RunHeaderProps
         <MetaRow
           startedAt={run.startedAt}
           stoppedAt={run.stoppedAt}
-          outputFormat={run.outputFormat}
-          confidenceThreshold={run.confidenceThreshold}
           ownerUsername={run.ownerUsername}
           llmProvider={run.llmProvider}
         />

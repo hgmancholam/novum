@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import structlog
@@ -10,7 +11,9 @@ from tavily import AsyncTavilyClient
 from app.config import settings
 from app.domain.enums import SourceType
 from app.seams.source import SourceError, SourceResult
+from app.sources._cost import emit_source_cost
 from app.sources.base import BaseSource
+from app.sources.pricing import tavily_cost
 
 logger = structlog.get_logger(__name__)
 
@@ -64,7 +67,17 @@ class TavilySource(BaseSource):
                 kwargs["days"] = days
             if topic is not None:
                 kwargs["topic"] = topic
+            t0 = time.perf_counter()
             response: dict[str, Any] = await self._client.search(**kwargs)
+            latency_ms = int((time.perf_counter() - t0) * 1000)
+            units, unit_cost, _ = tavily_cost("advanced")
+            await emit_source_cost(
+                provider="tavily",
+                kind="search",
+                units=units,
+                unit_cost_usd=unit_cost,
+                latency_ms=latency_ms,
+            )
         except Exception as exc:
             logger.error("tavily_search_error", query=query, error=str(exc))
             raise SourceError(
@@ -116,8 +129,18 @@ class TavilySource(BaseSource):
         from app.sources.base import DEFAULT_MAX_CONTENT_CHARS
 
         try:
+            t0 = time.perf_counter()
             with anyio.fail_after(timeout):
                 response: dict[str, Any] = await self._client.extract(urls=[url])
+            latency_ms = int((time.perf_counter() - t0) * 1000)
+            units, unit_cost, _ = tavily_cost("advanced")
+            await emit_source_cost(
+                provider="tavily",
+                kind="fetch",
+                units=units,
+                unit_cost_usd=unit_cost,
+                latency_ms=latency_ms,
+            )
         except TimeoutError:
             logger.warning("tavily_fetch_full_timeout", url=url, timeout=timeout)
             return None

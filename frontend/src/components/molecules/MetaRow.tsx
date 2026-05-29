@@ -2,7 +2,7 @@
  * MetaRow molecule — inline metadata chips for a run.
  * Surfaced in `RunHeader` and `TrustSummary`.
  *
- * Renders: started-at relative · duration (when terminal) · format · threshold.
+ * Renders: owner · started-at relative · duration (when terminal) · provider.
  */
 
 import { formatRelative } from "@/lib/format";
@@ -13,8 +13,6 @@ import { formatElapsed } from "./ElapsedClock";
 export interface MetaRowProps {
   startedAt: string;
   stoppedAt: string | null;
-  outputFormat: "prose" | "structured";
-  confidenceThreshold: number;
   ownerUsername: string;
   llmProvider?: string;
   className?: string | undefined;
@@ -40,8 +38,6 @@ function Chip({
 export function MetaRow({
   startedAt,
   stoppedAt,
-  outputFormat,
-  confidenceThreshold,
   ownerUsername,
   llmProvider,
   className,
@@ -52,7 +48,6 @@ export function MetaRow({
           new Date(stoppedAt).getTime() - new Date(startedAt).getTime()
         )
       : null;
-  const formatLabel = outputFormat === "structured" ? "Structured" : "Prose";
   const providerLabel =
     llmProvider !== undefined && llmProvider in PROVIDER_LABELS
       ? PROVIDER_LABELS[llmProvider as LlmProviderName]
@@ -75,12 +70,6 @@ export function MetaRow({
           <span>{duration}</span>
         </Chip>
       ) : null}
-      <Chip title={`Output format: ${formatLabel}`}>
-        <span>{formatLabel}</span>
-      </Chip>
-      <Chip title="Confidence threshold (RF-12)">
-        <span>threshold {confidenceThreshold.toFixed(2)}</span>
-      </Chip>
       {providerLabel !== undefined ? (
         <Chip title="LLM provider used for this run">
           <span>{providerLabel}</span>

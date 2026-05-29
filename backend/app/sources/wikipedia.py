@@ -6,13 +6,17 @@ Uses the synchronous ``wikipediaapi`` package wrapped with
 
 from __future__ import annotations
 
+import time
+
 import anyio
 import structlog
 import wikipediaapi
 
 from app.domain.enums import SourceType
 from app.seams.source import SourceError, SourceResult
+from app.sources._cost import emit_source_cost
 from app.sources.base import BaseSource
+from app.sources.pricing import wikipedia_cost
 
 logger = structlog.get_logger(__name__)
 
@@ -47,6 +51,7 @@ class WikipediaSource(BaseSource):
         If the direct lookup misses, try a small set of title variations.
         """
         logger.debug("wikipedia_search_start", query=query, max_results=max_results)
+        t0 = time.perf_counter()
         try:
             page = await anyio.to_thread.run_sync(self._wiki.page, query)
             if not page.exists():
@@ -69,6 +74,15 @@ class WikipediaSource(BaseSource):
                 recoverable=True,
             ) from exc
 
+        latency_ms = int((time.perf_counter() - t0) * 1000)
+        units, unit_cost, _ = wikipedia_cost()
+        await emit_source_cost(
+            provider="wikipedia",
+            kind="search",
+            units=units,
+            unit_cost_usd=unit_cost,
+            latency_ms=latency_ms,
+        )
         logger.debug("wikipedia_search_complete", query=query, result_count=len(results))
         return results[:max_results]
 
@@ -127,8 +141,18 @@ class WikipediaSource(BaseSource):
             return None
 
         try:
+            t0 = time.perf_counter()
             with anyio.fail_after(timeout):
                 page = await anyio.to_thread.run_sync(self._wiki.page, title)
+            latency_ms = int((time.perf_counter() - t0) * 1000)
+            units, unit_cost, _ = wikipedia_cost()
+            await emit_source_cost(
+                provider="wikipedia",
+                kind="fetch",
+                units=units,
+                unit_cost_usd=unit_cost,
+                latency_ms=latency_ms,
+            )
         except TimeoutError:
             logger.warning("wikipedia_fetch_full_timeout", url=url, timeout=timeout)
             return None

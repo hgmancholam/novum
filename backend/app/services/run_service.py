@@ -88,12 +88,19 @@ class RunService:
 
     async def create_run(self, data: RunCreate, username: str) -> RunResponse:
         """Create a new research run."""
+        from app.config import settings
+
+        threshold = (
+            data.confidence_threshold
+            if data.confidence_threshold is not None
+            else settings.confidence_threshold_default
+        )
         run = Run(
             owner_username=username,
             question=data.question,
             user_context=data.user_context,
             output_format=data.output_format.value,
-            confidence_threshold=data.confidence_threshold,
+            confidence_threshold=threshold,
             llm_provider=data.llm_provider,
         )
         self.db.add(run)

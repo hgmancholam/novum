@@ -91,6 +91,9 @@ class Settings(BaseSettings):
     # Raises rate limits above the anonymous tier.
     openalex_api_key: SecretStr | None = None
 
+    # BRD-29: USD per Tavily credit (basic=1 credit, advanced=2 credits).
+    tavily_usd_per_credit: float = 0.008
+
     # WP-4: Embeddings (for saturation signal novelty computation)
     embedding_model: str = "openai/text-embedding-3-small"
     openai_api_key: SecretStr | None = None
@@ -136,6 +139,11 @@ class Settings(BaseSettings):
     # stop immediately with judge_confirmed to avoid unnecessary iterations.
     early_stop_min_agreement: float = 0.9
     early_stop_min_judge: float = 0.85
+
+    # Global confidence threshold (RF-12). Server-controlled — the UI no longer
+    # exposes a per-run picker. Applied to every new run unless the request body
+    # explicitly overrides it (kept optional for parity with stored history).
+    confidence_threshold_default: float = 0.5
 
     # IP-26 / BRD-26 Area 6: reflective meta-judge.
     # PR-2 (post-2026-05-29 eval): enabled by default. Unit tests that need

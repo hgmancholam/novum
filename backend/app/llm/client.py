@@ -13,6 +13,7 @@ fallback) with JudgeProviderDegradedEvent emission on degradation.
 from __future__ import annotations
 
 import contextvars
+import time
 from collections.abc import Awaitable, Callable
 from itertools import cycle
 from typing import Any, TypeVar, cast
@@ -236,6 +237,72 @@ def _has_system_message(messages: list[dict[str, str]]) -> bool:
     return any(m.get("role") == "system" for m in messages)
 
 
+async def _emit_llm_cost(
+    *,
+    provider: str,
+    model: str,
+    role: LLMRole,
+    result: Any,
+    latency_ms: int,
+) -> None:
+    """Best-effort cost ledger emit for one successful LLM round (BRD-29).
+
+    Reads usage from ``result._raw_response`` (set by instructor) or
+    ``result.usage`` (some providers). Falls back to a zero-cost,
+    ``static`` event so the run still has an audit trail entry. Any
+    exception is swallowed — instrumentation must never break a call.
+    """
+    try:
+        from app.domain.enums import EventType
+        from app.domain.events import CostIncurredEvent
+        from app.llm.context import current_emitter, current_task_name
+        from app.llm.pricing import compute_cost
+
+        emitter = current_emitter.get()
+        if emitter is None:
+            return
+
+        raw = getattr(result, "_raw_response", None) or getattr(result, "usage", None)
+        # Wrap a bare usage object so compute_cost sees `.usage` on it.
+        if raw is not None and getattr(raw, "usage", None) is None and getattr(
+            raw, "prompt_tokens", None
+        ) is not None:
+            class _UsageWrap:
+                def __init__(self, u: Any) -> None:
+                    self.usage = u
+
+            raw_for_pricing: Any = _UsageWrap(raw)
+        else:
+            raw_for_pricing = raw
+
+        cost_usd, pricing_source = compute_cost(model=model, raw_completion=raw_for_pricing)
+
+        usage = getattr(raw_for_pricing, "usage", None) if raw_for_pricing else None
+        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0) if usage else 0
+        completion_tokens = (
+            int(getattr(usage, "completion_tokens", 0) or 0) if usage else 0
+        )
+
+        await emitter(
+            CostIncurredEvent(
+                type=EventType.COST_INCURRED,
+                provider=provider,
+                kind="llm",
+                model=model,
+                task_name=current_task_name.get() or role.value,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                units=0,
+                unit_cost_usd=0.0,
+                cost_usd=cost_usd,
+                latency_ms=latency_ms,
+                pricing_source=pricing_source,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 — cost instrumentation must not fail callers
+        logger.warning("llm_cost_emit_failed", error=str(exc))
+
+
 class LLMClient:
     """Thin client exposing the single :meth:`call` entry point."""
 
@@ -265,6 +332,7 @@ class LLMClient:
             model = settings.anthropic_model_judge
             try:
                 logger.info("llm_judge_anthropic_attempt", model=model)
+                t0 = time.perf_counter()
                 result = await client.chat.completions.create(
                     model=model,
                     custom_llm_provider="anthropic",
@@ -277,6 +345,14 @@ class LLMClient:
                 )
                 logger.info("llm_judge_anthropic_success", model=model)
                 provider_health.clear("anthropic")
+                latency_ms = int((time.perf_counter() - t0) * 1000)
+                await _emit_llm_cost(
+                    provider="anthropic",
+                    model=model,
+                    role=LLMRole.JUDGE,
+                    result=result,
+                    latency_ms=latency_ms,
+                )
                 return cast("T", result), None
 
             except (AuthenticationError, APIConnectionError, RateLimitError) as exc:
@@ -322,7 +398,16 @@ class LLMClient:
                 max_retries=1,
             )
 
+        t0 = time.perf_counter()
         result = await _call_with_token_fallback(_judge_github)
+        latency_ms = int((time.perf_counter() - t0) * 1000)
+        await _emit_llm_cost(
+            provider="github",
+            model=model,
+            role=LLMRole.JUDGE,
+            result=result,
+            latency_ms=latency_ms,
+        )
 
         logger.info("llm_judge_github_success", model=model)
         return cast("T", result), degraded_event if not _judge_degraded else None
@@ -398,6 +483,7 @@ class LLMClient:
 
             provider = get_provider(active_provider)
             effective_max = max_tokens if max_tokens is not None else config.max_tokens
+            t0 = time.perf_counter()
             try:
                 result = await provider.complete(
                     role=role,
@@ -433,6 +519,14 @@ class LLMClient:
                 provider_health.record(active_provider, "upstream", str(exc))
                 raise
             provider_health.clear(active_provider)
+            latency_ms = int((time.perf_counter() - t0) * 1000)
+            await _emit_llm_cost(
+                provider=provider.name,
+                model=provider.model_for(role),
+                role=role,
+                result=result,
+                latency_ms=latency_ms,
+            )
             logger.info(
                 "llm_call_complete",
                 role=role.value,
@@ -495,7 +589,16 @@ class LLMClient:
                 max_retries=1,
             )
 
+        t0 = time.perf_counter()
         result = await _call_with_token_fallback(_make_call)
+        latency_ms = int((time.perf_counter() - t0) * 1000)
+        await _emit_llm_cost(
+            provider="github",
+            model=model,
+            role=role,
+            result=result,
+            latency_ms=latency_ms,
+        )
 
         logger.info(
             "llm_call_complete",

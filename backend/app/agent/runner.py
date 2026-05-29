@@ -427,10 +427,13 @@ class AgentRunner:
             # this run. Every ``llm.call`` inside the orchestrator picks
             # this value up via ``current_provider`` contextvar.
             from app.llm.client import current_provider
+            from app.llm.context import current_emitter, current_run_id
 
             current_provider.set(run.llm_provider)
+            current_run_id.set(run_id)
 
             emit = self._make_emit(run_id, event_service)
+            current_emitter.set(emit)
             orchestrator = AgentOrchestrator(state, emit, stopping_policy=None)
             self._orchestrators[run_id] = orchestrator
 

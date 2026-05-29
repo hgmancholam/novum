@@ -61,7 +61,7 @@ class RunState(BaseModel):
     user_context: str | None = None
     question_type: QuestionType | None = None
 
-    confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
+    confidence_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     output_format: str = "prose"
 
     # BRD-22 Phase 6: Instant cache requires owner to scope cache keys

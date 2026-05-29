@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -25,7 +26,9 @@ import structlog
 from app.config import settings
 from app.domain.enums import SourceType
 from app.seams.source import SourceError, SourceResult
+from app.sources._cost import emit_source_cost
 from app.sources.base import DEFAULT_MAX_CONTENT_CHARS, BaseSource
+from app.sources.pricing import free_source_cost
 
 logger = structlog.get_logger(__name__)
 
@@ -261,6 +264,14 @@ class OpenAlexSource(BaseSource):
         for rank, work in enumerate(works[:per_page]):
             relevance = max(0.1, 1.0 - rank * 0.05)
             results.append(self._work_to_result(work, relevance_score=relevance))
+        units, unit_cost, _ = free_source_cost()
+        await emit_source_cost(
+            provider="openalex",
+            kind="search",
+            units=units,
+            unit_cost_usd=unit_cost,
+            latency_ms=0,
+        )
         logger.debug(
             "openalex_search_complete", query=query, result_count=len(results)
         )
@@ -275,11 +286,21 @@ class OpenAlexSource(BaseSource):
         params: dict[str, Any] = {"select": _SELECT_FIELDS}
         params.update(self._polite_params())
         try:
+            t0 = time.perf_counter()
             with anyio.fail_after(timeout):
                 async with self._client() as client:
                     response = await client.get(
                         f"{_BASE_URL}/works/{work_id}", params=params
                     )
+            latency_ms = int((time.perf_counter() - t0) * 1000)
+            units, unit_cost, _ = free_source_cost()
+            await emit_source_cost(
+                provider="openalex",
+                kind="fetch",
+                units=units,
+                unit_cost_usd=unit_cost,
+                latency_ms=latency_ms,
+            )
         except TimeoutError:
             logger.warning("openalex_fetch_full_timeout", url=url, timeout=timeout)
             return None

@@ -90,7 +90,7 @@ class ComplexityHint(StrEnum):
 
 
 class EventType(StrEnum):
-    """All event types (39) for the event log."""
+    """All event types (45) for the event log."""
 
     # Question & Planning
     QUESTION_ASKED = "QuestionAsked"
@@ -169,6 +169,9 @@ class EventType(StrEnum):
 
     # Terminal
     STOPPED = "Stopped"
+
+    # BRD-29: per-call cost ledger (one event per LLM round / Source call).
+    COST_INCURRED = "CostIncurred"
 
 
 class EvidencePolarity(StrEnum):

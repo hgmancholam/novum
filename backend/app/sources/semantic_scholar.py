@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -22,7 +23,9 @@ import structlog
 from app.config import settings
 from app.domain.enums import SourceType
 from app.seams.source import SourceError, SourceResult
+from app.sources._cost import emit_source_cost
 from app.sources.base import DEFAULT_MAX_CONTENT_CHARS, BaseSource
+from app.sources.pricing import free_source_cost
 
 logger = structlog.get_logger(__name__)
 
@@ -222,6 +225,14 @@ class SemanticScholarSource(BaseSource):
         for rank, paper in enumerate(papers[:limit]):
             relevance = max(0.1, 1.0 - rank * 0.05)
             results.append(self._paper_to_result(paper, relevance_score=relevance))
+        units, unit_cost, _ = free_source_cost()
+        await emit_source_cost(
+            provider="semantic_scholar",
+            kind="search",
+            units=units,
+            unit_cost_usd=unit_cost,
+            latency_ms=0,
+        )
         logger.debug(
             "semantic_scholar_search_complete", query=query, result_count=len(results)
         )
@@ -234,12 +245,22 @@ class SemanticScholarSource(BaseSource):
         if not paper_id:
             return None
         try:
+            t0 = time.perf_counter()
             with anyio.fail_after(timeout):
                 async with self._client() as client:
                     response = await client.get(
                         f"{_BASE_URL}/paper/{paper_id}",
                         params={"fields": _SEARCH_FIELDS + ",tldr"},
                     )
+            latency_ms = int((time.perf_counter() - t0) * 1000)
+            units, unit_cost, _ = free_source_cost()
+            await emit_source_cost(
+                provider="semantic_scholar",
+                kind="fetch",
+                units=units,
+                unit_cost_usd=unit_cost,
+                latency_ms=latency_ms,
+            )
         except TimeoutError:
             logger.warning(
                 "semantic_scholar_fetch_full_timeout", url=url, timeout=timeout

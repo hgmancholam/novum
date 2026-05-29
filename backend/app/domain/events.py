@@ -713,12 +713,39 @@ class StoppedEvent(BaseEvent):
 
 
 # =============================================================================
+# Cost ledger (BRD-29)
+# =============================================================================
+
+
+class CostIncurredEvent(BaseEvent):
+    """One LLM round or Source call cost (BRD-29 §4.4).
+
+    Emitted by ``app.llm.client`` (kind=llm) and Source plugins
+    (kind=search|fetch). Non-forkable: cost events are observational and
+    do not represent user-meaningful decision points.
+    """
+
+    type: Literal[EventType.COST_INCURRED] = EventType.COST_INCURRED
+    provider: str  # anthropic | openai | google | github | tavily | wikipedia | ...
+    kind: Literal["llm", "search", "fetch"]
+    model: str | None = None
+    task_name: str | None = None  # FSM state (PLANNING / SEARCHING / JUDGING / ...)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    units: int = 0  # Source-only (credits / requests); 0 for llm
+    unit_cost_usd: float = 0.0
+    cost_usd: float
+    latency_ms: int
+    pricing_source: Literal["litellm", "fallback", "static"]
+
+
+# =============================================================================
 # Discriminated Union
 # =============================================================================
 
 
 Event = Annotated[
-    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | HypothesesGeneratedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | DeepFetchPerformedEvent | QueryReformulatedEvent | EchoChamberDetectedEvent | RouteSelectedEvent | PlanGapsDetectedEvent | NoProgressDetectedEvent | LaneEscalatedEvent | AgentThoughtEvent | AgentActionEvent | AgentObservationEvent | HypothesisEvaluatedEvent | HistorySummarizedEvent | VerificationQuestionsGeneratedEvent | CoveContradictionDetectedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | DraftSynthesizedEvent | MetaStopVerdictEvent | AdversarialObjectionsGeneratedEvent | DirectedSubclaimsFromObjectionsEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent,
+    QuestionAskedEvent | QuestionNormalizedEvent | QuestionClassifiedEvent | PlanCreatedEvent | PlanCritiquedEvent | PlanRevisedEvent | HypothesesGeneratedEvent | ToolCalledEvent | EvidenceAddedEvent | ClaimCoveredEvent | ClaimUncoverableEvent | SourceFailedEvent | DeepFetchPerformedEvent | QueryReformulatedEvent | EchoChamberDetectedEvent | RouteSelectedEvent | PlanGapsDetectedEvent | NoProgressDetectedEvent | LaneEscalatedEvent | AgentThoughtEvent | AgentActionEvent | AgentObservationEvent | HypothesisEvaluatedEvent | HistorySummarizedEvent | VerificationQuestionsGeneratedEvent | CoveContradictionDetectedEvent | AmbiguityDetectedEvent | ContradictionDetectedEvent | ContradictionResolvedEvent | UserContextChallengedEvent | PriorRunHintReplayedEvent | DraftSynthesizedEvent | MetaStopVerdictEvent | AdversarialObjectionsGeneratedEvent | DirectedSubclaimsFromObjectionsEvent | JudgeRuledEvent | ConfidenceMismatchEvent | SaturationDetectedEvent | JudgeProviderDegradedEvent | AgentErroredEvent | ResumedAfterErrorEvent | ResumedAfterCancelEvent | StoppedEvent | CostIncurredEvent,
     Field(discriminator="type"),
 ]
 
@@ -768,6 +795,7 @@ EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
     EventType.RESUMED_AFTER_ERROR: ResumedAfterErrorEvent,
     EventType.RESUMED_AFTER_CANCEL: ResumedAfterCancelEvent,
     EventType.STOPPED: StoppedEvent,
+    EventType.COST_INCURRED: CostIncurredEvent,
 }
 
 

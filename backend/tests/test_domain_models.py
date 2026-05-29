@@ -19,7 +19,9 @@ def test_run_create_defaults() -> None:
     run = RunCreate(question="What is the capital of France?")
     assert run.user_context is None
     assert run.output_format == OutputFormat.PROSE
-    assert run.confidence_threshold == 0.7
+    # RF-12: threshold is server-controlled; absent on the wire means
+    # "use settings.confidence_threshold_default".
+    assert run.confidence_threshold is None
 
 
 def test_run_create_question_min_length() -> None:
