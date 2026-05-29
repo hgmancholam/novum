@@ -2,14 +2,15 @@
  * AnswerToolbar molecule — top-right controls inside the run-answer card.
  *
  * Surfaces:
- *   - Copy plain text (lucide `Copy`)
- *   - Copy as Markdown (lucide `Code`, the "</>" pattern)
+ *   - Copy (lucide `Copy`) — copies the currently displayed content. In prose
+ *     mode that is the plain prose text; in structured mode it is the
+ *     markdown serialization of the structured answer.
  *   - Prose / Structured view toggle (only when both renderings are available)
  *
- * Pure presentational: parent passes the raw payloads + the current view mode.
+ * Pure presentational: parent passes the active content + the current view mode.
  */
 
-import { Check, Code, Copy } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { cn } from "@/lib/cn";
@@ -19,10 +20,8 @@ import { useToastStore } from "@/stores/toastStore";
 export type AnswerViewMode = "prose" | "structured";
 
 export interface AnswerToolbarProps {
-  /** Raw markdown source (always the authoritative copy). */
-  markdownSource: string;
-  /** Plain-text rendering for the "Copy" button. Defaults to `markdownSource`. */
-  plainText?: string | undefined;
+  /** Active content to copy — matches what the user currently sees. */
+  content: string;
   /** Current view mode — controls which toggle button is `aria-pressed`. */
   viewMode: AnswerViewMode;
   /** Called when the user picks a different view mode. When omitted, the toggle is hidden. */
@@ -68,54 +67,34 @@ function IconButton({
 }
 
 export function AnswerToolbar({
-  markdownSource,
-  plainText,
+  content,
   viewMode,
   onViewModeChange,
   showToggle = true,
   className,
 }: AnswerToolbarProps) {
   const push = useToastStore((s) => s.push);
-  const [copiedText, setCopiedText] = useState(false);
-  const [copiedMarkdown, setCopiedMarkdown] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const handleCopy = useCallback(
-    async (
-      payload: string,
-      successMsg: string,
-      setLocal: (v: boolean) => void,
-    ) => {
-      try {
-        await copyToClipboard(payload);
-        setLocal(true);
-        push({ kind: "success", message: successMsg });
-        setTimeout(() => {
-          setLocal(false);
-        }, COPY_FEEDBACK_MS);
-      } catch {
-        push({ kind: "error", message: "Could not copy to clipboard" });
-      }
-    },
-    [push],
-  );
-
-  const handleCopyText = useCallback(() => {
-    void handleCopy(plainText ?? markdownSource, "Answer copied", setCopiedText);
-  }, [handleCopy, markdownSource, plainText]);
-
-  const handleCopyMarkdown = useCallback(() => {
-    void handleCopy(markdownSource, "Markdown copied", setCopiedMarkdown);
-  }, [handleCopy, markdownSource]);
+  const handleCopy = useCallback(async () => {
+    try {
+      await copyToClipboard(content);
+      setCopied(true);
+      push({ kind: "success", message: "Answer copied" });
+      setTimeout(() => {
+        setCopied(false);
+      }, COPY_FEEDBACK_MS);
+    } catch {
+      push({ kind: "error", message: "Could not copy to clipboard" });
+    }
+  }, [content, push]);
 
   const toggleVisible = showToggle && onViewModeChange !== undefined;
 
   return (
     <div
       data-testid="answer-toolbar"
-      className={cn(
-        "flex items-center gap-2",
-        className,
-      )}
+      className={cn("flex items-center gap-2", className)}
     >
       {toggleVisible ? (
         <div
@@ -152,15 +131,9 @@ export function AnswerToolbar({
       ) : null}
       <IconButton
         label="Copy answer"
-        onClick={handleCopyText}
-        copied={copiedText}
+        onClick={handleCopy}
+        copied={copied}
         Icon={Copy}
-      />
-      <IconButton
-        label="Copy as Markdown"
-        onClick={handleCopyMarkdown}
-        copied={copiedMarkdown}
-        Icon={Code}
       />
     </div>
   );

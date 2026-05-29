@@ -140,8 +140,6 @@ export function CenterPanelView({
   );
 
   const currentViewMode: AnswerViewMode = isStructured ? "structured" : "prose";
-  const markdownSource =
-    answerStructured ?? answerProse ?? activeContent ?? "";
 
   return (
     <div
@@ -193,8 +191,7 @@ export function CenterPanelView({
               <>
                 <div className="flex justify-end">
                   <AnswerToolbar
-                    markdownSource={markdownSource}
-                    plainText={answerProse ?? markdownSource}
+                    content={activeContent}
                     viewMode={currentViewMode}
                     onViewModeChange={
                       onViewFormatChange !== undefined

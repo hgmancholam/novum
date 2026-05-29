@@ -23,23 +23,21 @@ describe("AnswerToolbar", () => {
     useToastStore.getState().reset();
   });
 
-  it("renders both copy buttons", () => {
-    render(
-      <AnswerToolbar markdownSource="# hi" viewMode="prose" />
-    );
+  it("renders a single copy button", () => {
+    render(<AnswerToolbar content="hello" viewMode="prose" />);
     expect(screen.getByRole("button", { name: /copy answer/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /copy as markdown/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /copy as markdown/i })).toBeNull();
   });
 
   it("hides the toggle when no onViewModeChange handler is provided", () => {
-    render(<AnswerToolbar markdownSource="# hi" viewMode="prose" />);
+    render(<AnswerToolbar content="hello" viewMode="prose" />);
     expect(screen.queryByRole("group", { name: /answer view format/i })).toBeNull();
   });
 
   it("hides the toggle when showToggle is false", () => {
     render(
       <AnswerToolbar
-        markdownSource="# hi"
+        content="hello"
         viewMode="prose"
         onViewModeChange={vi.fn()}
         showToggle={false}
@@ -52,7 +50,7 @@ describe("AnswerToolbar", () => {
     const handle = vi.fn();
     render(
       <AnswerToolbar
-        markdownSource="# hi"
+        content="hello"
         viewMode="prose"
         onViewModeChange={handle}
       />,
@@ -61,36 +59,17 @@ describe("AnswerToolbar", () => {
     expect(handle).toHaveBeenCalledWith("structured");
   });
 
-  it("copies plain text (fallback to markdownSource when plainText is omitted)", async () => {
-    render(<AnswerToolbar markdownSource="# hi" viewMode="prose" />);
+  it("copies the active content to the clipboard", async () => {
+    render(<AnswerToolbar content="# hi" viewMode="prose" />);
     fireEvent.click(screen.getByRole("button", { name: /copy answer/i }));
     await Promise.resolve();
     expect(writeText).toHaveBeenCalledWith("# hi");
   });
 
-  it("prefers plainText over markdownSource for the plain copy", async () => {
-    render(
-      <AnswerToolbar
-        markdownSource="# hi"
-        plainText="hi plain"
-        viewMode="prose"
-      />,
-    );
+  it("copies whatever content prop is provided (structured-mode markdown)", async () => {
+    render(<AnswerToolbar content={"## Findings\n- a\n- b"} viewMode="structured" />);
     fireEvent.click(screen.getByRole("button", { name: /copy answer/i }));
     await Promise.resolve();
-    expect(writeText).toHaveBeenCalledWith("hi plain");
-  });
-
-  it("copies the markdown source for the markdown button", async () => {
-    render(
-      <AnswerToolbar
-        markdownSource="# raw md"
-        plainText="raw md"
-        viewMode="prose"
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /copy as markdown/i }));
-    await Promise.resolve();
-    expect(writeText).toHaveBeenCalledWith("# raw md");
+    expect(writeText).toHaveBeenCalledWith("## Findings\n- a\n- b");
   });
 });
