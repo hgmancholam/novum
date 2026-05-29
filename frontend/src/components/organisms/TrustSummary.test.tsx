@@ -25,10 +25,9 @@ function makeRun(overrides: Partial<Run> = {}): Run {
 }
 
 describe("TrustSummary", () => {
-  it("renders the outcome title and the threshold", () => {
+  it("renders the outcome title", () => {
     render(<TrustSummary run={makeRun()} />);
     expect(screen.getByText("Research Limit Reached")).toBeInTheDocument();
-    expect(screen.getByText("0.70")).toBeInTheDocument();
   });
 
   it("renders em-dash placeholders for event-derived metrics", () => {

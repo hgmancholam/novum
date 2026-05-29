@@ -242,9 +242,6 @@ export function TrustSummary({
         <Row label="Outcome" hint="One of 7 enum stop_reason values (RF-02)">
           {reasonTitle}
         </Row>
-        <Row label="Threshold" hint="User-selected confidence threshold (RF-12)">
-          {run.confidenceThreshold.toFixed(2)}
-        </Row>
         <Row
           label="Confidence"
           hint="final_confidence = min(structural, judge) — RF-12"

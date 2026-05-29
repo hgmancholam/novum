@@ -19,7 +19,9 @@ class RunCreate(BaseModel):
     question: str = Field(..., min_length=10, max_length=2000)
     user_context: str | None = Field(None, max_length=1000)  # RF-07
     output_format: OutputFormat = OutputFormat.PROSE
-    confidence_threshold: float = Field(0.7, ge=0.0, le=1.0)  # RF-12
+    # RF-12: server-controlled (see settings.confidence_threshold_default).
+    # Kept optional so legacy clients that still send it don't 422.
+    confidence_threshold: float | None = Field(None, ge=0.0, le=1.0)
     llm_provider: str = Field(
         "github",
         description="LLM provider for this run; immutable for its lifetime.",
