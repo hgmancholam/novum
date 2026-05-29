@@ -171,13 +171,27 @@ function BlockTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Render a short inline string as markdown (bold/italic/links/code) without wrapping <p>. */
+function InlineMarkdown({ text }: { text: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => <>{children}</>,
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
+}
+
 function Paragraph({ block }: { block: ParagraphBlock }) {
   return (
     <p
       data-testid="block-paragraph"
       className="text-sm leading-relaxed text-(--text-primary)"
     >
-      {block.text}
+      <InlineMarkdown text={block.text} />
     </p>
   );
 }
@@ -198,10 +212,10 @@ function KeyValueTable({ block }: { block: KeyValueBlock }) {
                   scope="row"
                   className="w-1/3 py-2 pr-4 text-left align-top font-medium text-(--text-muted)"
                 >
-                  {row.key}
+                  <InlineMarkdown text={row.key} />
                 </th>
                 <td className="py-2 align-top text-(--text-primary)">
-                  {row.value}
+                  <InlineMarkdown text={row.value} />
                 </td>
               </tr>
             ))}
@@ -225,7 +239,9 @@ function Steps({ block }: { block: StepsBlock }) {
             >
               {idx + 1}
             </span>
-            <span className="leading-relaxed">{item}</span>
+            <span className="leading-relaxed">
+              <InlineMarkdown text={item} />
+            </span>
           </li>
         ))}
       </ol>
@@ -244,7 +260,9 @@ function KeyPoints({ block }: { block: KeyPointsBlock }) {
               aria-hidden="true"
               className="mt-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-(--accent-primary)"
             />
-            <span className="leading-relaxed">{item}</span>
+            <span className="leading-relaxed">
+              <InlineMarkdown text={item} />
+            </span>
           </li>
         ))}
       </ul>
