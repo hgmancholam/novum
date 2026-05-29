@@ -46,3 +46,8 @@ export type { RunFeedProps } from "./RunFeed";
 // BRD-27 / IP-27
 export { ServiceStatusBar } from "./ServiceStatusBar";
 export type { ServiceStatusBarProps } from "./ServiceStatusBar";
+// Cost analytics
+export { CostDashboard } from "./CostDashboard";
+export type { CostDashboardProps } from "./CostDashboard";
+export { CostAnalyticsTable } from "./CostAnalyticsTable";
+export type { CostAnalyticsTableProps } from "./CostAnalyticsTable";

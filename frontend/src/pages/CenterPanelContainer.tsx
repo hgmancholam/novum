@@ -27,7 +27,6 @@ import { CenterPanel } from "@/components/templates";
 import { useRun } from "@/hooks/useRun";
 import { useCreateRun } from "@/hooks/useCreateRun";
 import { useRunStream } from "@/hooks/useRunStream";
-import { useSelectionStore } from "@/stores/selectionStore";
 import { FORKABLE_EVENTS, type AnswerKind, type EventType, type StructuredAnswerData, type RunStreamEvent } from "@/types/events";
 
 const FORKABLE_SET: ReadonlySet<string> = new Set<string>(FORKABLE_EVENTS);

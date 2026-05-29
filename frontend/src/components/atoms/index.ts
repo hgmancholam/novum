@@ -28,6 +28,8 @@ export { EventPayloadViewer } from "./EventPayloadViewer";
 export type { EventPayloadViewerProps } from "./EventPayloadViewer";
 export { JumpToLatestPill } from "./JumpToLatestPill";
 export type { JumpToLatestPillProps } from "./JumpToLatestPill";
+export { KpiCard } from "./KpiCard";
+export type { KpiCardProps } from "./KpiCard";
 export { ForkableEventRow } from "./ForkableEventRow";
 export type { ForkableEventRowProps } from "./ForkableEventRow";
 // IP-24 Phase 1
