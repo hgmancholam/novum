@@ -286,16 +286,17 @@ class OpenAlexSource(BaseSource):
         """Smoke check: root endpoint returns API version info with no quota cost.
 
         Uses a 1.5 s httpx timeout so it always resolves inside
-        the probe window (``PROBE_TIMEOUT_S = 2.0 s``).
+        the probe window (``PROBE_TIMEOUT_S = 2.0 s``). A 429 is propagated
+        so the probe runner classifies it as ``DEGRADED`` (yellow) rather
+        than swallowing it as ``DOWN``.
         """
-        try:
-            async with httpx.AsyncClient(
-                timeout=1.5, headers=self._headers()
-            ) as client:
-                response = await client.get(_BASE_URL)
-            return response.status_code == 200
-        except Exception:
-            return False
+        async with httpx.AsyncClient(
+            timeout=1.5, headers=self._headers()
+        ) as client:
+            response = await client.get(_BASE_URL)
+        if response.status_code == 429:
+            response.raise_for_status()
+        return response.status_code == 200
 
     @staticmethod
     def _extract_work_id(url: str) -> str | None:

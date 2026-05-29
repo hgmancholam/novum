@@ -276,16 +276,15 @@ class SemanticScholarSource(BaseSource):
 
         A direct paper lookup is one cheap request, not a paginated search query,
         which reduces the risk of triggering rate limits during health probes.
-        A 429 (rate-limited) is treated as a live service — the API is reachable
-        and authenticating; the probe just hit a per-IP quota window.
+        A 429 is propagated as ``httpx.HTTPStatusError`` so the probe runner
+        maps it to ``RateLimitError`` -> ``DEGRADED`` (yellow), not ``DOWN``.
         """
-        try:
-            url = "https://api.semanticscholar.org/graph/v1/paper/arXiv:1706.03762"
-            headers = self._headers()
-            if self._api_key:
-                headers["x-api-key"] = self._api_key
-            async with httpx.AsyncClient(timeout=1.5, headers=headers) as client:
-                response = await client.get(url, params={"fields": "title"})
-            return response.status_code in (200, 429)
-        except Exception:
-            return False
+        url = "https://api.semanticscholar.org/graph/v1/paper/arXiv:1706.03762"
+        headers = self._headers()
+        if self._api_key:
+            headers["x-api-key"] = self._api_key
+        async with httpx.AsyncClient(timeout=1.5, headers=headers) as client:
+            response = await client.get(url, params={"fields": "title"})
+        if response.status_code == 429:
+            response.raise_for_status()  # -> propagates as 429 to probe layer
+        return response.status_code == 200
