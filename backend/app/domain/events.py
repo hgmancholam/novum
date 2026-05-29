@@ -768,6 +768,8 @@ EVENT_TYPE_MAP: dict[str, type[BaseEvent]] = {
 
 # Forkable events (RF-03): decision points a user can branch from.
 FORKABLE_EVENTS: set[EventType] = {
+    EventType.QUESTION_ASKED,
+    EventType.QUESTION_NORMALIZED,
     EventType.PLAN_CREATED,
     EventType.AMBIGUITY_DETECTED,
     EventType.CONTRADICTION_DETECTED,

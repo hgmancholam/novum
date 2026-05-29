@@ -496,6 +496,8 @@ def test_event_type_enum_has_22_values() -> None:
 def test_forkable_events_exact_membership() -> None:
     """AC-05: ``FORKABLE_EVENTS`` is exactly the documented set."""
     assert {
+        EventType.QUESTION_ASKED,
+        EventType.QUESTION_NORMALIZED,
         EventType.PLAN_CREATED,
         EventType.AMBIGUITY_DETECTED,
         EventType.CONTRADICTION_DETECTED,

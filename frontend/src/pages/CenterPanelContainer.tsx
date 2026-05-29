@@ -25,6 +25,7 @@ import {
 } from "@/components/organisms";
 import { CenterPanel } from "@/components/templates";
 import { useRun } from "@/hooks/useRun";
+import { useCreateRun } from "@/hooks/useCreateRun";
 import { useRunStream } from "@/hooks/useRunStream";
 import { FORKABLE_EVENTS, type AnswerKind, type EventType, type StructuredAnswerData, type RunStreamEvent } from "@/types/events";
 
@@ -65,6 +66,8 @@ export function CenterPanelContainer() {
   } = useRun(runId);
 
   const { events } = useRunStream({ runId });
+
+  const { create: createRunMutation, isPending: isRestarting } = useCreateRun();
 
   const [isForkModalOpen, setIsForkModalOpen] = useState(false);
   const [pendingForkEventId, setPendingForkEventId] = useState<string | null>(
@@ -353,6 +356,19 @@ export function CenterPanelContainer() {
     setPendingForkEventId(null);
   };
 
+  const handleRestart = async (): Promise<void> => {
+    if (run === undefined) {
+      return;
+    }
+    const created = await createRunMutation({
+      question: run.question,
+      user_context: run.userContext,
+      output_format: run.outputFormat,
+      confidence_threshold: run.confidenceThreshold,
+    });
+    void navigate(`/runs/${created.id}`);
+  };
+
   if (isNotFound) {
     return <CenterPanel body={<NotFoundCard runId={runId} />} />;
   }
@@ -403,6 +419,10 @@ export function CenterPanelContainer() {
             }}
             isForking={isForking}
             forkableEventCount={forkableEvents.length}
+            onRestart={() => {
+              void handleRestart();
+            }}
+            isRestarting={isRestarting}
             showPostResumeNotice={showPostResumeNotice}
           />
         }

@@ -4,11 +4,29 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-28
-**Total Decisions:** 76
+**Total Decisions:** 77
 
 ---
 
 ## Recent Decisions
+
+## D-IP27: IP-27 Service Health Observability footer (2026-05-28)
+**Date:** 2026-05-28
+**Commit:** _local, pending push_
+**Scope:** BRD-27 — slim footer bar showing live status of every upstream service (LLMs, search, knowledge, storage) with 60 s silent polling.
+**Implementation:**
+- **Backend:** new `app/health/` package (models, probes, registry) + `GET /api/health/services` endpoint. Per-service probe taxonomy maps exceptions (auth/rate-limit/unreachable/upstream/disabled/no_key) to `ServiceStatus`. Registry caches the last snapshot for 30 s and **single-flights** concurrent refreshes via an `asyncio.Future` so concurrent requests share one round of probes.
+- **V1 doctrine encoded:** OpenAI / Gemini / GitHub Models probes are static `DisabledError` runners; promotion requires a future BRD. Anthropic probe is env-var-presence only (no network call) — production usage during runs is the real signal.
+- **Postgres probe:** `SELECT 1` with 0.5 s `asyncio.wait_for` timeout via `async_session_maker`.
+- **Frontend:** atom `ServiceStatusDot` (6 px, `motion/react`, pulse only when `degraded` and `prefers-reduced-motion` is off), molecule `ServiceStatusPill` (dot + name + `aria-label`+`title` microcopy matching `"{name}: {status}[, {latency}ms]"`), hook `useServiceHealth` (TanStack Query, 60 s `refetchInterval`, 30 s `staleTime`, `keepPreviousData`, `retry:1`), organism `ServiceStatusBar` (footer, grouped llm → search → knowledge → storage, 9-dot skeleton on first load).
+- **Mount point:** rendered inside `AppBoot` in `main.tsx` as `<div className="fixed bottom-0 left-0 right-0 z-40">`. Less invasive than refactoring `AppShell` (`h-[100dvh]`) and matches the existing pattern of mounting `UsernameModalContainer` + `Toaster` at the root.
+- **Type contract:** `frontend/src/types/health.ts` is hand-mirrored from `app/health/models.py` because `scripts/export_types.py` is scoped to event types.
+**Files:** `backend/app/health/{__init__,models,probes,registry}.py` (NEW), `backend/app/routes/health.py` (+ `services_router`), `backend/app/routes/__init__.py`, `backend/tests/test_health_{probes,registry,route}.py` (NEW), `frontend/src/types/health.ts` (NEW), `frontend/src/lib/api.ts` (+ `getServiceHealth`), `frontend/src/hooks/useServiceHealth.{ts,test.tsx}` (NEW), `frontend/src/components/atoms/ServiceStatusDot.{tsx,test.tsx}` (NEW), `frontend/src/components/molecules/ServiceStatusPill.{tsx,test.tsx}` (NEW), `frontend/src/components/organisms/ServiceStatusBar.{tsx,test.tsx}` (NEW), `frontend/src/main.tsx`.
+**Tests:** 36 backend (probes 17 + registry 16 + route 3) — green in 3.0 s. 22 frontend (atom 7 + molecule 7 + organism 5 + hook 3) — green.
+**A11y:** axe-clean. Lesson: `role="status"` is invalid on `<footer>`; the `aria-live="polite"` attribute alone provides live-region semantics (recorded in lessons).
+**Reach:** Local only. Not pushed, not deployed.
+
+---
 
 ## D-IP26-SLICE3: IP-26 Slice 3 — directed sub-claims + DEEP after_cove hook + FE viz (2026-05-28)
 **Date:** 2026-05-28

@@ -27,6 +27,8 @@ export interface ActionBarProps {
   isResuming?: boolean | undefined;
   onFork?: (() => void) | undefined;
   isForking?: boolean | undefined;
+  onRestart?: (() => void) | undefined;
+  isRestarting?: boolean | undefined;
   /** Number of forkable events available in the current run (IP-15). */
   forkableEventCount?: number | undefined;
   /** Render the post-resume notice (IP-15) — set after a successful resume
@@ -53,6 +55,8 @@ export function ActionBar({
   isResuming = false,
   onFork,
   isForking = false,
+  onRestart,
+  isRestarting = false,
   forkableEventCount = 0,
   showPostResumeNotice = false,
   className,
@@ -64,6 +68,7 @@ export function ActionBar({
       ? RESUMABLE.has(stopReason)
       : false;
   const forkEnabled = forkableEventCount > 0 && onFork !== undefined;
+  const restartEnabled = !isRunning && onRestart !== undefined;
 
   return (
     <div
@@ -100,6 +105,20 @@ export function ActionBar({
               data-testid="resume-button"
             >
               Resume
+            </Button>
+          ) : null}
+          {restartEnabled ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              type="button"
+              onClick={onRestart}
+              loading={isRestarting}
+              title="Start a fresh run with the same question"
+              aria-label="Restart run"
+              data-testid="restart-button"
+            >
+              Restart
             </Button>
           ) : null}
           <Button

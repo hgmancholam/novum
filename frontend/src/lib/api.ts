@@ -6,6 +6,7 @@
 import { API_URL } from "./constants";
 import { getAuthHeaders } from "./auth";
 import type { LlmProviderName } from "./providers";
+import type { HealthSnapshot } from "@/types/health";
 
 export interface ApiError {
   code: string;
@@ -264,4 +265,11 @@ export async function forkRun(
       headers: { ...getAuthHeaders(), ...init?.headers },
     }
   );
+}
+
+/** GET /api/health/services — public snapshot of upstream service health (BRD-27). */
+export async function getServiceHealth(
+  init?: RequestInit
+): Promise<HealthSnapshot> {
+  return api.get<HealthSnapshot>("/api/health/services", init);
 }

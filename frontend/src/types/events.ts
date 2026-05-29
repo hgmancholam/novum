@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-28T21:55:30.512543+00:00
+// Generated: 2026-05-29T02:35:28.839365+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -128,7 +128,7 @@ export interface RunStreamEvent {
 // Forkable events (RF-03): user-selectable branch points.
 // ---------------------------------------------------------------------------
 
-export const FORKABLE_EVENTS: readonly EventType[] = ["PlanCreated", "AmbiguityDetected", "ContradictionDetected", "JudgeRuled", "Stopped"] as const;
+export const FORKABLE_EVENTS: readonly EventType[] = ["QuestionAsked", "QuestionNormalized", "PlanCreated", "AmbiguityDetected", "ContradictionDetected", "JudgeRuled", "Stopped"] as const;
 
 // ---------------------------------------------------------------------------
 // Structured answer payload (RF-10, BRD-16)

@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-28
-**Total Lessons:** 30
+**Total Lessons:** 31
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,11 @@
 ---
 
 ## Recent Lessons
+
+## L-031: `role="status"` is not allowed on `<footer>` (axe `aria-allowed-role`) (2026-05-28, IP-27)
+**Context:** `ServiceStatusBar` is a `<footer>`. Adding `role="status"` to make it a live region tripped axe (`aria-allowed-role`): the implicit role of `<footer>` is `contentinfo`, and `status` is not in its allowed-role list.
+**Fix:** drop `role="status"`. The `aria-live="polite"` attribute alone establishes live-region semantics without overriding the element's implicit role. Add `aria-label` for an accessible name.
+**Rule of thumb:** before adding `role=` to a semantic landmark element (`<header>`, `<footer>`, `<nav>`, `<main>`, `<aside>`), check whether ARIA actually allows that role on that element. For live regions on a landmark, prefer `aria-live` over an explicit `role`.
 
 ## L-030: "Test hang" is often a real network call under tenacity backoff (2026-05-28, IP-26)
 **Context:** `tests/test_agent_orchestrator.py` looked like it hung at session-fixture setup. The summary inherited the diagnosis "fixture hang" from a previous session. Reality: the orchestrator drives `embed()` (via saturation signal + planner similarity pass), which dials litellm → OpenAI 401 (stale `.env.test` key) → GitHub token-pool fallback → rate-limited → tenacity retries with exponential backoff. Looked like a hang, was actually slow real I/O.

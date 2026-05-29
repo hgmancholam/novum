@@ -4,7 +4,7 @@
 > Updated automatically by agents after each task.
 
 **Last Updated:** 2026-05-28
-**Updated By:** Orchestrator Agent (post IP-26 slice 3 committed `edb0da8` + embed-hang fix `10a68cd`)
+**Updated By:** Orchestrator Agent (post IP-27 service-health footer, local)
 
 ---
 
@@ -48,6 +48,7 @@
 | IP-15 | BRD-15 Fork & Resume from Events | 2026-05-26 | Completed | [IP-15](../../../docs/implementation-phase/implementation-plans/IP-15-fork-resume.md) |
 | IP-23 | BRD-23 Research-Quality Improvements (Temporal · Authority · Deep-Fetch · Query Hygiene) | 2026-05-27 | Draft (F2) | [IP-23](../../../docs/implementation-phase/implementation-plans/IP-23-research-quality-improvements.md) |
 | IP-26 | BRD-26 Agentic Stopping & Meta-Judge | 2026-05-28 | Slices 1–3 committed (local) — slice 3b' deferred (cost-gate) | [IP-26](../../../docs/implementation-phase/implementation-plans/IP-26-agentic-stopping-meta-judge.md) |
+| IP-27 | BRD-27 Service Health Observability footer | 2026-05-28 | Implemented (local) | [IP-27](../../../docs/implementation-phase/implementation-plans/IP-27-service-health-observability.md) |
 
 ---
 
@@ -78,6 +79,7 @@
 | BRD-22 | Complexity-Aware Planning + Expected Experts + Instant Cache | 2026-05-27 | Implemented | [BRD-22](../../../docs/implementation-phase/brds/BRD-22-complexity-aware-planning-and-experts.md) |
 | BRD-23 | Research-Quality Improvements (Temporal · Authority · Deep-Fetch · Query Hygiene) | 2026-05-27 | Draft (F1) | [BRD-23](../../../docs/implementation-phase/brds/BRD-23-research-quality-improvements.md) |
 | BRD-26 | Agentic Stopping & Meta-Judge | 2026-05-28 | Implemented (slices 1–3, local) | [BRD-26](../../../docs/implementation-phase/brds/BRD-26-agentic-stopping-meta-judge.md) |
+| BRD-27 | Service Health Observability footer | 2026-05-28 | Implemented (local) | [BRD-27](../../../docs/implementation-phase/brds/BRD-27-service-health-observability.md) |
 
 ---
 

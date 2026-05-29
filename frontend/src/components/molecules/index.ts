@@ -4,6 +4,8 @@ export { StatusBadge } from "./StatusBadge";
 export type { StatusBadgeProps, RunStatus } from "./StatusBadge";
 export { StatusDot } from "./StatusDot";
 export type { StatusDotProps } from "./StatusDot";
+export { ServiceStatusPill } from "./ServiceStatusPill";
+export type { ServiceStatusPillProps } from "./ServiceStatusPill";
 export { IdentitySlot } from "./IdentitySlot";
 export { ElapsedClock, formatElapsed } from "./ElapsedClock";
 export type { ElapsedClockProps } from "./ElapsedClock";

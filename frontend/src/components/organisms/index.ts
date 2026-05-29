@@ -43,3 +43,6 @@ export type { SourcesCardProps, SourceEntry } from "./SourcesCard";
 // IP-24 Phase 3
 export { RunFeed } from "./RunFeed";
 export type { RunFeedProps } from "./RunFeed";
+// BRD-27 / IP-27
+export { ServiceStatusBar } from "./ServiceStatusBar";
+export type { ServiceStatusBarProps } from "./ServiceStatusBar";
