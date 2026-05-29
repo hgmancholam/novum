@@ -36,22 +36,34 @@ class TavilySource(BaseSource):
         max_results: int = 5,
         *,
         days: int | None = None,
+        topic: str | None = None,
     ) -> list[SourceResult]:
         """Search the web using Tavily's advanced search depth.
 
         BRD-23 WP-1: optional ``days`` recency filter forwarded to Tavily.
+        ``topic`` accepts ``"news"`` (paid tier) for temporal queries or
+        ``"general"`` (default). Pass ``None`` to omit the parameter.
+        Paid tier raises max_results ceiling to 20.
         """
-        logger.debug("tavily_search_start", query=query, max_results=max_results, days=days)
+        logger.debug(
+            "tavily_search_start",
+            query=query,
+            max_results=max_results,
+            days=days,
+            topic=topic,
+        )
         try:
             kwargs: dict[str, Any] = dict(
                 query=query,
-                max_results=max(1, min(max_results, 10)),
+                max_results=max(1, min(max_results, 20)),
                 include_answer=False,
                 include_raw_content=True,
                 search_depth="advanced",
             )
             if days is not None:
                 kwargs["days"] = days
+            if topic is not None:
+                kwargs["topic"] = topic
             response: dict[str, Any] = await self._client.search(**kwargs)
         except Exception as exc:
             logger.error("tavily_search_error", query=query, error=str(exc))

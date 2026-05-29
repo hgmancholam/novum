@@ -48,12 +48,12 @@ This trade-off is explicit and documented; the UI does **not** advertise cross-f
 | # | Service | Role in Novum | Type | Cost (V1) | Card required? |
 |---|---|---|---|---|---|
 | 1 | **Anthropic Claude** (via the provider-agnostic LLM interface) | LLM gateway for the 5 agent roles (classifier, planner, synthesizer, judge, meta-judge) | LLM provider | ~$5/month ceiling (Sonnet + Haiku pricing) | Yes (Anthropic billing) |
-| 2 | **Tavily** | Web search source for evidence retrieval | Search-for-LLM | $0 (1000 req/mo free tier) | No |
+| 2 | **Tavily** | Web search source for evidence retrieval | Search-for-LLM | Paid subscription (advanced depth, `topic="news"`, max 20 results) | Yes (Tavily billing) |
 | 3 | **Wikipedia API** | Encyclopedic source for evidence retrieval | Knowledge base | $0 (unlimited at our scale) | No |
 
 **Inactive but wired (no traffic, no cost):** GitHub Models, OpenAI direct, Google Gemini. Each is reachable by setting the corresponding env var (`GITHUB_TOKEN`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`) and pointing one role at it in `app/llm/models.py`.
 
-**Total V1 cost: ≈ $5/month ceiling.** Tavily and Wikipedia stay $0; the LLM line item is the only paid service. All three active services are pluggable behind their respective seams (`llm.call` for #1, `Source` seam for #2 and #3).
+**Total V1 cost: ≈ $5/month ceiling (Anthropic) + Tavily paid subscription.** Wikipedia stays $0; Tavily is now a paid service (upgraded from free tier to unlock advanced search depth, `topic="news"` for temporal queries, and up to 20 results per call). All services are pluggable behind their respective seams (`llm.call` for #1, `Source` seam for #2 and #3).
 
 ---
 

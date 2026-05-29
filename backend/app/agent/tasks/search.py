@@ -101,7 +101,7 @@ async def _search_one_claim(
             source = registry.get(source_type)
             if source_type == SourceType.TAVILY and tool_days is not None:
                 results = await source.search(
-                    query, max_results=_RESULTS_PER_SEARCH, days=tool_days
+                    query, max_results=_RESULTS_PER_SEARCH, days=tool_days, topic="news"
                 )
             else:
                 results = await source.search(
@@ -155,7 +155,7 @@ async def _search_one_claim(
             try:
                 if tool_days is not None:
                     results = await source.search(
-                        query, max_results=_RESULTS_PER_SEARCH, days=tool_days
+                        query, max_results=_RESULTS_PER_SEARCH, days=tool_days, topic="news"
                     )
                 else:
                     results = await source.search(
