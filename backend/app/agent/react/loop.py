@@ -8,12 +8,14 @@ stopping signals, and handles invalid actions with retry budget.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Literal
 from uuid import uuid4
 
 import structlog
 from pydantic import BaseModel
 
+from app.agent.meta_judge_hook import maybe_run_meta_judge
 from app.agent.react.actions import (
     AgentActionUnion,
     DeepFetchAction,
@@ -23,6 +25,7 @@ from app.agent.react.actions import (
 )
 from app.agent.react.history import ReactStep, summarize_history_if_needed
 from app.agent.run_state import EvidenceItem, RunState
+from app.config import settings
 from app.domain.enums import EvidencePolarity, StopReason
 from app.domain.events import (
     AgentActionEvent,
@@ -48,6 +51,53 @@ class ThoughtOutput(BaseModel):
     """LLM structured output for thought generation."""
 
     thought: str
+
+
+@dataclass(frozen=True)
+class _ReactJudgeSignal:
+    """Duck-typed `judge_signal` for `maybe_run_meta_judge` (BRD-26 §4.13).
+
+    No real judge ruling exists mid-ReAct, so we synthesize one from the
+    latest evidence-derived proxies and the most recent observation.
+    Mirrors the contract used by the orchestrator's `after_judge` hook.
+    """
+
+    passed: bool
+    structural_confidence: float
+    judge_confidence: float
+    final_confidence: float
+    rationale: str
+
+
+def _synthetic_signal_from_react(state: RunState) -> _ReactJudgeSignal:
+    structural = state.last_structural_confidence or 0.0
+    judge = state.last_judge_confidence or 0.0
+    if state.react_history:
+        rationale = str(state.react_history[-1].observation)[:280]
+    else:
+        rationale = "no_observations_yet"
+    return _ReactJudgeSignal(
+        passed=False,
+        structural_confidence=structural,
+        judge_confidence=judge,
+        final_confidence=min(structural, judge),
+        rationale=rationale,
+    )
+
+
+def _cost_gate_after_react_ok(state: RunState) -> bool:
+    """BRD-26 §4.13 activation predicate for `after_react_observation`.
+
+    All conditions must hold; the global `meta_judge_enabled` kill-switch
+    is checked first so callers can rely on this single function.
+    """
+    if not settings.meta_judge_enabled:
+        return False
+    if not settings.meta_judge_after_react_enabled:
+        return False
+    if state.react_step_count < settings.meta_judge_react_warmup_steps:
+        return False
+    return state.meta_judge_calls < settings.max_meta_judge_calls_per_run
 
 
 async def run_react_loop(
@@ -176,6 +226,36 @@ async def run_react_loop(
             # Summarize if needed before returning
             await _maybe_summarize_history(state, emit)
             return stop_result
+
+        # Step 6b: BRD-26 §4.13 cost-gated meta-judge hook
+        # (after_react_observation). Counter already advanced in Step 5,
+        # so the gate sees the up-to-date `react_step_count`.
+        if _cost_gate_after_react_ok(state):
+            meta_outcome = await maybe_run_meta_judge(
+                state,
+                emit,
+                _synthetic_signal_from_react(state),
+                hook="after_react_observation",
+            )
+            if meta_outcome == "stop_best_effort":
+                logger.info(
+                    "react_loop_stopped_by_meta_judge",
+                    step=step,
+                    outcome=meta_outcome,
+                    run_id=str(state.run_id),
+                )
+                await _maybe_summarize_history(state, emit)
+                return StopReason.STOPPED_BY_BUDGET
+            if meta_outcome == "confirm":
+                logger.info(
+                    "react_loop_stopped_by_meta_judge",
+                    step=step,
+                    outcome=meta_outcome,
+                    run_id=str(state.run_id),
+                )
+                await _maybe_summarize_history(state, emit)
+                return StopReason.JUDGE_CONFIRMED
+            # "continue" / "skipped" — fall through to intra-loop signals.
 
         # Step 7: Check intra-loop stopping signals
         from app.stopping.react_intra_loop import evaluate_react_intra_loop

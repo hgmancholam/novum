@@ -119,6 +119,12 @@ class RunState(BaseModel):
     react_step_count: int = 0
     max_react_steps: int = 8
 
+    # IP-26b: shared counter for meta-judge invocations (all 3 hooks).
+    # Incremented by `meta_judge_hook.maybe_run_meta_judge` after every
+    # emitted `MetaStopVerdictEvent`. Used by the `after_react_observation`
+    # cost gate (BRD-26 §4.13).
+    meta_judge_calls: int = 0
+
     # IP-25 Phase F: Chain-of-Verification state
     cove_rounds: int = 0
     max_cove_rounds: int = 1

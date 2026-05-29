@@ -106,6 +106,7 @@ async def maybe_run_meta_judge(
             rounds_remaining=rounds_remaining,
         )
     )
+    state.meta_judge_calls += 1
 
     if voc.decision == "stop_best_effort":
         return "stop_best_effort"

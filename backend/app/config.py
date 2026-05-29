@@ -145,6 +145,15 @@ class Settings(BaseSettings):
     meta_judge_enabled: bool = False
     meta_judge_min_delta_s: float = 0.03
 
+    # BRD-26 §4.13: cost gate for the DEEP `after_react_observation` hook
+    # (slice 3b'). Default OFF so behaviour is unchanged on merge; flip via
+    # env (`META_JUDGE_AFTER_REACT_ENABLED=true`) after the shadow window.
+    # The cap is shared across all three hooks (after_judge, after_cove,
+    # after_react_observation) to keep total meta-judge cost bounded.
+    meta_judge_after_react_enabled: bool = False
+    meta_judge_react_warmup_steps: int = 2
+    max_meta_judge_calls_per_run: int = 4
+
     # BRD-23 WP-1: stale-citation kind-ceiling penalty multiplier for AnswerKind.DIRECT
     # when temporal_sensitivity is volatile/realtime and >=50% citations are stale.
     temporal_stale_penalty: float = 0.85

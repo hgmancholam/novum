@@ -348,6 +348,105 @@ every ReAct step in DEEP), the additional cost is:
 The 4 PAT pool absorbs this in V1. Telemetry tracks `meta_judge_calls_per_run`
 to detect regressions.
 
+### 4.13 Cost gate for `after_react_observation` (slice 3b' — DESIGN, deferred)
+
+The DEEP `after_react_observation` hook is wired in the type (`MetaJudgeHook`
+literal) but **not** called from `run_react_loop`. Naively enabling it would
+issue one extra `META_JUDGE` LLM call per ReAct step (worst case
+`max_react_steps` ≈ 8 calls/run, on top of the existing `after_cove` call).
+This subsection specifies the cost gate that must be satisfied before the
+hook is wired in `app/agent/react/loop.py`.
+
+**Activation predicate** — the hook runs at the end of a ReAct step iff **all**
+conditions hold:
+
+1. `settings.meta_judge_enabled` is `true` (existing global kill-switch).
+2. `settings.meta_judge_after_react_enabled` is `true` (new, default `false`
+   — independent slice flip).
+3. `state.react_step_count >= settings.meta_judge_react_warmup_steps`
+   (default `2`) — skip the first 2 steps so the agent has at least one
+   non-trivial observation to weigh against.
+4. `state.meta_judge_calls < settings.max_meta_judge_calls_per_run` (new,
+   default `4`) — hard cap shared across **all** hooks (STANDARD `after_judge`
+   + DEEP `after_cove` + DEEP `after_react_observation`).
+5. `(now - state.last_meta_judge_at) >= 0` (no time gate in V1; placeholder
+   for future rate-limit).
+
+When the predicate is false, the loop continues exactly as today (no event
+emitted, no LLM call).
+
+**Per-call gate (already in `meta_judge_hook.py`)** — once invoked, the
+existing VoC sanitization keeps cost down:
+
+- `voc.decision == "stop"` or `"stop_best_effort"` → no AC call.
+- `voc.expected_delta_s < settings.meta_judge_min_delta_s` (default `0.03`)
+  → no AC call.
+- AC only fires when VoC says `continue` with ΔS ≥ threshold.
+
+**New state field** (additive — fits the `extra="allow"` schema rule):
+
+```python
+class RunState(BaseModel):
+    meta_judge_calls: int = 0          # incremented in meta_judge_hook.maybe_run_meta_judge
+    last_meta_judge_at: datetime | None = None
+```
+
+`meta_judge_calls` is already incremented implicitly via `MetaStopVerdictEvent`
+emission; promote it to an explicit counter so the predicate is O(1).
+
+**New settings** (in `app/config.py`):
+
+| Key | Default | Purpose |
+|---|---|---|
+| `meta_judge_after_react_enabled` | `false` | Independent flip for slice 3b'. |
+| `meta_judge_react_warmup_steps` | `2` | Skip the first N ReAct steps. |
+| `max_meta_judge_calls_per_run` | `4` | Hard cap across all hooks. |
+
+**Worst-case cost after gate** — with defaults and `max_react_steps=8`:
+
+- Warmup skips steps 0–1 → up to 6 candidate calls.
+- Hard cap clips at 4 (minus calls already spent in `after_judge` /
+  `after_cove`).
+- AC only on `continue` + ΔS ≥ 0.03 → typically 0–2 extra calls.
+
+Net upper bound: **≤ 4 META_JUDGE invocations per DEEP run**, regardless of
+ReAct length. Matches today's effective budget for `after_cove`-only runs.
+
+**Wiring sketch** (no implementation — sequencing only):
+
+In `run_react_loop`, right after `emit(AgentObservationEvent(...))` and
+**before** the `evaluate_react_intra_loop` call:
+
+```text
+if _cost_gate_ok(state, settings):
+    outcome = await maybe_run_meta_judge(
+        state, emit, judge_signal=_synthetic_signal_from_react(state),
+        hook="after_react_observation",
+    )
+    match outcome:
+        "stop_best_effort" → break, propagate StopReason.STOPPED_BY_BUDGET
+        "confirm"          → break, propagate StopReason.JUDGE_CONFIRMED
+        "continue"/"skipped" → fall through to intra-loop signals
+```
+
+The `_synthetic_signal_from_react` helper builds a duck-typed object exposing
+the five attributes `maybe_run_meta_judge` needs (`passed=False`,
+`structural_confidence`/`judge_confidence` from the latest evidence-derived
+proxy, `final_confidence=min(S,J)`, `rationale=last_observation_summary`).
+
+**Telemetry** — extend the existing `meta_judge_calls_per_run` gauge with a
+breakdown label `hook ∈ {after_judge, after_cove, after_react_observation}`
+so regressions in slice 3b' are isolable.
+
+**Acceptance for un-deferring** — the slice ships when:
+
+- The gate is implemented and a unit test asserts ≤ `max_meta_judge_calls_per_run`
+  calls across a synthetic 8-step DEEP run.
+- A regression test asserts the `meta_judge_after_react_enabled=false` path
+  emits **zero** `MetaStopVerdictEvent`s with `hook="after_react_observation"`.
+- Telemetry baseline shows mean `meta_judge_calls_per_run` ≤ 3 over a 20-run
+  shadow window before the flag flips to `true` in prod.
+
 ---
 
 ## 5. Functional Requirements
