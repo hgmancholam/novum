@@ -1,24 +1,25 @@
 # Novum
 
-> *A self-directing research agent that gathers evidence, resolves contradictions, and decides when it knows enough.*
+> *A self-directing research agent that gathers evidence, resolves contradictions, and decides when it knows enough — and tells you, on the record, when it cannot.*
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12-3776AB.svg)](backend/pyproject.toml)
+[![React](https://img.shields.io/badge/react-19-61DAFB.svg)](frontend/package.json)
+[![Status](https://img.shields.io/badge/status-alpha-orange.svg)](#current-status)
 
 ---
 
 ## What is Novum?
 
-**Novum** is a research agent that earns its conclusions — and tells you, on the record, when it cannot.
+**Novum** is a research agent designed for knowledge workers who need **defensible, sourced answers** — vendor comparisons, technology evaluations, market sizing, policy lookups, due-diligence checks.
 
-Unlike general-purpose AI tools that often fabricate sources or silently stop when *they* feel done, Novum treats "I cannot answer this" as a **first-class successful outcome**, not a failure. It surfaces what it found, what it didn't find, what contradicts what, and why it considers itself finished — making its uncertainty legible and its reasoning defensible.
+Unlike general-purpose AI tools that often fabricate sources or silently stop when *they* feel done, Novum treats **"I cannot answer this" as a first-class successful outcome**. It surfaces what it found, what it didn't find, what contradicts what, and why it considers itself finished — making its uncertainty legible and its reasoning defensible.
 
 ### The Name
 
-The name comes from Francis Bacon's *Novum Organum* (1620) — a treatise that rejected the idea of reaching conclusions through abstract reasoning alone, and argued instead that knowledge must be earned through systematic observation, careful evidence collection, and inductive reasoning built from the ground up.
+The name comes from Francis Bacon's *Novum Organum* (1620) — a treatise rejecting the idea of reaching conclusions through abstract reasoning alone, and arguing instead that knowledge must be **earned through systematic observation, careful evidence collection, and inductive reasoning**.
 
-Bacon believed scientists should gather data without preconceived notions, analyze it methodically, and draw conclusions only after sufficient evidence had been accumulated. Not before.
-
-**That is exactly what this system does.**
-
-Novum is not a nod to novelty. It is a nod to method — to the idea that a well-reasoned answer is worth more than a fast one, and that knowing when you have enough evidence is as important as knowing how to find it.
+Novum is not a nod to novelty. It is a nod to method.
 
 ---
 
@@ -30,76 +31,92 @@ The agent reasons about sufficiency of evidence using a **layered policy** inspi
 - **GRADE methodology** for certainty grading
 - **Popperian falsificationism** for disconfirmation rules
 
-**Seven terminal states:**
-- `judge_confirmed` — sufficient evidence, high confidence
-- `honest_unanswerable` — question is out of scope or lacks sources
-- `honest_contradiction` — unresolvable conflict between sources
-- `honest_ambiguous` — question has multiple valid interpretations
-- `stopped_by_budget` — safety net triggered (clearly labeled)
-- `user_cancelled` — user intervention
-- `errored` — technical failure
+**Seven terminal states** (`stop_reason` enum, never free text):
+
+| State | Meaning |
+|---|---|
+| `judge_confirmed` | Sufficient evidence, high confidence |
+| `honest_unanswerable` | Out of scope or no sources found |
+| `honest_contradiction` | Unresolvable conflict between sources |
+| `honest_ambiguous` | Multiple valid interpretations |
+| `stopped_by_budget` | Safety net triggered (clearly labeled) |
+| `user_cancelled` | User intervention |
+| `errored` | Technical failure |
 
 ### 2. Full Inspectability (Level 3)
-Every run produces:
 - **Timeline of all steps** — what the agent did, what it found, why it stopped
 - **Citation traceability** — every claim links to evidence chunks, which link to original sources
 - **Contradiction surfaces** — conflicts between sources are documented, not hidden
-- **Read-determinism** — opening the same run twice shows identical output (no live LLM regeneration)
+- **Read-determinism** — opening the same run twice shows identical output (no live LLM regeneration on read)
 
 ### 3. Re-Examinable Runs
-- **Event-sourced architecture** — append-only `events` table in PostgreSQL
+- **Event-sourced architecture** — append-only `events` table in PostgreSQL (`payload JSONB`)
 - **Fork from any decision point** — branch a new attempt when an earlier decision was wrong
 - **Public commons model** — all runs are world-readable; anyone can fork any run
 - **Idempotent replay** — event payloads contain outputs, so replay reconstructs state without re-calling APIs
+- **SSE resume** — `Last-Event-ID` reconnects pick up where the stream dropped
 
 ### 4. Graceful Handling of Messy Reality
 - **Ambiguous questions** → early honest stop with clarification prompts
 - **Contradictory sources** → bounded resolution attempt, then documented conflict
 - **Source failures** → cascading fallback (retry → reformulate → switch source)
-- **Minimum source set** — web search + Wikipedia (heterogeneous, ≥2 independent providers)
+- **Heterogeneous sources** — web search (Tavily) + Wikipedia (≥2 independent providers)
+- **Meta-judge layer** — second LLM pass guards against premature confirmation
 
 ### 5. Trust Contract with Users
-- **Supported question types declared upfront** (factual, comparative, definitional, state-of-the-art, causal)
-- **Out-of-scope rejection is documented** (predictive, pure opinion, personal/private)
-- **Every guarantee in the design has a UI surface** — hide nothing
-- **Honest epistemics** over raw capability — the wedge is "the tool you can hand to your boss"
+- Supported question types declared upfront (factual, comparative, definitional, state-of-the-art, causal)
+- Out-of-scope rejection is documented (predictive, pure opinion, personal/private)
+- Every guarantee in the design has a UI surface — **hide nothing**
 
 ---
 
 ## Current Status
 
-**Phase:** Design & Planning (no code yet)  
-All decisions live as Markdown documentation under `docs/`.
+**Phase:** Alpha — vertical slice working end-to-end on a single server.
 
-### Architecture Principles
+- ✅ Event-sourced backend with FSM agent runner
+- ✅ Five-role LLM pipeline (classifier, planner, synthesizer, judge, meta-judge)
+- ✅ Tavily + Wikipedia source plugins
+- ✅ Streaming UI (SSE) with three-panel layout (History · Center · Trace)
+- ✅ Fork & resume from any event
+- ✅ Confidence formula `min(S, J)` and 7-value `stop_reason` enum
+- 🚧 Hardening, observability, and additional source plugins
 
-1. **Event log is the source of truth** — append-only, never edited
-2. **Stop reasons are an enum** — never free text
-3. **Three plugin seams** — Source, StoppingSignal, OutputRenderer (extensible)
-4. **Three not-seams** — Planner, storage, and LLM provider are deliberately not pluggable in V1
-5. **Single-server scope** — no distributed locks, no Redis, no eventual consistency
-6. **Honest stops as first-class outcomes** — "cannot answer" is success, not error
+See [docs/implementation-phase/implementation-plans/](docs/implementation-phase/implementation-plans/) for the per-module build log (IP-00 through IP-26).
+
+---
+
+## Architecture Principles
+
+1. **Event log is the source of truth** — append-only, never edited. Resume and fork append; they never mutate.
+2. **Three plugin seams** — `Source`, `StoppingSignal`, `OutputRenderer` (extensible).
+3. **Three not-seams** — planner, storage, and LLM provider are deliberately not pluggable in V1.
+4. **Single-server scope** — no distributed locks, no Redis, no eventual consistency.
+5. **`stop_reason` is an enum, never free text** — all 7 terminal states are guarantees, not failures.
+6. **Schema evolution = `extra="allow"` + optional keys only** — adding keys never breaks.
+7. **Confidence = `min(S, J)`** — structural score capped by judge score.
 
 ---
 
 ## Tech Stack
 
-### Backend
-- **Python 3.12** + **FastAPI** + **Pydantic v2** + **uvicorn** (workers=1)
+### Backend (`backend/`)
+- **Python 3.12** + **FastAPI** + **Pydantic v2** + **uvicorn** (`--workers 1`)
 - **PostgreSQL 16** + **SQLAlchemy 2.0 async** + **asyncpg** + **Alembic**
-- **LLM:** `litellm` + `instructor` + **GitHub Models** (gpt-5, DeepSeek-V3, Llama-4-Scout)
+- **LLM:** `litellm` + `instructor` + `tiktoken` + `tenacity` — provider-agnostic interface, V1 active: **Anthropic Claude**
 - **Search:** `tavily-python` (web) + `wikipedia-api`
-- **SSE:** `sse-starlette` with 15s heartbeat and `Last-Event-ID` resume
+- **SSE:** `sse-starlette` with 15 s heartbeat and `Last-Event-ID` resume
 - **Logging:** `structlog` (JSON)
-- **Tooling:** `uv`, `ruff`, `pyright strict`, `pytest`
+- **Tooling:** `uv`, `ruff`, `pyright strict`, `pytest` + `pytest-asyncio` + `pytest-postgresql`
 
-### Frontend
-- **React 19** + **Vite** + **TypeScript strict**
+### Frontend (`frontend/`)
+- **React 19** + **Vite 6** + **TypeScript strict** (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`)
 - **React Router v7**, **Tailwind v4** (via `@tailwindcss/vite`)
 - **shadcn/ui** (Radix), **Motion v12**, **Lucide React**
-- **State:** Zustand (client), TanStack Query (server cache)
-- **Native `fetch`** + **native `EventSource`** — no axios
-- **Testing:** Vitest + Testing Library + jest-axe + MSW
+- **State:** Zustand (client), **TanStack Query** (server cache)
+- Native **`fetch`** + native **`EventSource`** — no axios
+- **Testing:** **Vitest** + **Testing Library** + **jest-axe** + **MSW**
+- Atomic-design layering enforced by ESLint `import/no-restricted-paths`
 
 ### Infrastructure
 - **Frontend:** Vercel Edge CDN (Hobby free tier)
@@ -109,35 +126,112 @@ All decisions live as Markdown documentation under `docs/`.
 - **Cost:** $0/month (within free tiers)
 
 ### Explicitly NOT in V1
-Docker, Redis, vector DB, LangGraph/LangChain/LlamaIndex, Celery/RQ, WebSockets, Sentry/Datadog, Nginx, cookies, Storybook, i18n, multiple LLM providers.
+Docker, Redis, vector DB, LangGraph/LangChain/LlamaIndex, Celery/RQ, WebSockets, Sentry/Datadog/Prometheus, Nginx, cookies, Storybook, i18n, multiple active LLM providers.
 
 ---
 
-## Documentation Structure
+## Quick Start
 
-All design documents live under `docs/`:
+### Prerequisites
+- Python 3.12+ and [`uv`](https://github.com/astral-sh/uv)
+- Node.js 20+ and `npm`
+- PostgreSQL 16 (local or remote)
 
-### Understanding Phase (Requirements & Analysis)
+### Environment
+
+Create `backend/.env`:
+```env
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/novum
+ANTHROPIC_API_KEY=sk-ant-...
+TAVILY_API_KEY=tvly-...
+```
+
+Create `frontend/.env`:
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+### Backend
+```bash
+cd backend
+uv sync --extra dev
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --workers 1
+```
+
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173.
+
+### Tests
+```bash
+# Backend
+cd backend && uv run pytest
+
+# Frontend
+cd frontend && npm test
+```
+
+---
+
+## Repository Layout
+
+```
+novum/
+├── backend/                     # FastAPI + agent FSM + event log
+│   ├── app/
+│   │   ├── agent/               # FSM orchestrator, runner, planner
+│   │   ├── auth/                # User identity (anonymous + username)
+│   │   ├── confidence/          # min(S, J) calculation
+│   │   ├── domain/              # Pydantic event models
+│   │   ├── llm/                 # Provider-agnostic LLM client (litellm)
+│   │   ├── output/              # Output renderers (markdown, json)
+│   │   ├── routes/              # FastAPI endpoints
+│   │   ├── seams/               # Source / StoppingSignal / OutputRenderer protocols
+│   │   ├── sources/             # Tavily + Wikipedia plugins
+│   │   ├── sse/                 # SSE streaming with Last-Event-ID resume
+│   │   └── stopping/            # Layered stopping policy
+│   ├── alembic/                 # Migrations
+│   └── tests/                   # pytest suite
+├── frontend/                    # React 19 + Vite + Tailwind v4
+│   └── src/
+│       ├── atoms/ molecules/ organisms/ templates/ pages/   # Atomic design
+│       ├── lib/                 # api.ts, sse.ts, constants
+│       ├── stores/              # Zustand (userStore, selectionStore)
+│       └── types/               # Generated from Pydantic JSON Schema
+├── docs/
+│   ├── understanding-phase/     # Requirements (RF-01..RF-16), UI prototype
+│   ├── technical-phase/         # Architecture, tech stack, AI services
+│   └── implementation-phase/    # BRDs, user stories, IP plans, audits, reviews
+└── scripts/                     # export_types.py, deploy helpers
+```
+
+---
+
+## Documentation
+
+### Understanding Phase
 - **[requirement-understanding.md](docs/understanding-phase/requirement-understanding.md)** — Master RF document (RF-01 through RF-16)
-- **[stopping-signal-analysis.md](docs/understanding-phase/stopping-signal-analysis.md)** — Layered stopping policy (A/D/B/E/F)
+- **[stopping-signal-analysis.md](docs/understanding-phase/stopping-signal-analysis.md)** — Layered stopping policy
 - **[confidence-calculation.md](docs/understanding-phase/confidence-calculation.md)** — `min(S, J)` confidence formula
 - **[research-method-selection.md](docs/understanding-phase/research-method-selection.md)** — Methodological lineage (ACH, GRADE, Popper)
-- **[ui-prototype.md](docs/understanding-phase/ui-prototype.md)** — L2 product-intent UI spec
-- **[data-flows-and-diagrams.md](docs/understanding-phase/data-flows-and-diagrams.md)** — 8 Graphviz diagrams (run sequence, FSM, data flow, ER model)
-- **[project-name.md](docs/understanding-phase/project-name.md)** — Why "Novum"?
+- **[ui-prototype.md](docs/understanding-phase/ui-prototype.md)** — Binding UI spec (design tokens, panel states, microcopy)
+- **[data-flows-and-diagrams.md](docs/understanding-phase/data-flows-and-diagrams.md)** — Sequence, FSM, ER diagrams
 
-### Technical Phase (Architecture & Stack)
-- **[architecture.md](docs/technical-phase/architecture.md)** — Software design, module boundaries, plugin seams
-- **[tech-stack.md](docs/technical-phase/tech-stack.md)** — Library and framework decisions with rationale
-- **[infrastructure.md](docs/technical-phase/infrastructure.md)** — Deploy topology, hosting, cost analysis
-- **[ai-services.md](docs/technical-phase/ai-services.md)** — LLM provider mapping, model assignment, cost/quotas
+### Technical Phase
+- **[architecture.md](docs/technical-phase/architecture.md)** — Module boundaries and plugin seams
+- **[tech-stack.md](docs/technical-phase/tech-stack.md)** — Library decisions with rationale
+- **[ai-services.md](docs/technical-phase/ai-services.md)** — LLM roles, model assignments, cost/quotas
+- **[infrastructure.md](docs/technical-phase/infrastructure.md)** — Deploy topology and hosting
 
-### Implementation Phase (In Progress)
-- `brds/` — Brief Requirements Documents
-- `implementation-plans/` — Module-level implementation guides
-- `reviews/` — Code review checklists
-- `unit-tests/` — Test strategy and fixtures
-- `user-stories/` — Acceptance criteria
+### Implementation Phase
+- **[implementation-plans/](docs/implementation-phase/implementation-plans/)** — Per-module build plans (IP-00..IP-26)
+- **[brds/](docs/implementation-phase/brds/)** · **[user-stories/](docs/implementation-phase/user-stories/)** · **[audits/](docs/implementation-phase/audits/)** · **[reviews/](docs/implementation-phase/reviews/)** · **[unit-tests/](docs/implementation-phase/unit-tests/)**
 
 ---
 
@@ -145,11 +239,7 @@ All design documents live under `docs/`:
 
 > *"Give me a sourced, calibrated answer to this question — and tell me when you cannot."*
 
-Novum is designed for knowledge workers — researchers, PMs, technical leads, consultants — who need **defensible, sourced answers** to research questions: vendor comparisons, technology evaluations, market sizing, policy lookups, due-diligence checks.
-
 The cost of existing AI tools is not just wasted time — it is **uncalibrated trust**. Decisions get made on shaky evidence because the tool never made its uncertainty legible.
-
-**Where Novum is different:**
 
 | Capability | ChatGPT | Perplexity | Elicit | **Novum** |
 |---|---|---|---|---|
@@ -166,4 +256,4 @@ The cost of existing AI tools is not just wasted time — it is **uncalibrated t
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE).
