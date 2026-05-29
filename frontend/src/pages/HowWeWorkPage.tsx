@@ -28,6 +28,7 @@ import {
   Zap,
 } from "lucide-react";
 import { BackgroundOrbs, Logo } from "@/components/atoms";
+import { ThemeToggle } from "@/components/molecules";
 import { fadeUp, stagger } from "@/lib/motion";
 
 // ---------------------------------------------------------------------------
@@ -74,13 +75,16 @@ function TopNav() {
           <Logo size={20} title="" />
           <span>Novum</span>
         </Link>
-        <Link
-          to="/run"
-          className="group inline-flex items-center gap-2 rounded-lg border border-(--glass-border) bg-(--glass-bg) px-3 py-1.5 text-xs text-(--text-secondary) transition-colors hover:bg-(--glass-hover) hover:text-(--text-primary)"
-        >
-          <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
-          Open Novum
-        </Link>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Link
+            to="/run"
+            className="group inline-flex items-center gap-2 rounded-lg border border-(--glass-border) bg-(--glass-bg) px-3 py-1.5 text-xs text-(--text-secondary) transition-colors hover:bg-(--glass-hover) hover:text-(--text-primary)"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
+            Open Novum
+          </Link>
+        </div>
       </div>
     </header>
   );

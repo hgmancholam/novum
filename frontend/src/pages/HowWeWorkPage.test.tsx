@@ -95,6 +95,13 @@ describe("HowWeWorkPage", () => {
     expect(open[0]).toHaveAttribute("href", "/run");
   });
 
+  it("renders the ThemeToggle in the top nav (IP-28)", () => {
+    renderPage();
+    expect(
+      screen.getByRole("switch", { name: /switch to (light|dark) mode/i }),
+    ).toBeInTheDocument();
+  });
+
   it("has no a11y violations", async () => {
     const { container } = renderPage();
     const results = await axe(container);

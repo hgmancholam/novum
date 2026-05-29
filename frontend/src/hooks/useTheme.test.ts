@@ -6,7 +6,40 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTheme } from "./useTheme";
-import { THEME_STORAGE_KEY } from "@/lib/theme";
+import { SYSTEM_LIGHT_MEDIA_QUERY, THEME_STORAGE_KEY } from "@/lib/theme";
+
+interface FakeMQL {
+  matches: boolean;
+  media: string;
+  addEventListener: (type: "change", l: (e: MediaQueryListEvent) => void) => void;
+  removeEventListener: (type: "change", l: (e: MediaQueryListEvent) => void) => void;
+  _trigger: (matches: boolean) => void;
+}
+
+function installMatchMedia(initialMatches: boolean): FakeMQL {
+  const listeners: Array<(e: MediaQueryListEvent) => void> = [];
+  const mql: FakeMQL = {
+    matches: initialMatches,
+    media: SYSTEM_LIGHT_MEDIA_QUERY,
+    addEventListener: (_type, l) => {
+      listeners.push(l);
+    },
+    removeEventListener: (_type, l) => {
+      const i = listeners.indexOf(l);
+      if (i >= 0) listeners.splice(i, 1);
+    },
+    _trigger: (matches: boolean) => {
+      mql.matches = matches;
+      for (const l of listeners) {
+        l({ matches } as MediaQueryListEvent);
+      }
+    },
+  };
+  window.matchMedia = vi.fn().mockImplementation(
+    () => mql,
+  ) as unknown as typeof window.matchMedia;
+  return mql;
+}
 
 describe("useTheme", () => {
   beforeEach(() => {
@@ -16,6 +49,8 @@ describe("useTheme", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // @ts-expect-error — undo per-test matchMedia install
+    delete window.matchMedia;
   });
 
   it("defaults to 'dark' when storage is empty", () => {
@@ -122,5 +157,42 @@ describe("useTheme", () => {
 
     expect(result.current.theme).toBe("light");
     expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("follows prefers-color-scheme on mount when nothing is persisted", () => {
+    installMatchMedia(true); // OS prefers light
+    const { result } = renderHook(() => useTheme());
+    expect(result.current.theme).toBe("light");
+  });
+
+  it("updates when the OS preference changes and nothing is persisted", () => {
+    const mql = installMatchMedia(false);
+    const { result } = renderHook(() => useTheme());
+    expect(result.current.theme).toBe("dark");
+
+    act(() => {
+      mql._trigger(true);
+    });
+
+    expect(result.current.theme).toBe("light");
+    expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("ignores OS changes once the user has chosen a theme", () => {
+    const mql = installMatchMedia(false);
+    const { result } = renderHook(() => useTheme());
+
+    act(() => {
+      result.current.setTheme("dark");
+    });
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+
+    act(() => {
+      mql._trigger(true); // OS flips to light
+    });
+
+    // Persisted "dark" wins.
+    expect(result.current.theme).toBe("dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
   });
 });
