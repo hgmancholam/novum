@@ -51,7 +51,7 @@ function buildSummaryLine(
   structuralFallback?: StructuralConfidenceFallback | null
 ): string {
   const reason: StopReason | null = run.stopReason;
-  const threshold = run.confidenceThreshold.toFixed(2);
+  const threshold = `${Math.round(run.confidenceThreshold * 100)}%`;
   if (reason === null) {
     return `· Researching · threshold ${threshold}`;
   }
