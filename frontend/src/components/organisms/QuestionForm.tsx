@@ -79,7 +79,10 @@ export function QuestionForm({
   const [contextOpen, setContextOpen] = useState<boolean>(false);
   const [userContext, setUserContext] = useState<string>("");
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(false);
-  const [outputFormat, setOutputFormat] = useState<OutputFormat>("structured");
+  // D-COPY-AND-FORMAT-INLINE: all runs are submitted as `structured`. The
+  // user toggles the rendering format inside the answer card, not at
+  // submission time.
+  const outputFormat: OutputFormat = "structured";
   const [thresholdPreset, setThresholdPreset] =
     useState<ThresholdPreset>("standard");
   const [customThreshold, setCustomThreshold] = useState<number>(0.7);
@@ -310,42 +313,8 @@ export function QuestionForm({
         {advancedOpen ? (
           <div
             id={`${formatId}-group`}
-            className="glass-subtle grid gap-4 rounded-[var(--radius-md)] p-3 sm:grid-cols-2"
+            className="glass-subtle grid gap-4 rounded-[var(--radius-md)] p-3"
           >
-            <fieldset className="flex flex-col gap-1">
-              <legend
-                id={formatId}
-                className="text-xs font-medium text-[var(--text-primary)]"
-              >
-                Answer format
-              </legend>
-              <div role="radiogroup" aria-labelledby={formatId} className="flex gap-2">
-                {(["structured", "prose"] as const).map((opt) => (
-                  <label
-                    key={opt}
-                    className={cn(
-                      "cursor-pointer rounded-[var(--radius-sm)] border px-2 py-1 text-xs transition-colors",
-                      outputFormat === opt
-                        ? "border-(--accent) bg-(--accent) text-white"
-                        : "glass-subtle text-(--text-secondary) hover:text-(--text-primary)"
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="output-format"
-                      value={opt}
-                      checked={outputFormat === opt}
-                      onChange={() => {
-                        setOutputFormat(opt);
-                      }}
-                      className="sr-only"
-                    />
-                    {opt === "structured" ? "Structured (recommended)" : "Prose"}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
             <fieldset className="flex flex-col gap-1">
               <legend
                 id={thresholdId}

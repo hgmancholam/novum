@@ -23,6 +23,8 @@ export { LineageBadge } from "./LineageBadge";
 export type { LineageBadgeProps } from "./LineageBadge";
 export { FormatSelector } from "./FormatSelector";
 export type { FormatSelectorProps } from "./FormatSelector";
+export { AnswerToolbar } from "./AnswerToolbar";
+export type { AnswerToolbarProps, AnswerViewMode } from "./AnswerToolbar";
 export { Toaster } from "./Toaster";
 export { ThemeToggle } from "./ThemeToggle";
 // IP-24 Phase 2

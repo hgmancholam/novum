@@ -13,7 +13,7 @@
  */
 
 import { OutcomeBar, GlassSurface } from "@/components/atoms";
-import { FormatSelector } from "@/components/molecules";
+import { AnswerToolbar, type AnswerViewMode } from "@/components/molecules";
 import { cn } from "@/lib/cn";
 import { useCallback, useState } from "react";
 import type { Run, RunStatus } from "@/types/run";
@@ -123,12 +123,25 @@ export function CenterPanelView({
     answerStructuredData !== null &&
     answerStructuredData !== undefined;
 
-  // Show format switcher when any structured rendering is available.
-  const showFormatSelector =
-    hasAnswer &&
-    ((answerStructured !== null && answerStructured !== undefined) ||
-      (answerStructuredData !== null && answerStructuredData !== undefined)) &&
-    onViewFormatChange !== undefined;
+  // Show format toggle when a structured rendering is available alongside
+  // the prose answer. Without an alternative rendering the toggle would be a
+  // no-op, so we hide it.
+  const hasStructuredRendering =
+    (answerStructured !== null && answerStructured !== undefined) ||
+    (answerStructuredData !== null && answerStructuredData !== undefined);
+  const showFormatToggle =
+    hasAnswer && hasStructuredRendering && onViewFormatChange !== undefined;
+
+  const handleViewModeChange = useCallback(
+    (mode: AnswerViewMode) => {
+      onViewFormatChange?.(mode);
+    },
+    [onViewFormatChange],
+  );
+
+  const currentViewMode: AnswerViewMode = isStructured ? "structured" : "prose";
+  const markdownSource =
+    answerStructured ?? answerProse ?? activeContent ?? "";
 
   return (
     <div
@@ -178,17 +191,19 @@ export function CenterPanelView({
           <div className="flex flex-col gap-3 px-6 py-6">
             {hasAnswer && activeContent !== null ? (
               <>
-                {showFormatSelector ? (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-(--text-muted)">
-                      Format
-                    </span>
-                    <FormatSelector
-                      value={viewFormat ?? "prose"}
-                      onChange={onViewFormatChange!}
-                    />
-                  </div>
-                ) : null}
+                <div className="flex justify-end">
+                  <AnswerToolbar
+                    markdownSource={markdownSource}
+                    plainText={answerProse ?? markdownSource}
+                    viewMode={currentViewMode}
+                    onViewModeChange={
+                      onViewFormatChange !== undefined
+                        ? handleViewModeChange
+                        : undefined
+                    }
+                    showToggle={showFormatToggle}
+                  />
+                </div>
                 {showStructuredBlocks ? (
                   <StructuredBlocks
                     data={answerStructuredData!}

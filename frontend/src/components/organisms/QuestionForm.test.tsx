@@ -68,21 +68,27 @@ describe("QuestionForm", () => {
     );
   });
 
-  it("switches to prose + high threshold via Advanced", () => {
+  it("submits high threshold via Advanced (outputFormat is fixed to structured)", () => {
     const { onSubmit } = setup();
     fireEvent.change(screen.getByLabelText(/your question/i), {
       target: { value: "Why is the sky blue?" },
     });
     fireEvent.click(screen.getByRole("button", { name: /^advanced/i }));
-    fireEvent.click(screen.getByLabelText(/^Prose$/));
     fireEvent.click(screen.getByLabelText(/High \(0\.85\)/));
     fireEvent.click(screen.getByTestId("submit-question"));
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
-        outputFormat: "prose",
+        outputFormat: "structured",
         confidenceThreshold: 0.85,
       })
     );
+  });
+
+  it("does not render the answer-format radio group in Advanced", () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: /^advanced/i }));
+    expect(screen.queryByLabelText(/^Prose$/)).toBeNull();
+    expect(screen.queryByLabelText(/Structured \(recommended\)/i)).toBeNull();
   });
 
   it("renders the loading copy while submitting", () => {

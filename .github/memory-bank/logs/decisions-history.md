@@ -4,11 +4,25 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-29
-**Total Decisions:** 78
+**Total Decisions:** 79
 
 ---
 
 ## Recent Decisions
+
+## D-BESTEFFORT-HEADER: Best-effort outcome lives only in `StatusBadge` / `RunHeader` (2026-05-29)
+**Date:** 2026-05-29
+**Commit:** _local, pending push_
+**Scope:** frontend — bugfix for the contradictory header observed on run `03bd6725-9510-4477-b500-badc5a339232` (header said "Stopped on budget" while the answer card showed a "Best-effort answer" badge + descriptive banner).
+**Decision:**
+1. `StatusBadge` accepts an optional `answerKind` prop. When `stopReason === "stopped_by_budget"` and `answerKind === "best_effort"` it renders `ANSWER_KIND_BEST_EFFORT_LABEL` ("Best-effort answer") with the `warning` variant instead of the generic "Stopped on budget".
+2. `answerKind` is propagated `CenterPanelContainer` → `CenterPanelView` → `RunHeader` → `StatusBadge`.
+3. The duplicated badge AND the explanatory banner inside the run-answer card are removed. The `StatusBadge` in `RunHeader` is the single source of truth for the terminal outcome label.
+**Rationale:** three concurrent places competed to describe the outcome and drifted. Centralising on the header eliminates the contradiction and matches the existing `TrustSummary` line ("⚠ Stopped on budget · best-effort answer") which is the only other intentional repetition.
+**Files:** [StatusBadge.tsx](frontend/src/components/molecules/StatusBadge.tsx), [RunHeader.tsx](frontend/src/components/organisms/RunHeader.tsx), [CenterPanelView.tsx](frontend/src/components/organisms/CenterPanelView.tsx); tests in [StatusBadge.test.tsx](frontend/src/components/molecules/StatusBadge.test.tsx), [CenterPanelView.test.tsx](frontend/src/components/organisms/CenterPanelView.test.tsx), [CenterPanelContainer.test.tsx](frontend/src/pages/CenterPanelContainer.test.tsx).
+**See also:** L-032 in `lessons-learned.md`.
+
+---
 
 ## D-IP28: IP-28 Theme Toggle (Light/Dark) (2026-05-29)
 **Date:** 2026-05-29

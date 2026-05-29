@@ -328,9 +328,11 @@ export function CenterPanelContainer() {
     return [...byUrl.values()];
   }, [events]);
 
-  // Client-side view format — defaults to run's stored format; toggleable post-answer
+  // Client-side view format — defaults to "structured" (the only format the
+  // form submits as of D-COPY-AND-FORMAT-INLINE); toggleable post-answer
+  // via AnswerToolbar inside the answer card.
   const [viewFormat, setViewFormat] = useState<string>(
-    run?.outputFormat ?? "prose"
+    run?.outputFormat ?? "structured"
   );
 
   useEffect(() => {

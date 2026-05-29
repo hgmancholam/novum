@@ -3,8 +3,8 @@
 > Repository of lessons learned during the Novum development.
 > All agents must consult this before starting tasks and update after completing them.
 
-**Last Updated:** 2026-05-28
-**Total Lessons:** 31
+**Last Updated:** 2026-05-29
+**Total Lessons:** 32
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,15 @@
 ---
 
 ## Recent Lessons
+
+## L-032: Run outcome label has a single source of truth — `StatusBadge` in `RunHeader` (2026-05-29)
+**Context:** Run `03bd6725-9510-4477-b500-badc5a339232` (a budget-stopped best-effort run) was rendering contradictory copy: the header `StatusBadge` said "Stopped on budget" while the answer card surfaced a separate "Best-effort answer" badge + descriptive banner. Three places (header badge, answer-card badge, answer-card banner) all attempted to describe the same outcome and drifted.
+**Lesson:** For terminal-state copy the `StatusBadge` inside `RunHeader` is the **single source of truth**. When `stopReason === "stopped_by_budget"` and `answerKind === "best_effort"` it must render `ANSWER_KIND_BEST_EFFORT_LABEL` ("Best-effort answer") with the `warning` variant — not the generic `stopReasonLabels[stopReason]`. Answer cards must NEVER duplicate this label or wrap it in their own banner.
+**Wiring contract:** `answerKind` flows `CenterPanelContainer` (derived from the terminal `Stopped` event) → `CenterPanelView` → `RunHeader` → `StatusBadge`. New stop-reason / answer-kind combinations get added to `StatusBadge`, not to downstream organisms.
+**Test guard:** assertions for the outcome label must scope to `screen.getByTestId("run-header")` + `within(...)`, because `TrustSummary` legitimately repeats the phrase as prose ("⚠ Stopped on budget · best-effort answer"); a global `getByText(/best-effort answer/i)` will fail with "multiple elements found".
+**Files touched:** [StatusBadge.tsx](frontend/src/components/molecules/StatusBadge.tsx), [RunHeader.tsx](frontend/src/components/organisms/RunHeader.tsx), [CenterPanelView.tsx](frontend/src/components/organisms/CenterPanelView.tsx).
+
+---
 
 ## L-031: `role="status"` is not allowed on `<footer>` (axe `aria-allowed-role`) (2026-05-28, IP-27)
 **Context:** `ServiceStatusBar` is a `<footer>`. Adding `role="status"` to make it a live region tripped axe (`aria-allowed-role`): the implicit role of `<footer>` is `contentinfo`, and `status` is not in its allowed-role list.
