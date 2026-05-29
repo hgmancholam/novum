@@ -131,7 +131,7 @@ export function ServiceStatusBar({ className }: ServiceStatusBarProps) {
             aria-hidden="true"
             className="ml-auto shrink-0 text-[10px] tracking-wide text-(--text-tertiary)/50"
           >
-            External services
+            External services Health
           </span>
         </>
       )}
