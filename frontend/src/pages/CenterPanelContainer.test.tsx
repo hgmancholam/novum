@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -379,7 +379,8 @@ describe("CenterPanelContainer", () => {
         /could not validate this answer/i,
       );
     });
-    expect(screen.getByText(/best-effort answer/i)).toBeInTheDocument();
+    const header = screen.getByTestId("run-header");
+    expect(within(header).getByText(/best-effort answer/i)).toBeInTheDocument();
     expect(screen.getByTestId("structured-answer")).toBeInTheDocument();
   });
 });
