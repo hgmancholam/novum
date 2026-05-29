@@ -26,6 +26,7 @@ export type { LineageBadgeProps } from "./LineageBadge";
 export { FormatSelector } from "./FormatSelector";
 export type { FormatSelectorProps } from "./FormatSelector";
 export { Toaster } from "./Toaster";
+export { ThemeToggle } from "./ThemeToggle";
 // IP-24 Phase 2
 export { FeedStep } from "./FeedStep";
 // IP-27

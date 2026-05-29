@@ -10,6 +10,18 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
+    <script>
+      // IP-28: FOUC guard — apply theme before first paint.
+      (function () {
+        try {
+          var t = localStorage.getItem("novum:theme");
+          if (t !== "light" && t !== "dark") t = "dark";
+          document.documentElement.dataset.theme = t;
+        } catch (_) {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
     <title>Novum — Research Agent</title>
   </head>
   <body>

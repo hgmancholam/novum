@@ -3,8 +3,8 @@
 > Central index of all knowledge artifacts in the Novum project.
 > Updated automatically by agents after each task.
 
-**Last Updated:** 2026-05-28
-**Updated By:** Orchestrator Agent (post IP-27 service-health footer, local)
+**Last Updated:** 2026-05-29
+**Updated By:** Coder Agent (post IP-28 theme toggle, local)
 
 ---
 
@@ -49,6 +49,7 @@
 | IP-23 | BRD-23 Research-Quality Improvements (Temporal · Authority · Deep-Fetch · Query Hygiene) | 2026-05-27 | Draft (F2) | [IP-23](../../../docs/implementation-phase/implementation-plans/IP-23-research-quality-improvements.md) |
 | IP-26 | BRD-26 Agentic Stopping & Meta-Judge | 2026-05-28 | Slices 1–3 committed (local) — slice 3b' deferred (cost-gate) | [IP-26](../../../docs/implementation-phase/implementation-plans/IP-26-agentic-stopping-meta-judge.md) |
 | IP-27 | BRD-27 Service Health Observability footer | 2026-05-28 | Implemented (local) | [IP-27](../../../docs/implementation-phase/implementation-plans/IP-27-service-health-observability.md) |
+| IP-28 | BRD-28 Theme Toggle (Light/Dark) | 2026-05-29 | Implemented (local) | [IP-28](../../../docs/implementation-phase/implementation-plans/IP-28-theme-toggle-light-dark.md) |
 
 ---
 
@@ -80,6 +81,7 @@
 | BRD-23 | Research-Quality Improvements (Temporal · Authority · Deep-Fetch · Query Hygiene) | 2026-05-27 | Draft (F1) | [BRD-23](../../../docs/implementation-phase/brds/BRD-23-research-quality-improvements.md) |
 | BRD-26 | Agentic Stopping & Meta-Judge | 2026-05-28 | Implemented (slices 1–3, local) | [BRD-26](../../../docs/implementation-phase/brds/BRD-26-agentic-stopping-meta-judge.md) |
 | BRD-27 | Service Health Observability footer | 2026-05-28 | Implemented (local) | [BRD-27](../../../docs/implementation-phase/brds/BRD-27-service-health-observability.md) |
+| BRD-28 | Theme Toggle (Light/Dark) | 2026-05-29 | Implemented (local) | [BRD-28](../../../docs/implementation-phase/brds/BRD-28-theme-toggle-light-dark.md) |
 
 ---
 

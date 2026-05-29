@@ -134,12 +134,52 @@ describe("AppShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("has no a11y violations on desktop", async () => {
-    const { container } = render(
-      <AppShell forceBreakpoint="desktop" {...slots} />
-    );
-    expect(await axe(container)).toHaveNoViolations();
+  describe("ThemeToggle wiring (IP-28)", () => {
+    beforeEach(() => {
+      localStorage.removeItem("novum:theme");
+      delete document.documentElement.dataset.theme;
+    });
+
+    it("renders the theme toggle switch in the top bar", () => {
+      render(<AppShell forceBreakpoint="desktop" {...slots} />);
+      expect(
+        screen.getByRole("switch", { name: /switch to (light|dark) mode/i })
+      ).toBeInTheDocument();
+    });
+
+    it("persists the theme choice across re-mount", () => {
+      const { unmount } = render(
+        <AppShell forceBreakpoint="desktop" {...slots} />
+      );
+      const btn = screen.getByRole("switch", {
+        name: /switch to (light|dark) mode/i,
+      });
+      expect(btn).toHaveAttribute("aria-checked", "false");
+
+      fireEvent.click(btn);
+      expect(localStorage.getItem("novum:theme")).toBe("light");
+      unmount();
+
+      render(<AppShell forceBreakpoint="desktop" {...slots} />);
+      expect(
+        screen.getByRole("switch", {
+          name: /switch to (light|dark) mode/i,
+        })
+      ).toHaveAttribute("aria-checked", "true");
+    });
   });
+
+  it.each(["dark", "light"] as const)(
+    "has no a11y violations on desktop (%s theme)",
+    async (theme) => {
+      document.documentElement.dataset.theme = theme;
+      const { container } = render(
+        <AppShell forceBreakpoint="desktop" {...slots} />
+      );
+      expect(await axe(container)).toHaveNoViolations();
+      delete document.documentElement.dataset.theme;
+    }
+  );
 
   describe("IdentitySlot wiring (iter 2)", () => {
     it("shows the Spinner while isVerifying on desktop", () => {

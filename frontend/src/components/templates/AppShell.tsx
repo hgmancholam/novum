@@ -17,7 +17,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Menu, PanelRight, Workflow } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { BackgroundOrbs, Logo } from "@/components/atoms";
-import { IdentitySlot } from "@/components/molecules";
+import { IdentitySlot, ThemeToggle } from "@/components/molecules";
 import { useSelectionStore } from "@/stores/selectionStore";
 
 export type Breakpoint = "mobile" | "tablet" | "desktop";
@@ -174,6 +174,7 @@ function TopBar({
           <Workflow className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
           <span className="hidden sm:inline">How do we work?</span>
         </a>
+        <ThemeToggle />
         <IdentitySlot />
         {showRightToggle ? (
           <button

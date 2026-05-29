@@ -3,12 +3,39 @@
 > Chronological log of all decisions made during the Novum development.
 > Each decision follows the decision record template.
 
-**Last Updated:** 2026-05-28
-**Total Decisions:** 77
+**Last Updated:** 2026-05-29
+**Total Decisions:** 78
 
 ---
 
 ## Recent Decisions
+
+## D-IP28: IP-28 Theme Toggle (Light/Dark) (2026-05-29)
+**Date:** 2026-05-29
+**Commit:** _local, pending push_
+**Scope:** BRD-28 — user-controlled light/dark theme toggle in `AppShell` TopBar, default `dark`, persisted in `localStorage["novum:theme"]`.
+**Key design decisions:**
+- **`dark` is the V1 default** to preserve the Slate Aurora identity defined in `ui-prototype.md` §1; the toggle is opt-in and never auto-switches.
+- **`<html data-theme="dark|light">` attribute** drives both the existing Novum CSS variables and Tailwind utilities. Tailwind v4 `@variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));` is added at the top of `index.css` so the existing `dark:` utility classes (e.g. in `Toaster`, `UsernameModal`) keep working under the new mechanism without touching JSX. Chose this over a `class="dark"` toggle because `data-*` is more explicit and avoids colliding with utility class names.
+- **No `prefers-color-scheme` detection in V1.** Implicit OS-driven switching is deferred — the user must opt in by clicking the toggle. Removes ambiguity ("why did it change without me asking?") and keeps the contract simple.
+- **Inline synchronous FOUC guard in `index.html`** (small IIFE before `<title>`) reads `localStorage` and writes `documentElement.dataset.theme` before React mounts. Kept < 1 KB; wrapped in try/catch so Safari private-mode `localStorage` throws don't break the page (theme just falls back to `dark`).
+- **shadcn legacy `.dark { ... }` block renamed to `:root[data-theme="dark"]`** (Option A from IP). Cleaner than carrying both selectors — shadcn primitives now derive their tokens from the same attribute the rest of the app uses.
+**Implementation:**
+- **Tokens:** `frontend/src/index.css` gained a `:root[data-theme="light"]` block overriding surfaces, gradient, glass-on-dark-slate, accent soft/glow, warm soft/glow, text, scrim and shadows. Semantic/accent/feed/radii/easing tokens left unchanged (cross-theme).
+- **Library:** `frontend/src/lib/theme.ts` exports `Theme`, `THEME_STORAGE_KEY`, `DEFAULT_THEME` and SSR-safe helpers (`isTheme`, `readStoredTheme`, `writeStoredTheme`, `applyThemeToDocument`).
+- **Hook:** `frontend/src/hooks/useTheme.ts` returns `{ theme, setTheme, toggle }`; subscribes to `storage` events for cross-tab sync (AC-05), tolerant of storage failures (AC-06).
+- **Atom:** `ThemeToggleIcon` cross-fades `Sun`/`Moon` via `motion/react` + `AnimatePresence`, respects `useReducedMotion()`.
+- **Molecule:** `ThemeToggle` is a native `<button role="switch" aria-checked aria-label title>` (h-9 w-9, focus ring on `--accent`). No shadcn `Tooltip` (not scaffolded) — native `title` attribute matches the `ServiceStatusPill` convention.
+- **Mount:** inserted between "How do we work?" link and `IdentitySlot` in `templates/AppShell.tsx`.
+**Files:**
+- NEW: `frontend/src/lib/theme.ts` (+ test), `frontend/src/hooks/useTheme.ts` (+ test), `frontend/src/components/atoms/ThemeToggleIcon.tsx` (+ test), `frontend/src/components/molecules/ThemeToggle.tsx` (+ test).
+- MODIFIED: `frontend/src/index.css` (+ `@variant dark` directive, light tokens, dark block renamed), `frontend/index.html` (inline FOUC script), `frontend/src/components/molecules/index.ts` (barrel export), `frontend/src/components/templates/AppShell.tsx` (mount), `frontend/src/components/templates/AppShell.test.tsx` (+ 2 wiring tests + parametrized axe over both themes).
+- DOCS: `docs/implementation-phase/brds/BRD-28-theme-toggle-light-dark.md`, `docs/implementation-phase/implementation-plans/IP-28-theme-toggle-light-dark.md`, `docs/understanding-phase/ui-prototype.md` (light palette section added).
+**Tests:** 46 new/extended tests green (`theme.test.ts` 9, `useTheme.test.ts` 8, `ThemeToggleIcon.test.tsx` 2, `ThemeToggle.test.tsx` 5, `AppShell.test.tsx` 22 incl. axe in both themes). `Toaster.test.tsx` (4) and `UsernameModal.test.tsx` (8) regression-clean.
+**Lint/Typecheck:** typecheck clean. Lint shows 131 pre-existing problems unrelated to IP-28 (zero matches against any new/modified file).
+**Reach:** Local only. Not pushed, not deployed. Manual visual smoke for AC-03 (no FOUC on reload) deferred to dev session.
+
+---
 
 ## D-IP27: IP-27 Service Health Observability footer (2026-05-28)
 **Date:** 2026-05-28

@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
 /*
+ * Tailwind v4 `dark:` modifier bridge (IP-28).
+ * Rewires every existing `dark:` utility (e.g. Toaster) to activate when
+ * <html data-theme="dark"> is set, instead of the legacy `.dark` class.
+ */
+@variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
  * Novum design tokens — see docs/understanding-phase/ui-design.md (Slate Aurora).
  * Components reference these via var(--token); never hardcode hex.
  */
@@ -74,6 +81,45 @@
   --feed-thinking: var(--accent);  /* alias for internal */
 }
 
+/*
+ * Slate Aurora — Daylight variant (IP-28 / BRD-28 §4.8).
+ * Only surface/text/glass/shadow tokens are overridden. Accents, warm,
+ * semantic, feed, radii and easing tokens are palette-neutral and stay.
+ */
+:root[data-theme="light"] {
+  --bg-primary:   #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-tertiary:  #e2e8f0;
+  --bg-elevated:  #ffffff;
+
+  --bg-gradient:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99, 102, 241, 0.10), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 85% 100%, rgba(168, 85, 247, 0.06), transparent 70%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+
+  /* Glass uses dark slate at low opacity — readable against white surfaces. */
+  --glass-bg:     rgba(15, 23, 42, 0.04);
+  --glass-border: rgba(15, 23, 42, 0.10);
+  --glass-hover:  rgba(15, 23, 42, 0.07);
+
+  --accent-soft:  rgba(99, 102, 241, 0.10);
+  --accent-glow:  rgba(99, 102, 241, 0.20);
+
+  --warm-soft:    rgba(251, 191, 36, 0.14);
+  --warm-glow:    rgba(251, 191, 36, 0.20);
+
+  --text-primary:   #0f172a;
+  --text-secondary: #334155;
+  --text-muted:     #64748b;
+  --text-disabled:  #94a3b8;
+
+  --overlay-scrim: rgba(15, 23, 42, 0.35);
+
+  --shadow-sm:   0 1px 2px rgba(15, 23, 42, 0.08);
+  --shadow-md:   0 4px 12px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-lg:   0 12px 32px rgba(15, 23, 42, 0.12), 0 4px 8px rgba(15, 23, 42, 0.06);
+}
+
 /* shadcn/ui legacy tokens (kept for components.json compatibility).
  * Conflicting names with Novum tokens (--accent) are intentionally omitted —
  * the Novum value above is canonical. */
@@ -99,7 +145,8 @@
   --radius: 0.5rem;
 }
 
-.dark {
+/* shadcn/ui dark tokens — driven by data-theme="dark" (IP-28 Option A). */
+:root[data-theme="dark"] {
   --background: 240 10% 3.9%;
   --foreground: 0 0% 98%;
   --card: 240 10% 3.9%;

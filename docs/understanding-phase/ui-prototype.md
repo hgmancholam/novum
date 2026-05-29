@@ -46,7 +46,36 @@ The Slate Aurora identity is composed of seven mandatory ingredients that MUST c
 6. **`fadeUp + stagger` scroll-reveal** for every section below the fold — see `ui-design.md` §5.3.
 7. **Warm amber for trust signals only** (confirmed answers, headline confidence, `judge_confirmed` badge). No amber elsewhere.
 
-Minimalist, refined, generous whitespace, clear typographic hierarchy, soft micro-interactions. **No** decorative illustrations. **No** light-mode toggle in V1.
+Minimalist, refined, generous whitespace, clear typographic hierarchy, soft micro-interactions. **No** decorative illustrations.
+
+> **Theme toggle (BRD-28, IP-28):** as of 2026-05-29 a user-controlled light/dark toggle ships in the global `AppShell` TopBar. Default is **`dark`** (Slate Aurora) — the seven mandatory ingredients above remain the canonical look and feel of the product. The light theme is a derived palette (see §1.2.1 below) intended for high-glare environments; it is opt-in and persisted in `localStorage["novum:theme"]`. No `prefers-color-scheme` auto-switch in V1.
+
+### 1.2.1 Slate Aurora — Daylight variant (light theme)
+
+When `<html data-theme="light">`, the following tokens override the defaults; all unlisted tokens (semantic, accent base, feed, radii, easing) are unchanged across themes. Verbatim values are owned by BRD-28 §4.8 — keep this table in sync if BRD-28 evolves.
+
+| Token | Light value | Notes |
+|---|---|---|
+| `--bg-primary` | `#f8fafc` | Light slate, never pure white |
+| `--bg-secondary` | `#f1f5f9` | |
+| `--bg-tertiary` | `#e2e8f0` | |
+| `--bg-elevated` | `#ffffff` | Modal / popover surface |
+| `--bg-gradient` | indigo @10 % + violet @6 % + `linear-gradient(180deg, #f8fafc, #eef2f7)` | Same orb composition, washed for daylight |
+| `--glass-bg` | `rgba(15, 23, 42, 0.04)` | Dark slate at low opacity — glass on light |
+| `--glass-border` | `rgba(15, 23, 42, 0.10)` | |
+| `--glass-hover` | `rgba(15, 23, 42, 0.07)` | |
+| `--accent-soft` | `rgba(99, 102, 241, 0.10)` | Adjusted for light surfaces |
+| `--accent-glow` | `rgba(99, 102, 241, 0.20)` | |
+| `--warm-soft` | `rgba(251, 191, 36, 0.14)` | |
+| `--warm-glow` | `rgba(251, 191, 36, 0.20)` | |
+| `--text-primary` | `#0f172a` | |
+| `--text-secondary` | `#334155` | |
+| `--text-muted` | `#64748b` | |
+| `--text-disabled` | `#94a3b8` | |
+| `--overlay-scrim` | `rgba(15, 23, 42, 0.35)` | Modal backdrop |
+| `--shadow-sm` / `-md` / `-lg` | Tinted with `rgba(15, 23, 42, ...)` instead of `rgba(0, 0, 0, ...)` | Softer on light surfaces |
+
+The Tailwind v4 `dark:` modifier is bound to the same attribute via `@variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));` declared at the top of `index.css`, so existing `dark:*` utility classes (e.g. in `Toaster`, `UsernameModal`) continue to work without rewrites.
 
 ### 1.3 Color tokens — see [`ui-design.md` §2](./ui-design.md#2-color-system)
 
