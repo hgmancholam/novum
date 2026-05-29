@@ -208,7 +208,7 @@ export function AppShell({ left, center, right, forceBreakpoint }: AppShellProps
     <div
       data-testid="app-shell"
       data-breakpoint={breakpoint}
-      className="relative flex h-[100dvh] w-full overflow-hidden bg-transparent text-(--text-primary)"
+      className="relative flex h-[calc(100dvh-1.75rem)] w-full overflow-hidden bg-transparent text-(--text-primary)"
     >
       <BackgroundOrbs />
       {showLeftAsDrawer ? null : (
