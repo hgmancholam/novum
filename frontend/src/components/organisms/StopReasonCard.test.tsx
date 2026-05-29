@@ -13,17 +13,32 @@ const reasons: ReadonlyArray<StopReason> = [
   "errored",
 ];
 
+const actionableReasons: ReadonlyArray<StopReason> = ["errored", "user_cancelled"];
+const nonActionableReasons: ReadonlyArray<StopReason> = [
+  "judge_confirmed",
+  "stopped_by_budget",
+];
+
 describe("StopReasonCard", () => {
-  it.each(reasons)(
-    "renders title, description and correct variant for %s",
+  it.each(actionableReasons)(
+    "renders title, description and correct variant for %s when actionable",
     (reason) => {
-      render(<StopReasonCard reason={reason} />);
+      render(<StopReasonCard reason={reason} onResume={vi.fn()} />);
       const card = screen.getByTestId("stop-reason-card");
       const config = stopReasonConfig[reason];
       expect(card).toHaveAttribute("data-reason", reason);
       expect(card).toHaveAttribute("data-variant", config.variant);
       expect(screen.getByText(config.title)).toBeInTheDocument();
       expect(screen.getByText(config.description)).toBeInTheDocument();
+    }
+  );
+
+  it.each(nonActionableReasons)(
+    "renders nothing for non-actionable reason %s (covered by TrustSummary)",
+    (reason) => {
+      const { container } = render(<StopReasonCard reason={reason} />);
+      expect(container).toBeEmptyDOMElement();
+      expect(screen.queryByTestId("stop-reason-card")).not.toBeInTheDocument();
     }
   );
 
@@ -39,9 +54,17 @@ describe("StopReasonCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders even for non-resumable reason when an explanation is provided", () => {
+    render(<StopReasonCard reason="errored" explanation="boom" />);
+    expect(screen.getByTestId("stop-reason-card")).toBeInTheDocument();
+  });
+
   it("has no accessibility violations for every variant", async () => {
     for (const reason of reasons) {
-      const { container, unmount } = render(<StopReasonCard reason={reason} />);
+      // Force render by providing onResume so the card mounts for every reason.
+      const { container, unmount } = render(
+        <StopReasonCard reason={reason} onResume={vi.fn()} />
+      );
       const results = await axe(container);
       expect(results).toHaveNoViolations();
       unmount();

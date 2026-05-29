@@ -157,12 +157,13 @@ describe("CenterPanelContainer", () => {
       )
     );
     renderWithRouter(<CenterPanelContainer />);
+    // Non-actionable terminal reasons (judge_confirmed, stopped_by_budget,
+    // honest_*) no longer render a stand-alone card — TrustSummary owns the
+    // outcome. Confirm the panel mounted but the card stayed hidden.
     await waitFor(() => {
-      expect(screen.getByTestId("stop-reason-card")).toHaveAttribute(
-        "data-reason",
-        "stopped_by_budget"
-      );
+      expect(screen.getByTestId("center-panel-view")).toBeInTheDocument();
     });
+    expect(screen.queryByTestId("stop-reason-card")).not.toBeInTheDocument();
   });
 
   it("renders the NotFoundCard for a 404 (C13)", async () => {

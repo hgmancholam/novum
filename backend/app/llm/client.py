@@ -237,6 +237,8 @@ class LLMClient:
 
         # Attempt 1: Requested provider (anthropic or github)
         if requested_provider == "anthropic" and settings.anthropic_api_key:
+            from app.llm import last_error as provider_health
+
             model = "anthropic/claude-haiku-4-5"
             try:
                 logger.info("llm_judge_anthropic_attempt", model=model)
@@ -251,6 +253,7 @@ class LLMClient:
                     max_retries=1,
                 )
                 logger.info("llm_judge_anthropic_success", model=model)
+                provider_health.clear("anthropic")
                 return cast("T", result), None
 
             except (AuthenticationError, APIConnectionError, RateLimitError) as exc:
@@ -259,6 +262,14 @@ class LLMClient:
                     error_class=type(exc).__name__,
                     error=str(exc),
                 )
+                if isinstance(exc, AuthenticationError):
+                    provider_health.record("anthropic", "auth", str(exc))
+                elif isinstance(exc, APIConnectionError):
+                    provider_health.record("anthropic", "unreachable", str(exc))
+                elif _is_quota_exhausted(exc):
+                    provider_health.record("anthropic", "quota", str(exc))
+                else:
+                    provider_health.record("anthropic", "rate_limit", str(exc))
                 # Fall through to GitHub fallback
                 degraded_event = {
                     "requested_provider": "anthropic",
@@ -359,6 +370,7 @@ class LLMClient:
         # github path below stays untouched to preserve token+model pool
         # rotation and judge fallback (WP-5).
         if active_provider != "github":
+            from app.llm import last_error as provider_health
             from app.llm.factory import get_provider
 
             provider = get_provider(active_provider)
@@ -384,8 +396,20 @@ class LLMClient:
                         role=role.value,
                         error=str(exc),
                     )
+                    provider_health.record(active_provider, "quota", str(exc))
                     raise LLMProviderQuotaExhausted(active_provider, exc) from exc
+                provider_health.record(active_provider, "rate_limit", str(exc))
                 raise
+            except AuthenticationError as exc:
+                provider_health.record(active_provider, "auth", str(exc))
+                raise
+            except APIConnectionError as exc:
+                provider_health.record(active_provider, "unreachable", str(exc))
+                raise
+            except Exception as exc:
+                provider_health.record(active_provider, "upstream", str(exc))
+                raise
+            provider_health.clear(active_provider)
             logger.info(
                 "llm_call_complete",
                 role=role.value,

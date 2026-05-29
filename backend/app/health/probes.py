@@ -111,20 +111,37 @@ class ProbeSpec(NamedTuple):
 
 
 async def _anthropic_runner() -> None:
-    """Env-var presence check.
+    """Env-var presence check + passive last-error consult.
 
-    V1 deliberately avoids a network probe here: every real research
-    run already exercises Anthropic end-to-end via ``llm.call``, so an
-    extra 30 s pinger would burn tokens without adding signal. If the
-    key is unset, every run fails fast at config-load time; the bar
-    surfaces ``no_key`` instead so the user sees it before clicking
-    "Start research".
+    V1 deliberately avoids an outbound network probe (would burn tokens
+    every 30 s for no extra signal). Instead, ``app.llm.client`` records
+    the kind of any recent Anthropic failure in
+    ``app.llm.last_error``; we read that here so the bar reflects real
+    outages (rate-limit, quota exhaustion, auth failure, network error)
+    without spending tokens. A successful call clears the record, so
+    the bar self-recovers as soon as the provider is healthy again.
     """
     if settings.anthropic_api_key is None:
         raise NoKeyError("ANTHROPIC_API_KEY")
     secret = settings.anthropic_api_key.get_secret_value()
     if not secret.strip():
         raise NoKeyError("ANTHROPIC_API_KEY")
+
+    from app.llm import last_error as provider_health
+
+    recent = provider_health.get_recent("anthropic")
+    if recent is None:
+        return
+    snippet = recent.message[:160]
+    if recent.kind == "auth":
+        raise AuthError(snippet)
+    if recent.kind == "rate_limit":
+        raise RateLimitError(snippet)
+    if recent.kind == "quota":
+        raise UpstreamError(f"quota exhausted: {snippet}")
+    if recent.kind == "unreachable":
+        raise UnreachableError(snippet)
+    raise UpstreamError(snippet)
 
 
 def _make_disabled_runner(reason: str = "not enabled in V1") -> ProbeRunner:
@@ -221,7 +238,7 @@ PROBES: tuple[ProbeSpec, ...] = (
     # LLM family
     ProbeSpec(
         "anthropic", "Anthropic", ServiceCategory.LLM, _anthropic_runner,
-        ttl_s=300.0,  # env-var only, no upstream call -> can be slow.
+        ttl_s=30.0,  # env-var + last-error tracker; cheap, refresh fast.
     ),
     ProbeSpec("openai", "OpenAI", ServiceCategory.LLM, _make_disabled_runner(), ttl_s=3600.0),
     ProbeSpec("gemini", "Gemini", ServiceCategory.LLM, _make_disabled_runner(), ttl_s=3600.0),

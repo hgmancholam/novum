@@ -53,10 +53,9 @@ describe("CenterPanelView", () => {
       stopReason: "judge_confirmed",
     });
     render(<CenterPanelView run={run} status="stopped" />);
-    expect(screen.getByTestId("stop-reason-card")).toHaveAttribute(
-      "data-reason",
-      "judge_confirmed"
-    );
+    // Non-actionable terminal reasons no longer render the StopReasonCard —
+    // the outcome is shown by TrustSummary instead.
+    expect(screen.queryByTestId("stop-reason-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("run-feed")).not.toBeInTheDocument();
   });
 

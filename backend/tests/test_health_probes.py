@@ -123,6 +123,101 @@ async def test_anthropic_runner_succeeds_when_key_set(
 
 
 # ---------------------------------------------------------------------------
+# Passive last-error consult (key present + recent failure recorded).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _anthropic_key_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pydantic import SecretStr
+
+    monkeypatch.setattr(
+        probes_module.settings, "anthropic_api_key", SecretStr("sk-ant-fake")
+    )
+
+
+@pytest.fixture(autouse=True)
+def _reset_last_error() -> None:
+    from app.llm import last_error
+
+    last_error.reset_all()
+
+
+async def test_anthropic_runner_raises_rate_limit_when_recent_rate_limit(
+    _anthropic_key_set: None,
+) -> None:
+    from app.health.probes import _anthropic_runner
+    from app.llm import last_error
+
+    last_error.record("anthropic", "rate_limit", "429 too many requests")
+    with pytest.raises(RateLimitError):
+        await _anthropic_runner()
+
+
+async def test_anthropic_runner_raises_upstream_when_quota_exhausted(
+    _anthropic_key_set: None,
+) -> None:
+    from app.health.probes import _anthropic_runner
+    from app.llm import last_error
+
+    last_error.record("anthropic", "quota", "credit balance too low")
+    with pytest.raises(UpstreamError) as info:
+        await _anthropic_runner()
+    assert "quota" in str(info.value).lower()
+
+
+async def test_anthropic_runner_raises_auth_when_recent_auth_failure(
+    _anthropic_key_set: None,
+) -> None:
+    from app.health.probes import _anthropic_runner
+    from app.llm import last_error
+
+    last_error.record("anthropic", "auth", "invalid api key")
+    with pytest.raises(AuthError):
+        await _anthropic_runner()
+
+
+async def test_anthropic_runner_raises_unreachable_when_recent_network_error(
+    _anthropic_key_set: None,
+) -> None:
+    from app.health.probes import _anthropic_runner
+    from app.llm import last_error
+
+    last_error.record("anthropic", "unreachable", "connection refused")
+    with pytest.raises(UnreachableError):
+        await _anthropic_runner()
+
+
+async def test_anthropic_runner_recovers_after_clear(
+    _anthropic_key_set: None,
+) -> None:
+    from app.health.probes import _anthropic_runner
+    from app.llm import last_error
+
+    last_error.record("anthropic", "rate_limit", "429")
+    with pytest.raises(RateLimitError):
+        await _anthropic_runner()
+    last_error.clear("anthropic")
+    await _anthropic_runner()  # must not raise
+
+
+async def test_anthropic_runner_ignores_stale_error(
+    _anthropic_key_set: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.health.probes import _anthropic_runner
+    from app.llm import last_error
+
+    fake_now = [1000.0]
+    monkeypatch.setattr(last_error.time, "time", lambda: fake_now[0])
+
+    last_error.record("anthropic", "rate_limit", "old")
+    fake_now[0] += last_error.DEFAULT_WINDOW_S + 10
+    # Stale entry should not raise.
+    await _anthropic_runner()
+
+
+# ---------------------------------------------------------------------------
 # Disabled runners (OpenAI / Gemini / GitHub Models).
 # ---------------------------------------------------------------------------
 

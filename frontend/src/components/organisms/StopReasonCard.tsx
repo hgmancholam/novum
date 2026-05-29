@@ -76,6 +76,15 @@ export function StopReasonCard({
   const config = stopReasonConfig[reason];
   const color = variantColorToken[config.variant];
   const showResume = onResume !== undefined && RESUMABLE.has(reason);
+  const hasExplanation = explanation !== undefined && explanation.length > 0;
+
+  // Non-actionable terminal states (judge_confirmed, stopped_by_budget,
+  // honest_*) duplicate the outcome already shown by TrustSummary and
+  // steal focus from the answer. Render only when we have something the
+  // user can act on (Resume CTA) or extra context (error explanation).
+  if (!showResume && !hasExplanation) {
+    return null;
+  }
 
   return (
     <div
@@ -100,7 +109,7 @@ export function StopReasonCard({
         {config.title}
       </h3>
       <p className="text-sm text-[var(--text-primary)]">{config.description}</p>
-      {explanation !== undefined && explanation.length > 0 ? (
+      {hasExplanation ? (
         <p className="mt-3 text-sm text-[var(--text-secondary)]">
           {explanation}
         </p>
