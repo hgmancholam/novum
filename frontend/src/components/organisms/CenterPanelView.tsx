@@ -15,9 +15,6 @@
 import { OutcomeBar, GlassSurface } from "@/components/atoms";
 import { FormatSelector } from "@/components/molecules";
 import { cn } from "@/lib/cn";
-import {
-  ANSWER_KIND_BEST_EFFORT_DESCRIPTION,
-} from "@/lib/microcopy";
 import { useCallback, useState } from "react";
 import type { Run, RunStatus } from "@/types/run";
 import type { AnswerKind, StructuredAnswerData, RunStreamEvent } from "@/types/events";
@@ -181,19 +178,6 @@ export function CenterPanelView({
           <div className="flex flex-col gap-3 px-6 py-6">
             {hasAnswer && activeContent !== null ? (
               <>
-                {isBestEffortFallback ? (
-                  <div
-                    data-testid="answer-kind-banner"
-                    className={cn(
-                      "rounded-lg px-4 py-3",
-                      "border border-(--glass-border) bg-(--glass-bg) backdrop-blur",
-                    )}
-                  >
-                    <p className="text-xs leading-relaxed text-(--text-secondary)">
-                      {ANSWER_KIND_BEST_EFFORT_DESCRIPTION}
-                    </p>
-                  </div>
-                ) : null}
                 {showFormatSelector ? (
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-(--text-muted)">

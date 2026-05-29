@@ -373,14 +373,14 @@ describe("CenterPanelContainer", () => {
 
     renderWithRouter(<CenterPanelContainer />);
     // The single source of truth for the outcome label is the StatusBadge
-    // inside RunHeader. The answer card only carries the explanatory banner.
+    // inside RunHeader. The answer card no longer carries a duplicate badge
+    // or banner.
     await waitFor(() => {
-      expect(screen.getByTestId("answer-kind-banner")).toHaveTextContent(
-        /could not validate this answer/i,
-      );
+      const header = screen.getByTestId("run-header");
+      expect(within(header).getByText(/best-effort answer/i)).toBeInTheDocument();
     });
-    const header = screen.getByTestId("run-header");
-    expect(within(header).getByText(/best-effort answer/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("answer-kind-banner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("answer-kind-badge")).not.toBeInTheDocument();
     expect(screen.getByTestId("structured-answer")).toBeInTheDocument();
   });
 });

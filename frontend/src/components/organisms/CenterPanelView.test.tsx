@@ -72,7 +72,7 @@ describe("CenterPanelView", () => {
       stopReason: "stopped_by_budget",
     });
 
-    it("renders the banner + answer when stop_reason=stopped_by_budget and answer_kind=best_effort", () => {
+    it("renders the answer when stop_reason=stopped_by_budget and answer_kind=best_effort", () => {
       render(
         <CenterPanelView
           run={bestEffortRun}
@@ -81,12 +81,10 @@ describe("CenterPanelView", () => {
           answerProse="Here is what we know so far."
         />,
       );
-      expect(screen.getByTestId("answer-kind-banner")).toHaveTextContent(
-        /could not validate this answer/i,
-      );
-      // The duplicated badge inside the answer card was removed in favor of
-      // the StatusBadge in RunHeader (single source of truth for run status).
+      // The duplicated badge and banner inside the answer card were removed
+      // in favor of the StatusBadge in RunHeader (single source of truth).
       expect(screen.queryByTestId("answer-kind-badge")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("answer-kind-banner")).not.toBeInTheDocument();
       expect(screen.getByTestId("structured-answer")).toBeInTheDocument();
     });
 
