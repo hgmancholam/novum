@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import traceback
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 import structlog
@@ -74,6 +75,11 @@ class AgentOrchestrator:
         self._cancelled = True
 
     async def emit(self, event: BaseEvent) -> None:
+        # PR-1 (post-2026-05-29 eval): mirror every emitted event into the
+        # in-memory ``state.events`` list so ``has_event()`` works for fresh
+        # runs (not just resume) and ``_check_global_budget`` can derive event
+        # counters and the no-progress plateau predicate without a DB roundtrip.
+        self.state.events.append(event)
         await self._emit(event)
 
     async def run(self) -> StopReason:
@@ -120,7 +126,7 @@ class AgentOrchestrator:
 
             # IP-25 Phase A: Select lane and emit RouteSelectedEvent (T-25-A-05)
             # Telemetry only — all lanes continue through STANDARD flow for now
-            from app.agent.lane_router import select_lane
+            from app.agent.lane_router import apply_lane_budgets, select_lane
 
             lane, reason = select_lane(
                 question_type=self.state.question_type or QuestionType.FACTUAL,
@@ -129,6 +135,8 @@ class AgentOrchestrator:
                 ambiguity_detected=self.state.has_ambiguity,
             )
             self.state.selected_lane = lane
+            # PR-1: hard global caps (wall-clock + counters) for this lane.
+            apply_lane_budgets(self.state, lane)
             await self.emit(
                 RouteSelectedEvent(
                     lane=lane,
@@ -187,6 +195,13 @@ class AgentOrchestrator:
             ):
                 if self._cancelled:
                     return await self._stop(StopReason.USER_CANCELLED)
+
+                # PR-1 (post-2026-05-29 eval): FSM-independent stop guard.
+                # Runs the wall-clock + global-counter + event-plateau checks
+                # BEFORE phase dispatch so a stuck SEARCHING↔ANALYZING cycle
+                # cannot escape with no terminal Stopped event.
+                if await self._check_global_budget():
+                    return self.state.stop_reason or StopReason.STOPPED_BY_BUDGET
 
                 self.state.iteration_count += 1
                 match self.state.current_state:
@@ -425,6 +440,20 @@ class AgentOrchestrator:
         events = await analyze_evidence(self.state)
         for ev in events:
             await self.emit(ev)
+
+        # PR-5 Mejora 5.2: snapshot post-analyze coverage so the
+        # claim-coverage plateau predicate can detect ``SEARCHING ↔ ANALYZING``
+        # ping-pong that adds evidence without promoting any sub-claim to
+        # ``covered``.
+        self.state.coverage_history.append(len(self.state.covered_claims))
+
+        # PR-2 (post-2026-05-29 eval): pre-synth meta-judge gate. Fires once
+        # per run, the first time either (a) all claims are resolved (we are
+        # about to enter DRAFTING) or (b) evidence_total crosses the
+        # configured threshold mid-flow. May short-circuit to stop or
+        # transition straight back to SEARCHING.
+        if await self._maybe_run_before_synth_meta_judge():
+            return
 
         # IP-25 Phase 0: detect echo chambers (≥3 dated sources < 7d window,
         # agreement=1.0). Emission deduped per claim across rounds.
@@ -728,6 +757,192 @@ class AgentOrchestrator:
             self.state, self.emit, judge_event, hook="after_judge"
         )
 
+    async def _maybe_run_before_synth_meta_judge(self) -> bool:
+        """Pre-synth meta-judge gate (PR-2, post-2026-05-29 eval).
+
+        Fires at most once per run. Gating conditions:
+          - ``before_synth_hook_fired`` flag is False, and
+          - either all sub-claims are already resolved (we are about to
+            transition to DRAFTING), or evidence_total has crossed
+            ``settings.meta_judge_before_synth_min_evidence`` mid-flow.
+
+        Outcomes:
+          - ``stop_best_effort``: best-effort draft + stop with
+            STOPPED_BY_BUDGET; returns True so the caller exits early.
+          - ``continue``: force one more SEARCHING round (only if search
+            budget allows); returns True.
+          - ``confirm`` / ``skipped``: fall through to regular flow;
+            returns False.
+
+        Returns:
+            True iff the caller should stop further processing in this
+            FSM tick (because a stop was triggered or the FSM was
+            transitioned back to SEARCHING by the hook).
+        """
+        from app.config import settings
+
+        if self.state.before_synth_hook_fired:
+            return False
+        if not settings.meta_judge_enabled:
+            return False
+        if self.state.selected_lane == Lane.FAST:
+            return False
+
+        about_to_draft = self.state.all_claims_resolved()
+        evidence_threshold_hit = (
+            len(self.state.evidence)
+            >= settings.meta_judge_before_synth_min_evidence
+        )
+        if not (about_to_draft or evidence_threshold_hit):
+            return False
+
+        from app.agent.meta_judge_hook import maybe_run_meta_judge
+
+        self.state.before_synth_hook_fired = True
+        outcome = await maybe_run_meta_judge(
+            self.state, self.emit, None, hook="before_synthesizing"
+        )
+
+        if outcome == "stop_best_effort":
+            self.state.budget_exhausted_kind = "search_rounds"
+            try:
+                from app.agent.tasks.draft import draft_best_effort_fallback
+
+                await draft_best_effort_fallback(self.state, judge_issues=[])
+            except Exception:  # pragma: no cover — never block stop on fallback
+                logger.exception(
+                    "before_synth_meta_judge_best_effort_fallback_failed",
+                    run_id=str(self.state.run_id),
+                )
+            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            return True
+
+        if outcome == "confirm":
+            # PR-2: VoC said "stop searching, draft now". Force DRAFTING
+            # even if claims are not all resolved — the meta-judge has
+            # decided we have enough evidence to attempt synthesis.
+            self.state.transition_to(AgentState.DRAFTING)
+            return True
+
+        if outcome == "continue":
+            # Force another search round, but only if the budget allows;
+            # otherwise let the regular flow proceed to DRAFTING so the run
+            # still terminates this tick.
+            if self.state.search_count < self.state.max_searches:
+                self.state.transition_to(AgentState.SEARCHING)
+                return True
+            return False
+
+        return False
+
+    async def _check_global_budget(self) -> bool:
+        """FSM-independent stop guard (PR-1, post-2026-05-29 eval).
+
+        Runs at the head of every orchestrator loop iteration, BEFORE the phase
+        dispatch ``match``. Enforces five caps that none of the existing
+        ``StoppingSignal`` plugins can fire when the FSM is stuck cycling
+        SEARCHING ↔ ANALYZING with no judge attempts (where most of the
+        plugins' inputs are zero):
+
+          1. wall-clock — ``state.wall_clock_max_seconds``
+          2. tool calls — count of ``ToolCalled`` events
+          3. evidence items — ``len(state.evidence)``
+          4. query reformulations — count of ``QueryReformulated`` events
+          5. event-level plateau — no progress markers in the trailing window
+
+        On exhaustion: sets ``budget_exhausted_kind``, calls ``_stop`` with
+        ``STOPPED_BY_BUDGET`` and returns True so the caller breaks the loop.
+
+        Returns:
+            True if a stop was triggered, False otherwise.
+        """
+        # 1. Wall-clock.
+        elapsed = (datetime.now(UTC) - self.state.started_at).total_seconds()
+        if elapsed >= self.state.wall_clock_max_seconds:
+            self.state.budget_exhausted_kind = "wall_clock"
+            logger.warning(
+                "global_budget_wall_clock_exceeded",
+                run_id=str(self.state.run_id),
+                elapsed_s=elapsed,
+                cap_s=self.state.wall_clock_max_seconds,
+            )
+            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            return True
+
+        # 2. Tool calls (count from the in-memory event log).
+        tool_calls = sum(
+            1 for ev in self.state.events if ev.type.value == "ToolCalled"
+        )
+        if tool_calls >= self.state.max_tool_calls_per_run:
+            self.state.budget_exhausted_kind = "tool_calls"
+            logger.warning(
+                "global_budget_tool_calls_exceeded",
+                run_id=str(self.state.run_id),
+                tool_calls=tool_calls,
+                cap=self.state.max_tool_calls_per_run,
+            )
+            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            return True
+
+        # 3. Evidence items.
+        if len(self.state.evidence) >= self.state.max_evidence_per_run:
+            self.state.budget_exhausted_kind = "evidence"
+            logger.warning(
+                "global_budget_evidence_exceeded",
+                run_id=str(self.state.run_id),
+                evidence=len(self.state.evidence),
+                cap=self.state.max_evidence_per_run,
+            )
+            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            return True
+
+        # 4. Query reformulations.
+        reforms = sum(
+            1 for ev in self.state.events if ev.type.value == "QueryReformulated"
+        )
+        if reforms >= self.state.max_query_reformulations_per_run:
+            self.state.budget_exhausted_kind = "query_reformulations"
+            logger.warning(
+                "global_budget_reformulations_exceeded",
+                run_id=str(self.state.run_id),
+                reformulations=reforms,
+                cap=self.state.max_query_reformulations_per_run,
+            )
+            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            return True
+
+        # 5. Event-level plateau (delegated to no_progress helper).
+        from app.stopping.signals.no_progress import (
+            check_claim_coverage_plateau,
+            check_event_level_plateau,
+        )
+
+        if check_event_level_plateau(self.state):
+            self.state.budget_exhausted_kind = "no_progress_events"
+            logger.warning(
+                "global_budget_event_plateau_detected",
+                run_id=str(self.state.run_id),
+                window=self.state.no_progress_event_window,
+                total_events=len(self.state.events),
+            )
+            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            return True
+
+        # 6. PR-5 Mejora 5.2: claim-coverage plateau (3 consecutive analyze
+        # rounds with zero new covered claims). Independent of judge runs
+        # and of the structural confidence history.
+        if check_claim_coverage_plateau(self.state):
+            self.state.budget_exhausted_kind = "claim_coverage_plateau"
+            logger.warning(
+                "global_budget_claim_coverage_plateau_detected",
+                run_id=str(self.state.run_id),
+                coverage_history=list(self.state.coverage_history),
+            )
+            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            return True
+
+        return False
+
     async def _handle_error(self, exc: BaseException) -> StopReason:
         error_code: str | None = None
         error_message = str(exc)
@@ -863,6 +1078,54 @@ class AgentOrchestrator:
                     f"({self.state.react_step_count}/{self.state.max_react_steps} steps)"
                 )
                 budget_signal = "budget"
+            elif kind == "wall_clock":
+                elapsed = (
+                    datetime.now(UTC) - self.state.started_at
+                ).total_seconds()
+                budget_summary = (
+                    f"Reached wall-clock limit "
+                    f"({elapsed:.0f}/{self.state.wall_clock_max_seconds}s)"
+                )
+                budget_signal = "budget"
+            elif kind == "tool_calls":
+                tool_calls = sum(
+                    1 for ev in self.state.events
+                    if ev.type.value == "ToolCalled"
+                )
+                budget_summary = (
+                    f"Reached tool-call limit "
+                    f"({tool_calls}/{self.state.max_tool_calls_per_run} calls)"
+                )
+                budget_signal = "budget"
+            elif kind == "evidence":
+                budget_summary = (
+                    f"Reached evidence limit "
+                    f"({len(self.state.evidence)}/{self.state.max_evidence_per_run} items)"
+                )
+                budget_signal = "budget"
+            elif kind == "query_reformulations":
+                reforms = sum(
+                    1 for ev in self.state.events
+                    if ev.type.value == "QueryReformulated"
+                )
+                budget_summary = (
+                    f"Reached query-reformulation limit "
+                    f"({reforms}/{self.state.max_query_reformulations_per_run} reformulations)"
+                )
+                budget_signal = "budget"
+            elif kind == "no_progress_events":
+                budget_summary = (
+                    f"No structural progress in the last "
+                    f"{self.state.no_progress_event_window} events"
+                )
+                budget_signal = "no_progress"
+            elif kind == "claim_coverage_plateau":
+                budget_summary = (
+                    f"No new claim coverage in the last 3 analyze rounds "
+                    f"(covered: {len(self.state.covered_claims)}/"
+                    f"{len(self.state.sub_claims)})"
+                )
+                budget_signal = "no_progress"
             else:  # search_rounds
                 budget_summary = (
                     f"Reached search limit "
@@ -922,8 +1185,6 @@ class AgentOrchestrator:
             and self.state.owner_username
             and not getattr(self, "_from_cache_replay", False)
         ):
-            from datetime import UTC, datetime
-
             from app.agent.instant_cache import CachedRun, record_run
 
             cached_payload = CachedRun(

@@ -14,7 +14,7 @@ from uuid import uuid4
 import structlog
 
 from app.agent.run_state import EvidenceItem, RunState
-from app.domain.enums import EvidencePolarity, SourceType, StopReason
+from app.domain.enums import ComplexityHint, EvidencePolarity, SourceType, StopReason, TemporalSensitivity
 from app.domain.events import BaseEvent, EvidenceAddedEvent, ToolCalledEvent
 from app.llm import LLMRole, llm
 from app.llm.models import MiniJudgeVerdict, SynthesizedAnswer
@@ -25,7 +25,20 @@ from app.sources.registry import get_registry
 logger = structlog.get_logger(__name__)
 
 _FAST_RESULTS_PER_SOURCE = 3
-_FAST_S_THRESHOLD = 0.85
+_FAST_S_THRESHOLD_DEFAULT = 0.85
+# PR-3 Mejora 3.1: trivial+static questions (e.g. "capital of Japan") clear
+# the bar with a single high-authority hit; the legacy 0.85 forced needless
+# STANDARD escalations (G7/G16 regression).
+_FAST_S_THRESHOLD_TRIVIAL_STATIC = 0.70
+
+
+def _fast_s_threshold(state: RunState) -> float:
+    if (
+        state.complexity_hint == ComplexityHint.TRIVIAL
+        and state.temporal_sensitivity == TemporalSensitivity.STATIC
+    ):
+        return _FAST_S_THRESHOLD_TRIVIAL_STATIC
+    return _FAST_S_THRESHOLD_DEFAULT
 
 
 async def execute_fast_lane(
@@ -147,14 +160,18 @@ async def execute_fast_lane(
         _authority_multiplier(e.authority_tier) * (e.confidence or 0.0)
         for e in evidence_items
     )
-    S_effective = min(1.0, quality_sum / 4.0)
+    # PR-3 Mejora 3.2: +2 floor on the evidence proxy so a single solid hit
+    # is not punished as if it were zero.
+    S_effective = min(1.0, (quality_sum + 2.0) / 6.0)
+    fast_threshold = _fast_s_threshold(state)
 
     # Check early escalation: insufficient evidence
-    if S_effective < _FAST_S_THRESHOLD:
+    if S_effective < fast_threshold:
         logger.info(
             "fast_lane_escalate_low_s",
             s_effective=S_effective,
             num_evidence=num_evidence,
+            threshold=fast_threshold,
             run_id=str(state.run_id),
         )
         return "escalate"
@@ -220,7 +237,7 @@ async def execute_fast_lane(
     # confident answer (j_score ≥ 0.85) should not force a STANDARD escalation
     # for clean factual questions (Q1 capital_of_japan regression).
     judge_accepts = mini_judge_result.ok or mini_judge_result.j_score >= 0.85
-    if judge_accepts and S_effective >= _FAST_S_THRESHOLD:
+    if judge_accepts and S_effective >= fast_threshold:
         # Success — finalize and return JUDGE_CONFIRMED
         state.draft_answer = synth_result.prose
         state.draft_payload = synth_result

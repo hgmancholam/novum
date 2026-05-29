@@ -1,0 +1,49 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Users/HarolGiovannyManchol/source/repos/novum/frontend[39m
+
+stderr | src/components/molecules/AnswerToolbar.test.tsx > AnswerToolbar > copies plain text (fallback to markdownSource when plainText is omitted)
+An update to AnswerToolbar inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/components/molecules/AnswerToolbar.test.tsx > AnswerToolbar > prefers plainText over markdownSource for the plain copy
+An update to AnswerToolbar inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/components/molecules/AnswerToolbar.test.tsx > AnswerToolbar > copies the markdown source for the markdown button
+An update to AnswerToolbar inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ [32mΓ£ô[39m src/components/molecules/AnswerToolbar.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 439[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m AnswerToolbar[2m > [22mrenders both copy buttons [33m313[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/QuestionForm.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 527[2mms[22m[39m
+ [32mΓ£ô[39m src/components/organisms/CenterPanelView.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 398[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[32m24 passed[39m[22m[90m (24)[39m
+[2m   Start at [22m 12:12:47
+[2m   Duration [22m 139.43s[2m (transform 2.63s, setup 30.81s, collect 95.29s, tests 1.36s, environment 169.40s, prepare 4.77s)[22m
+

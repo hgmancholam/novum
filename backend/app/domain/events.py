@@ -506,7 +506,12 @@ class MetaStopVerdictEvent(BaseEvent):
 
     type: Literal[EventType.META_STOP_VERDICT] = EventType.META_STOP_VERDICT
     lane: Lane
-    hook: Literal["after_judge", "after_react_observation", "after_cove"] = "after_judge"
+    hook: Literal[
+        "after_judge",
+        "after_react_observation",
+        "after_cove",
+        "before_synthesizing",
+    ] = "after_judge"
     verdict: ValueOfContinuationVerdict
     confidence_at_check: float = Field(ge=0.0, le=1.0)
     rounds_used: int = Field(ge=0)

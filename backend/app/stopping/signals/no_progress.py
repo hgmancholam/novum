@@ -68,3 +68,76 @@ async def check_no_progress(state: RunState) -> tuple[bool, float]:
         return True, delta
 
     return False, delta
+
+
+# PR-1 (post-2026-05-29 eval): progress markers used by the event-level plateau
+# predicate. If the last ``window`` events contain ZERO of these, the run is
+# stuck in SEARCHING↔ANALYZING without producing any structural progress, and
+# the orchestrator should stop with ``stopped_by_budget`` (kind=no_progress_events).
+_PROGRESS_MARKERS: frozenset[str] = frozenset(
+    {
+        "ClaimCovered",
+        "DraftSynthesized",
+        "JudgeRuled",
+        "PlanGapsDetected",
+        "HypothesisEvaluated",
+    }
+)
+
+
+def check_event_level_plateau(state: RunState, window: int | None = None) -> bool:
+    """Fire when the last ``window`` emitted events contain no progress markers.
+
+    Independent of ``confidence_history`` (which never populates pre-JUDGING),
+    so it is the only no-progress detector that works while the FSM is stuck
+    cycling SEARCHING → ANALYZING → SEARCHING.
+
+    Args:
+        state: Live ``RunState`` whose ``events`` list is populated by the
+            orchestrator's ``emit`` wrapper.
+        window: How many trailing events to inspect. Defaults to
+            ``state.no_progress_event_window``.
+
+    Returns:
+        True if the trailing window has at least ``window`` events AND none of
+        them is a progress marker. False otherwise (including warm-up where
+        fewer than ``window`` events have been emitted).
+    """
+    win = window if window is not None else state.no_progress_event_window
+    if win <= 0 or len(state.events) < win:
+        return False
+    tail = state.events[-win:]
+    return not any(ev.type.value in _PROGRESS_MARKERS for ev in tail)
+
+
+# PR-5 Mejora 5.2 (post-2026-05-29 eval): claim-coverage plateau.
+# Snapshots of ``len(state.covered_claims)`` are appended to
+# ``state.coverage_history`` exactly once per ``_handle_analyzing`` round.
+# If the last ``rounds`` snapshots show zero growth (the most recent value
+# equals the value ``rounds`` snapshots back), the run is searching without
+# converting evidence into claim coverage and should stop best-effort.
+_DEFAULT_COVERAGE_PLATEAU_ROUNDS: int = 3
+
+
+def check_claim_coverage_plateau(state: RunState, rounds: int | None = None) -> bool:
+    """Fire when the last ``rounds`` analyze cycles added 0 new covered claims.
+
+    Independent of ``confidence_history`` and of judge runs, so it catches
+    the SEARCHING ↔ ANALYZING ping-pong that adds evidence without ever
+    promoting a sub-claim to ``covered``.
+
+    Args:
+        state: Live ``RunState`` whose ``coverage_history`` is populated by
+            the orchestrator at the top of ``_handle_analyzing``.
+        rounds: How many trailing snapshots must show zero growth. Defaults
+            to 3.
+
+    Returns:
+        True if at least ``rounds + 1`` snapshots have been recorded AND
+        ``coverage_history[-1] == coverage_history[-(rounds + 1)]``. False
+        otherwise (including warm-up where fewer snapshots exist).
+    """
+    n = rounds if rounds is not None else _DEFAULT_COVERAGE_PLATEAU_ROUNDS
+    if n <= 0 or len(state.coverage_history) < n + 1:
+        return False
+    return state.coverage_history[-1] == state.coverage_history[-(n + 1)]

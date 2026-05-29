@@ -235,3 +235,57 @@ def test_reason_format_is_concise() -> None:
     # Should be short and contain the lane name
     assert len(reason) < 120
     assert "STANDARD" in reason or "DEEP" in reason or "FAST" in reason
+
+
+# ---------------------------------------------------------------------------
+# PR-1 (post-2026-05-29 eval): per-lane global budget caps.
+# ---------------------------------------------------------------------------
+
+from uuid import uuid4
+
+from app.agent.lane_router import apply_lane_budgets
+from app.agent.run_state import RunState
+from app.config import settings
+
+
+def _fresh_state() -> RunState:
+    return RunState(run_id=uuid4(), question="q")
+
+
+def test_apply_lane_budgets_fast() -> None:
+    state = _fresh_state()
+    apply_lane_budgets(state, Lane.FAST)
+    assert state.wall_clock_max_seconds == settings.wall_clock_max_s_fast
+    assert state.max_tool_calls_per_run == settings.max_tool_calls_fast
+    assert state.max_evidence_per_run == settings.max_evidence_fast
+    assert state.max_query_reformulations_per_run == settings.max_query_reformulations_fast
+
+
+def test_apply_lane_budgets_standard() -> None:
+    state = _fresh_state()
+    apply_lane_budgets(state, Lane.STANDARD)
+    assert state.wall_clock_max_seconds == settings.wall_clock_max_s_standard
+    assert state.max_tool_calls_per_run == settings.max_tool_calls_standard
+    assert state.max_evidence_per_run == settings.max_evidence_standard
+    assert state.max_query_reformulations_per_run == settings.max_query_reformulations_standard
+
+
+def test_apply_lane_budgets_deep() -> None:
+    state = _fresh_state()
+    apply_lane_budgets(state, Lane.DEEP)
+    assert state.wall_clock_max_seconds == settings.wall_clock_max_s_deep
+    assert state.max_tool_calls_per_run == settings.max_tool_calls_deep
+    assert state.max_evidence_per_run == settings.max_evidence_deep
+    assert state.max_query_reformulations_per_run == settings.max_query_reformulations_deep
+
+
+def test_apply_lane_budgets_fast_smaller_than_deep() -> None:
+    """Sanity: FAST caps are strictly tighter than DEEP."""
+    fast = _fresh_state()
+    deep = _fresh_state()
+    apply_lane_budgets(fast, Lane.FAST)
+    apply_lane_budgets(deep, Lane.DEEP)
+    assert fast.wall_clock_max_seconds <= deep.wall_clock_max_seconds
+    assert fast.max_tool_calls_per_run < deep.max_tool_calls_per_run
+    assert fast.max_evidence_per_run < deep.max_evidence_per_run
+    assert fast.max_query_reformulations_per_run < deep.max_query_reformulations_per_run

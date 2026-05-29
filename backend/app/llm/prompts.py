@@ -206,7 +206,9 @@ Output a JSON object with:
 - `j_score` (float 0.0-1.0): your confidence in the answer quality
 - `reason` (string): short English explanation of your verdict
 
-Be strict but fair. A good FAST lane answer should be concise, accurate, and well-cited."""
+Be strict but fair. A good FAST lane answer should be concise, accurate, and well-cited.
+
+Exception (PR-3): if the question is factual + trivial + static (e.g. "capital of Japan") and the answer contains the correct entity with at least one valid citation, set `ok=true` regardless of length."""
 
 
 # =============================================================================

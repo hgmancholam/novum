@@ -255,6 +255,66 @@ async def test_fast_lane_calls_only_synth_and_mini_judge(
     assert llm_call_count["count"] == 2  # Exactly 2 LLM calls
 
 
+@pytest.mark.asyncio
+async def test_fast_lane_does_not_escalate_for_trivial_factual_static(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PR-3 Mejora 3.1+3.2: trivial+static questions clear the bar with a
+    single solid hit (no needless STANDARD escalation, G7/G16 regression).
+    """
+    from app.domain.enums import ComplexityHint, TemporalSensitivity
+
+    state = RunState(
+        run_id=uuid4(),
+        question="What is the capital of Japan?",
+        question_type=QuestionType.FACTUAL,
+        selected_lane=Lane.FAST,
+        complexity_hint=ComplexityHint.TRIVIAL,
+        temporal_sensitivity=TemporalSensitivity.STATIC,
+    )
+
+    mock_results = [
+        SourceResult(
+            url=f"https://en.wikipedia.org/wiki/Tokyo_{i}",
+            title=f"Tokyo {i}",
+            snippet="Tokyo is the capital of Japan.",
+            relevance_score=0.5,
+            source_type="wikipedia",
+        )
+        for i in range(3)
+    ]
+    mock_synth = SynthesizedAnswer(
+        prose="Tokyo is the capital of Japan [1].",
+        key_points=[],
+        citations=["https://en.wikipedia.org/wiki/Tokyo_0"],
+        gaps=[],
+    )
+    mock_verdict = MiniJudgeVerdict(ok=True, j_score=0.9, reason="ok")
+
+    async def mock_search(*args, **kwargs):
+        return mock_results
+
+    async def mock_llm_call(role, messages, response_model, **kwargs):
+        if response_model == SynthesizedAnswer:
+            return mock_synth
+        if response_model == MiniJudgeVerdict:
+            return mock_verdict
+        raise ValueError(f"Unexpected response_model: {response_model}")
+
+    monkeypatch.setattr("app.agent.lanes.fast.get_registry", lambda: MockRegistry(mock_search))
+    monkeypatch.setattr("app.agent.lanes.fast.llm.call", mock_llm_call)
+
+    events: list = []
+
+    async def emit(event):
+        events.append(event)
+
+    result = await execute_fast_lane(state, emit)
+
+    assert result == StopReason.JUDGE_CONFIRMED
+    assert state.final_answer == mock_synth.prose
+
+
 class MockRegistry:
     """Mock source registry for testing."""
 

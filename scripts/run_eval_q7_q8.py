@@ -1,13 +1,4 @@
-"""Evaluation driver: run the 8 q-for-testing scenarios against the agent.
-
-Sequence:
-  1. Register a one-off evaluation user.
-  2. For each of the 8 questions:
-       - POST /api/runs (anthropic, prose, threshold 0.7)
-       - Poll until `stopped_at` is non-null (or 6 min hard cap).
-       - Sleep 60 s before the next question to avoid API throttling.
-  3. Emit the run IDs to stdout so the evaluator can query Postgres.
-"""
+"""Run only Q7 and Q8 of the 2026-05-29 battery."""
 
 from __future__ import annotations
 
@@ -20,18 +11,12 @@ import urllib.request
 
 API = "https://novum-prod.duckdns.org"
 QUESTIONS = [
-    "What is the capital of Japan?",
-    "Is PostgreSQL or MongoDB better for a small SaaS application?",
-    "What is the best programming language?",
-    "Is intermittent fasting healthy?",
-    "What are the long-term risks of AI-generated code in enterprise systems?",
-    "Should a high-scale AI platform use event-driven architecture or synchronous microservices?",
     "What is the most promising approach for long-term memory in autonomous AI agents?",
     "Could AI systems realistically replace mid-level software engineers within the next 10 years?",
 ]
 
 POLL_INTERVAL_S = 5
-POLL_TIMEOUT_S = 600  # 10 min hard cap per run
+POLL_TIMEOUT_S = 600
 GAP_BETWEEN_RUNS_S = 60
 NET_RETRIES = 6
 NET_RETRY_SLEEP_S = 10
@@ -71,8 +56,7 @@ def main() -> int:
     token = reg["token"]
     auth_headers = {"X-Username": username, "X-Token": token}
 
-    results: list[dict] = []
-    for idx, q in enumerate(QUESTIONS, start=1):
+    for idx, q in enumerate(QUESTIONS, start=7):
         print(f"\n[Q{idx}/8] POST /api/runs :: {q}", flush=True)
         created = http(
             "POST",
@@ -88,14 +72,11 @@ def main() -> int:
         run_id = created["id"]
         print(f"        run_id={run_id}", flush=True)
 
-        # Poll until stopped
         start = time.time()
-        last_status = None
         while True:
             elapsed = time.time() - start
             if elapsed > POLL_TIMEOUT_S:
                 print(f"        TIMEOUT after {elapsed:.0f}s", flush=True)
-                last_status = "timeout"
                 break
             try:
                 state = http("GET", f"/api/runs/{run_id}")
@@ -104,30 +85,17 @@ def main() -> int:
                 time.sleep(POLL_INTERVAL_S)
                 continue
             if state.get("stopped_at"):
-                last_status = state.get("stop_reason")
                 print(
-                    f"        stopped after {elapsed:.0f}s :: stop_reason={last_status}",
+                    f"        stopped after {elapsed:.0f}s :: stop_reason={state.get('stop_reason')}",
                     flush=True,
                 )
                 break
             time.sleep(POLL_INTERVAL_S)
 
-        results.append(
-            {
-                "idx": idx,
-                "question": q,
-                "run_id": run_id,
-                "stop_reason": last_status,
-                "wallclock_s": round(time.time() - start, 1),
-            }
-        )
-
-        if idx < len(QUESTIONS):
+        if idx < 8:
             print(f"        sleeping {GAP_BETWEEN_RUNS_S}s before next run...", flush=True)
             time.sleep(GAP_BETWEEN_RUNS_S)
 
-    print("\n=== SUMMARY ===", flush=True)
-    print(json.dumps(results, indent=2), flush=True)
     return 0
 
 

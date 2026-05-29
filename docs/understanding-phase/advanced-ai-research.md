@@ -165,13 +165,17 @@ between-source contradiction*.
 
 ## 2.4 Stopping evaluator
 
+The FAST stop threshold is **adaptive** (PR-3 post-2026-05-29 eval):
+
+- `_fast_s_threshold(state) = 0.70` when `complexity_hint == trivial` AND `temporal_sensitivity == static` (e.g. "capital of Japan?").
+- `_fast_s_threshold(state) = 0.85` otherwise.
+
+The proxy `S_effective = min(1.0, (quality_sum + 2) / 6.0)` adds a +2 baseline so a single high-relevance hit no longer forces escalation — Q1 of the 29/05 batch ("Capital of Japan?") triggered escalation under the old `quality_sum / 4.0` formula despite the answer being trivially correct.
+
 Two outcomes:
 
-- `S_effective ≥ 0.85` Y `mini_judge.ok == True` → `stop_reason = judge_confirmed`.
-- Otherwise → emit `LaneEscalated { from_lane: FAST, to_lane: STANDARD, reason }`
-  and continue into the STANDARD pipeline starting at Phase 3. Escalation is
-  **transparent** — the user never sees a failure, only the eventual
-  STANDARD result. Confidence reported reflects the STANDARD run.
+- `S_effective ≥ _fast_s_threshold(state)` AND `mini_judge.ok == True` → `stop_reason = judge_confirmed`.
+- Otherwise → emit `LaneEscalated { from_lane: FAST, to_lane: STANDARD, reason }` and continue into the STANDARD pipeline starting at Phase 3. Escalation is **transparent** — the user never sees a failure, only the eventual STANDARD result. Confidence reported reflects the STANDARD run.
 
 Skips relative to STANDARD: no `CRITIQUING`, no sub-claims, no
 deep-fetch, no re-decomposition, no full judge.
@@ -315,7 +319,10 @@ source fires a **single** reformulated query that concatenates the claim
 text with the first 40 chars of the original question. This emits a
 `QueryReformulated` event with `original_query`, `reformulated_query`,
 `target_claim_id`, and `reason = "low_relevance"`. Capped at one
-reformulation per claim per round — no loop.
+reformulation per claim per round **and** at
+`max_query_reformulations_per_run` globally (PR-1 post-2026-05-29 eval —
+the per-round cap alone allowed Q6 to emit 40 reformulations when the FSM
+stalled before reaching JUDGING; see §7.4).
 
 ## 4.4 Authority tier classification (IP-23 WP-3)
 
@@ -488,14 +495,19 @@ checkpoints, and the agentic meta-judge decision (BRD-26).
 1. **`BudgetExhaustedSignal`** — `max_rounds`, `max_searches`, `max_tokens`, `max_seconds_wall_clock` from §1.2.
 2. **`UserCancelledSignal`** — the FE asked us to stop.
 3. **`JudgeSignal`** — fires when the judge returns `verdict == "approve"`. Maps to `STOP{JUDGE_CONFIRMED}`.
+4. **FSM-independent global guards** (PR-1 post-2026-05-29 eval, enforced by `_check_global_budget` at the head of the orchestrator loop **before** dispatching to any phase). These exist precisely because the signals above are evaluated *between rounds* — when the FSM stalls in `SEARCHING ↔ ANALYZING` they never get a chance to fire. Caps live on `RunState`, populated per lane by `lane_router`:
+   - `wall_clock_max_seconds` — FAST=60, STANDARD=300, DEEP=240.
+   - `max_tool_calls_per_run`, `max_evidence_per_run`, `max_query_reformulations_per_run` — counted by inspecting the live event log after every `emit()`.
 
-## 7.2 Anti-stall signal (STANDARD + DEEP, IP-25 Phase B)
+   When any guard trips, the orchestrator records `state.budget_exhausted_kind ∈ {wall_clock, tool_calls, evidence, query_reformulations, no_progress_events, claim_coverage_plateau}` and emits `Stopped{STOPPED_BY_BUDGET}` with a faithful `stop_rationale.summary` describing which cap fired.
 
-**`NoProgressSignal`** fires when `len(confidence_history) >= 3` AND
-`confidence_history[-1] - confidence_history[-3] < 0.05`. It does not kill
-the run — it forces a transition to `SYNTHESIZING` with the current
-evidence and emits `NoProgressDetected { delta_3rounds, current_confidence }`.
-Prevents the "20 minutes without progress" scenario.
+## 7.2 Anti-stall signals (STANDARD + DEEP)
+
+Three predicates run in parallel; any one is enough to force termination:
+
+1. **`NoProgressSignal`** (IP-25 Phase B) — fires when `len(confidence_history) >= 3` AND `confidence_history[-1] - confidence_history[-3] < 0.05`. Forces a transition to `SYNTHESIZING` and emits `NoProgressDetected { delta_3rounds, current_confidence }`. Only evaluated post-`JUDGING` (it relies on the judge appending to `confidence_history`).
+2. **`check_event_level_plateau`** (PR-1 post-2026-05-29 eval) — fires when the last `no_progress_event_window` (default 30) emitted events contain zero `{ClaimCovered, DraftSynthesized, JudgeRuled, PlanGapsDetected, HypothesisEvaluated}` markers. Catches the pre-JUDGING stall where `confidence_history` is still empty. Stops with `budget_exhausted_kind="no_progress_events"`.
+3. **`check_claim_coverage_plateau`** (PR-5 post-2026-05-29 eval) — fires when the last 3 analyze snapshots in `state.coverage_history` (recorded once per `_handle_analyzing`) show zero growth, i.e. three consecutive rounds added no new `covered` sub-claim. Stops with `budget_exhausted_kind="claim_coverage_plateau"`. Targets the Q2/Q6 mode where evidence accumulates indefinitely without ever resolving a claim.
 
 ## 7.3 Early-exit checkpoints (skip costly downstream steps)
 
@@ -546,9 +558,9 @@ live in [`app/llm/meta_judge.py`](../../backend/app/llm/meta_judge.py) and
 go through the standard `app/llm/client.py::call` router, same model family
 as the judge by default (`anthropic/claude-sonnet-4-6` in V1).
 
-**Opt-in default.** `settings.meta_judge_enabled` defaults to **`False`**.
-The feature is dark-launched: events, helper and tests ship together but
-production rollout is one env var (`META_JUDGE_ENABLED=true`) away. The
+**Opt-in default.** `settings.meta_judge_enabled` defaults to **`True`**
+since PR-2 (post-2026-05-29 eval); the env var `META_JUDGE_ENABLED=false`
+disables the layer for cost-sensitive deployments. The
 `meta_judge_min_delta_s` threshold (default `0.03`) is also a setting.
 
 ### 7.5.1 Hook points per lane
@@ -556,6 +568,7 @@ production rollout is one env var (`META_JUDGE_ENABLED=true`) away. The
 | Lane | Hook | Status | When |
 |---|---|---|---|
 | FAST | none | n/a | Cost-prohibitive — FAST only spends 2 LLM calls; the existing mini-judge already plays the binary stop role at the right cost level. |
+| STANDARD | `before_synthesizing` | ✅ implemented (PR-2 post-2026-05-29) | Fires **once per run** the first time `_handle_analyzing` sees either (a) all sub-claims resolved, or (b) `len(state.evidence) >= meta_judge_before_synth_min_evidence` (default 20). Synthesises a `_SyntheticJudgeSignal` placeholder since no `JudgeRuled` exists yet. Outcomes: `stop_best_effort` → draft + `STOPPED_BY_BUDGET`; `confirm` → `DRAFTING`; `continue` → another `SEARCHING` round if budget allows. |
 | STANDARD | `after_judge` | ✅ implemented | Right after `JudgeRuled`, **before** evaluating `max_judge_attempts`. Orchestrator calls `maybe_run_meta_judge(state, emit, judge_event, hook="after_judge")`. |
 | DEEP | `after_cove` | ✅ implemented | After the explicit CoVe pass and **before** the mini-judge. The lane synthesises a `_CoveSignal` placeholder (`passed=False`, current `judge_confidence` / `structural_confidence` from `RunState`, rationale `"after_cove pre-judge: no judge ruling yet on this draft"`) so the hook helper signature stays uniform across hooks. |
 | DEEP | `after_react_observation` | ⏸ deferred | The `MetaJudgeHook` enum already accepts the value, but the call site inside the ReAct loop is **not** wired yet pending a cost gate (per-step LLM call needs `max_meta_judge_calls` cap + `meta_judge_min_step_delta` gate + lane-aware activation, e.g. `react_steps_so_far >= 2`). Until then, ReAct still terminates exclusively via `max_react_steps`, `hypothesis_decisively_supported` and `hypotheses_all_refuted`. |

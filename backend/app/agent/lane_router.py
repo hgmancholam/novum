@@ -4,7 +4,15 @@ Pure deterministic function that maps (question_type, complexity_hint,
 temporal_sensitivity, ambiguity_detected) → (Lane, reason).
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from app.config import settings
 from app.domain.enums import ComplexityHint, Lane, QuestionType, TemporalSensitivity
+
+if TYPE_CHECKING:
+    from app.agent.run_state import RunState
 
 
 def select_lane(
@@ -87,3 +95,33 @@ def select_lane(
 
     reason_str = ", ".join(reasons) if reasons else "default"
     return (Lane.STANDARD, f"{reason_str} → STANDARD")
+
+
+def apply_lane_budgets(state: RunState, lane: Lane) -> None:
+    """Populate per-run global hard caps on ``state`` from settings.
+
+    PR-1 (post-2026-05-29 eval): every lane gets a wall-clock ceiling and
+    counter ceilings for tool calls, evidence items and query reformulations.
+    These are FSM-independent — ``AgentOrchestrator._check_global_budget``
+    enforces them at the head of every loop iteration so a stuck run can
+    never escape with a finite stop.
+
+    Idempotent: callers may invoke once per run (typically right after
+    ``select_lane``). Subsequent calls just overwrite with the same values.
+    """
+    if lane == Lane.FAST:
+        state.wall_clock_max_seconds = settings.wall_clock_max_s_fast
+        state.max_tool_calls_per_run = settings.max_tool_calls_fast
+        state.max_evidence_per_run = settings.max_evidence_fast
+        state.max_query_reformulations_per_run = settings.max_query_reformulations_fast
+    elif lane == Lane.DEEP:
+        state.wall_clock_max_seconds = settings.wall_clock_max_s_deep
+        state.max_tool_calls_per_run = settings.max_tool_calls_deep
+        state.max_evidence_per_run = settings.max_evidence_deep
+        state.max_query_reformulations_per_run = settings.max_query_reformulations_deep
+    else:
+        state.wall_clock_max_seconds = settings.wall_clock_max_s_standard
+        state.max_tool_calls_per_run = settings.max_tool_calls_standard
+        state.max_evidence_per_run = settings.max_evidence_standard
+        state.max_query_reformulations_per_run = settings.max_query_reformulations_standard
+    state.no_progress_event_window = settings.no_progress_event_window

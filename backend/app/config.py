@@ -138,12 +138,16 @@ class Settings(BaseSettings):
     early_stop_min_judge: float = 0.85
 
     # IP-26 / BRD-26 Area 6: reflective meta-judge.
-    # Disabled by default so the orchestrator's behaviour is unchanged when
-    # the meta-judge model is unavailable or in unit tests that mock only the
-    # primary judge. Set to True to enable VoC + Adversarial Completeness
-    # after every judge rejection on STANDARD/DEEP lanes.
-    meta_judge_enabled: bool = False
+    # PR-2 (post-2026-05-29 eval): enabled by default. Unit tests that need
+    # the legacy behaviour set this to False explicitly via env or monkeypatch.
+    meta_judge_enabled: bool = True
     meta_judge_min_delta_s: float = 0.03
+
+    # PR-2 Mejora 2.5: minimum evidence count required before the new
+    # `before_synthesizing` hook is allowed to fire mid-flow. Prevents the
+    # meta-judge from being called on near-empty evidence sets (where the
+    # decision is trivially "continue").
+    meta_judge_before_synth_min_evidence: int = 20
 
     # BRD-26 §4.13: cost gate for the DEEP `after_react_observation` hook
     # (slice 3b'). Default OFF so behaviour is unchanged on merge; flip via
@@ -171,6 +175,27 @@ class Settings(BaseSettings):
     deep_fetch_max_per_run_trivial: int = 0
     deep_fetch_max_per_run_standard: int = 2
     deep_fetch_max_per_run_deep: int = 3
+
+    # PR-1 (post-2026-05-29 eval): hard global stop guards per lane. These are
+    # FSM-independent — enforced at the top of the orchestrator loop, so a run
+    # cannot hang in SEARCHING↔ANALYZING forever. Units: seconds for wall_clock,
+    # event counts for the rest. See docs/evaluation/2026-05-29-agent-evaluation-and-comparison.md
+    wall_clock_max_s_fast: int = 60
+    wall_clock_max_s_standard: int = 300
+    wall_clock_max_s_deep: int = 600
+    max_tool_calls_fast: int = 8
+    max_tool_calls_standard: int = 25
+    max_tool_calls_deep: int = 60
+    max_evidence_fast: int = 15
+    max_evidence_standard: int = 60
+    max_evidence_deep: int = 150
+    max_query_reformulations_fast: int = 1
+    max_query_reformulations_standard: int = 5
+    max_query_reformulations_deep: int = 10
+    # Event-level plateau window: if the last N emitted events contain ZERO
+    # progress markers (ClaimCovered, DraftSynthesized, JudgeRuled, PlanGapsDetected,
+    # HypothesisEvaluated) the run is stuck and we stop with stopped_by_budget.
+    no_progress_event_window: int = 30
 
     @property
     def cors_origins_list(self) -> list[str]:

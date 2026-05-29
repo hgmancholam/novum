@@ -1,0 +1,81 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Users/HarolGiovannyManchol/source/repos/novum/frontend[39m
+
+stderr | src/components/molecules/AnswerToolbar.test.tsx > AnswerToolbar > copies the active content to the clipboard
+An update to AnswerToolbar inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/components/molecules/AnswerToolbar.test.tsx > AnswerToolbar > copies whatever content prop is provided (structured-mode markdown)
+An update to AnswerToolbar inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ [31mΓ¥»[39m src/components/molecules/AnswerToolbar.test.tsx [2m([22m[2m6 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 312[2mms[22m[39m
+[31m   [31m├ù[31m AnswerToolbar[2m > [22mcopies whatever content prop is provided (structured-mode markdown)[90m 20[2mms[22m[31m[39m
+[31m     ΓåÆ expected "spy" to be called with arguments: [ '## Findings\n- a\n- b' ][90m
+
+Received: 
+
+[1m  1st spy call:
+
+[22m[2m  Array [[22m
+[32m-   "## Findings[90m
+[32m- - a[90m
+[32m- - b",[90m
+[31m+   "## Findings\\n- a\\n- b",[90m
+[2m  ][22m
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+ [32mΓ£ô[39m src/components/organisms/CenterPanelView.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 322[2mms[22m[39m
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ» Failed Tests 1 ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+
+ FAIL  src/components/molecules/AnswerToolbar.test.tsx > AnswerToolbar > copies whatever content prop is provided (structured-mode markdown)
+AssertionError: expected "spy" to be called with arguments: [ '## Findings\n- a\n- b' ]
+
+Received: 
+
+  1st spy call:
+
+  Array [
+-   "## Findings
+- - a
+- - b",
++   "## Findings\\n- a\\n- b",
+  ]
+
+
+Number of calls: 1
+
+ Γ¥» src/components/molecules/AnswerToolbar.test.tsx:73:23
+     71|     fireEvent.click(screen.getByRole("button", { name: /copy answer/i ΓÇª
+     72|     await Promise.resolve();
+     73|     expect(writeText).toHaveBeenCalledWith("## Findings\n- a\n- b");
+       |                       ^
+     74|   });
+     75| });
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1/1]ΓÄ»
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m11 passed[39m[22m[90m (12)[39m
+[2m   Start at [22m 12:19:04
+[2m   Duration [22m 10.39s[2m (transform 838ms, setup 964ms, collect 5.29s, tests 635ms, environment 5.88s, prepare 1.47s)[22m
+

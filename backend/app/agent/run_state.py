@@ -100,8 +100,11 @@ class RunState(BaseModel):
     uncoverable_claims: list[str] = Field(default_factory=list)
     contradictions: list[ContradictionDetectedEvent] = Field(default_factory=list)
 
-    # ``max_searches`` is measured in rounds (one full call to the search
-    # handler), not in individual tool calls (O-08).
+    # ``max_searches`` is the **per-run total** of full search rounds (one
+    # call to the search handler covers all pending claims in parallel), not
+    # per-round and not per-claim. ``search_count`` increments once per round
+    # in the orchestrator and ``BudgetExhaustedSignal`` stops the run when
+    # ``search_count >= max_searches`` (O-08, PR-5 verification 2026-05-29).
     search_count: int = 0
     max_searches: int = 20
     failed_sources: list[str] = Field(default_factory=list)
@@ -114,6 +117,12 @@ class RunState(BaseModel):
     confidence_history: list[float] = Field(default_factory=list)
     no_progress_triggered: bool = False
 
+    # PR-5 Mejora 5.2: snapshot of ``len(covered_claims)`` taken once per
+    # ``_handle_analyzing`` invocation. Used by
+    # ``check_claim_coverage_plateau`` to fire ``stopped_by_budget`` when
+    # three consecutive rounds add zero new covered claims.
+    coverage_history: list[int] = Field(default_factory=list)
+
     # IP-25 Phase E: ReAct loop state
     react_history: list[Any] = Field(default_factory=list)  # list[ReactStep] - Any to avoid circular import
     react_step_count: int = 0
@@ -124,6 +133,11 @@ class RunState(BaseModel):
     # emitted `MetaStopVerdictEvent`. Used by the `after_react_observation`
     # cost gate (BRD-26 §4.13).
     meta_judge_calls: int = 0
+
+    # PR-2 (post-2026-05-29 eval): one-shot guard for the
+    # `before_synthesizing` meta-judge hook. Set to True the first time the
+    # hook fires so subsequent transitions to DRAFTING bypass it.
+    before_synth_hook_fired: bool = False
 
     # IP-25 Phase F: Chain-of-Verification state
     cove_rounds: int = 0
@@ -147,7 +161,20 @@ class RunState(BaseModel):
     # PR-1 Mejora 2.1: explicit source-of-truth for which budget exhausted, so
     # ``_stop`` can build an accurate ``stop_rationale.summary`` instead of
     # heuristically guessing from ``selected_lane``.
-    budget_exhausted_kind: Literal["react_steps", "search_rounds", "judge_attempts"] | None = None
+    # Extended (post-2026-05-29 eval) with FSM-independent global guards:
+    # ``wall_clock`` / ``tool_calls`` / ``evidence`` / ``query_reformulations``
+    # / ``no_progress_events``.
+    budget_exhausted_kind: Literal[
+        "react_steps",
+        "search_rounds",
+        "judge_attempts",
+        "wall_clock",
+        "tool_calls",
+        "evidence",
+        "query_reformulations",
+        "no_progress_events",
+        "claim_coverage_plateau",
+    ] | None = None
     final_answer: str | None = None
 
     # ``total_tokens`` is a best-effort lower bound (O-12).
@@ -164,6 +191,17 @@ class RunState(BaseModel):
     # WP-4: In-memory embeddings for saturation detection (never serialized)
     chunk_embeddings: dict[str, Any] = Field(default_factory=dict, exclude=True)
     last_novelty: float | None = None
+
+    # PR-1 (post-2026-05-29 eval): per-lane global hard caps. Populated by
+    # ``lane_router.apply_lane_budgets`` right after the lane is selected so
+    # ``AgentOrchestrator._check_global_budget`` can enforce them every loop
+    # iteration. Defaults match the STANDARD lane so callers that skip the
+    # router (older tests, smoke scripts) still get a finite ceiling.
+    wall_clock_max_seconds: int = 300
+    max_tool_calls_per_run: int = 25
+    max_evidence_per_run: int = 60
+    max_query_reformulations_per_run: int = 5
+    no_progress_event_window: int = 30
 
     def transition_to(self, new_state: AgentState) -> None:
         if not can_transition(self.current_state, new_state):

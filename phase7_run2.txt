@@ -1,0 +1,16 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Users/HarolGiovannyManchol/source/repos/novum/frontend[39m
+
+ [32mΓ£ô[39m src/types/run.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/MetaRow.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 143[2mms[22m[39m
+ [32mΓ£ô[39m src/pages/NewRunContainer.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 618[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m NewRunContainer[2m > [22mseeds the textarea when a suggestion is picked [33m314[2mms[22m[39m
+ [32mΓ£ô[39m src/pages/CenterPanelContainer.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 1032[2mms[22m[39m
+   [33m[2mΓ£ô[22m[39m CenterPanelContainer[2m > [22mrenders the question and the RunFeed for a running run (IP-24) [33m415[2mms[22m[39m
+ [32mΓ£ô[39m src/components/molecules/FormatSelector.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 555[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m26 passed[39m[22m[90m (26)[39m
+[2m   Start at [22m 12:15:19
+[2m   Duration [22m 23.67s[2m (transform 2.61s, setup 4.21s, collect 34.98s, tests 2.36s, environment 22.41s, prepare 2.19s)[22m
+

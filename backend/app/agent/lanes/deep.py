@@ -80,6 +80,13 @@ async def execute_deep_lane(
             )
         )
 
+    # PR-4 Mejora 4.1: stamp the resolver-chosen AnswerKind on the RunState
+    # before the ReAct loop so every downstream consumer (meta-judge ctx,
+    # StoppedEvent, structured renderer) sees a non-null value even when the
+    # run is best-effort stopped before any draft is synthesised (G15/Q7).
+    if state.selected_answer_kind is None:
+        state.selected_answer_kind = _select_deep_answer_kind(state)
+
     # Step 2: Run ReAct loop
     logger.info(
         "deep_lane_react_loop_starting",
@@ -241,6 +248,7 @@ async def execute_deep_lane(
         if meta_outcome == "stop_best_effort":
             state.final_answer = draft_text
             state.budget_exhausted_kind = "react_steps"
+            _ensure_deep_structural_confidence(state)
             logger.info(
                 "deep_lane_meta_judge_best_effort_stop",
                 run_id=str(state.run_id),
@@ -292,6 +300,7 @@ async def execute_deep_lane(
             # reports "ReAct step limit" instead of "search limit (0 rounds)".
             state.final_answer = draft_text
             state.budget_exhausted_kind = "react_steps"
+            _ensure_deep_structural_confidence(state)
             logger.info(
                 "deep_lane_stopped_by_budget",
                 run_id=str(state.run_id),
@@ -485,3 +494,21 @@ def _select_deep_answer_kind(
             ambiguity_flag=state.has_ambiguity,
         )
     )
+
+
+def _ensure_deep_structural_confidence(state: RunState) -> None:
+    """PR-4 Mejora 4.2: guarantee ``last_structural_confidence`` is populated
+    on best-effort DEEP stops so ``StopRationale.confidence`` is non-null and
+    the UI surfaces a real score (or "Best-effort") instead of 0 %.
+    """
+    if state.last_structural_confidence is not None:
+        return
+    from app.confidence import calculate_structural_confidence
+
+    try:
+        state.last_structural_confidence = calculate_structural_confidence(state).score
+    except Exception:  # pragma: no cover - never block stop on confidence calc
+        logger.exception(
+            "deep_lane_structural_confidence_failed",
+            run_id=str(state.run_id),
+        )

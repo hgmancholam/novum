@@ -9,6 +9,7 @@ is logged but never blocks the run.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -34,13 +35,31 @@ from app.llm.meta_judge import (
 logger = structlog.get_logger(__name__)
 
 MetaJudgeOutcome = Literal["stop_best_effort", "confirm", "continue", "skipped"]
-MetaJudgeHook = Literal["after_judge", "after_cove", "after_react_observation"]
+MetaJudgeHook = Literal[
+    "after_judge", "after_cove", "after_react_observation", "before_synthesizing"
+]
+
+
+@dataclass(frozen=True, slots=True)
+class _SyntheticJudgeSignal:
+    """Duck-typed stand-in used when no judge ruling exists yet.
+
+    Carries the five fields the meta-judge hook reads from the real
+    `JudgeRuled` event payload. Built locally in :func:`maybe_run_meta_judge`
+    when ``judge_signal`` is None (PR-2 ``before_synthesizing`` site).
+    """
+
+    passed: bool
+    judge_confidence: float | None
+    structural_confidence: float
+    final_confidence: float
+    rationale: str
 
 
 async def maybe_run_meta_judge(
     state: RunState,
     emit: Callable[[BaseEvent], Awaitable[None]],
-    judge_signal: Any,
+    judge_signal: Any | None,
     *,
     hook: MetaJudgeHook = "after_judge",
 ) -> MetaJudgeOutcome:
@@ -50,12 +69,28 @@ async def maybe_run_meta_judge(
     ``judge_confidence``, ``structural_confidence``, ``final_confidence``
     and ``rationale``. For the DEEP ``after_cove`` hook a synthetic
     placeholder built from RunState is acceptable (no judge ruling
-    exists yet at that point).
+    exists yet at that point). For the PR-2 ``before_synthesizing`` hook
+    no judge ruling exists either: pass ``judge_signal=None`` and the
+    hook builds a synthetic placeholder from the current ``RunState``.
     """
     if not settings.meta_judge_enabled:
         return "skipped"
     if state.selected_lane == Lane.FAST:
         return "skipped"
+    if judge_signal is None:
+        # PR-2: synthesise a placeholder so the rest of the hook can stay
+        # uniform. Used by the `before_synthesizing` site (no judge has run
+        # yet) and tolerated for any future no-judge entry points.
+        from app.confidence import calculate_structural_confidence
+
+        structural = calculate_structural_confidence(state).score
+        judge_signal = _SyntheticJudgeSignal(
+            passed=False,
+            judge_confidence=state.last_judge_confidence,
+            structural_confidence=structural,
+            final_confidence=structural,
+            rationale="(no judge ruling yet — before_synthesizing hook)",
+        )
     if getattr(judge_signal, "passed", False):
         return "skipped"
     if state.judge_attempts >= state.max_judge_attempts:
@@ -112,9 +147,25 @@ async def maybe_run_meta_judge(
         return "stop_best_effort"
 
     if voc.decision == "stop":
+        # PR-2: for the pre-synth hook, "stop searching" means "draft now".
+        # Map to ``confirm`` so the orchestrator wrapper forces DRAFTING.
+        # Legacy hooks keep the original semantics where the caller's regular
+        # flow picks the StopReason.
+        if hook == "before_synthesizing":
+            return "confirm"
         return "continue"  # caller's regular flow chooses the StopReason
 
     if voc.expected_delta_s < settings.meta_judge_min_delta_s:
+        # PR-2: same mapping rationale — marginal expected gain is treated
+        # as "draft now" pre-synth, "keep going" post-judge.
+        if hook == "before_synthesizing":
+            return "confirm"
+        return "continue"
+
+    # PR-2: skip the Adversarial Completeness pass when called before any
+    # draft exists. The AC prompt requires a draft to attack and the only
+    # actionable outcome we need pre-synth is VoC's stop/continue verdict.
+    if hook == "before_synthesizing":
         return "continue"
 
     try:
