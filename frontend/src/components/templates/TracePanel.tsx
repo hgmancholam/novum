@@ -43,7 +43,7 @@ export function TracePanel({ header, body, isCollapsed = false, className }: Tra
         aria-live="polite"
         aria-label="Event trace"
         className={cn(
-          "flex-1 overflow-y-auto pb-20",
+          "flex-1 overflow-y-auto pb-32",
           isCollapsed ? "p-0" : "px-3 py-3",
         )}
       >
