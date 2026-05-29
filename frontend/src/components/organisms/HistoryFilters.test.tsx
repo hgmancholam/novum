@@ -21,7 +21,7 @@ describe("hasActiveFilters", () => {
   });
 
   it("returns true when stopReason is set", () => {
-    expect(hasActiveFilters({ stopReason: "honest_any" })).toBe(true);
+    expect(hasActiveFilters({ stopReason: "errored" })).toBe(true);
   });
 
   it("returns true when search has content", () => {
