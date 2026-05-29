@@ -41,7 +41,7 @@ export function ProviderSelect({
         className
       )}
     >
-      <span className="select-none">Model:</span>
+      <span className="select-none">Vendor:</span>
       <select
         value={value}
         onChange={handleChange}
