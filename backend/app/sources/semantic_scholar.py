@@ -271,8 +271,19 @@ class SemanticScholarSource(BaseSource):
         return None
 
     async def health_check(self) -> bool:
+        """Lightweight probe: fetch the canonical 'Attention Is All You Need' paper
+        by its S2 paper ID instead of running a full text search.
+
+        A direct paper lookup is one cheap request, not a paginated search query,
+        which reduces the risk of triggering rate limits during health probes.
+        """
         try:
-            results = await self.search("attention is all you need", max_results=1)
-            return bool(results)
-        except SourceError:
+            url = "https://api.semanticscholar.org/graph/v1/paper/arXiv:1706.03762"
+            headers = self._headers()
+            if self._api_key:
+                headers["x-api-key"] = self._api_key
+            async with httpx.AsyncClient(timeout=1.5, headers=headers) as client:
+                response = await client.get(url, params={"fields": "title"})
+            return response.status_code == 200
+        except Exception:
             return False

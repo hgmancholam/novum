@@ -283,16 +283,18 @@ class OpenAlexSource(BaseSource):
         return self._work_to_result(work, relevance_score=1.0)
 
     async def health_check(self) -> bool:
-        """Smoke check: 1-result query verifies connectivity and API availability."""
+        """Smoke check: a cheap info endpoint (no search, no quota).
+
+        Uses a 1.5 s httpx timeout so it always resolves inside
+        the probe window (``PROBE_TIMEOUT_S = 2.0 s``).
+        """
         try:
-            params: dict[str, Any] = {
-                "search": "science",
-                "per_page": 1,
-                "select": "id",
-            }
+            params: dict[str, Any] = {}
             params.update(self._polite_params())
-            async with self._client() as client:
-                response = await client.get(f"{_BASE_URL}/works", params=params)
+            async with httpx.AsyncClient(
+                timeout=1.5, headers=self._headers()
+            ) as client:
+                response = await client.get(f"{_BASE_URL}/info", params=params)
             return response.status_code == 200
         except Exception:
             return False
