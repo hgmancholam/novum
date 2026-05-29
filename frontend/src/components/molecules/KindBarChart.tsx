@@ -52,7 +52,7 @@ export function KindBarChart({ data, height = 280 }: KindBarChartProps) {
                 color: "var(--text-primary)",
                 fontSize: 12,
               }}
-              formatter={(value: number) => [formatUsd(value), "Cost"]}
+              formatter={(value) => [formatUsd(Number(value ?? 0)), "Cost"]}
             />
             <Bar dataKey="cost_usd" radius={[6, 6, 0, 0]}>
               {data.map((row) => (

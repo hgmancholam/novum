@@ -63,12 +63,13 @@ export function CostLineChart({ data, height = 280 }: CostLineChartProps) {
                 color: "var(--text-primary)",
                 fontSize: 12,
               }}
-              labelFormatter={(label: string) => formatShortDate(label)}
-              formatter={(value: number, name: string) =>
-                name === "cost_usd"
-                  ? [formatUsd(value), "Cost"]
-                  : [formatTokens(value), "Tokens"]
-              }
+              labelFormatter={(label) => formatShortDate(String(label ?? ""))}
+              formatter={(value, name) => {
+                const n = Number(value ?? 0);
+                return name === "cost_usd"
+                  ? [formatUsd(n), "Cost"]
+                  : [formatTokens(n), "Tokens"];
+              }}
             />
             <Line
               yAxisId="usd"

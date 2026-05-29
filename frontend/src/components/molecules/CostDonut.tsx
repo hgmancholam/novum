@@ -53,10 +53,12 @@ export function CostDonut({ data, height = 280 }: CostDonutProps) {
                 color: "var(--text-primary)",
                 fontSize: 12,
               }}
-              formatter={(value: number, _name: string, payload) => {
-                const row = payload?.payload as ProviderBreakdown | undefined;
+              formatter={(value, _name, item) => {
+                const n = Number(value ?? 0);
+                const row = (item as { payload?: ProviderBreakdown } | undefined)
+                  ?.payload;
                 return [
-                  `${formatUsd(value)} (${row?.pct_of_total.toFixed(1) ?? "0"}%)`,
+                  `${formatUsd(n)} (${row?.pct_of_total.toFixed(1) ?? "0"}%)`,
                   row?.provider ?? "",
                 ];
               }}

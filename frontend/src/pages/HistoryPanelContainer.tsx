@@ -75,13 +75,23 @@ export function HistoryPanelContainer() {
   return (
     <HistoryPanel
       header={
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-medium text-[var(--text-primary)]">
             History
           </h2>
-          <Button size="sm" onClick={handleNewQuestion}>
-            New
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => { void navigate("/costs"); }}
+              title="Cost analytics"
+            >
+              Costs
+            </Button>
+            <Button size="sm" onClick={handleNewQuestion}>
+              New
+            </Button>
+          </div>
         </div>
       }
       body={

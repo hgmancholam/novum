@@ -58,10 +58,12 @@ export function TopModelsChart({ data, height = 320 }: TopModelsChartProps) {
                 color: "var(--text-primary)",
                 fontSize: 12,
               }}
-              formatter={(value: number, _name: string, payload) => {
-                const row = payload?.payload as ModelBreakdown | undefined;
+              formatter={(value, _name, item) => {
+                const n = Number(value ?? 0);
+                const row = (item as { payload?: ModelBreakdown } | undefined)
+                  ?.payload;
                 return [
-                  formatUsd(value),
+                  formatUsd(n),
                   `${row?.provider ?? ""} · ${row?.model ?? ""}`,
                 ];
               }}

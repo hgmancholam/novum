@@ -27,6 +27,7 @@ const HomePage = lazy(() => import("./pages/HomePage"));
 const RunPage = lazy(() => import("./pages/RunPage"));
 const DiffPage = lazy(() => import("./pages/DiffPage"));
 const HowWeWorkPage = lazy(() => import("./pages/HowWeWorkPage"));
+const CostAnalyticsPage = lazy(() => import("./pages/CostAnalyticsPage"));
 
 // Loading fallback component
 function PageLoader() {
@@ -122,6 +123,10 @@ export const router = createBrowserRouter([
   {
     path: "/diff/:runA/:runB",
     element: <ProtectedRoute>{withSuspense(DiffPage)}</ProtectedRoute>,
+  },
+  {
+    path: "/costs",
+    element: <ProtectedRoute>{withSuspense(CostAnalyticsPage)}</ProtectedRoute>,
   },
   {
     // Catch-all redirect to home
