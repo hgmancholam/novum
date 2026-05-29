@@ -4,7 +4,8 @@
  */
 
 import { Badge, type BadgeVariant } from "@/components/atoms";
-import type { StopReason } from "@/types/events";
+import { ANSWER_KIND_BEST_EFFORT_LABEL } from "@/lib/microcopy";
+import type { AnswerKind, StopReason } from "@/types/events";
 
 export type RunStatus = "running" | "completed" | "stopped";
 
@@ -13,6 +14,9 @@ export interface StatusBadgeProps {
   stopReason?: StopReason;
   /** Optional failure reason shown after "Errored —" when stopReason === "errored". */
   errorReason?: string;
+  /** RF-17: when stopReason is `stopped_by_budget` and answerKind is `best_effort`,
+   * the badge surfaces the best-effort outcome instead of the generic budget stop. */
+  answerKind?: AnswerKind | null;
   className?: string;
 }
 
@@ -34,6 +38,7 @@ export function StatusBadge({
   status,
   stopReason,
   errorReason,
+  answerKind,
   className,
 }: StatusBadgeProps) {
   if (status === "running") {
@@ -45,7 +50,11 @@ export function StatusBadge({
   }
 
   if (stopReason !== undefined) {
-    const baseLabel = stopReasonLabels[stopReason];
+    const isBestEffort =
+      stopReason === "stopped_by_budget" && answerKind === "best_effort";
+    const baseLabel = isBestEffort
+      ? ANSWER_KIND_BEST_EFFORT_LABEL
+      : stopReasonLabels[stopReason];
     const label =
       stopReason === "errored" && errorReason !== undefined && errorReason !== ""
         ? `${baseLabel} — ${errorReason}`

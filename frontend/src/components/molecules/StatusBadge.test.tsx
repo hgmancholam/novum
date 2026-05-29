@@ -62,6 +62,30 @@ describe("StatusBadge", () => {
     expect(el).toHaveAttribute("data-variant", "default");
   });
 
+  it("labels stopped_by_budget + answerKind=best_effort as 'Best-effort answer' (RF-17)", () => {
+    render(
+      <StatusBadge
+        status="stopped"
+        stopReason="stopped_by_budget"
+        answerKind="best_effort"
+      />
+    );
+    const el = screen.getByText("Best-effort answer");
+    expect(el).toHaveAttribute("data-variant", "warning");
+    expect(screen.queryByText("Stopped on budget")).not.toBeInTheDocument();
+  });
+
+  it("keeps the 'Stopped on budget' label when answerKind is not best_effort", () => {
+    render(
+      <StatusBadge
+        status="stopped"
+        stopReason="stopped_by_budget"
+        answerKind="direct"
+      />
+    );
+    expect(screen.getByText("Stopped on budget")).toBeInTheDocument();
+  });
+
   it("has no a11y violations", async () => {
     const { container } = render(
       <StatusBadge status="completed" stopReason="judge_confirmed" />

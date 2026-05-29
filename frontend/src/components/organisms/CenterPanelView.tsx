@@ -150,7 +150,7 @@ export function CenterPanelView({
           <OutcomeBar reason={run.stopReason} />
         ) : null}
         <div className="flex flex-col gap-6 px-6 py-6">
-          <RunHeader run={run} status={status} />
+          <RunHeader run={run} status={status} answerKind={answerKind} />
           <QuestionDisplay question={run.question} />
         </div>
       </GlassSurface>
