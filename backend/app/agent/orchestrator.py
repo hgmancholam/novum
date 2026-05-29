@@ -204,23 +204,34 @@ class AgentOrchestrator:
                     return self.state.stop_reason or StopReason.STOPPED_BY_BUDGET
 
                 self.state.iteration_count += 1
-                match self.state.current_state:
-                    case AgentState.PLANNING:
-                        await self._handle_planning()
-                    case AgentState.CRITIQUING:
-                        await self._handle_critiquing()
-                    case AgentState.REVISING:
-                        await self._handle_revising()
-                    case AgentState.SEARCHING:
-                        await self._handle_searching()
-                    case AgentState.ANALYZING:
-                        await self._handle_analyzing()
-                    case AgentState.DRAFTING:
-                        await self._handle_drafting()
-                    case AgentState.JUDGING:
-                        await self._handle_judging()
-                    case _:
-                        break
+                # IP-29: tag every LLM/Source cost event emitted inside
+                # the handlers below with the current FSM state, so the
+                # cost dashboard can roll up by task (PLANNING / SEARCHING
+                # / JUDGING ...). The reset on exit prevents leakage to
+                # subsequent iterations.
+                from app.llm.context import current_task
+
+                _task_token = current_task.set(self.state.current_state.value)
+                try:
+                    match self.state.current_state:
+                        case AgentState.PLANNING:
+                            await self._handle_planning()
+                        case AgentState.CRITIQUING:
+                            await self._handle_critiquing()
+                        case AgentState.REVISING:
+                            await self._handle_revising()
+                        case AgentState.SEARCHING:
+                            await self._handle_searching()
+                        case AgentState.ANALYZING:
+                            await self._handle_analyzing()
+                        case AgentState.DRAFTING:
+                            await self._handle_drafting()
+                        case AgentState.JUDGING:
+                            await self._handle_judging()
+                        case _:
+                            break
+                finally:
+                    current_task.reset(_task_token)
         except Exception as exc:  # noqa: BLE001 - top-level error envelope
             return await self._handle_error(exc)
 
@@ -894,42 +905,36 @@ class AgentOrchestrator:
             1 for ev in self.state.events if ev.type.value == "ToolCalled"
         )
         if tool_calls >= self.state.max_tool_calls_per_run:
-            self.state.budget_exhausted_kind = "tool_calls"
             logger.warning(
                 "global_budget_tool_calls_exceeded",
                 run_id=str(self.state.run_id),
                 tool_calls=tool_calls,
                 cap=self.state.max_tool_calls_per_run,
             )
-            await self._stop(StopReason.STOPPED_BY_BUDGET)
-            return True
+            return await self._force_synthesis_or_stop("tool_calls")
 
         # 3. Evidence items.
         if len(self.state.evidence) >= self.state.max_evidence_per_run:
-            self.state.budget_exhausted_kind = "evidence"
             logger.warning(
                 "global_budget_evidence_exceeded",
                 run_id=str(self.state.run_id),
                 evidence=len(self.state.evidence),
                 cap=self.state.max_evidence_per_run,
             )
-            await self._stop(StopReason.STOPPED_BY_BUDGET)
-            return True
+            return await self._force_synthesis_or_stop("evidence")
 
         # 4. Query reformulations.
         reforms = sum(
             1 for ev in self.state.events if ev.type.value == "QueryReformulated"
         )
         if reforms >= self.state.max_query_reformulations_per_run:
-            self.state.budget_exhausted_kind = "query_reformulations"
             logger.warning(
                 "global_budget_reformulations_exceeded",
                 run_id=str(self.state.run_id),
                 reformulations=reforms,
                 cap=self.state.max_query_reformulations_per_run,
             )
-            await self._stop(StopReason.STOPPED_BY_BUDGET)
-            return True
+            return await self._force_synthesis_or_stop("query_reformulations")
 
         # 5. Event-level plateau (delegated to no_progress helper).
         from app.stopping.signals.no_progress import (
@@ -938,29 +943,89 @@ class AgentOrchestrator:
         )
 
         if check_event_level_plateau(self.state):
-            self.state.budget_exhausted_kind = "no_progress_events"
             logger.warning(
                 "global_budget_event_plateau_detected",
                 run_id=str(self.state.run_id),
                 window=self.state.no_progress_event_window,
                 total_events=len(self.state.events),
             )
-            await self._stop(StopReason.STOPPED_BY_BUDGET)
-            return True
+            return await self._force_synthesis_or_stop("no_progress_events")
 
         # 6. PR-5 Mejora 5.2: claim-coverage plateau (3 consecutive analyze
         # rounds with zero new covered claims). Independent of judge runs
         # and of the structural confidence history.
         if check_claim_coverage_plateau(self.state):
-            self.state.budget_exhausted_kind = "claim_coverage_plateau"
             logger.warning(
                 "global_budget_claim_coverage_plateau_detected",
                 run_id=str(self.state.run_id),
                 coverage_history=list(self.state.coverage_history),
             )
+            return await self._force_synthesis_or_stop("claim_coverage_plateau")
+
+        return False
+
+    # PR-11: minimum evidence items required before we attempt a deadline
+    # draft on budget exhaustion. Below this floor we keep the legacy
+    # STOPPED_BY_BUDGET behaviour (an empty draft would only mislead).
+    _MIN_EVIDENCE_FOR_DEADLINE_DRAFT = 5
+
+    async def _force_synthesis_or_stop(
+        self,
+        kind: Literal[
+            "tool_calls",
+            "evidence",
+            "query_reformulations",
+            "no_progress_events",
+            "claim_coverage_plateau",
+        ],
+    ) -> bool:
+        """PR-11: try one last-chance DRAFTING+JUDGING cycle before stopping.
+
+        Q2/Q6 in the 2026-05-29 eval reached the query-reformulation cap
+        with 18–21 evidence items already collected but never produced a
+        draft or judge verdict. The previous behaviour wasted that work.
+
+        Contract:
+          * Always records ``state.budget_exhausted_kind = kind`` so when we
+            do stop, ``_stop`` builds the right rationale.
+          * If a deadline draft already ran (``budget_forced_synthesis``
+            latch True) or evidence is below the minimum, fall through to
+            ``STOPPED_BY_BUDGET`` immediately — no infinite loop possible.
+          * If we are already in DRAFTING/JUDGING/terminal, do not interfere.
+          * Otherwise: set the latch, transition to DRAFTING, return False
+            so the orchestrator loop runs one more synth+judge pass. If the
+            judge confirms, PR-6a flips the run to JUDGE_CONFIRMED; if not,
+            the next loop iteration hits this guard again with the latch
+            set and stops cleanly.
+        """
+        self.state.budget_exhausted_kind = kind
+
+        if self.state.budget_forced_synthesis:
             await self._stop(StopReason.STOPPED_BY_BUDGET)
             return True
 
+        if self.state.current_state in (
+            AgentState.DRAFTING,
+            AgentState.JUDGING,
+            AgentState.STOPPED,
+            AgentState.ERRORED,
+        ):
+            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            return True
+
+        if len(self.state.evidence) < self._MIN_EVIDENCE_FOR_DEADLINE_DRAFT:
+            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            return True
+
+        self.state.budget_forced_synthesis = True
+        logger.warning(
+            "global_budget_forced_deadline_draft",
+            run_id=str(self.state.run_id),
+            kind=kind,
+            evidence_count=len(self.state.evidence),
+            from_state=self.state.current_state.value,
+        )
+        self.state.transition_to(AgentState.DRAFTING)
         return False
 
     async def _handle_error(self, exc: BaseException) -> StopReason:

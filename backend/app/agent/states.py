@@ -37,7 +37,10 @@ TRANSITIONS: dict[AgentState, set[AgentState]] = {
         AgentState.ERRORED,
     },
     AgentState.REVISING: {AgentState.CRITIQUING, AgentState.STOPPED, AgentState.ERRORED},
-    AgentState.SEARCHING: {AgentState.ANALYZING, AgentState.STOPPED, AgentState.ERRORED},
+    # PR-11: SEARCHING → DRAFTING is the emergency escape used by
+    # ``_force_synthesis_or_stop`` when a global budget cap is hit with
+    # enough evidence already collected to attempt a deadline draft.
+    AgentState.SEARCHING: {AgentState.ANALYZING, AgentState.DRAFTING, AgentState.STOPPED, AgentState.ERRORED},
     AgentState.ANALYZING: {
         AgentState.SEARCHING,
         AgentState.DRAFTING,

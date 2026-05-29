@@ -203,6 +203,12 @@ class RunState(BaseModel):
     max_query_reformulations_per_run: int = 5
     no_progress_event_window: int = 30
 
+    # PR-11: latch set by ``_force_synthesis_or_stop`` after a global budget
+    # cap is hit with sufficient evidence. The orchestrator transitions to
+    # DRAFTING for one last-chance synthesis+judge cycle; on the next budget
+    # check the latch routes to a hard stop so we cannot loop forever.
+    budget_forced_synthesis: bool = False
+
     def transition_to(self, new_state: AgentState) -> None:
         if not can_transition(self.current_state, new_state):
             raise ValueError(f"Invalid transition: {self.current_state} -> {new_state}")
