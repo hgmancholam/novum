@@ -7,6 +7,8 @@
  * `AppShell` TopBar and needs no configuration.
  */
 
+import { useNavigate } from "react-router-dom";
+
 import { Badge, Button, Spinner } from "@/components/atoms";
 import { useLoginModal } from "@/hooks/useLoginModal";
 import { useUserStore } from "@/stores/userStore";
@@ -17,6 +19,7 @@ export function IdentitySlot() {
   const username = useUserStore((s) => s.user?.username ?? null);
   const logout = useUserStore((s) => s.logout);
   const openLoginModal = useLoginModal((s) => s.open);
+  const navigate = useNavigate();
 
   if (isVerifying) {
     return (
@@ -62,6 +65,7 @@ export function IdentitySlot() {
         size="sm"
         onClick={() => {
           logout();
+          void navigate("/", { replace: true });
         }}
       >
         Logout

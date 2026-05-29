@@ -1,10 +1,25 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { act, render, screen, fireEvent } from "@testing-library/react";
+import {
+  act,
+  render as rtlRender,
+  screen,
+  fireEvent,
+  type RenderOptions,
+} from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactElement } from "react";
 import { axe } from "jest-axe";
 import { AppShell } from "./AppShell";
 import { useSelectionStore } from "@/stores/selectionStore";
 import { useUserStore } from "@/stores/userStore";
 import { useLoginModal } from "@/hooks/useLoginModal";
+
+function render(ui: ReactElement, options?: RenderOptions) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>,
+    ...options,
+  });
+}
 
 function resetStore(): void {
   useSelectionStore.setState({
