@@ -68,12 +68,11 @@ describe("QuestionForm", () => {
     );
   });
 
-  it("submits high threshold via Advanced (outputFormat is fixed to structured)", () => {
+  it("submits high threshold via the inline preset (outputFormat is fixed to structured)", () => {
     const { onSubmit } = setup();
     fireEvent.change(screen.getByLabelText(/your question/i), {
       target: { value: "Why is the sky blue?" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /^advanced/i }));
     fireEvent.click(screen.getByLabelText(/High \(0\.85\)/));
     fireEvent.click(screen.getByTestId("submit-question"));
     expect(onSubmit).toHaveBeenCalledWith(
@@ -84,11 +83,30 @@ describe("QuestionForm", () => {
     );
   });
 
-  it("does not render the answer-format radio group in Advanced", () => {
+  it("does not render an Advanced disclosure or a Custom threshold preset", () => {
     setup();
-    fireEvent.click(screen.getByRole("button", { name: /^advanced/i }));
+    expect(screen.queryByRole("button", { name: /^advanced/i })).toBeNull();
     expect(screen.queryByLabelText(/^Prose$/)).toBeNull();
     expect(screen.queryByLabelText(/Structured \(recommended\)/i)).toBeNull();
+    expect(screen.queryByLabelText(/Custom/i)).toBeNull();
+  });
+
+  it("updates the slider value when a preset is clicked and submits that value", () => {
+    const { onSubmit } = setup();
+    fireEvent.change(screen.getByLabelText(/your question/i), {
+      target: { value: "What is event sourcing?" },
+    });
+    expect(screen.getByTestId("threshold-value")).toHaveTextContent("0.60");
+    fireEvent.click(screen.getByLabelText(/Low \(0\.4\)/));
+    expect(screen.getByTestId("threshold-value")).toHaveTextContent("0.40");
+    fireEvent.change(screen.getByTestId("threshold-slider"), {
+      target: { value: "0.75" },
+    });
+    expect(screen.getByTestId("threshold-value")).toHaveTextContent("0.75");
+    fireEvent.click(screen.getByTestId("submit-question"));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ confidenceThreshold: 0.75 })
+    );
   });
 
   it("renders the loading copy while submitting", () => {
