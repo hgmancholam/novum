@@ -90,12 +90,19 @@ ProbeRunner = Callable[[], Awaitable[None]]
 
 
 class ProbeSpec(NamedTuple):
-    """Static description of one probe."""
+    """Static description of one probe.
+
+    ``ttl_s`` overrides the registry's default cache TTL for this probe.
+    Use it to throttle expensive or rate-limited services (Tavily, S2)
+    while keeping cheap probes (Postgres) responsive.
+    ``None`` means "use the registry's CACHE_TTL_S default".
+    """
 
     id: str
     name: str
     category: ServiceCategory
     runner: ProbeRunner
+    ttl_s: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -212,14 +219,18 @@ def _raise_mapped(exc: BaseException) -> None:
 
 PROBES: tuple[ProbeSpec, ...] = (
     # LLM family
-    ProbeSpec("anthropic", "Anthropic", ServiceCategory.LLM, _anthropic_runner),
-    ProbeSpec("openai", "OpenAI", ServiceCategory.LLM, _make_disabled_runner()),
-    ProbeSpec("gemini", "Gemini", ServiceCategory.LLM, _make_disabled_runner()),
+    ProbeSpec(
+        "anthropic", "Anthropic", ServiceCategory.LLM, _anthropic_runner,
+        ttl_s=300.0,  # env-var only, no upstream call -> can be slow.
+    ),
+    ProbeSpec("openai", "OpenAI", ServiceCategory.LLM, _make_disabled_runner(), ttl_s=3600.0),
+    ProbeSpec("gemini", "Gemini", ServiceCategory.LLM, _make_disabled_runner(), ttl_s=3600.0),
     ProbeSpec(
         "github_models",
         "GitHub Models",
         ServiceCategory.LLM,
         _make_disabled_runner(),
+        ttl_s=3600.0,
     ),
     # Search
     ProbeSpec(
@@ -227,6 +238,7 @@ PROBES: tuple[ProbeSpec, ...] = (
         "Tavily",
         ServiceCategory.SEARCH,
         _make_source_runner(SourceType.TAVILY, "TAVILY_API_KEY"),
+        ttl_s=600.0,  # paid quota: minimize probe cost (~4 k/month vs 86 k).
     ),
     # Knowledge
     ProbeSpec(
@@ -234,19 +246,25 @@ PROBES: tuple[ProbeSpec, ...] = (
         "Wikipedia",
         ServiceCategory.KNOWLEDGE,
         _make_source_runner(SourceType.WIKIPEDIA, None),
+        ttl_s=120.0,
     ),
     ProbeSpec(
         "semantic_scholar",
         "Semantic Scholar",
         ServiceCategory.KNOWLEDGE,
         _make_source_runner(SourceType.SEMANTIC_SCHOLAR, None),
+        ttl_s=300.0,  # aggressive RPS limit even with API key.
     ),
     ProbeSpec(
         "openalex",
         "OpenAlex",
         ServiceCategory.KNOWLEDGE,
         _make_source_runner(SourceType.OPENALEX, None),
+        ttl_s=120.0,
     ),
     # Storage
-    ProbeSpec("postgres", "PostgreSQL", ServiceCategory.STORAGE, _postgres_runner),
+    ProbeSpec(
+        "postgres", "PostgreSQL", ServiceCategory.STORAGE, _postgres_runner,
+        ttl_s=30.0,  # local + critical: detect outages fast.
+    ),
 )

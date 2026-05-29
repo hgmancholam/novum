@@ -1,17 +1,22 @@
-"""HealthRegistry — in-process singleton with 30 s cache + single-flight.
+"""HealthRegistry — in-process per-probe cache + single-flight.
 
 Public API (BRD-27 §4.9):
-    snapshot() -> HealthSnapshot     # cache-aware
-    refresh()  -> HealthSnapshot     # forces re-probe
+    snapshot() -> HealthSnapshot     # cache-aware (per-probe TTL)
+    refresh()  -> HealthSnapshot     # forces re-probe of every probe
 
 Concurrency model (RF-05):
-    * One ``anyio.Lock`` guards the cache pointer + inflight slot.
+    * One ``anyio.Lock`` guards the per-probe cache + inflight slot.
       It is **never** held across a probe round.
-    * The initiator of a refresh creates an ``asyncio.Future`` and
-      runs the probe round inline. Concurrent requests arriving while
-      a refresh is in flight await the same future (single-flight,
+    * Each probe has its own TTL (``ProbeSpec.ttl_s``) — cheap/critical
+      probes (Postgres) refresh fast, paid/rate-limited probes (Tavily,
+      Semantic Scholar) refresh slowly. When ``ttl_s`` is ``None`` the
+      registry-level ``CACHE_TTL_S`` default applies.
+    * The initiator of a refresh round creates an ``asyncio.Future``
+      and runs the probe round inline. Concurrent requests arriving
+      while a refresh is in flight await the same future (single-flight,
       AC-02) — they receive ``cached=True`` while the initiator
-      receives ``cached=False``.
+      receives ``cached=False`` whenever at least one probe was
+      re-evaluated.
     * Each probe runs under ``asyncio.wait_for(PROBE_TIMEOUT_S)`` so
       a stuck upstream cannot stall the snapshot.
 """
@@ -45,56 +50,57 @@ logger = structlog.get_logger(__name__)
 
 
 class HealthRegistry:
-    """Process-local cache of the most recent :class:`HealthSnapshot`."""
+    """Process-local per-probe cache of :class:`ServiceHealth` results."""
 
-    CACHE_TTL_S: float = 30.0
+    CACHE_TTL_S: float = 30.0  # default TTL for probes whose spec.ttl_s is None.
     PROBE_TIMEOUT_S: float = 2.0
     LATENCY_DEGRADED_MS: int = 1500
 
     def __init__(self, probes: tuple[ProbeSpec, ...] = PROBES) -> None:
         self._probes = probes
-        self._cache: HealthSnapshot | None = None
-        self._cache_ts: float = 0.0
+        # Per-probe cache: probe_id -> (ServiceHealth, cached_at_monotonic)
+        self._results: dict[str, tuple[ServiceHealth, float]] = {}
         self._inflight: asyncio.Future[HealthSnapshot] | None = None
         self._lock = anyio.Lock()
 
     # -- public API --------------------------------------------------------
 
     async def snapshot(self) -> HealthSnapshot:
-        """Return the cached snapshot or coalesce onto an in-flight refresh."""
-        cached = await self._fast_cache_hit()
-        if cached is not None:
-            return cached
+        """Return a snapshot. Probes with fresh cache entries are reused;
+        stale ones are re-evaluated inside a single-flight round."""
         return await self._refresh_or_join()
 
     async def refresh(self) -> HealthSnapshot:
         """Bypass the cache and force a fresh probe round."""
         async with self._lock:
-            self._cache = None
-            self._cache_ts = 0.0
+            self._results.clear()
         return await self._refresh_or_join()
 
     # -- internals ---------------------------------------------------------
 
-    async def _fast_cache_hit(self) -> HealthSnapshot | None:
-        async with self._lock:
-            if (
-                self._cache is not None
-                and (monotonic() - self._cache_ts) < self.CACHE_TTL_S
-            ):
-                return self._cache.model_copy(update={"cached": True})
-            return None
+    def _effective_ttl(self, spec: ProbeSpec) -> float:
+        return spec.ttl_s if spec.ttl_s is not None else self.CACHE_TTL_S
+
+    def _is_fresh(self, spec: ProbeSpec, now: float) -> bool:
+        entry = self._results.get(spec.id)
+        if entry is None:
+            return False
+        _, cached_at = entry
+        return (now - cached_at) < self._effective_ttl(spec)
 
     async def _refresh_or_join(self) -> HealthSnapshot:
         initiator = False
         async with self._lock:
-            # Double-check after lock: another waiter may have populated
-            # the cache between the fast-path check and this point.
-            if (
-                self._cache is not None
-                and (monotonic() - self._cache_ts) < self.CACHE_TTL_S
-            ):
-                return self._cache.model_copy(update={"cached": True})
+            now = monotonic()
+            stale = [s for s in self._probes if not self._is_fresh(s, now)]
+            if not stale:
+                # Everything is fresh: serve from cache, no probe work.
+                services = [self._results[s.id][0] for s in self._probes]
+                return HealthSnapshot(
+                    checked_at=datetime.now(timezone.utc),
+                    cached=True,
+                    services=services,
+                )
             if self._inflight is None:
                 loop = asyncio.get_running_loop()
                 self._inflight = loop.create_future()
@@ -104,16 +110,23 @@ class HealthRegistry:
                 inflight = self._inflight
 
         if initiator:
-            await self._do_refresh(inflight)
+            await self._do_refresh(inflight, stale)
 
         snap = await inflight
         if initiator:
             return snap
         return snap.model_copy(update={"cached": True})
 
-    async def _do_refresh(self, fut: asyncio.Future[HealthSnapshot]) -> None:
+    async def _do_refresh(
+        self,
+        fut: asyncio.Future[HealthSnapshot],
+        stale: list[ProbeSpec],
+    ) -> None:
         try:
-            snap = await self._run_all_probes()
+            fresh_results = await asyncio.gather(
+                *(self._run_one(spec) for spec in stale),
+                return_exceptions=False,
+            )
         except BaseException as exc:  # pragma: no cover — defensive
             async with self._lock:
                 if self._inflight is fut:
@@ -121,24 +134,23 @@ class HealthRegistry:
             if not fut.done():
                 fut.set_exception(exc)
             return
+
         async with self._lock:
-            self._cache = snap
-            self._cache_ts = monotonic()
+            now = monotonic()
+            for spec, result in zip(stale, fresh_results, strict=True):
+                self._results[spec.id] = (result, now)
+            # Assemble snapshot in the original probe order.
+            services = [self._results[s.id][0] for s in self._probes]
             if self._inflight is fut:
                 self._inflight = None
-        if not fut.done():
-            fut.set_result(snap)
 
-    async def _run_all_probes(self) -> HealthSnapshot:
-        results = await asyncio.gather(
-            *(self._run_one(spec) for spec in self._probes),
-            return_exceptions=False,
-        )
-        return HealthSnapshot(
+        snap = HealthSnapshot(
             checked_at=datetime.now(timezone.utc),
             cached=False,
-            services=list(results),
+            services=services,
         )
+        if not fut.done():
+            fut.set_result(snap)
 
     async def _run_one(self, spec: ProbeSpec) -> ServiceHealth:
         now = datetime.now(timezone.utc)
