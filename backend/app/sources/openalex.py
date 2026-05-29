@@ -282,6 +282,21 @@ class OpenAlexSource(BaseSource):
             return None
         return self._work_to_result(work, relevance_score=1.0)
 
+    async def health_check(self) -> bool:
+        """Smoke check: 1-result query verifies connectivity and API availability."""
+        try:
+            params: dict[str, Any] = {
+                "search": "science",
+                "per_page": 1,
+                "select": "id",
+            }
+            params.update(self._polite_params())
+            async with self._client() as client:
+                response = await client.get(f"{_BASE_URL}/works", params=params)
+            return response.status_code == 200
+        except Exception:
+            return False
+
     @staticmethod
     def _extract_work_id(url: str) -> str | None:
         from urllib.parse import urlparse
