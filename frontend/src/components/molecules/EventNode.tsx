@@ -142,17 +142,17 @@ export function EventNode({
             className="mt-0.5 shrink-0 text-[var(--accent)]"
           />
           <span className="flex-1 min-w-0">
-            <span className="flex items-center gap-2">
+            <span className="flex items-baseline justify-between gap-2">
               <span className="font-medium text-[var(--text-primary)]">
                 {getEventLabel(event.type)}
               </span>
-              <span className="truncate text-[var(--text-secondary)]">
-                · {label}
-              </span>
+              {meta !== null ? (
+                <span className="shrink-0 text-[var(--text-muted)]">{meta}</span>
+              ) : null}
             </span>
-            {meta !== null ? (
-              <span className="block text-[var(--text-muted)]">{meta}</span>
-            ) : null}
+            <span className="mt-0.5 block text-[var(--text-secondary)]">
+              {label}
+            </span>
           </span>
         </button>
         {expanded ? (
@@ -188,18 +188,18 @@ export function EventNode({
       >
         <EventIcon type={event.type} />
         <span className="flex-1 min-w-0">
-          <span className="flex items-center gap-2">
+          <span className="flex items-baseline justify-between gap-2">
             <span className="font-medium text-[var(--text-primary)]">
               {getEventLabel(event.type)}
             </span>
-            {event.summary !== undefined && event.summary !== "" ? (
-              <span className="truncate text-[var(--text-secondary)]">
-                · {event.summary}
-              </span>
+            {meta !== null ? (
+              <span className="shrink-0 text-[var(--text-muted)]">{meta}</span>
             ) : null}
           </span>
-          {meta !== null ? (
-            <span className="block text-[var(--text-muted)]">{meta}</span>
+          {event.summary !== undefined && event.summary !== "" ? (
+            <span className="mt-0.5 block text-[var(--text-secondary)]">
+              {event.summary}
+            </span>
           ) : null}
         </span>
         {forkSlot !== undefined && forkSlot !== null ? (
