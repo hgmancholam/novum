@@ -36,7 +36,7 @@ export function HistoryPanel({
           {header}
         </header>
       ) : null}
-      <div className="flex-1 overflow-y-auto px-2 py-3 pb-12">{body}</div>
+      <div className="flex-1 overflow-y-auto px-2 py-3 pb-20">{body}</div>
       {footer !== undefined ? (
         <footer className="border-t border-[var(--glass-border)] px-4 py-3">
           {footer}
