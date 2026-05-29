@@ -6,14 +6,13 @@
  * inherit automatically. Animation is gated by `prefers-reduced-motion`.
  */
 
-import type { HTMLAttributes } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion, type HTMLMotionProps } from "motion/react";
 
 import { cn } from "@/lib/cn";
 import type { ServiceStatus } from "@/types/health";
 
 export interface ServiceStatusDotProps
-  extends Omit<HTMLAttributes<HTMLSpanElement>, "color"> {
+  extends Omit<HTMLMotionProps<"span">, "color" | "animate" | "transition"> {
   status: ServiceStatus;
 }
 
@@ -32,6 +31,13 @@ export function ServiceStatusDot({
 }: ServiceStatusDotProps) {
   const prefersReducedMotion = useReducedMotion();
   const shouldPulse = status === "degraded" && !prefersReducedMotion;
+  const motionProps: Pick<HTMLMotionProps<"span">, "animate" | "transition"> =
+    shouldPulse
+      ? {
+          animate: { opacity: [1, 0.4, 1] },
+          transition: { duration: 1.8, repeat: Infinity, ease: "easeInOut" },
+        }
+      : {};
 
   return (
     <motion.span
@@ -43,12 +49,7 @@ export function ServiceStatusDot({
         colorByStatus[status],
         className,
       )}
-      animate={shouldPulse ? { opacity: [1, 0.4, 1] } : undefined}
-      transition={
-        shouldPulse
-          ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
-          : undefined
-      }
+      {...motionProps}
       {...rest}
     />
   );
