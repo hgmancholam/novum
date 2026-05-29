@@ -150,10 +150,9 @@ describe("NewRunContainer", () => {
     expect(screen.queryByTestId("run-page")).not.toBeInTheDocument();
   });
 
-  it("renders the SuggestionChips and TypeDisclosure", () => {
+  it("renders the SuggestionChips", () => {
     renderWithProviders(<NewRunContainer />);
     expect(screen.getByTestId("suggestion-chips")).toBeInTheDocument();
-    expect(screen.getByTestId("type-disclosure")).toBeInTheDocument();
   });
 
   it("seeds the textarea when a suggestion is picked", () => {

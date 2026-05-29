@@ -11,8 +11,6 @@ export { ElapsedClock, formatElapsed } from "./ElapsedClock";
 export type { ElapsedClockProps } from "./ElapsedClock";
 export { MetaRow } from "./MetaRow";
 export type { MetaRowProps } from "./MetaRow";
-export { TypeDisclosure } from "./TypeDisclosure";
-export type { TypeDisclosureProps } from "./TypeDisclosure";
 export { SuggestionChips, DEFAULT_SUGGESTIONS } from "./SuggestionChips";
 export type { SuggestionChipsProps } from "./SuggestionChips";
 export { EventNode } from "./EventNode";

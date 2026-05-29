@@ -4,7 +4,6 @@
  * Composition:
  *   - `QuestionForm`     — required input + optional context + advanced
  *   - `SuggestionChips`  — first-run onboarding (RF-06, §7.7)
- *   - `TypeDisclosure`   — supported/rejected types (RF-06, §7.3)
  *
  * Auth gate (BRD-04): anonymous users see the `Sign in` modal first; their
  * draft question is preserved so they don't lose typing.
@@ -20,7 +19,7 @@ import {
   QuestionForm,
   type QuestionFormValues,
 } from "@/components/organisms";
-import { SuggestionChips, TypeDisclosure } from "@/components/molecules";
+import { SuggestionChips } from "@/components/molecules";
 import { useCreateRun } from "@/hooks/useCreateRun";
 import { useLoginModal } from "@/hooks/useLoginModal";
 import { useUserStore } from "@/stores/userStore";
@@ -93,10 +92,6 @@ export function NewRunContainer() {
             setDraft(q);
           }}
         />
-      </motion.div>
-
-      <motion.div variants={fadeUp}>
-        <TypeDisclosure />
       </motion.div>
     </motion.div>
   );
