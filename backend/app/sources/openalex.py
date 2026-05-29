@@ -13,6 +13,7 @@ positions). We reconstruct them into plain text on the fly.
 
 from __future__ import annotations
 
+import asyncio
 import math
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -203,17 +204,29 @@ class OpenAlexSource(BaseSource):
         logger.debug(
             "openalex_search_start", query=query, per_page=per_page, from_date=from_date
         )
-        try:
-            async with self._client() as client:
-                response = await client.get(f"{_BASE_URL}/works", params=params)
-        except httpx.HTTPError as exc:
-            logger.error("openalex_search_error", query=query, error=str(exc))
-            raise SourceError(
-                source_type=self.source_type,
-                message="OpenAlex request failed",
-                recoverable=True,
-            ) from exc
+        # One retry on 429 with a short backoff: OpenAlex's polite-pool
+        # window is generous, so a single retry recovers most transient
+        # rate-limits without stalling the search round.
+        response: httpx.Response | None = None
+        for attempt in range(2):
+            try:
+                async with self._client() as client:
+                    response = await client.get(f"{_BASE_URL}/works", params=params)
+            except httpx.HTTPError as exc:
+                logger.error("openalex_search_error", query=query, error=str(exc))
+                raise SourceError(
+                    source_type=self.source_type,
+                    message="OpenAlex request failed",
+                    recoverable=True,
+                ) from exc
+            if response.status_code != 429 or attempt == 1:
+                break
+            logger.warning(
+                "openalex_rate_limited_retry", query=query, attempt=attempt + 1
+            )
+            await asyncio.sleep(1.0)
 
+        assert response is not None
         if response.status_code == 429:
             logger.warning("openalex_rate_limited", query=query)
             raise SourceError(

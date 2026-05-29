@@ -16,6 +16,11 @@ def _mock_transport(handler):  # type: ignore[no-untyped-def]
     return httpx.MockTransport(handler)
 
 
+async def _no_sleep(_seconds: float) -> None:
+    """Bypass real backoff in retry tests."""
+    return None
+
+
 def _search_payload(works: list[dict[str, Any]]) -> dict[str, Any]:
     return {"meta": {"count": len(works)}, "results": works}
 
@@ -150,8 +155,16 @@ async def test_search_handles_missing_abstract() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_raises_recoverable_on_rate_limit() -> None:
+async def test_search_raises_recoverable_on_rate_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two consecutive 429s exhaust the single retry and raise SourceError."""
+    monkeypatch.setattr("app.sources.openalex.asyncio.sleep", _no_sleep)
+    calls = 0
+
     def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
         return httpx.Response(429, json={"error": "rate limited"})
 
     source = OpenAlexSource(transport=_mock_transport(handler))
@@ -159,6 +172,29 @@ async def test_search_raises_recoverable_on_rate_limit() -> None:
         await source.search("foo")
     assert excinfo.value.recoverable is True
     assert excinfo.value.source_type == SourceType.OPENALEX
+    assert calls == 2, "expected one retry after the initial 429"
+
+
+@pytest.mark.asyncio
+async def test_search_retries_once_on_429_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A transient 429 followed by 200 recovers without raising."""
+    monkeypatch.setattr("app.sources.openalex.asyncio.sleep", _no_sleep)
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(429, json={"error": "rate limited"})
+        return httpx.Response(200, json=_search_payload([WORK_FIXTURE]))
+
+    source = OpenAlexSource(transport=_mock_transport(handler))
+    results = await source.search("foo", max_results=1)
+    assert calls == 2
+    assert len(results) == 1
+    assert results[0].title == WORK_FIXTURE["title"]
 
 
 @pytest.mark.asyncio

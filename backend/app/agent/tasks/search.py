@@ -214,8 +214,22 @@ async def execute_search_round(state: RunState) -> list[BaseEvent]:
     temporal = state.temporal_sensitivity
     days_filter = _TAVILY_DAYS_BY_TEMPORAL.get(temporal) if temporal is not None else None
 
+    # Cascade: planner-preferred sources first (academic questions add
+    # semantic_scholar / openalex), then the defaults as last-resort
+    # fallback so every claim still has Wikipedia to fall back to.
+    cascade: list[SourceType] = []
+    for raw in state.preferred_sources:
+        try:
+            st = SourceType(raw)
+        except ValueError:
+            continue
+        if st not in cascade:
+            cascade.append(st)
+    for st in _CASCADE_ORDER:
+        if st not in cascade:
+            cascade.append(st)
+
     # BRD-23 WP-1: realtime topics skip Wikipedia entirely
-    cascade = list(_CASCADE_ORDER)
     if temporal == TemporalSensitivity.REALTIME:
         cascade = [s for s in cascade if s != SourceType.WIKIPEDIA]
 

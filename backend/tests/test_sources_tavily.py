@@ -76,7 +76,7 @@ async def test_search_truncates_content_to_5000_chars() -> None:
     assert len(results[0].content) == DEFAULT_MAX_CONTENT_CHARS + 3
 
 
-async def test_search_clamps_max_results_between_1_and_10() -> None:
+async def test_search_clamps_max_results_between_1_and_20() -> None:
     source = _make_source()
     mock = AsyncMock(return_value=_fake_response([]))
     source._client.search = mock  # type: ignore[method-assign]
@@ -85,7 +85,7 @@ async def test_search_clamps_max_results_between_1_and_10() -> None:
     assert mock.call_args.kwargs["max_results"] == 1
 
     await source.search("q", max_results=999)
-    assert mock.call_args.kwargs["max_results"] == 10
+    assert mock.call_args.kwargs["max_results"] == 20
 
     await source.search("q", max_results=5)
     assert mock.call_args.kwargs["max_results"] == 5

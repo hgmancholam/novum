@@ -10,6 +10,7 @@ range parameter, since the API does not accept day-level filters.
 
 from __future__ import annotations
 
+import asyncio
 import math
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -162,19 +163,31 @@ class SemanticScholarSource(BaseSource):
         logger.debug(
             "semantic_scholar_search_start", query=query, limit=limit, year=year
         )
-        try:
-            async with self._client() as client:
-                response = await client.get(
-                    f"{_BASE_URL}/paper/search", params=params
-                )
-        except httpx.HTTPError as exc:
-            logger.error("semantic_scholar_search_error", query=query, error=str(exc))
-            raise SourceError(
-                source_type=self.source_type,
-                message="Semantic Scholar request failed",
-                recoverable=True,
-            ) from exc
+        # One retry on 429 with a short backoff: S2's per-IP window often
+        # clears within ~1 s and a single retry recovers a meaningful
+        # fraction of rate-limited calls without stalling the round.
+        response: httpx.Response | None = None
+        for attempt in range(2):
+            try:
+                async with self._client() as client:
+                    response = await client.get(
+                        f"{_BASE_URL}/paper/search", params=params
+                    )
+            except httpx.HTTPError as exc:
+                logger.error("semantic_scholar_search_error", query=query, error=str(exc))
+                raise SourceError(
+                    source_type=self.source_type,
+                    message="Semantic Scholar request failed",
+                    recoverable=True,
+                ) from exc
+            if response.status_code != 429 or attempt == 1:
+                break
+            logger.warning(
+                "semantic_scholar_rate_limited_retry", query=query, attempt=attempt + 1
+            )
+            await asyncio.sleep(1.0)
 
+        assert response is not None  # loop always assigns or raises
         if response.status_code == 429:
             logger.warning("semantic_scholar_rate_limited", query=query)
             raise SourceError(

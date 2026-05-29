@@ -341,3 +341,99 @@ async def test_high_relevance_skips_reformulation(
     assert len(tool_calls) == 1, "Expected only 1 tool call (no reformulation)"
     assert len(reformulations) == 0, "Expected no reformulation"
 
+
+# =============================================================================
+# Cascade built from planner.preferred_sources (academic questions)
+# =============================================================================
+
+
+async def test_preferred_sources_override_cascade_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When state.preferred_sources is set, those sources are tried first."""
+    s2 = _FakeSource(
+        SourceType.SEMANTIC_SCHOLAR,
+        results=[_result("s2-1"), _result("s2-2")],
+    )
+    tavily = _FakeSource(SourceType.TAVILY, results=[_result("t-1")])
+    wiki = _FakeSource(SourceType.WIKIPEDIA, results=[_result("w-1")])
+    monkeypatch.setattr(
+        registry_mod,
+        "_registry",
+        _FakeRegistry(
+            {
+                SourceType.SEMANTIC_SCHOLAR: s2,
+                SourceType.TAVILY: tavily,
+                SourceType.WIKIPEDIA: wiki,
+            }
+        ),
+    )
+    state = _state()
+    state.preferred_sources = ["semantic_scholar", "openalex"]
+
+    events = await search_mod.execute_search_round(state)
+    tool_called = [e.source_type for e in events if isinstance(e, ToolCalledEvent)]
+    # First call goes to the preferred source; cascade breaks on success.
+    assert tool_called == [SourceType.SEMANTIC_SCHOLAR]
+    assert s2.calls and not tavily.calls and not wiki.calls
+
+
+async def test_preferred_source_429_falls_back_to_default_cascade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If S2 rate-limits, the run falls back to Tavily then Wikipedia."""
+    s2 = _FakeSource(
+        SourceType.SEMANTIC_SCHOLAR,
+        error=SourceError(
+            SourceType.SEMANTIC_SCHOLAR,
+            "Semantic Scholar rate-limited (HTTP 429)",
+            recoverable=True,
+        ),
+    )
+    tavily = _FakeSource(SourceType.TAVILY, results=[_result("t-1", score=0.9)])
+    wiki = _FakeSource(SourceType.WIKIPEDIA, results=[_result("w-1")])
+    monkeypatch.setattr(
+        registry_mod,
+        "_registry",
+        _FakeRegistry(
+            {
+                SourceType.SEMANTIC_SCHOLAR: s2,
+                SourceType.TAVILY: tavily,
+                SourceType.WIKIPEDIA: wiki,
+            }
+        ),
+    )
+    state = _state()
+    state.preferred_sources = ["semantic_scholar"]
+
+    events = await search_mod.execute_search_round(state)
+    tool_called = [e.source_type for e in events if isinstance(e, ToolCalledEvent)]
+    failures = [e for e in events if isinstance(e, SourceFailedEvent)]
+    evidence = [e for e in events if isinstance(e, EvidenceAddedEvent)]
+    # S2 → fail → Tavily succeeds; Wikipedia not reached.
+    assert tool_called == [SourceType.SEMANTIC_SCHOLAR, SourceType.TAVILY]
+    assert len(failures) == 1
+    assert failures[0].source_type == SourceType.SEMANTIC_SCHOLAR
+    assert len(evidence) == 1
+    assert evidence[0].source_type == SourceType.TAVILY
+
+
+async def test_empty_preferred_sources_uses_default_cascade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default behavior (no preferred_sources) is unchanged: Tavily first."""
+    tavily = _FakeSource(SourceType.TAVILY, results=[_result("t-1")])
+    wiki = _FakeSource(SourceType.WIKIPEDIA, results=[_result("w-1")])
+    monkeypatch.setattr(
+        registry_mod,
+        "_registry",
+        _FakeRegistry({SourceType.TAVILY: tavily, SourceType.WIKIPEDIA: wiki}),
+    )
+    state = _state()
+    assert state.preferred_sources == []
+
+    events = await search_mod.execute_search_round(state)
+    tool_called = [e.source_type for e in events if isinstance(e, ToolCalledEvent)]
+    assert tool_called == [SourceType.TAVILY]
+
+
