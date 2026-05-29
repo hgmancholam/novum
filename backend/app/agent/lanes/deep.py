@@ -19,8 +19,10 @@ from app.domain.events import (
     BaseEvent,
     DraftSynthesizedEvent,
     HypothesesGeneratedEvent,
+    JudgeRuledEvent,
 )
 from app.llm import LLMRole, llm
+from app.llm.client import active_judge_model
 from app.llm.models import SynthesizedAnswer
 
 logger = structlog.get_logger(__name__)
@@ -253,6 +255,11 @@ async def execute_deep_lane(
             state.final_answer = draft_text
             state.budget_exhausted_kind = "react_steps"
             _ensure_deep_structural_confidence(state)
+            await _emit_synthetic_judge_ruled(
+                state,
+                emit,
+                rationale="meta-judge after_cove: stop_best_effort",
+            )
             logger.info(
                 "deep_lane_meta_judge_best_effort_stop",
                 run_id=str(state.run_id),
@@ -261,6 +268,12 @@ async def execute_deep_lane(
         if meta_outcome == "confirm":
             state.final_answer = draft_text
             state.last_judge_confidence = state.last_judge_confidence or 0.0
+            _ensure_deep_structural_confidence(state)
+            await _emit_synthetic_judge_ruled(
+                state,
+                emit,
+                rationale="meta-judge after_cove: confirm",
+            )
             logger.info(
                 "deep_lane_meta_judge_confirmed",
                 run_id=str(state.run_id),
@@ -292,6 +305,12 @@ async def execute_deep_lane(
         if judge_response.ok:
             state.final_answer = draft_text
             state.last_judge_confidence = judge_response.j_score
+            _ensure_deep_structural_confidence(state)
+            await _emit_synthetic_judge_ruled(
+                state,
+                emit,
+                rationale=judge_response.reason or "deep mini-judge approved",
+            )
             logger.info(
                 "deep_lane_judge_confirmed",
                 run_id=str(state.run_id),
@@ -333,6 +352,12 @@ async def execute_deep_lane(
                 key_point_count=len(draft.key_points),
                 source="deep_react",
             )
+        )
+        _ensure_deep_structural_confidence(state)
+        await _emit_synthetic_judge_ruled(
+            state,
+            emit,
+            rationale="deep ReAct loop returned JUDGE_CONFIRMED",
         )
 
     return react_result
@@ -516,3 +541,32 @@ def _ensure_deep_structural_confidence(state: RunState) -> None:
             "deep_lane_structural_confidence_failed",
             run_id=str(state.run_id),
         )
+
+
+async def _emit_synthetic_judge_ruled(
+    state: RunState,
+    emit: Callable[[BaseEvent], Awaitable[None]],
+    *,
+    rationale: str,
+) -> None:
+    # DEEP lane has no full JudgeRuled emission path (mini-judge + meta-judge
+    # return verdicts but never build the event). Without this synthetic event
+    # the FE TrustSummary cannot render final_confidence for judge_confirmed
+    # runs that took the DEEP path (RF-12).
+    judge_conf = state.last_judge_confidence or 0.0
+    struct_conf = state.last_structural_confidence or 0.0
+    final_conf = (
+        min(judge_conf, struct_conf) if struct_conf > 0 else judge_conf
+    )
+    await emit(
+        JudgeRuledEvent(
+            judge_model=active_judge_model(),
+            judge_confidence=judge_conf,
+            structural_confidence=struct_conf,
+            final_confidence=final_conf,
+            threshold=state.confidence_threshold,
+            passed=True,
+            rationale=rationale,
+            answer_kind=state.selected_answer_kind,
+        )
+    )
