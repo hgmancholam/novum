@@ -378,7 +378,7 @@ export function RunFeed({ events, isComplete, className }: RunFeedProps) {
               <ThinkingRow activity={activityText} idleMessage={idleMessage} />
             ) : null}
           </ol>
-          <div ref={bottomRef} />
+          <div ref={bottomRef} className="scroll-mb-32" />
         </div>
       ) : null}
 

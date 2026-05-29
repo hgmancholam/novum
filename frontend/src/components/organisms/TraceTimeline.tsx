@@ -241,6 +241,7 @@ export function TraceTimeline({
         ref={bottomRef}
         data-testid="trace-timeline-sentinel"
         aria-hidden="true"
+        className="scroll-mb-32"
       />
       {!sticky && !isComplete ? (
         <div className="pointer-events-none sticky bottom-2 flex justify-center">
