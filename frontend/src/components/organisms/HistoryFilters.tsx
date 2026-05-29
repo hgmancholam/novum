@@ -11,13 +11,16 @@ import {
   CheckCircle2,
   CircleStop,
   RefreshCw,
+  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { Button } from "@/components/atoms";
 import { cn } from "@/lib/cn";
-import type { StopReason } from "@/types/events";
-import type { HistoryFilterValues, RunStatus } from "@/types/history";
+import type {
+  HistoryFilterValues,
+  RunStatus,
+  StopReasonFilter,
+} from "@/types/history";
 
 export interface HistoryFiltersProps {
   filters: HistoryFilterValues;
@@ -39,11 +42,19 @@ const statusOptions: ReadonlyArray<StatusOption> = [
   { value: "stopped", label: "Stopped", Icon: CircleStop },
 ];
 
-const stopReasonOptions: ReadonlyArray<{ value: StopReason; label: string }> = [
-  { value: "judge_confirmed", label: "Confirmed" },
-  { value: "stopped_by_budget", label: "Budget" },
-  { value: "user_cancelled", label: "Cancelled" },
-  { value: "errored", label: "Errored" },
+const stopReasonOptions: ReadonlyArray<{
+  value: StopReasonFilter;
+  label: string;
+  title: string;
+}> = [
+  {
+    value: "honest_any",
+    label: "Unanswered",
+    title: "Honest stop — the agent could not give a confident answer",
+  },
+  { value: "stopped_by_budget", label: "Budget", title: "Stopped by budget" },
+  { value: "user_cancelled", label: "Cancelled", title: "Cancelled by user" },
+  { value: "errored", label: "Errored", title: "Errored" },
 ];
 
 export function hasActiveFilters(filters: HistoryFilterValues): boolean {
@@ -106,7 +117,7 @@ export function HistoryFilters({
   );
 
   const handleStopReasonToggle = useCallback(
-    (reason: StopReason): void => {
+    (reason: StopReasonFilter): void => {
       if (filters.stopReason === reason) {
         onChange(withoutStopReason(filters));
       } else {
@@ -187,26 +198,44 @@ export function HistoryFilters({
           })}
         </div>
 
-        {onRefresh ? (
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            aria-label="Refresh history"
-            title="Refresh"
-            data-testid="history-refresh"
-            className={cn(
-              iconButtonBase,
-              "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]",
-              "disabled:cursor-not-allowed disabled:opacity-60"
-            )}
-          >
-            <RefreshCw
-              className={cn("h-4 w-4", isRefreshing && "animate-spin")}
-              aria-hidden="true"
-            />
-          </button>
-        ) : null}
+        <div className="flex items-center gap-1">
+          {active ? (
+            <button
+              type="button"
+              onClick={handleClear}
+              aria-label="Clear filters"
+              title="Clear filters"
+              data-testid="history-clear"
+              className={cn(
+                iconButtonBase,
+                "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+              )}
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : null}
+
+          {onRefresh ? (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              aria-label="Refresh history"
+              title="Refresh"
+              data-testid="history-refresh"
+              className={cn(
+                iconButtonBase,
+                "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]",
+                "disabled:cursor-not-allowed disabled:opacity-60"
+              )}
+            >
+              <RefreshCw
+                className={cn("h-4 w-4", isRefreshing && "animate-spin")}
+                aria-hidden="true"
+              />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {showStopReason ? (
@@ -216,13 +245,14 @@ export function HistoryFilters({
           data-testid="history-stop-reason-group"
           className="flex flex-wrap gap-1"
         >
-          {stopReasonOptions.map(({ value, label }) => {
+          {stopReasonOptions.map(({ value, label, title }) => {
             const pressed = filters.stopReason === value;
             return (
               <button
                 key={value}
                 type="button"
                 aria-pressed={pressed}
+                title={title}
                 onClick={() => {
                   handleStopReasonToggle(value);
                 }}
@@ -238,17 +268,6 @@ export function HistoryFilters({
             );
           })}
         </div>
-      ) : null}
-
-      {active ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleClear}
-          className="self-end"
-        >
-          Clear filters
-        </Button>
       ) : null}
     </div>
   );

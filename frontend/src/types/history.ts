@@ -20,9 +20,26 @@ export interface RunSummary {
   llmProvider: string;
 }
 
+/**
+ * Filter value for the stop-reason chip row.
+ *
+ * `"honest_any"` is a UI-only sentinel that groups the three honest-stop
+ * reasons (`honest_unanswerable`, `honest_contradiction`, `honest_ambiguous`)
+ * under a single chip — they share the same user-facing meaning
+ * ("the agent admitted it could not give a confident answer") and individually
+ * are too rare to deserve their own button.
+ */
+export type StopReasonFilter = StopReason | "honest_any";
+
+export const HONEST_STOP_REASONS: ReadonlyArray<StopReason> = [
+  "honest_unanswerable",
+  "honest_contradiction",
+  "honest_ambiguous",
+];
+
 export interface HistoryFilterValues {
   status?: RunStatus;
-  stopReason?: StopReason;
+  stopReason?: StopReasonFilter;
   search?: string;
 }
 

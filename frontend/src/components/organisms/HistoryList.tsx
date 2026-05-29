@@ -23,7 +23,11 @@ import { AnimatePresence } from "motion/react";
 import { Button, Spinner } from "@/components/atoms";
 import { HistoryFilters, hasActiveFilters } from "./HistoryFilters";
 import { HistoryItem } from "./HistoryItem";
-import type { HistoryFilterValues, RunSummary } from "@/types/history";
+import {
+  HONEST_STOP_REASONS,
+  type HistoryFilterValues,
+  type RunSummary,
+} from "@/types/history";
 
 export interface HistoryListProps {
   runs: readonly RunSummary[];
@@ -56,11 +60,17 @@ function applyFilters(
     if (filters.status !== undefined && run.status !== filters.status) {
       return false;
     }
-    if (
-      filters.stopReason !== undefined &&
-      run.stopReason !== filters.stopReason
-    ) {
-      return false;
+    if (filters.stopReason !== undefined) {
+      if (filters.stopReason === "honest_any") {
+        if (
+          run.stopReason === null ||
+          !HONEST_STOP_REASONS.includes(run.stopReason)
+        ) {
+          return false;
+        }
+      } else if (run.stopReason !== filters.stopReason) {
+        return false;
+      }
     }
     if (search !== "" && !run.question.toLowerCase().includes(search)) {
       return false;

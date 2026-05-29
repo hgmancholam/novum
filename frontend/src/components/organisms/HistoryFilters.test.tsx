@@ -21,7 +21,7 @@ describe("hasActiveFilters", () => {
   });
 
   it("returns true when stopReason is set", () => {
-    expect(hasActiveFilters({ stopReason: "judge_confirmed" })).toBe(true);
+    expect(hasActiveFilters({ stopReason: "honest_any" })).toBe(true);
   });
 
   it("returns true when search has content", () => {
@@ -99,8 +99,13 @@ describe("HistoryFilters", () => {
       screen.getByTestId("history-stop-reason-group")
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Confirmed" })
+      screen.getByRole("button", { name: "Unanswered" })
     ).toBeInTheDocument();
+    // judge_confirmed is no longer a valid stopped reason (it maps to
+    // "completed" instead) — the chip must not exist.
+    expect(
+      screen.queryByRole("button", { name: "Confirmed" })
+    ).toBeNull();
   });
 
   it("drops stopReason when toggling away from stopped status", () => {
@@ -113,6 +118,21 @@ describe("HistoryFilters", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Running" }));
     expect(onChange).toHaveBeenCalledWith({ status: "running" });
+  });
+
+  it("emits honest_any when the Unanswered chip is clicked", () => {
+    const onChange = vi.fn();
+    render(
+      <HistoryFilters
+        filters={{ status: "stopped" }}
+        onChange={onChange}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Unanswered" }));
+    expect(onChange).toHaveBeenCalledWith({
+      status: "stopped",
+      stopReason: "honest_any",
+    });
   });
 
   it("drops stopReason when toggling the stopped pill off", () => {
@@ -170,6 +190,7 @@ describe("HistoryFilters", () => {
     expect(
       screen.getByRole("button", { name: "Clear filters" })
     ).toBeInTheDocument();
+    expect(screen.getByTestId("history-clear")).toBeInTheDocument();
   });
 
   it("clears all filters on Clear filters click", () => {
