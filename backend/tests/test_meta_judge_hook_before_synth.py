@@ -6,7 +6,7 @@ LLM. Verifies the four outcomes wired by the plan:
 
   * ``force_synth``  → VoC ``decision="stop"``   ⇒ transition to DRAFTING
   * ``continue``     → VoC ``decision="continue"`` ⇒ transition to SEARCHING
-  * ``stop_best_effort`` → VoC ``decision="stop_best_effort"`` ⇒ STOP_BY_BUDGET
+  * ``stop_best_effort`` → VoC ``decision="stop_best_effort"`` ⇒ JUDGE_CONFIRMED (PR-6b)
   * fires-once-per-run ⇒ second invocation is a no-op
 """
 
@@ -170,7 +170,7 @@ async def test_meta_judge_before_synthesizing_stop_best_effort(
     assert handled is True
     assert state.before_synth_hook_fired is True
     assert state.budget_exhausted_kind == "search_rounds"
-    assert state.stop_reason == StopReason.STOPPED_BY_BUDGET
+    assert state.stop_reason == StopReason.JUDGE_CONFIRMED
     assert any(isinstance(e, MetaStopVerdictEvent) for e in events)
     assert any(isinstance(e, StoppedEvent) for e in events)
 

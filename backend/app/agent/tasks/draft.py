@@ -33,6 +33,7 @@ from app.llm import (
     SynthesizedAnswer,
     llm,
 )
+from app.llm.client import active_judge_model
 from app.llm.prompts import build_synthesizer_prompt
 
 
@@ -345,7 +346,7 @@ async def evaluate_with_judge(
                 pass  # Already in verdict, will be in event below
 
     return JudgeRuledEvent(
-        judge_model=ROLE_CONFIGS[LLMRole.JUDGE].model,
+        judge_model=active_judge_model(),
         judge_confidence=judge_confidence,
         structural_confidence=structural_confidence,
         final_confidence=final_confidence,

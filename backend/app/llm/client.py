@@ -50,6 +50,26 @@ def resolve_active_provider() -> str:
         return override
     return settings.llm_provider
 
+
+def active_judge_model() -> str:
+    """Return the model name that will actually serve the next JUDGE call.
+
+    PR-10: ``ROLE_CONFIGS[LLMRole.JUDGE].model`` is the GitHub-Models default
+    (`deepseek/...`) and does not reflect reality when the active provider is
+    Anthropic / OpenAI / Google. Use this helper to populate
+    ``JudgeRuledEvent.judge_model`` and meta-judge logs so traces match the
+    model that actually ran.
+    """
+    active = resolve_active_provider()
+    if active != "github":
+        # Lazy import to avoid a circular dependency at module load.
+        from app.llm.factory import get_provider
+
+        return get_provider(active).model_for(LLMRole.JUDGE)
+    if settings.judge_provider == "anthropic" and settings.anthropic_api_key:
+        return settings.anthropic_model_judge
+    return ROLE_CONFIGS[LLMRole.JUDGE].model
+
 # Module-level litellm configuration (ai-services.md §1.1).
 # NOTE: do NOT set ``litellm.api_base`` globally. Each call site passes its
 # own ``api_base`` explicitly (GitHub Models uses ``settings.llm_api_base``;
@@ -239,7 +259,10 @@ class LLMClient:
         if requested_provider == "anthropic" and settings.anthropic_api_key:
             from app.llm import last_error as provider_health
 
-            model = "anthropic/claude-haiku-4-5"
+            # PR-10: honour settings.anthropic_model_judge instead of a
+            # hardcoded haiku id; ai-services.md §1.3 ships sonnet-4-6 as
+            # the V1 judge model and the prior hardcode silently downgraded it.
+            model = settings.anthropic_model_judge
             try:
                 logger.info("llm_judge_anthropic_attempt", model=model)
                 result = await client.chat.completions.create(

@@ -238,6 +238,8 @@ async def run_react_loop(
                 hook="after_react_observation",
             )
             if meta_outcome == "stop_best_effort":
+                # PR-6b: positive terminal via AnswerKind=BEST_EFFORT
+                # inside JUDGE_CONFIRMED (WP-3 stop_reason collapse).
                 logger.info(
                     "react_loop_stopped_by_meta_judge",
                     step=step,
@@ -245,7 +247,7 @@ async def run_react_loop(
                     run_id=str(state.run_id),
                 )
                 await _maybe_summarize_history(state, emit)
-                return StopReason.STOPPED_BY_BUDGET
+                return StopReason.JUDGE_CONFIRMED
             if meta_outcome == "confirm":
                 logger.info(
                     "react_loop_stopped_by_meta_judge",

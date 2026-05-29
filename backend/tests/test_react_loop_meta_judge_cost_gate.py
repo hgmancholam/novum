@@ -269,10 +269,10 @@ async def test_gate_default_off_emits_zero_after_react_events(
 
 
 @pytest.mark.asyncio
-async def test_voc_stop_best_effort_breaks_loop_with_stopped_by_budget(
+async def test_voc_stop_best_effort_breaks_loop_with_judge_confirmed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC-26b-04 — VoC `stop_best_effort` returns STOPPED_BY_BUDGET."""
+    """AC-26b-04 + PR-6b — VoC `stop_best_effort` returns JUDGE_CONFIRMED."""
     _enable_gate(monkeypatch, cap=10, warmup=2)
     _patch_react_llm(monkeypatch)
     _patch_meta_judge(
@@ -287,7 +287,7 @@ async def test_voc_stop_best_effort_breaks_loop_with_stopped_by_budget(
     state = _state()
     events, emit = _collector()
     result = await run_react_loop(state, emit, max_steps=8)
-    assert result == StopReason.STOPPED_BY_BUDGET
+    assert result == StopReason.JUDGE_CONFIRMED
     # warmup=2 means the gate is first checked when state.react_step_count
     # reaches 2 (i.e. after the 2nd observation, step indices 0 and 1).
     # The first MetaStop verdict fires there and breaks the loop.

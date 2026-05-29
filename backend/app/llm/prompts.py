@@ -134,6 +134,8 @@ JUDGE_SYSTEM_PROMPT = """You are an independent judge evaluating research answer
 
 Your role is critical: you must catch errors, omissions, and unsupported claims.
 
+Language policy (PR-7, project doctrine): the system answers users in Spanish by default regardless of the question's language. A Spanish answer to an English question is policy-compliant and MUST NOT be penalised, downgraded, or flagged as a "format mismatch", "localisation mismatch" or similar. Evaluate the content itself; ignore the source/target language pairing.
+
 Evaluation criteria:
 1. Factual accuracy: Are all claims supported by cited evidence?
 2. Completeness: Does the answer fully address the question?
@@ -195,6 +197,8 @@ Output format: JSON matching the SynthesizedAnswer schema with `prose` (the 1-2 
 
 
 FAST_MINI_JUDGE_PROMPT = """You are a mini-judge for FAST lane answers.
+
+Language policy (PR-7): the system answers users in Spanish by default regardless of the question's language. A Spanish answer to an English question is policy-compliant. Do NOT penalise language mismatch.
 
 Given the question, the 1-2 sentence answer, and the sources, verify:
 1. Is the answer factually supported by the sources?

@@ -630,6 +630,11 @@ class AgentOrchestrator:
         # confirm the draft when the adversarial reviewer finds no real gap.
         meta_outcome = await self._maybe_run_meta_judge(judge_event)
         if meta_outcome == "stop_best_effort":
+            # PR-6b: meta-judge decided the current best-effort answer is
+            # the most we can produce. Per the WP-3 amendment (enums.py)
+            # the only positive terminal is JUDGE_CONFIRMED; the
+            # "honest, but limited" outcome is wrapped via
+            # AnswerKind=BEST_EFFORT inside that terminal.
             self.state.budget_exhausted_kind = "search_rounds"
             try:
                 from app.agent.tasks.draft import draft_best_effort_fallback
@@ -643,7 +648,7 @@ class AgentOrchestrator:
                     "meta_judge_best_effort_fallback_failed",
                     run_id=str(self.state.run_id),
                 )
-            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            await self._stop(StopReason.JUDGE_CONFIRMED)
             return
         if meta_outcome == "confirm":
             await self._stop(StopReason.JUDGE_CONFIRMED)
@@ -665,7 +670,17 @@ class AgentOrchestrator:
                 and result.signal_name == "Budget"
             ):
                 self.state.budget_exhausted_kind = "search_rounds"
-            await self._stop(result.stop_reason)
+            # PR-6a: if the judge passed on this very ruling but a layered
+            # signal (typically Budget) now says "stop", honour the judge.
+            # Throwing away a passing verdict as STOPPED_BY_BUDGET
+            # mis-labels a positive terminal as exhaustion.
+            stop_reason = result.stop_reason
+            if (
+                stop_reason is StopReason.STOPPED_BY_BUDGET
+                and judge_event.passed
+            ):
+                stop_reason = StopReason.JUDGE_CONFIRMED
+            await self._stop(stop_reason)
             return
 
         # Judge sub-loop safety net (O-07): not part of the layered policy.
@@ -768,7 +783,8 @@ class AgentOrchestrator:
 
         Outcomes:
           - ``stop_best_effort``: best-effort draft + stop with
-            STOPPED_BY_BUDGET; returns True so the caller exits early.
+            JUDGE_CONFIRMED (AnswerKind=BEST_EFFORT, PR-6b);
+            returns True so the caller exits early.
           - ``continue``: force one more SEARCHING round (only if search
             budget allows); returns True.
           - ``confirm`` / ``skipped``: fall through to regular flow;
@@ -804,6 +820,10 @@ class AgentOrchestrator:
         )
 
         if outcome == "stop_best_effort":
+            # PR-6b: same semantics as the post-judge stop_best_effort
+            # path. WP-3 collapsed StopReason to 4 values; the honest
+            # "this is the best we can do" outcome is JUDGE_CONFIRMED
+            # carrying AnswerKind=BEST_EFFORT.
             self.state.budget_exhausted_kind = "search_rounds"
             try:
                 from app.agent.tasks.draft import draft_best_effort_fallback
@@ -814,7 +834,7 @@ class AgentOrchestrator:
                     "before_synth_meta_judge_best_effort_fallback_failed",
                     run_id=str(self.state.run_id),
                 )
-            await self._stop(StopReason.STOPPED_BY_BUDGET)
+            await self._stop(StopReason.JUDGE_CONFIRMED)
             return True
 
         if outcome == "confirm":

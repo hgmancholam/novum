@@ -246,6 +246,10 @@ async def execute_deep_lane(
             state, emit, _CoveSignal(), hook="after_cove"
         )
         if meta_outcome == "stop_best_effort":
+            # PR-6b: positive terminal — answer is the best we can produce
+            # given the evidence we already have. WP-3 collapsed
+            # StopReason to 4 values; honest "best-effort" lives inside
+            # JUDGE_CONFIRMED via AnswerKind=BEST_EFFORT.
             state.final_answer = draft_text
             state.budget_exhausted_kind = "react_steps"
             _ensure_deep_structural_confidence(state)
@@ -253,7 +257,7 @@ async def execute_deep_lane(
                 "deep_lane_meta_judge_best_effort_stop",
                 run_id=str(state.run_id),
             )
-            return StopReason.STOPPED_BY_BUDGET
+            return StopReason.JUDGE_CONFIRMED
         if meta_outcome == "confirm":
             state.final_answer = draft_text
             state.last_judge_confidence = state.last_judge_confidence or 0.0
