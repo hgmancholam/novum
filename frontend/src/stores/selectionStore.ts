@@ -8,9 +8,6 @@
 import { create } from "zustand";
 
 const TRACE_PANEL_COLLAPSED_KEY = "novum_trace_panel_collapsed";
-const TRACE_TAB_KEY = "novum_trace_tab";
-
-export type TraceTab = "trace" | "cost";
 
 function getInitialTracePanelCollapsed(): boolean {
   try {
@@ -23,23 +20,6 @@ function getInitialTracePanelCollapsed(): boolean {
 function persistTracePanelCollapsed(value: boolean): void {
   try {
     localStorage.setItem(TRACE_PANEL_COLLAPSED_KEY, value ? "1" : "0");
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-function getInitialTraceTab(): TraceTab {
-  try {
-    const v = localStorage.getItem(TRACE_TAB_KEY);
-    return v === "cost" ? "cost" : "trace";
-  } catch {
-    return "trace";
-  }
-}
-
-function persistTraceTab(value: TraceTab): void {
-  try {
-    localStorage.setItem(TRACE_TAB_KEY, value);
   } catch {
     // Ignore storage errors
   }
@@ -63,10 +43,6 @@ export interface SelectionState {
   /** IP-24 Phase 5: Trace panel collapsed state (persisted). */
   isTracePanelCollapsed: boolean;
   toggleTracePanelCollapsed: () => void;
-
-  /** BRD-29 / IP-29: which tab the right trace panel is showing (persisted). */
-  traceTab: TraceTab;
-  setTraceTab: (tab: TraceTab) => void;
 
   /** Reset all selection state (called on logout). */
   reset: () => void;
@@ -111,13 +87,6 @@ export const useSelectionStore = create<SelectionState>((set) => ({
     });
   },
 
-  // BRD-29 / IP-29
-  traceTab: getInitialTraceTab(),
-  setTraceTab: (tab) => {
-    persistTraceTab(tab);
-    set({ traceTab: tab });
-  },
-
   reset: () => {
     set({
       selectedRunId: null,
@@ -125,7 +94,6 @@ export const useSelectionStore = create<SelectionState>((set) => ({
       leftPanelOpen: false,
       rightPanelOpen: false,
       isTracePanelCollapsed: false,
-      traceTab: "trace",
     });
   },
 }));

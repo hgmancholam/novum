@@ -10,7 +10,6 @@ import {
   StatusBadge,
 } from "@/components/molecules";
 import { cn } from "@/lib/cn";
-import type { ReactNode } from "react";
 import type { AnswerKind } from "@/types/events";
 import type { Run, RunStatus } from "@/types/run";
 
@@ -20,8 +19,6 @@ export interface RunHeaderProps {
   /** RF-17: forwarded to StatusBadge so a best-effort budget stop is labeled
    * "Best-effort answer" instead of the generic "Stopped on budget". */
   answerKind?: AnswerKind | null | undefined;
-  /** BRD-29 / IP-29: optional trailing slot — typically the `TotalCostChip`. */
-  trailing?: ReactNode;
   className?: string | undefined;
 }
 
@@ -29,7 +26,6 @@ export function RunHeader({
   run,
   status,
   answerKind,
-  trailing,
   className,
 }: RunHeaderProps) {
   const badgeStatus =
@@ -58,7 +54,6 @@ export function RunHeader({
             : {})}
         />
         <div className="flex items-center gap-2">
-          {trailing}
           {status === "running" ? (
             <ElapsedClock startedAt={run.startedAt} />
           ) : null}

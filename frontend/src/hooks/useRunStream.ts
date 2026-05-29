@@ -179,8 +179,6 @@ export function useRunStream(
       "MetaStopVerdict",
       "AdversarialObjectionsGenerated",
       "DirectedSubclaimsFromObjections",
-      // BRD-29 / IP-29 — per-call cost ledger
-      "CostIncurred",
     ] as const;
 
     const teardowns: Array<() => void> = [

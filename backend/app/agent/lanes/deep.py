@@ -384,7 +384,7 @@ async def _synthesize_with_react_history(state: RunState) -> SynthesizedAnswer:
         question=state.question,
         evidence=evidence_list,
         answer_kind=answer_kind,
-        user_language="es",
+        user_language=state.language,
         hypotheses=hypotheses_list,
     )
 
@@ -439,7 +439,7 @@ async def _synthesize_with_contradictions(
         question=state.question,
         evidence=evidence_list,
         answer_kind=answer_kind,
-        user_language="es",
+        user_language=state.language,
         requires_contradictions=True,
         hypotheses=hypotheses_list,
     )

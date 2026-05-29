@@ -20,18 +20,6 @@ vi.mock("@/hooks/useRunStream", () => ({
   useRunStream: () => streamMock(),
 }));
 
-// IP-29 — Stub the costs endpoint so it does not consume entries from the
-// shared `fetchMock` queue used by the run/cancel/resume tests below.
-vi.mock("@/lib/api/costs", () => ({
-  fetchRunCosts: vi.fn(async () => ({
-    run_id: "00000000-0000-0000-0000-000000000001",
-    total_usd: 0,
-    total_prompt_tokens: 0,
-    total_completion_tokens: 0,
-    by_provider: [],
-  })),
-}));
-
 function emptyStream(): UseRunStreamResult {
   return {
     events: [],

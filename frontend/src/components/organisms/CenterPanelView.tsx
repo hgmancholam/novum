@@ -16,7 +16,7 @@ import { OutcomeBar, GlassSurface } from "@/components/atoms";
 import { AnswerToolbar, type AnswerViewMode } from "@/components/molecules";
 import { cn } from "@/lib/cn";
 import { structuredAnswerToMarkdown } from "@/lib/structuredAnswerMarkdown";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 import type { Run, RunStatus } from "@/types/run";
 import type { AnswerKind, StructuredAnswerData, RunStreamEvent } from "@/types/events";
 import {
@@ -62,8 +62,6 @@ export interface CenterPanelViewProps {
   /** Resume CTA forwarded to StopReasonCard for errored / user_cancelled runs. */
   onResume?: (() => void) | undefined;
   isResuming?: boolean | undefined;
-  /** BRD-29 / IP-29: trailing slot rendered in the run header (TotalCostChip). */
-  headerTrailing?: ReactNode;
   className?: string | undefined;
 }
 
@@ -83,7 +81,6 @@ export function CenterPanelView({
   showPostResumeNotice = false,
   onResume,
   isResuming = false,
-  headerTrailing,
   className,
 }: CenterPanelViewProps) {
   const isTerminal = status === "stopped" && run.stopReason !== null;
@@ -170,7 +167,6 @@ export function CenterPanelView({
             run={run}
             status={status}
             answerKind={answerKind}
-            trailing={headerTrailing}
           />
           <QuestionDisplay question={run.question} />
         </div>

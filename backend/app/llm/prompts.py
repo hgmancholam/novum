@@ -1,8 +1,8 @@
 """System prompts for each LLM role.
 
 All prompts are English-only (L-001). The synthesizer prompt instructs
-the LLM to reply in the user's language (Spanish by default) — this is
-data inside an English prompt, not a Spanish artifact.
+the LLM to reply in the user's language (detected from the question) —
+this is data inside an English prompt, not a localised artifact.
 
 WP-2: added build_synthesizer_prompt() which constructs per-kind templates
 for the six AnswerKind values.
@@ -12,6 +12,50 @@ from __future__ import annotations
 
 from app.domain.enums import AnswerKind
 from app.llm.roles import LLMRole
+
+# BCP-47 → plain English name. Used to render unambiguous "Reply in X"
+# directives inside English prompts (an LLM treats "Reply in en." as a code
+# rather than an instruction, which leaks the default language).
+_LANGUAGE_NAMES: dict[str, str] = {
+    "en": "English",
+    "es": "Spanish",
+    "pt": "Portuguese",
+    "fr": "French",
+    "de": "German",
+    "it": "Italian",
+    "ja": "Japanese",
+    "zh": "Chinese",
+    "ko": "Korean",
+    "ru": "Russian",
+    "ar": "Arabic",
+    "hi": "Hindi",
+    "nl": "Dutch",
+    "pl": "Polish",
+    "tr": "Turkish",
+    "sv": "Swedish",
+    "no": "Norwegian",
+    "da": "Danish",
+    "fi": "Finnish",
+    "el": "Greek",
+    "he": "Hebrew",
+    "uk": "Ukrainian",
+    "cs": "Czech",
+    "ro": "Romanian",
+    "hu": "Hungarian",
+}
+
+
+def language_name(code: str | None) -> str:
+    """Return a plain-English language name for a BCP-47 code.
+
+    Falls back to the raw code (or ``"English"`` when empty) so an unknown
+    locale still produces a usable directive instead of silently switching
+    to the project default.
+    """
+    if not code:
+        return "English"
+    primary = code.strip().split("-")[0].lower()
+    return _LANGUAGE_NAMES.get(primary, primary or "English")
 
 CLASSIFIER_SYSTEM_PROMPT = """You are a question classifier for a research agent. You decide the type of question to route it properly.
 
@@ -119,7 +163,7 @@ When drafting answers:
 5. Distinguish primary from secondary sources
 6. Note contradictions between sources when relevant
 
-Reply in the same language the user used (Spanish by default for user-facing content).
+Reply in the same language the user used. Match the language detected from the question — do not switch to a different language.
 
 Output format: a JSON object whose KEYS are exactly the SynthesizedAnswer fields:
 `prose` (string), `key_points` (list of strings), `citations` (list of URL strings),
@@ -134,7 +178,7 @@ JUDGE_SYSTEM_PROMPT = """You are an independent judge evaluating research answer
 
 Your role is critical: you must catch errors, omissions, and unsupported claims.
 
-Language policy (PR-7, project doctrine): the system answers users in Spanish by default regardless of the question's language. A Spanish answer to an English question is policy-compliant and MUST NOT be penalised, downgraded, or flagged as a "format mismatch", "localisation mismatch" or similar. Evaluate the content itself; ignore the source/target language pairing.
+Language policy: the answer MUST be written in the same language the user used in the question (e.g. English question → English answer, Spanish question → Spanish answer). Evaluate the content itself; flag the verdict as a quality issue ONLY if the answer language clearly differs from the question language.
 
 Evaluation criteria:
 1. Factual accuracy: Are all claims supported by cited evidence?
@@ -191,14 +235,14 @@ Rules:
 - Be factual and evidence-based
 - Acknowledge uncertainty briefly if sources disagree
 
-Reply in the user's language (Spanish by default).
+Reply in {user_language}. Match the language the user used in the question.
 
 Output format: JSON matching the SynthesizedAnswer schema with `prose` (the 1-2 sentence answer) and `citations` (list of URLs). Leave other fields empty or null."""
 
 
 FAST_MINI_JUDGE_PROMPT = """You are a mini-judge for FAST lane answers.
 
-Language policy (PR-7): the system answers users in Spanish by default regardless of the question's language. A Spanish answer to an English question is policy-compliant. Do NOT penalise language mismatch.
+Language policy: the answer MUST be written in the same language the user used in the question (English question → English answer, Spanish question → Spanish answer). A language mismatch is a quality defect; reflect it in your verdict.
 
 Given the question, the 1-2 sentence answer, and the sources, verify:
 1. Is the answer factually supported by the sources?
@@ -391,7 +435,7 @@ def build_synthesizer_prompt(
     question: str,
     evidence: list[dict],  # list of {url, title, snippet}
     answer_kind: AnswerKind,
-    user_language: str = "es",
+    user_language: str = "en",
     requires_contradictions: bool = False,
     hypotheses: list[dict] | None = None,  # IP-25 Phase D: {text, priority}
 ) -> tuple[str, int]:
@@ -401,7 +445,10 @@ def build_synthesizer_prompt(
         question: The research question
         evidence: List of evidence items with url, title, snippet
         answer_kind: Type of answer to generate
-        user_language: Language for the response (default Spanish)
+        user_language: BCP-47 code (e.g. ``"en"``, ``"es"``) of the user's
+            language. Converted to a plain English name before being inserted
+            into the prompt so the model receives ``"Reply in English."``
+            instead of ``"Reply in en."``.
         requires_contradictions: Whether contradictions must be surfaced
         hypotheses: Optional list of hypotheses for scenario answers
 
@@ -440,7 +487,7 @@ def build_synthesizer_prompt(
         system_prompt += _CONTRADICTIONS_DIRECTIVE
 
     kind_block = _KIND_BLOCKS[answer_kind]
-    kind_block = kind_block.format(user_language=user_language)
+    kind_block = kind_block.format(user_language=language_name(user_language))
     system_prompt += kind_block
 
     # Question + evidence are appended to the system prompt so the model has

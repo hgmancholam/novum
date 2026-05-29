@@ -326,6 +326,8 @@ class AgentOrchestrator:
         await self.emit(event)
         if event.normalized_question and event.normalized_question != self.state.question:
             self.state.question = event.normalized_question
+        if event.language:
+            self.state.language = event.language
 
     async def _handle_planning(self) -> None:
         """Create initial plan (BRD-22: with complexity_hint + experts)."""
@@ -700,8 +702,9 @@ class AgentOrchestrator:
             self.state.budget_exhausted_kind = "judge_attempts"
             # C3: before stopping with STOPPED_BY_BUDGET, regenerate the
             # surfaced answer as a BEST_EFFORT fallback so the user sees a
-            # constructive Spanish reply (what we found, what's missing,
-            # how to refine) instead of the rejected draft. O-09 still
+            # constructive reply in their own language (what we found,
+            # what's missing, how to refine) instead of the rejected
+            # draft. O-09 still
             # holds: the stop_reason stays STOPPED_BY_BUDGET — we never
             # silently flip to JUDGE_CONFIRMED here.
             try:

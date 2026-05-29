@@ -170,7 +170,7 @@ async def draft_answer(state: RunState) -> SynthesizedAnswer:
         question=state.question,
         evidence=evidence_list,
         answer_kind=answer_kind,
-        user_language="es",  # TODO: use state.language when added
+        user_language=state.language,
         requires_contradictions=requires_contradictions,
         hypotheses=hypotheses_list,
     )
@@ -448,7 +448,7 @@ async def draft_best_effort_fallback(
         question=state.question,
         evidence=evidence_list,
         answer_kind=answer_kind,
-        user_language="es",
+        user_language=state.language,
         requires_contradictions=False,
         hypotheses=hypotheses_list,
     )
@@ -471,7 +471,7 @@ async def draft_best_effort_fallback(
         "  3. Names the specific gaps or ambiguities that blocked closure.\n"
         "  4. Offers 1-3 concrete ways the user can refine the question "
         "(narrower scope, explicit timeframe, specific entity, etc.).\n"
-        "Tone: collaborative, not apologetic. Reply in Spanish.\n"
+        "Tone: collaborative, not apologetic. Reply in the same language the user used in the question.\n"
         f"{issues_block}"
     )
     system_prompt = system_prompt + fallback_directive

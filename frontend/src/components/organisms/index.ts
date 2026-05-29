@@ -46,6 +46,3 @@ export type { RunFeedProps } from "./RunFeed";
 // BRD-27 / IP-27
 export { ServiceStatusBar } from "./ServiceStatusBar";
 export type { ServiceStatusBarProps } from "./ServiceStatusBar";
-// BRD-29 / IP-29
-export { TraceCostPanel } from "./TraceCostPanel";
-export type { TraceCostPanelProps } from "./TraceCostPanel";

@@ -18,7 +18,7 @@ from app.domain.enums import ComplexityHint, EvidencePolarity, SourceType, StopR
 from app.domain.events import BaseEvent, EvidenceAddedEvent, ToolCalledEvent
 from app.llm import LLMRole, llm
 from app.llm.models import MiniJudgeVerdict, SynthesizedAnswer
-from app.llm.prompts import FAST_MINI_JUDGE_PROMPT, FAST_SYNTH_PROMPT
+from app.llm.prompts import FAST_MINI_JUDGE_PROMPT, FAST_SYNTH_PROMPT, language_name
 from app.seams.source import SourceResult
 from app.sources.registry import get_registry
 
@@ -190,7 +190,12 @@ async def execute_fast_lane(
         synth_result = await llm.call(
             role=LLMRole.SYNTHESIZER,
             messages=[
-                {"role": "system", "content": FAST_SYNTH_PROMPT},
+                {
+                    "role": "system",
+                    "content": FAST_SYNTH_PROMPT.format(
+                        user_language=language_name(state.language)
+                    ),
+                },
                 {"role": "user", "content": f"Question: {state.question}\n\nEvidence:\n" + "\n".join(
                     f"- [{e['title']}]({e['url']}): {e['snippet'][:150]}"
                     for e in evidence_list

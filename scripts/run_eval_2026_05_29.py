@@ -3,7 +3,7 @@
 Sequence:
   1. Register a one-off evaluation user.
   2. For each of the 8 questions:
-       - POST /api/runs (anthropic, prose, threshold 0.7)
+       - POST /api/runs (anthropic, prose; server-controlled threshold via CONFIDENCE_THRESHOLD_DEFAULT)
        - Poll until `stopped_at` is non-null (or 6 min hard cap).
        - Sleep 60 s before the next question to avoid API throttling.
   3. Emit the run IDs to stdout so the evaluator can query Postgres.
@@ -80,7 +80,6 @@ def main() -> int:
             body={
                 "question": q,
                 "output_format": "prose",
-                "confidence_threshold": 0.7,
                 "llm_provider": "anthropic",
             },
             headers=auth_headers,
