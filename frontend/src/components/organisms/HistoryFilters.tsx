@@ -6,6 +6,13 @@
  */
 
 import { useCallback, useId } from "react";
+import {
+  Activity,
+  CheckCircle2,
+  CircleStop,
+  RefreshCw,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/atoms";
 import { cn } from "@/lib/cn";
@@ -15,13 +22,21 @@ import type { HistoryFilterValues, RunStatus } from "@/types/history";
 export interface HistoryFiltersProps {
   filters: HistoryFilterValues;
   onChange: (next: HistoryFilterValues) => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
   className?: string;
 }
 
-const statusOptions: ReadonlyArray<{ value: RunStatus; label: string }> = [
-  { value: "running", label: "Running" },
-  { value: "completed", label: "Completed" },
-  { value: "stopped", label: "Stopped" },
+interface StatusOption {
+  value: RunStatus;
+  label: string;
+  Icon: LucideIcon;
+}
+
+const statusOptions: ReadonlyArray<StatusOption> = [
+  { value: "running", label: "Running", Icon: Activity },
+  { value: "completed", label: "Completed", Icon: CheckCircle2 },
+  { value: "stopped", label: "Stopped", Icon: CircleStop },
 ];
 
 const stopReasonOptions: ReadonlyArray<{ value: StopReason; label: string }> = [
@@ -59,6 +74,8 @@ function withoutSearch(filters: HistoryFilterValues): HistoryFilterValues {
 export function HistoryFilters({
   filters,
   onChange,
+  onRefresh,
+  isRefreshing = false,
   className,
 }: HistoryFiltersProps) {
   const searchId = useId();
@@ -76,10 +93,13 @@ export function HistoryFilters({
 
   const handleStatusToggle = useCallback(
     (status: RunStatus): void => {
+      // Switching away from (or off of) "stopped" must also drop the
+      // stopReason — otherwise the user keeps a hidden, contradictory
+      // filter active (e.g. status=running AND stopReason=errored).
       if (filters.status === status) {
-        onChange(withoutStatus(filters));
+        onChange(withoutStopReason(withoutStatus(filters)));
       } else {
-        onChange({ ...filters, status });
+        onChange({ ...withoutStopReason(filters), status });
       }
     },
     [filters, onChange]
@@ -101,6 +121,13 @@ export function HistoryFilters({
   }, [onChange]);
 
   const active = hasActiveFilters(filters);
+  const showStopReason = filters.status === "stopped";
+
+  const iconButtonBase = cn(
+    "inline-flex h-8 w-8 items-center justify-center rounded-md",
+    "transition-colors duration-150",
+    "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+  );
 
   return (
     <div
@@ -129,42 +156,65 @@ export function HistoryFilters({
         )}
       />
 
-      <div
-        role="group"
-        aria-label="Filter by status"
-        className="flex flex-wrap gap-1"
-      >
-        {statusOptions.map(({ value, label }) => {
-          const pressed = filters.status === value;
-          return (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={pressed}
-              onClick={() => {
-                handleStatusToggle(value);
-              }}
-              className={cn(
-                "rounded-full px-2.5 py-1 text-xs transition-colors duration-150",
-                pressed
-                  ? "bg-[var(--accent)] text-[var(--text-primary)]"
-                  : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg)]"
-              )}
-            >
-              {label}
-            </button>
-          );
-        })}
+      <div className="flex items-center justify-between">
+        <div
+          role="group"
+          aria-label="Filter by status"
+          className="flex items-center gap-1"
+        >
+          {statusOptions.map(({ value, label, Icon }) => {
+            const pressed = filters.status === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={pressed}
+                aria-label={label}
+                title={label}
+                onClick={() => {
+                  handleStatusToggle(value);
+                }}
+                className={cn(
+                  iconButtonBase,
+                  pressed
+                    ? "bg-[var(--accent)] text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+                )}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+
+        {onRefresh ? (
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            aria-label="Refresh history"
+            title="Refresh"
+            data-testid="history-refresh"
+            className={cn(
+              iconButtonBase,
+              "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]",
+              "disabled:cursor-not-allowed disabled:opacity-60"
+            )}
+          >
+            <RefreshCw
+              className={cn("h-4 w-4", isRefreshing && "animate-spin")}
+              aria-hidden="true"
+            />
+          </button>
+        ) : null}
       </div>
 
-      <details className="text-xs text-[var(--text-secondary)]">
-        <summary className="cursor-pointer select-none py-1">
-          Stop reason
-        </summary>
+      {showStopReason ? (
         <div
           role="group"
           aria-label="Filter by stop reason"
-          className="mt-1 flex flex-wrap gap-1"
+          data-testid="history-stop-reason-group"
+          className="flex flex-wrap gap-1"
         >
           {stopReasonOptions.map(({ value, label }) => {
             const pressed = filters.stopReason === value;
@@ -188,7 +238,7 @@ export function HistoryFilters({
             );
           })}
         </div>
-      </details>
+      ) : null}
 
       {active ? (
         <Button

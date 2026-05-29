@@ -42,6 +42,9 @@ export interface HistoryListProps {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
+
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 function applyFilters(
@@ -96,6 +99,8 @@ export function HistoryList({
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
+  onRefresh,
+  isRefreshing,
 }: HistoryListProps) {
   const filtered = useMemo(() => applyFilters(runs, filters), [runs, filters]);
   const filtersActive = hasActiveFilters(filters);
@@ -130,7 +135,12 @@ export function HistoryList({
       }
       className="flex h-full flex-col"
     >
-      <HistoryFilters filters={filters} onChange={onFiltersChange} />
+      <HistoryFilters
+        filters={filters}
+        onChange={onFiltersChange}
+        {...(onRefresh ? { onRefresh } : {})}
+        {...(isRefreshing !== undefined ? { isRefreshing } : {})}
+      />
 
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (

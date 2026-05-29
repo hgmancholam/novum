@@ -34,6 +34,7 @@ export function HistoryPanelContainer() {
     isError,
     error,
     refetch,
+    isFetching,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -95,6 +96,8 @@ export function HistoryPanelContainer() {
           isError={isError}
           {...(error instanceof Error ? { errorMessage: error.message } : {})}
           onRetry={handleRetry}
+          onRefresh={handleRetry}
+          isRefreshing={isFetching}
           hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
           onLoadMore={handleLoadMore}

@@ -75,6 +75,85 @@ describe("HistoryFilters", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("hides stop reason group unless status is stopped", () => {
+    const { rerender } = render(
+      <HistoryFilters filters={{}} onChange={() => {}} />
+    );
+    expect(screen.queryByTestId("history-stop-reason-group")).toBeNull();
+
+    rerender(
+      <HistoryFilters
+        filters={{ status: "running" }}
+        onChange={() => {}}
+      />
+    );
+    expect(screen.queryByTestId("history-stop-reason-group")).toBeNull();
+
+    rerender(
+      <HistoryFilters
+        filters={{ status: "stopped" }}
+        onChange={() => {}}
+      />
+    );
+    expect(
+      screen.getByTestId("history-stop-reason-group")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Confirmed" })
+    ).toBeInTheDocument();
+  });
+
+  it("drops stopReason when toggling away from stopped status", () => {
+    const onChange = vi.fn();
+    render(
+      <HistoryFilters
+        filters={{ status: "stopped", stopReason: "errored" }}
+        onChange={onChange}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Running" }));
+    expect(onChange).toHaveBeenCalledWith({ status: "running" });
+  });
+
+  it("drops stopReason when toggling the stopped pill off", () => {
+    const onChange = vi.fn();
+    render(
+      <HistoryFilters
+        filters={{ status: "stopped", stopReason: "errored" }}
+        onChange={onChange}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Stopped" }));
+    expect(onChange).toHaveBeenCalledWith({});
+  });
+
+  it("renders refresh button only when onRefresh is provided", () => {
+    const { rerender } = render(
+      <HistoryFilters filters={{}} onChange={() => {}} />
+    );
+    expect(screen.queryByTestId("history-refresh")).toBeNull();
+
+    const onRefresh = vi.fn();
+    rerender(
+      <HistoryFilters filters={{}} onChange={() => {}} onRefresh={onRefresh} />
+    );
+    const btn = screen.getByTestId("history-refresh");
+    fireEvent.click(btn);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables refresh button while isRefreshing", () => {
+    render(
+      <HistoryFilters
+        filters={{}}
+        onChange={() => {}}
+        onRefresh={() => {}}
+        isRefreshing
+      />
+    );
+    expect(screen.getByTestId("history-refresh")).toBeDisabled();
+  });
+
   it("shows Clear filters only when active", () => {
     const { rerender } = render(
       <HistoryFilters filters={{}} onChange={() => {}} />
