@@ -72,7 +72,7 @@ describe("CenterPanelView", () => {
       stopReason: "stopped_by_budget",
     });
 
-    it("renders the badge + answer when stop_reason=stopped_by_budget and answer_kind=best_effort", () => {
+    it("renders the banner + answer when stop_reason=stopped_by_budget and answer_kind=best_effort", () => {
       render(
         <CenterPanelView
           run={bestEffortRun}
@@ -81,16 +81,16 @@ describe("CenterPanelView", () => {
           answerProse="Here is what we know so far."
         />,
       );
-      expect(screen.getByTestId("answer-kind-badge")).toHaveTextContent(
-        /best-effort answer/i,
-      );
       expect(screen.getByTestId("answer-kind-banner")).toHaveTextContent(
         /could not validate this answer/i,
       );
+      // The duplicated badge inside the answer card was removed in favor of
+      // the StatusBadge in RunHeader (single source of truth for run status).
+      expect(screen.queryByTestId("answer-kind-badge")).not.toBeInTheDocument();
       expect(screen.getByTestId("structured-answer")).toBeInTheDocument();
     });
 
-    it("does not render the badge for judge_confirmed answers", () => {
+    it("does not render the banner for judge_confirmed answers", () => {
       const confirmedRun = makeRun({
         stoppedAt: "2026-05-26T00:05:00Z",
         stopReason: "judge_confirmed",
@@ -103,7 +103,7 @@ describe("CenterPanelView", () => {
           answerProse="Yes."
         />,
       );
-      expect(screen.queryByTestId("answer-kind-badge")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("answer-kind-banner")).not.toBeInTheDocument();
       expect(screen.getByTestId("structured-answer")).toBeInTheDocument();
     });
 
@@ -120,7 +120,7 @@ describe("CenterPanelView", () => {
           answerProse="Should not show."
         />,
       );
-      expect(screen.queryByTestId("answer-kind-badge")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("answer-kind-banner")).not.toBeInTheDocument();
       expect(screen.queryByTestId("structured-answer")).not.toBeInTheDocument();
     });
   });

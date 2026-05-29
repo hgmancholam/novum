@@ -349,7 +349,7 @@ describe("CenterPanelContainer", () => {
     expect(screen.queryByTestId("post-resume-notice")).not.toBeInTheDocument();
   });
 
-  it("surfaces the best-effort badge when the Stopped event carries answer_kind=best_effort (C3 / RF-17)", async () => {
+  it("surfaces the best-effort outcome when the Stopped event carries answer_kind=best_effort (C3 / RF-17)", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(
         makeDto({
@@ -372,11 +372,14 @@ describe("CenterPanelContainer", () => {
     );
 
     renderWithRouter(<CenterPanelContainer />);
+    // The single source of truth for the outcome label is the StatusBadge
+    // inside RunHeader. The answer card only carries the explanatory banner.
     await waitFor(() => {
-      expect(screen.getByTestId("answer-kind-badge")).toHaveTextContent(
-        /best-effort answer/i,
+      expect(screen.getByTestId("answer-kind-banner")).toHaveTextContent(
+        /could not validate this answer/i,
       );
     });
+    expect(screen.getByText(/best-effort answer/i)).toBeInTheDocument();
     expect(screen.getByTestId("structured-answer")).toBeInTheDocument();
   });
 });

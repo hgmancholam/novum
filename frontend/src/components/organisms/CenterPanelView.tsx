@@ -12,12 +12,11 @@
  * via `useRun` and renders this view inside the `templates/CenterPanel` body.
  */
 
-import { OutcomeBar, GlassSurface, Badge } from "@/components/atoms";
+import { OutcomeBar, GlassSurface } from "@/components/atoms";
 import { FormatSelector } from "@/components/molecules";
 import { cn } from "@/lib/cn";
 import {
   ANSWER_KIND_BEST_EFFORT_DESCRIPTION,
-  ANSWER_KIND_BEST_EFFORT_LABEL,
 } from "@/lib/microcopy";
 import { useCallback, useState } from "react";
 import type { Run, RunStatus } from "@/types/run";
@@ -186,16 +185,10 @@ export function CenterPanelView({
                   <div
                     data-testid="answer-kind-banner"
                     className={cn(
-                      "flex flex-col gap-2 rounded-lg px-4 py-3",
+                      "rounded-lg px-4 py-3",
                       "border border-(--glass-border) bg-(--glass-bg) backdrop-blur",
                     )}
                   >
-                    <Badge
-                      variant="warning"
-                      data-testid="answer-kind-badge"
-                    >
-                      {ANSWER_KIND_BEST_EFFORT_LABEL}
-                    </Badge>
                     <p className="text-xs leading-relaxed text-(--text-secondary)">
                       {ANSWER_KIND_BEST_EFFORT_DESCRIPTION}
                     </p>
