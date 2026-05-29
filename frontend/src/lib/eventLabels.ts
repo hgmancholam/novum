@@ -76,6 +76,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   MetaStopVerdict: "Meta-judge verdict",
   AdversarialObjectionsGenerated: "Adversarial review",
   DirectedSubclaimsFromObjections: "New sub-claims from objections",
+  CostIncurred: "Cost recorded",
 };
 
 export const EVENT_ACTIVITIES: Record<EventType, string> = {
@@ -122,6 +123,7 @@ export const EVENT_ACTIVITIES: Record<EventType, string> = {
   MetaStopVerdict: "Deciding whether another round is worth it",
   AdversarialObjectionsGenerated: "Stress-testing the draft for blind spots",
   DirectedSubclaimsFromObjections: "Adding new sub-claims to investigate",
+  CostIncurred: "Recording usage cost",
 };
 
 export function getEventLabel(type: string): string {

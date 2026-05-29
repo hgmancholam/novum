@@ -13,6 +13,7 @@ import {
   Brain,
   CheckCircle2,
   ClipboardCheck,
+  Coins,
   Compass,
   Download,
   Eye,
@@ -104,6 +105,7 @@ export const EVENT_VISUALS: Record<EventType, EventVisual> = {
   MetaStopVerdict:                  { Icon: Gavel,                tone: "judge" },
   AdversarialObjectionsGenerated:   { Icon: MessageSquareWarning, tone: "warn" },
   DirectedSubclaimsFromObjections:  { Icon: GitBranch,            tone: "info" },
+  CostIncurred:                     { Icon: Coins,                tone: "neutral" },
 };
 
 const FALLBACK_VISUAL: EventVisual = { Icon: Flag, tone: "neutral" };

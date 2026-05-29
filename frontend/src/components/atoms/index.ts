@@ -45,3 +45,8 @@ export { ThinkingDots } from "./ThinkingDots";
 export type { ThinkingDotsProps } from "./ThinkingDots";
 export { ServiceStatusDot } from "./ServiceStatusDot";
 export type { ServiceStatusDotProps } from "./ServiceStatusDot";
+// BRD-29 / IP-29
+export { TotalCostChip } from "./TotalCostChip";
+export type { TotalCostChipProps } from "./TotalCostChip";
+export { CostBarSegment } from "./CostBarSegment";
+export type { CostBarSegmentProps } from "./CostBarSegment";

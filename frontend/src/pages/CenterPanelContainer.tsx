@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { Spinner } from "@/components/atoms";
+import { Spinner, TotalCostChip } from "@/components/atoms";
 import {
   ActionBar,
   CenterPanelView,
@@ -27,6 +27,8 @@ import { CenterPanel } from "@/components/templates";
 import { useRun } from "@/hooks/useRun";
 import { useCreateRun } from "@/hooks/useCreateRun";
 import { useRunStream } from "@/hooks/useRunStream";
+import { useRunCosts } from "@/hooks/useRunCosts";
+import { useSelectionStore } from "@/stores/selectionStore";
 import { FORKABLE_EVENTS, type AnswerKind, type EventType, type StructuredAnswerData, type RunStreamEvent } from "@/types/events";
 
 const FORKABLE_SET: ReadonlySet<string> = new Set<string>(FORKABLE_EVENTS);
@@ -65,7 +67,23 @@ export function CenterPanelContainer() {
     forkedRun,
   } = useRun(runId);
 
-  const { events } = useRunStream({ runId });
+  // BRD-29 / IP-29 — per-run cost ledger (live-patched via SSE below).
+  const setTraceTab = useSelectionStore((s) => s.setTraceTab);
+  const openRightPanel = useSelectionStore((s) => s.openRightPanel);
+  const {
+    total: costTotal,
+    isLoading: costsLoading,
+    applyCostEvent,
+  } = useRunCosts(runId);
+
+  const { events } = useRunStream({
+    runId,
+    onEvent: (event) => {
+      if (event.type === "CostIncurred") {
+        applyCostEvent(event as unknown as Parameters<typeof applyCostEvent>[0]);
+      }
+    },
+  });
 
   const { create: createRunMutation, isPending: isRestarting } = useCreateRun();
 
@@ -446,6 +464,21 @@ export function CenterPanelContainer() {
               showPostResumeNotice={showPostResumeNotice}
               onResume={resume}
               isResuming={isResuming}
+              headerTrailing={
+                runId !== undefined ? (
+                  <TotalCostChip
+                    totalUsd={costTotal.usd}
+                    tokens={
+                      costTotal.promptTokens + costTotal.completionTokens
+                    }
+                    loading={costsLoading}
+                    onClick={() => {
+                      setTraceTab("cost");
+                      openRightPanel();
+                    }}
+                  />
+                ) : null
+              }
             />
             {resumeError !== null ? (
               <p

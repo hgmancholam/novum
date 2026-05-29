@@ -41,3 +41,12 @@ export { JudgeVerdictCard } from "./JudgeVerdictCard";
 export type { JudgeVerdictCardProps } from "./JudgeVerdictCard";
 export { FeedStepLine } from "./FeedStepLine";
 export type { FeedStepLineProps } from "./FeedStepLine";
+// BRD-29 / IP-29
+export { CostBreakdownBar } from "./CostBreakdownBar";
+export type { CostBreakdownBarProps } from "./CostBreakdownBar";
+export { CostBreakdownTable } from "./CostBreakdownTable";
+export type {
+  CostBreakdownTableProps,
+  CostSortKey,
+  SortDir,
+} from "./CostBreakdownTable";

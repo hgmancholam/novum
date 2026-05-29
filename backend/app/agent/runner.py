@@ -452,21 +452,32 @@ class AgentRunner:
     def _make_emit(
         self, run_id: UUID, event_service: EventService
     ) -> EmitCallback:
+        # Single-writer-per-run lock. Concurrent producers (e.g. Source
+        # plugins running under asyncio.gather in execute_search_round)
+        # share the supervisor's AsyncSession via current_emitter; without
+        # this lock, two emits can race the session's connection-pool
+        # provisioning and trigger SQLAlchemy ISCE
+        # ("This session is provisioning a new connection; concurrent
+        # operations are not permitted"). Lock is per-run so concurrent
+        # runs (different supervisor sessions) do not serialise.
+        emit_lock = anyio.Lock()
+
         async def _emit(event: BaseEvent) -> None:
-            db_event = await event_service.append_event(run_id, event)
-            sse_payload: dict[str, Any] = {
-                "id": str(db_event.id),
-                "run_id": str(db_event.run_id),
-                "step_index": db_event.step_index,
-                "parent_event_id": (
-                    str(db_event.parent_event_id)
-                    if db_event.parent_event_id
-                    else None
-                ),
-                "type": db_event.type,
-                "created_at": db_event.created_at.isoformat(),
-                **db_event.payload,
-            }
+            async with emit_lock:
+                db_event = await event_service.append_event(run_id, event)
+                sse_payload: dict[str, Any] = {
+                    "id": str(db_event.id),
+                    "run_id": str(db_event.run_id),
+                    "step_index": db_event.step_index,
+                    "parent_event_id": (
+                        str(db_event.parent_event_id)
+                        if db_event.parent_event_id
+                        else None
+                    ),
+                    "type": db_event.type,
+                    "created_at": db_event.created_at.isoformat(),
+                    **db_event.payload,
+                }
             try:
                 await connection_manager.publish(run_id, sse_payload)
             except Exception:  # noqa: BLE001 - SSE fan-out is best-effort

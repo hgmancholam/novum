@@ -332,3 +332,43 @@ GOOGLE_API_KEY=<...>               # Enables Gemini routing
 ```
 
 All of these are gitignored. See `.gitignore` (the `*api_key*`, `*secret*`, `.env*` rules added during the V1 security pass).
+
+---
+
+## 6. Cost & token instrumentation (RF-20)
+
+> Added 2026-05-29 with BRD-29 / IP-29. See [BRD-29](../implementation-phase/brds/BRD-29-cost-and-token-tracking.md) and [IP-29](../implementation-phase/implementation-plans/IP-29-cost-and-token-tracking.md) for the full spec.
+
+### 6.1 What it is
+
+Every external billable call — one per LLM round (`app/llm/client.py::call`) and one per Source `search`/`fetch` (Tavily, Wikipedia, …) — emits exactly one append-only `CostIncurred` event into the existing `events` table. The event payload records `provider`, `kind` (`"llm"` / `"search"` / `"fetch"`), `model`, `task_name`, `prompt_tokens`, `completion_tokens`, `units`, `cost_usd`, `latency_ms`, and `price_source` (`"litellm"` / `"static_table"` / `"env_override"` / `"unknown"`). No out-of-band sidecar storage — the event log is the only source of truth (RF-03).
+
+### 6.2 How pricing is resolved (hybrid)
+
+| Provider kind | Primary source | Fallback |
+|---|---|---|
+| **LLM** (Anthropic, OpenAI, Gemini, GitHub Models) | `litellm.cost_per_token(...)` (resolved from `litellm.model_cost`) | Static per-model `(prompt_usd_per_1k, completion_usd_per_1k)` table in `app/llm/pricing.py`, optionally overridden by env (`NOVUM_LLM_PRICE_<PROVIDER>_<MODEL>_PROMPT_PER_1K`). |
+| **Search / Fetch** (Tavily) | Static price table in `app/sources/pricing.py` (`tavily.search = $0.008/call`, etc.) | Env override `NOVUM_TAVILY_SEARCH_PRICE_USD`. |
+| **Free** (Wikipedia) | Always `$0.0`, `price_source="static_table"`. | — |
+
+When no price can be resolved, the event still emits with `cost_usd=0.0` and `price_source="unknown"` (RF-16 graceful degradation). The chip and breakdown stay accurate — they just under-report instead of crashing.
+
+### 6.3 Plumbing (no global state)
+
+Three module-level `contextvars` in `app/llm/context.py` make the run-id, current task name, and SSE emitter callable available to deep call sites without threading them through every function signature:
+
+- `current_run_id: ContextVar[UUID | None]`
+- `current_task_name: ContextVar[str | None]`
+- `current_emitter: ContextVar[Callable[[BaseEvent], Awaitable[None]] | None]`
+
+The orchestrator binds them once per run (`run_context_setup`). The cost wrappers (`app/llm/client.py::call`, `app/sources/_cost.py::record_source_call`) read them and emit the `CostIncurred` event through the bound emitter — no thread-locals, no global mutables.
+
+### 6.4 Surfaces
+
+- **REST.** `GET /api/runs/{run_id}/costs` returns the per-provider breakdown aggregated by the Postgres view `run_costs` (one row per `(provider, kind, model)`).
+- **SSE.** Each `CostIncurred` frame is forwarded on the existing per-run stream (`/api/runs/{run_id}/stream`) — no new endpoint, no polling.
+- **UI.** `TotalCostChip` in the run header (always visible) + trace-panel tab **T1d "Cost"** (`TraceCostPanel`). The hook `useRunCosts(runId)` loads the REST snapshot on mount and patches the TanStack-Query cache on every incoming `CostIncurred` SSE frame.
+
+### 6.5 Schema evolution
+
+The `CostIncurred` payload uses `extra="allow"` (RF-15) so future per-provider fields (e.g. `cache_creation_input_tokens` from Anthropic prompt caching) can be added without a migration. Removing or renaming a field requires an explicit Alembic migration.

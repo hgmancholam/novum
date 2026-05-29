@@ -406,6 +406,7 @@ A 4 px high colored strip across the very top of `CenterPanel`, rendered only on
 | **T3** | Frozen (terminal) | C6–C10 active | Same timeline, no new events arriving. All `EventNode`s frozen; decision-events show `ForkButton`, mechanical events do not. |
 | **T4** | Event expanded | Click on any `EventNode` | Node expands inline to show full payload via `EventPayloadViewer` (JSON, colorized, collapsible by key). Click again or anywhere outside collapses. |
 | **T5** | Diff mode | C12 active | Two-column event diff (left run vs right run). Aligned by `step_index` where possible, gaps shown as faded markers. |
+| **T1d** | Cost breakdown tab | User clicks the `TotalCostChip` in the run header **or** selects the "Cost" tab in the trace tab strip | `TraceCostPanel` organism: header with `$total` + token total + provider count; body with `CostBreakdownBar` (stacked bar per provider) and `CostBreakdownTable` (rows: provider · kind · model · calls · tokens · USD · % of total). Live-patched on every `CostIncurred` SSE frame via `useRunCosts(runId)`. Loading skeleton on first paint; error state with a retry button on REST failure. Empty state when the ledger has no entries yet. See RF-20 and [BRD-29](../implementation-phase/brds/BRD-29-cost-and-token-tracking.md). |
 
 **Decisions applied:**
 - **No filters in V1.** All events show. The expand/collapse mechanism manages visual density.
@@ -772,6 +773,8 @@ Every component referenced anywhere in §3–§7 of this document has an exact l
 | `OutcomeBar` | 4 px colored strip at top of `CenterPanel` on terminal states. Color via token; nothing else. |
 | `SuggestionChip` | Single clickable pill that fills the question textarea on click. |
 | `CompareButton` | Styled `Button` variant living in the history header. |
+| `TotalCostChip` | Clickable chip in `RunHeader` showing `$total · N tokens` for the run. Click opens trace tab `T1d`. Loading skeleton on first paint. Driven by `useRunCosts(runId)`. See RF-20. |
+| `CostBarSegment` | One colored segment of the stacked bar inside `CostBreakdownBar`. Color via the provider-color token map (no new design tokens — reuses `--accent`, `--accent-soft`, `--semantic-*`). |
 
 #### Molecules
 
@@ -791,6 +794,8 @@ Every component referenced anywhere in §3–§7 of this document has an exact l
 | `SuggestionChips` | row of 3 `SuggestionChip` atoms | First-run-only onboarding row. Hidden after the user has any prior run. |
 | `PlanPreview` | `Label` + `Icon` + ordered list | T1b state — narrative description of what Novum will do, shown post-`QuestionAsked` and pre-`PlanCreated`. |
 | `ShareLinkButton` | `IconButton` + inline toast region | Copies the current run URL on click. Shows *"Link copied"* inline for 2 s. |
+| `CostBreakdownBar` | many `CostBarSegment` + provider legend | Stacked horizontal bar in `TraceCostPanel` (T1d) — one segment per `(provider, kind)`, widths proportional to `cost_usd`. |
+| `CostBreakdownTable` | table primitives + `Badge` | Tabular view in `TraceCostPanel` (T1d): rows = `(provider, kind, model)`, columns = calls / tokens / USD / % of total. Empty state when ledger has no entries. |
 
 #### Organisms
 
@@ -803,7 +808,7 @@ Every component referenced anywhere in §3–§7 of this document has an exact l
 | `QuestionForm` | `Textarea` × 2 + `CharCounter` + `Button` + `AdvancedControls` (mol or org? — **organism**, see below) | The form in C1/C2 |
 | `AdvancedControls` | `FormatSelector` + `ThresholdSelector` + reveal animation | Collapsible section of the form. **Organism**, not molecule, because it owns its own reveal state. |
 | `TypeDisclosure` | atoms + a small data file | The visible-by-default panel listing 5 supported + 3 unsupported types |
-| `RunHeader` | `StopReasonBadge` + question text + `ConfidenceMeter` (compact) + Cancel/Resume `Button` + `ConnectionStatus` | Top of CenterPanel during/after a run |
+| `RunHeader` | `StopReasonBadge` + question text + `ConfidenceMeter` (compact) + Cancel/Resume `Button` + `ConnectionStatus` + `TotalCostChip` (RF-20) | Top of CenterPanel during/after a run |
 | `MiniFeed` | up to 5× `MiniFeedItem` + auto-scroll behavior | Body of C4/C5 |
 | `AnswerRenderer` | Markdown renderer + `StopReasonBadge` + (for structured) sectioned blocks | Body of C6/C8 |
 | `ConfidenceMeter` | 5× `ConfidenceBar` (compact = first one only) | Expandable in `RunHeader`, also referenced inside `EventPayloadViewer` for `JudgeRuled` |
@@ -813,6 +818,7 @@ Every component referenced anywhere in §3–§7 of this document has an exact l
 | `TimelineDiff` | two `Timeline`s aligned by `step_index` + diff markers | The Timeline tab inside `DiffView` |
 | `EvidenceDiff` | set-diff renderer | The Evidence tab inside `DiffView` |
 | `OutcomeDiff` | side-by-side answer + metadata diff | The Outcome tab inside `DiffView` |
+| `TraceCostPanel` | `TotalCostChip` (large) + `CostBreakdownBar` + `CostBreakdownTable` + loading/error/empty states | Body of `TracePanel` tab T1d. Mounts `useRunCosts(runId)`. See RF-20. |
 | `DiffView` | tab bar + one of `TimelineDiff` / `EvidenceDiff` / `OutcomeDiff` | C12 |
 | `HonestStopExplainer` | layout for interpretations / contradictions / out-of-scope content + contextual fork CTA | Body of C7 |
 | `ErrorState` | failure reason + Resume `Button` + last-known-state snapshot | Body of C10 |

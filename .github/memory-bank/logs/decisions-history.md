@@ -4,11 +4,46 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-29
-**Total Decisions:** 79
+**Total Decisions:** 84
 
 ---
 
 ## Recent Decisions
+
+## D-IP29: IP-29 Per-Run Cost & Token Tracking with Trace Panel (RF-20) (2026-05-29)
+**Date:** 2026-05-29
+**Author:** Orchestrator Agent for BRD-29
+**Commit:** _local, pending push_
+**Status:** ✅ Implemented (backend + frontend + docs + memory bank)
+
+### Context
+BRD-29 introduced RF-20 to make every external billable call (LLM round, Source `search`/`fetch`) emit one append-only `CostIncurred` event so per-run totals are derivable purely from the event log (RF-03), surfaced live in the UI via the existing SSE stream and a new REST endpoint backed by a Postgres view. IP-29 covered the full stack end-to-end.
+
+### Decisions
+
+**D1 — Regular VIEW, not a materialized view.** `run_costs` is a plain Postgres `VIEW` (not `MATERIALIZED VIEW`). At V1 traffic an aggregation over a small per-run slice is sub-millisecond; refreshing a materialized view on every `CostIncurred` insert would add complexity (trigger-based refresh or `REFRESH MATERIALIZED VIEW CONCURRENTLY`) for no observable benefit. Promotion path is documented: switch to `MATERIALIZED VIEW` + an `AFTER INSERT` trigger only if the endpoint p95 exceeds 100 ms.
+
+**D2 — Hybrid pricing (litellm primary + static fallback + env override).** `litellm.cost_per_token` covers the long tail of provider prices automatically, but litellm's model table lags real provider changes by days-to-weeks. Static fallback in `app/llm/pricing.py` is the safety net; env overrides (`NOVUM_LLM_PRICE_<PROVIDER>_<MODEL>_PROMPT_PER_1K`) let operators correct prices live without a deploy. `price_source` is recorded on every event so the data is self-describing.
+
+**D3 — Tavily static price table + env override (no Tavily SDK call).** Tavily's API does not return cost metadata. Per-`(source, op)` USD-per-call values live in `app/sources/pricing.py` (`tavily.search = $0.008`, etc.), with env overrides (`NOVUM_TAVILY_SEARCH_PRICE_USD`). Same pattern as D2 for consistency.
+
+**D4 — Full-stack scope (revised mid-plan).** BRD-29 was originally scoped backend-only ("emit the event + expose the view"). After F1 audit the scope was widened to include the trace-panel tab and the run-header chip, because cost is a trust signal per RF-13 and hiding it behind a REST call defeats the point. `TotalCostChip` is always visible; the breakdown lives behind the `T1d` tab so the chrome stays minimal.
+
+**D5 — ContextVar plumbing (no global state, no thread-locals).** Three module-level `ContextVar`s in `app/llm/context.py` (`current_run_id`, `current_task_name`, `current_emitter`) make the run/task/emitter available to deep call sites (`app/llm/client.py::call`, `app/sources/_cost.py::record_source_call`) without threading them through every function signature. Bound once per run by the orchestrator; safe under asyncio because `ContextVar`s propagate through `asyncio.Task` correctly.
+
+### Verification
+- Backend: full pytest suite green (no new regressions).
+- Frontend: `npx vitest run` — 100 files, 729 tests passed, 1 skipped.
+- Typecheck (`tsc --noEmit`): clean.
+- Lint: only pre-existing errors remain (zero new violations in IP-29 files).
+
+### Files (high level)
+- BE: `app/llm/context.py` (NEW), `app/llm/pricing.py` (NEW), `app/llm/client.py` (MODIFY — wraps every `call` with `record_cost`), `app/sources/pricing.py` (NEW), `app/sources/_cost.py` (NEW), `app/domain/events.py` (`CostIncurredEvent` + discriminated-union entry), `app/routes/costs.py` (NEW), Alembic migration creating the `run_costs` view.
+- FE: `lib/api/costs.ts`, `hooks/useRunCosts.ts`, `types/costs.ts`, atoms `TotalCostChip` / `CostBarSegment`, molecules `CostBreakdownBar` / `CostBreakdownTable`, organism `TraceCostPanel`, page wrapper `pages/TraceCostPanelContainer.tsx`, integration wiring in `pages/CenterPanelContainer.tsx`, `organisms/CenterPanelView.tsx`, `organisms/RunHeader.tsx`, `pages/TracePanelContainer.tsx`, plus `lib/eventLabels.ts` / `lib/eventVisuals.ts` entries for the new event type.
+- DOCS: RF-20 appended to `docs/understanding-phase/requirement-understanding.md`; §6 (cost instrumentation) appended to `docs/technical-phase/ai-services.md`; `T1d` panel state added to `docs/understanding-phase/ui-prototype.md` §3.3 + atom/molecule/organism inventory updates in §8.
+- MEMORY BANK: `indices/knowledge-base-index.md` updated (IP-29 / BRD-29 rows, key components, API endpoint, `CostIncurred` event type); this entry in `logs/decisions-history.md`.
+
+---
 
 ## D-BESTEFFORT-HEADER: Best-effort outcome lives only in `StatusBadge` / `RunHeader` (2026-05-29)
 **Date:** 2026-05-29

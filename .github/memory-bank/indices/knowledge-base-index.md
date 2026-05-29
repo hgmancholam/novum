@@ -50,6 +50,7 @@
 | IP-26 | BRD-26 Agentic Stopping & Meta-Judge | 2026-05-28 | Slices 1–3 committed (local) — slice 3b' deferred (cost-gate) | [IP-26](../../../docs/implementation-phase/implementation-plans/IP-26-agentic-stopping-meta-judge.md) |
 | IP-27 | BRD-27 Service Health Observability footer | 2026-05-28 | Implemented (local) | [IP-27](../../../docs/implementation-phase/implementation-plans/IP-27-service-health-observability.md) |
 | IP-28 | BRD-28 Theme Toggle (Light/Dark) | 2026-05-29 | Implemented (local) | [IP-28](../../../docs/implementation-phase/implementation-plans/IP-28-theme-toggle-light-dark.md) |
+| IP-29 | BRD-29 Per-Run Cost & Token Tracking with Trace Panel (RF-20) | 2026-05-29 | Implemented (local) | [IP-29](../../../docs/implementation-phase/implementation-plans/IP-29-cost-and-token-tracking.md) |
 
 ---
 
@@ -82,6 +83,7 @@
 | BRD-26 | Agentic Stopping & Meta-Judge | 2026-05-28 | Implemented (slices 1–3, local) | [BRD-26](../../../docs/implementation-phase/brds/BRD-26-agentic-stopping-meta-judge.md) |
 | BRD-27 | Service Health Observability footer | 2026-05-28 | Implemented (local) | [BRD-27](../../../docs/implementation-phase/brds/BRD-27-service-health-observability.md) |
 | BRD-28 | Theme Toggle (Light/Dark) | 2026-05-29 | Implemented (local) | [BRD-28](../../../docs/implementation-phase/brds/BRD-28-theme-toggle-light-dark.md) |
+| BRD-29 | Per-Run Cost & Token Tracking with Trace Panel (RF-20) | 2026-05-29 | Implemented (local) | [BRD-29](../../../docs/implementation-phase/brds/BRD-29-cost-and-token-tracking.md) |
 
 ---
 
@@ -189,6 +191,18 @@
 | Toaster Molecule | Frontend | `frontend/src/components/molecules/Toaster.tsx` | Top-right toast stack, auto-dismiss 5s, AnimatePresence + reduced-motion | ✅ BRD-20 |
 | HistoryItem Organism | Frontend | `frontend/src/components/organisms/HistoryItem.tsx` | Animated row wrapper exposing trash affordance for finished runs | ✅ BRD-20 |
 | useRunHistory / useDeleteRun | Frontend | `frontend/src/hooks/useRunHistory.ts` | `useInfiniteQuery` cursor pagination + optimistic delete with rollback toast (plural `getQueriesData`/`setQueriesData`) | ✅ BRD-20 |
+| LLM Context Vars | Backend | `backend/app/llm/context.py` | `current_run_id`, `current_task_name`, `current_emitter` `ContextVar`s — plumbing for `CostIncurred` emission without global state | ✅ BRD-29 / IP-29 |
+| LLM Pricing | Backend | `backend/app/llm/pricing.py` | Hybrid pricing resolver: `litellm.cost_per_token` primary + per-model static fallback table + env override (`NOVUM_LLM_PRICE_*`) | ✅ BRD-29 / IP-29 |
+| Source Pricing | Backend | `backend/app/sources/pricing.py` | Per-`(source, op)` static price table (e.g. Tavily `$0.008/search`) + env override (`NOVUM_TAVILY_*`) | ✅ BRD-29 / IP-29 |
+| Source Cost Wrapper | Backend | `backend/app/sources/_cost.py` | `record_source_call` — emits one `CostIncurred` per Source `search`/`fetch` invocation | ✅ BRD-29 / IP-29 |
+| Run Costs View | Backend | `backend/alembic/versions/*_run_costs_view.py` | Postgres VIEW `run_costs` aggregating `CostIncurred` events per `(run_id, provider, kind, model)` | ✅ BRD-29 / IP-29 |
+| Costs Endpoint | Backend | `backend/app/routes/costs.py` | `GET /api/runs/{run_id}/costs` — returns the `run_costs` aggregation as a typed `RunCostsResponse` | ✅ BRD-29 / IP-29 |
+| useRunCosts Hook | Frontend | `frontend/src/hooks/useRunCosts.ts` | TanStack-Query hook: REST snapshot on mount + `setQueryData` patch on every `CostIncurred` SSE frame; exposes `{total, rows, applyCostEvent, isLoading, isError, refetch}` | ✅ BRD-29 / IP-29 |
+| TotalCostChip Atom | Frontend | `frontend/src/components/atoms/TotalCostChip.tsx` | Always-visible chip in `RunHeader`, click opens trace tab `T1d` | ✅ BRD-29 / IP-29 |
+| CostBarSegment Atom | Frontend | `frontend/src/components/atoms/CostBarSegment.tsx` | One colored segment inside `CostBreakdownBar` | ✅ BRD-29 / IP-29 |
+| CostBreakdownBar Molecule | Frontend | `frontend/src/components/molecules/CostBreakdownBar.tsx` | Stacked horizontal bar + provider legend | ✅ BRD-29 / IP-29 |
+| CostBreakdownTable Molecule | Frontend | `frontend/src/components/molecules/CostBreakdownTable.tsx` | Per-`(provider, kind, model)` table with calls/tokens/USD/% columns | ✅ BRD-29 / IP-29 |
+| TraceCostPanel Organism | Frontend | `frontend/src/components/organisms/TraceCostPanel.tsx` | Body of trace tab `T1d` — header total + breakdown bar + table + loading/error/empty states | ✅ BRD-29 / IP-29 |
 
 ---
 
@@ -214,6 +228,7 @@
 | POST | `/api/runs/{id}/resume` | Resume stopped/errored run | RF-11 |
 | POST | `/api/runs/{id}/fork` | Fork run from event | RF-03 |
 | POST | `/api/runs/{id}/cancel` | Cancel in-progress run | RF-08 |
+| GET | `/api/runs/{id}/costs` | Per-run cost breakdown (aggregated from `CostIncurred` events via `run_costs` view) | RF-20 |
 
 ---
 
@@ -238,6 +253,7 @@
 | `ResumedAfterError` | Recovery event | No |
 | `ResumedAfterCancel` | Recovery event | No |
 | `Stopped` | Terminal event | Yes |
+| `CostIncurred` | Append-only per-call cost & token record (RF-20) — one per LLM round and one per Source `search`/`fetch` | No |
 
 ---
 

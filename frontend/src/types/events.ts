@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-29T02:35:28.839365+00:00
+// Generated: 2026-05-29T22:41:00.158927+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -80,7 +80,8 @@ export type EventType =
   | "AgentErrored"
   | "ResumedAfterError"
   | "ResumedAfterCancel"
-  | "Stopped";
+  | "Stopped"
+  | "CostIncurred";
 
 export type ComplexityHint =
   | "trivial"
@@ -1498,6 +1499,165 @@ export const EventSchema = {
         "claim"
       ],
       "title": "ContradictionSource",
+      "type": "object"
+    },
+    "CostIncurredEvent": {
+      "additionalProperties": true,
+      "description": "One LLM round or Source call cost (BRD-29 \u00a74.4).\n\nEmitted by ``app.llm.client`` (kind=llm) and Source plugins\n(kind=search|fetch). Non-forkable: cost events are observational and\ndo not represent user-meaningful decision points.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
+        },
+        "parent_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Event Id"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "type": {
+          "const": "CostIncurred",
+          "default": "CostIncurred",
+          "title": "Type",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "llm",
+            "search",
+            "fetch"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "task_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Name"
+        },
+        "prompt_tokens": {
+          "default": 0,
+          "title": "Prompt Tokens",
+          "type": "integer"
+        },
+        "completion_tokens": {
+          "default": 0,
+          "title": "Completion Tokens",
+          "type": "integer"
+        },
+        "units": {
+          "default": 0,
+          "title": "Units",
+          "type": "integer"
+        },
+        "unit_cost_usd": {
+          "default": 0.0,
+          "title": "Unit Cost Usd",
+          "type": "number"
+        },
+        "cost_usd": {
+          "title": "Cost Usd",
+          "type": "number"
+        },
+        "latency_ms": {
+          "title": "Latency Ms",
+          "type": "integer"
+        },
+        "pricing_source": {
+          "enum": [
+            "litellm",
+            "fallback",
+            "static"
+          ],
+          "title": "Pricing Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "kind",
+        "cost_usd",
+        "latency_ms",
+        "pricing_source"
+      ],
+      "title": "CostIncurredEvent",
       "type": "object"
     },
     "CoveContradictionDetectedEvent": {
@@ -3115,7 +3275,8 @@ export const EventSchema = {
           "enum": [
             "after_judge",
             "after_react_observation",
-            "after_cove"
+            "after_cove",
+            "before_synthesizing"
           ],
           "title": "Hook",
           "type": "string"
@@ -5597,6 +5758,7 @@ export const EventSchema = {
       "ConfidenceMismatch": "#/$defs/ConfidenceMismatchEvent",
       "ContradictionDetected": "#/$defs/ContradictionDetectedEvent",
       "ContradictionResolved": "#/$defs/ContradictionResolvedEvent",
+      "CostIncurred": "#/$defs/CostIncurredEvent",
       "CoveContradictionDetected": "#/$defs/CoveContradictionDetectedEvent",
       "DeepFetchPerformed": "#/$defs/DeepFetchPerformedEvent",
       "DirectedSubclaimsFromObjections": "#/$defs/DirectedSubclaimsFromObjectionsEvent",
@@ -5761,6 +5923,9 @@ export const EventSchema = {
     },
     {
       "$ref": "#/$defs/StoppedEvent"
+    },
+    {
+      "$ref": "#/$defs/CostIncurredEvent"
     }
   ]
 } as const;
@@ -5814,4 +5979,5 @@ export const EventSchema = {
 //   | ResumedAfterErrorEvent
 //   | ResumedAfterCancelEvent
 //   | StoppedEvent
+//   | CostIncurredEvent
 //   ;
