@@ -1,20 +1,21 @@
 /**
- * ServiceHealthWarningModal — warns the user that some external services are
- * unavailable due to connectivity or credential issues (BRD-27).
+ * ServiceHealthWarningModal — friendly floating tip card that appears when
+ * some services are unavailable (BRD-27).
  *
- * Pure presentational. Caller is responsible for filtering the services list
- * to only include non-ok, non-disabled entries before passing them here.
+ * Styled as a glass bubble (no dark overlay), bottom-right corner.
+ * Pure presentational. Caller filters services to non-ok/non-disabled.
  */
 
-import { X, AlertTriangle } from "lucide-react";
+import { X, Info } from "lucide-react";
+import { motion } from "motion/react";
 
 import { cn } from "@/lib/cn";
 import type { ServiceHealth } from "@/types/health";
 
 const STATUS_LABEL: Record<string, string> = {
-  down: "Unreachable",
-  no_key: "Missing credentials",
-  degraded: "Degraded",
+  down: "unreachable",
+  no_key: "not configured",
+  degraded: "degraded",
 };
 
 export interface ServiceHealthWarningModalProps {
@@ -29,68 +30,69 @@ export function ServiceHealthWarningModal({
   className,
 }: ServiceHealthWarningModalProps) {
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="svc-warning-title"
-      className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center",
-        className,
-      )}
-    >
-      {/* Backdrop — click outside closes */}
+    <>
+      {/* Invisible click-outside catcher — sits between footer (z-40) and card */}
       <div
         aria-hidden="true"
         data-testid="svc-warning-backdrop"
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="fixed inset-0 z-[45]"
         onClick={onClose}
       />
 
-      {/* Panel */}
-      <div className="relative z-10 w-full max-w-md rounded-xl border border-(--glass-border) bg-(--bg-secondary) p-6 shadow-2xl">
-        {/* Close button */}
-        <button
-          type="button"
-          aria-label="Close warning"
-          data-testid="svc-warning-close"
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded p-1 text-(--text-tertiary) transition-colors hover:text-(--text-primary)"
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
-
-        {/* Header */}
-        <div className="mb-4 flex items-start gap-3">
-          <AlertTriangle
-            aria-hidden="true"
-            className="mt-0.5 h-5 w-5 shrink-0 text-(--semantic-warning)"
-          />
-          <div>
-            <h2
-              id="svc-warning-title"
-              className="text-sm font-semibold text-(--text-primary)"
-            >
-              Some external services are unavailable
-            </h2>
-            <p className="mt-1 text-xs text-(--text-secondary)">
-              These are connectivity or credential issues with third-party
-              providers — not bugs in Novum. Research will continue using the
-              services that are reachable.
-            </p>
+      {/* Floating glass card */}
+      <motion.div
+        role="status"
+        aria-label="Service notice"
+        data-testid="svc-warning-panel"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+        className={cn(
+          "fixed bottom-10 right-4 z-50 w-72",
+          "rounded-2xl border border-(--glass-border)/60",
+          "bg-(--bg-secondary)/80 backdrop-blur-xl",
+          "shadow-xl shadow-black/20",
+          "p-4",
+          className,
+        )}
+      >
+        {/* Header row */}
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Info
+              aria-hidden="true"
+              className="h-3.5 w-3.5 text-(--text-tertiary)"
+            />
+            <span className="text-xs font-medium text-(--text-primary)">
+              Quick heads-up
+            </span>
           </div>
+          <button
+            type="button"
+            aria-label="Dismiss notice"
+            data-testid="svc-warning-close"
+            onClick={onClose}
+            className="rounded p-0.5 text-(--text-tertiary) transition-colors hover:text-(--text-primary)"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
         </div>
 
-        {/* Affected services list */}
-        <ul aria-label="Affected services" className="mb-5 space-y-1.5">
+        {/* Body */}
+        <p className="mb-3 text-xs leading-relaxed text-(--text-secondary)">
+          Some of our services are having a moment. Novum will keep going with
+          what’s available — results might be a bit limited.
+        </p>
+
+        {/* Affected services */}
+        <ul aria-label="Affected services" className="mb-3 space-y-1">
           {services.map((svc) => (
             <li
               key={svc.id}
-              className="flex items-center justify-between gap-2 text-xs"
+              className="flex items-center justify-between gap-2 text-[11px]"
             >
-              <span className="font-medium text-(--text-primary)">
-                {svc.name}
-              </span>
-              <span className="rounded px-1.5 py-0.5 bg-(--semantic-warning)/10 text-(--semantic-warning)">
+              <span className="text-(--text-secondary)">{svc.name}</span>
+              <span className="text-(--text-tertiary)">
                 {STATUS_LABEL[svc.status] ?? svc.status}
               </span>
             </li>
@@ -102,11 +104,11 @@ export function ServiceHealthWarningModal({
           type="button"
           data-testid="svc-warning-dismiss"
           onClick={onClose}
-          className="w-full rounded-lg bg-(--bg-primary) px-4 py-2 text-xs font-medium text-(--text-primary) transition-colors hover:opacity-80"
+          className="w-full rounded-xl py-1.5 text-[11px] font-medium text-(--text-tertiary) transition-colors hover:bg-(--glass-border)/30 hover:text-(--text-primary)"
         >
-          Got it, continue
+          Got it
         </button>
-      </div>
-    </div>
+      </motion.div>
+    </>
   );
 }

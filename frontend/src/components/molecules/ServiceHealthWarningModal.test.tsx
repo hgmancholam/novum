@@ -31,9 +31,9 @@ describe("ServiceHealthWarningModal", () => {
   it("renders the list of affected services with status labels", () => {
     render(<ServiceHealthWarningModal services={SERVICES} onClose={vi.fn()} />);
     expect(screen.getByText("Anthropic")).toBeInTheDocument();
-    expect(screen.getByText("Missing credentials")).toBeInTheDocument();
+    expect(screen.getByText("not configured")).toBeInTheDocument();
     expect(screen.getByText("Tavily")).toBeInTheDocument();
-    expect(screen.getByText("Unreachable")).toBeInTheDocument();
+    expect(screen.getByText("unreachable")).toBeInTheDocument();
   });
 
   it("calls onClose when the X button is clicked", async () => {
