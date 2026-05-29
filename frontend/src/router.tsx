@@ -15,8 +15,10 @@
  */
 
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useMemo, useState, type ReactNode } from "react";
 import { ServiceStatusBar } from "@/components/organisms";
+import { ServiceHealthWarningModal } from "@/components/molecules";
+import { useServiceHealth } from "@/hooks/useServiceHealth";
 
 import { useUserStore } from "@/stores/userStore";
 
@@ -46,15 +48,33 @@ function withSuspense(Component: React.ComponentType) {
 
 /**
  * Layout for /run and /runs/:runId — renders the page outlet plus the
- * service-health footer bar at the bottom of the viewport.
+ * service-health footer bar and, on first load, a warning modal if any
+ * non-disabled service is failing (BRD-27).
  */
 function RunShell() {
+  const { data } = useServiceHealth();
+  const [dismissed, setDismissed] = useState(false);
+
+  const problematic = useMemo(
+    () =>
+      (data?.services ?? []).filter(
+        (s) => s.status !== "ok" && s.status !== "disabled",
+      ),
+    [data],
+  );
+
   return (
     <>
       <Outlet />
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <ServiceStatusBar />
       </div>
+      {problematic.length > 0 && !dismissed && (
+        <ServiceHealthWarningModal
+          services={problematic}
+          onClose={() => { setDismissed(true); }}
+        />
+      )}
     </>
   );
 }

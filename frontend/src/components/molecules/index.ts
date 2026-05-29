@@ -28,6 +28,9 @@ export type { FormatSelectorProps } from "./FormatSelector";
 export { Toaster } from "./Toaster";
 // IP-24 Phase 2
 export { FeedStep } from "./FeedStep";
+// IP-27
+export { ServiceHealthWarningModal } from "./ServiceHealthWarningModal";
+export type { ServiceHealthWarningModalProps } from "./ServiceHealthWarningModal";
 export type { FeedStepProps } from "./FeedStep";
 export { SearchStepCard } from "./SearchStepCard";
 export type { SearchStepCardProps, SearchSource } from "./SearchStepCard";
