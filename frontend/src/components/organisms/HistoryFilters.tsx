@@ -16,11 +16,8 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/cn";
-import type {
-  HistoryFilterValues,
-  RunStatus,
-  StopReasonFilter,
-} from "@/types/history";
+import type { StopReason } from "@/types/events";
+import type { HistoryFilterValues, RunStatus } from "@/types/history";
 
 export interface HistoryFiltersProps {
   filters: HistoryFilterValues;
@@ -43,15 +40,10 @@ const statusOptions: ReadonlyArray<StatusOption> = [
 ];
 
 const stopReasonOptions: ReadonlyArray<{
-  value: StopReasonFilter;
+  value: StopReason;
   label: string;
   title: string;
 }> = [
-  {
-    value: "honest_any",
-    label: "Unanswered",
-    title: "Honest stop — the agent could not give a confident answer",
-  },
   { value: "stopped_by_budget", label: "Budget", title: "Stopped by budget" },
   { value: "user_cancelled", label: "Cancelled", title: "Cancelled by user" },
   { value: "errored", label: "Errored", title: "Errored" },
@@ -117,7 +109,7 @@ export function HistoryFilters({
   );
 
   const handleStopReasonToggle = useCallback(
-    (reason: StopReasonFilter): void => {
+    (reason: StopReason): void => {
       if (filters.stopReason === reason) {
         onChange(withoutStopReason(filters));
       } else {

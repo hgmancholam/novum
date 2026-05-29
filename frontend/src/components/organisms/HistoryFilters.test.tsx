@@ -99,7 +99,7 @@ describe("HistoryFilters", () => {
       screen.getByTestId("history-stop-reason-group")
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Unanswered" })
+      screen.getByRole("button", { name: "Budget" })
     ).toBeInTheDocument();
     // judge_confirmed is no longer a valid stopped reason (it maps to
     // "completed" instead) — the chip must not exist.
@@ -120,7 +120,7 @@ describe("HistoryFilters", () => {
     expect(onChange).toHaveBeenCalledWith({ status: "running" });
   });
 
-  it("emits honest_any when the Unanswered chip is clicked", () => {
+  it("emits stopReason when a chip is clicked", () => {
     const onChange = vi.fn();
     render(
       <HistoryFilters
@@ -128,10 +128,10 @@ describe("HistoryFilters", () => {
         onChange={onChange}
       />
     );
-    fireEvent.click(screen.getByRole("button", { name: "Unanswered" }));
+    fireEvent.click(screen.getByRole("button", { name: "Budget" }));
     expect(onChange).toHaveBeenCalledWith({
       status: "stopped",
-      stopReason: "honest_any",
+      stopReason: "stopped_by_budget",
     });
   });
 
