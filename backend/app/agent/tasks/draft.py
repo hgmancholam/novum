@@ -305,6 +305,34 @@ async def evaluate_with_judge(
     if state.last_novelty is not None:
         saturation_note = f"\n\nEvidence saturation (novelty): {state.last_novelty:.3f} (lower = more repetitive)"
 
+    # PR-8: surface the evidence corpus to the judge. Without this block the
+    # judge sees only `question + draft` and routinely rejects with rationales
+    # like "no actual source details are provided to verify these figures".
+    # We pass up to 20 items (title, url, polarity, confidence + truncated
+    # snippet) prioritising the highest-confidence pieces.
+    evidence_block = ""
+    if state.evidence:
+        top_evidence = sorted(
+            state.evidence, key=lambda e: e.confidence, reverse=True
+        )[:20]
+        lines: list[str] = []
+        for idx, item in enumerate(top_evidence, start=1):
+            snippet = (item.text or "").strip().replace("\n", " ")
+            if len(snippet) > 500:
+                snippet = snippet[:500] + "…"
+            lines.append(
+                f"[{idx}] claim={item.claim_id} polarity={item.polarity} "
+                f"conf={item.confidence:.2f}\n"
+                f"    title: {item.source_title}\n"
+                f"    url: {item.source_url}\n"
+                f"    snippet: {snippet}"
+            )
+        evidence_block = (
+            "\n\nEvidence collected during the run "
+            f"(top {len(top_evidence)} of {len(state.evidence)} by confidence):\n"
+            + "\n".join(lines)
+        )
+
     # C2: the run's confidence threshold is the single gate. The judge
     # applies it internally when deciding verdict=approve|reject. The
     # stopping signal no longer re-checks min(S,J) >= threshold.
@@ -317,7 +345,8 @@ async def evaluate_with_judge(
 
     user_msg = (
         f"Question: {state.question}\n\n"
-        f"Draft answer:\n{draft}\n\n"
+        f"Draft answer:\n{draft}"
+        f"{evidence_block}\n\n"
         f"Evaluate factuality, completeness and grounding.{saturation_note}{threshold_rule}"
     )
     verdict = await llm.call(
