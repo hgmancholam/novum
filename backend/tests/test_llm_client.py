@@ -202,10 +202,13 @@ async def test_call_rotates_github_tokens(
         question_type="factual", rationale="r", answerable=True
     )
 
-    for _ in range(4):
+    # Each iteration uses a unique prompt so the CLASSIFIER cache cannot
+    # short-circuit subsequent calls — we are exercising token rotation,
+    # not memoization.
+    for i in range(4):
         await client_module.llm.call(
             LLMRole.CLASSIFIER,
-            [{"role": "user", "content": "q"}],
+            [{"role": "user", "content": f"q{i}"}],
             QuestionClassification,
         )
 

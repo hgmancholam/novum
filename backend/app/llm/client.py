@@ -458,6 +458,25 @@ class LLMClient:
             response_model=response_model.__name__,
         )
 
+        # Post-PR-8: short-circuit deterministic CLASSIFIER calls through the
+        # process-local exact-match cache before any provider routing. Other
+        # roles deliberately bypass the cache so research stays fresh.
+        if role is LLMRole.CLASSIFIER:
+            from app.llm import classifier_cache
+
+            cached = classifier_cache.get(
+                config.model, messages, response_model.__name__
+            )
+            if cached is not None:
+                logger.info(
+                    "llm_call_complete",
+                    role=role.value,
+                    model=config.model,
+                    response_model=response_model.__name__,
+                    cached=True,
+                )
+                return cast("T", cached)
+
         # V1 doctrine guard (ai-services.md §1.2 / §1.3): only Anthropic is
         # active in V1. The other providers are wired but disabled. This guard
         # is the runtime belt-and-suspenders on top of the Settings validator;
@@ -534,6 +553,12 @@ class LLMClient:
                 model=provider.model_for(role),
                 response_model=response_model.__name__,
             )
+            if role is LLMRole.CLASSIFIER:
+                from app.llm import classifier_cache
+
+                classifier_cache.put(
+                    config.model, messages, response_model.__name__, result
+                )
             return result
 
         # WP-5: Special handling for judge role with provider routing
@@ -607,6 +632,12 @@ class LLMClient:
             response_model=response_model.__name__,
         )
 
+        if role is LLMRole.CLASSIFIER:
+            from app.llm import classifier_cache
+
+            classifier_cache.put(
+                config.model, messages, response_model.__name__, result
+            )
         return cast("T", result)
 
 

@@ -181,6 +181,19 @@ class Settings(BaseSettings):
     stuck_planner_min_overlap: float = 0.6
     stuck_planner_min_urls_per_gen: int = 3
 
+    # Post-PR-8 token optimization. Cache the long stable role system prompts
+    # on Anthropic's side (5-min ephemeral TTL, billed at 10% of base input
+    # tokens). Enabled by default; disable via env if a future provider
+    # rejects the ``cache_control`` block. Zero behavioral change — same
+    # tokens reach the model, only the transport bills less.
+    anthropic_prompt_cache_enabled: bool = True
+    # In-process exact-match cache for CLASSIFIER calls only (deterministic
+    # categorical output → safe to memoize). Other roles intentionally skip
+    # the cache so research stays fresh per run.
+    classifier_cache_enabled: bool = True
+    classifier_cache_ttl_seconds: int = 86_400
+    classifier_cache_max_entries: int = 1_000
+
     # BRD-23 WP-1: stale-citation kind-ceiling penalty multiplier for AnswerKind.DIRECT
     # when temporal_sensitivity is volatile/realtime and >=50% citations are stale.
     temporal_stale_penalty: float = 0.85

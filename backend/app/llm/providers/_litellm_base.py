@@ -71,11 +71,18 @@ class _LiteLLMProvider:
             model=model,
             response_model=response_model.__name__,
         )
+        # Anthropic prompt caching: convert the long stable system message
+        # into the structured cache_control form so Claude bills it at 10%
+        # input rate on subsequent calls within the 5-min ephemeral TTL.
+        # No-op for non-Anthropic providers and when disabled by settings.
+        effective_messages = _maybe_apply_anthropic_cache(
+            messages, self._custom_llm_provider
+        )
         result: Any = await client.chat.completions.create(
             model=model,
             custom_llm_provider=self._custom_llm_provider,
             api_key=self._api_key,
-            messages=messages,
+            messages=effective_messages,
             temperature=temperature,
             max_tokens=max_tokens,
             response_model=response_model,
@@ -88,3 +95,50 @@ class _LiteLLMProvider:
             model=model,
         )
         return cast("T", result)
+
+
+def _maybe_apply_anthropic_cache(
+    messages: list[dict[str, Any]],
+    custom_llm_provider: str,
+) -> list[dict[str, Any]]:
+    """Rewrite the system message into Anthropic's cache_control form.
+
+    Returns ``messages`` unchanged when the provider is not Anthropic, the
+    setting is off, or no system message is present. Otherwise replaces the
+    first system message's plain-string ``content`` with the structured
+    block list so Claude treats it as a cacheable prefix. Subsequent system
+    messages (if any) are left alone — we only cache the largest stable
+    prefix per Anthropic's pricing rules.
+    """
+    if custom_llm_provider != "anthropic":
+        return messages
+    # Lazy import to avoid a circular dependency at module load.
+    from app.config import settings
+
+    if not settings.anthropic_prompt_cache_enabled:
+        return messages
+    rewritten: list[dict[str, Any]] = []
+    cached = False
+    for msg in messages:
+        if (
+            not cached
+            and msg.get("role") == "system"
+            and isinstance(msg.get("content"), str)
+            and msg["content"].strip()
+        ):
+            rewritten.append(
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": msg["content"],
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                }
+            )
+            cached = True
+        else:
+            rewritten.append(msg)
+    return rewritten

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -278,6 +278,20 @@ def _noop_agent_runner(
     stub = _NoopAgentRunner()
     monkeypatch.setattr("app.agent.runner.agent_runner", stub, raising=False)
     monkeypatch.setattr("app.main.agent_runner", stub, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _reset_classifier_cache() -> Generator[None, None, None]:
+    """Per-test isolation for the process-local CLASSIFIER cache.
+
+    Without this, a test that mocks ``llm.call`` could pick up a value
+    stored by a previous test for an identical (model, messages) key.
+    """
+    from app.llm import classifier_cache
+
+    classifier_cache.clear()
+    yield
+    classifier_cache.clear()
 
 
 @pytest.fixture
