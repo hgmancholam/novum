@@ -121,6 +121,22 @@ class SemanticScholarSource(BaseSource):
         return f"{start.year}-{today.year}"
 
     @staticmethod
+    def _days_from_temporal(temporal: Any) -> int | None:
+        """Map ``temporal_sensitivity`` onto a year-window for S2.
+
+        S2 only accepts year granularity, so windows are coarser than
+        OpenAlex. ``static`` returns ``None`` (no year filter).
+        """
+        if not isinstance(temporal, str):
+            return None
+        return {
+            "static": None,
+            "slow_changing": 1825,  # 5 years → 5y range
+            "volatile": 730,        # 2y range
+            "realtime": 365,        # 1y range
+        }.get(temporal)
+
+    @staticmethod
     def _paper_to_result(paper: dict[str, Any], relevance_score: float) -> SourceResult:
         title = (paper.get("title") or "").strip() or "(untitled)"
         abstract = (paper.get("abstract") or "").strip()
@@ -181,7 +197,10 @@ class SemanticScholarSource(BaseSource):
             "limit": limit,
             "fields": _SEARCH_FIELDS,
         }
-        year = self._year_range_from_days(days)
+        effective_days = days
+        if effective_days is None:
+            effective_days = self._days_from_temporal(hints.get("temporal_sensitivity"))
+        year = self._year_range_from_days(effective_days)
         if year is not None:
             params["year"] = year
 

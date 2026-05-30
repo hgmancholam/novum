@@ -59,30 +59,51 @@ class TavilySource(BaseSource):
         topic: str | None = None,
         **hints: Any,
     ) -> list[SourceResult]:
-        """Search the web using Tavily's advanced search depth.
+        """Search the web using Tavily.
 
         BRD-23 WP-1: optional ``days`` recency filter forwarded to Tavily.
         ``topic`` accepts ``"news"`` (paid tier) for temporal queries or
-        ``"general"`` (default). Pass ``None`` to omit the parameter.
-        Paid tier raises max_results ceiling to 20.
+        ``"general"`` (default). When omitted, it is auto-derived from
+        the ``temporal_sensitivity`` hint: ``volatile`` / ``realtime``
+        map to ``news``; everything else stays on the default index so
+        Wikipedia, docs and papers remain reachable.
+
+        Search depth is also auto-derived from hints: ``basic`` when the
+        classifier marks the question as trivial+static (cheaper, ~½ the
+        credit cost, still rankings Wikipedia/docs in the top results),
+        ``advanced`` otherwise.
 
         ``hints`` recognised:
-        - ``include_domains: list[str]`` — restrict results to these
-          hosts (e.g. authoritative tier).
+        - ``include_domains: list[str]`` — restrict results.
         - ``exclude_domains: list[str]`` — appended to the always-on
           LOW_SIGNAL blocklist.
+        - ``temporal_sensitivity: str`` — drives ``topic`` selection.
+        - ``complexity_hint: str`` — drives ``search_depth`` selection.
         """
         include_domains = hints.get("include_domains") or []
         extra_excludes = hints.get("exclude_domains") or []
         exclude_domains = list(_DEFAULT_EXCLUDE_DOMAINS) + [
             d for d in extra_excludes if d not in _DEFAULT_EXCLUDE_DOMAINS
         ]
+        temporal = hints.get("temporal_sensitivity")
+        complexity = hints.get("complexity_hint")
+        if topic is None and isinstance(temporal, str) and temporal in {"volatile", "realtime"}:
+            topic = "news"
+        search_depth = "advanced"
+        if (
+            isinstance(complexity, str)
+            and complexity == "trivial"
+            and isinstance(temporal, str)
+            and temporal == "static"
+        ):
+            search_depth = "basic"
         logger.debug(
             "tavily_search_start",
             query=query,
             max_results=max_results,
             days=days,
             topic=topic,
+            search_depth=search_depth,
             include_domains=include_domains,
             exclude_count=len(exclude_domains),
         )
@@ -92,7 +113,7 @@ class TavilySource(BaseSource):
                 max_results=max(1, min(max_results, 20)),
                 include_answer=False,
                 include_raw_content=True,
-                search_depth="advanced",
+                search_depth=search_depth,
                 exclude_domains=exclude_domains,
             )
             if include_domains:
@@ -104,7 +125,7 @@ class TavilySource(BaseSource):
             t0 = time.perf_counter()
             response: dict[str, Any] = await self._client.search(**kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
-            units, unit_cost, _ = tavily_cost("advanced")
+            units, unit_cost, _ = tavily_cost(search_depth)
             await emit_source_cost(
                 provider="tavily",
                 kind="search",

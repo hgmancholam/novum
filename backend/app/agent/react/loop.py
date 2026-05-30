@@ -25,6 +25,7 @@ from app.agent.react.actions import (
 )
 from app.agent.react.history import ReactStep, summarize_history_if_needed
 from app.agent.run_state import EvidenceItem, RunState
+from app.agent.source_hints import build_source_hints
 from app.config import settings
 from app.domain.enums import EvidencePolarity, StopReason
 from app.domain.events import (
@@ -393,9 +394,7 @@ async def _execute_search(
         results: list[SourceResult] = await source.search(
             action.query,
             max_results=_MAX_RESULTS_PER_SEARCH,
-            language=state.language,
-            question_type=state.question_type.value if state.question_type else None,
-            expected_experts=list(state.expected_experts),
+            **build_source_hints(state),
         )
 
         # Add top results as evidence

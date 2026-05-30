@@ -14,6 +14,7 @@ from uuid import uuid4
 import structlog
 
 from app.agent.run_state import EvidenceItem, RunState
+from app.agent.source_hints import build_source_hints
 from app.domain.enums import ComplexityHint, EvidencePolarity, SourceType, StopReason, TemporalSensitivity
 from app.domain.events import BaseEvent, DraftSynthesizedEvent, EvidenceAddedEvent, ToolCalledEvent
 from app.llm import LLMRole, llm
@@ -94,9 +95,7 @@ async def execute_fast_lane(
             source.search(
                 query,
                 max_results=_FAST_RESULTS_PER_SOURCE,
-                language=state.language,
-                question_type=state.question_type.value if state.question_type else None,
-                expected_experts=list(state.expected_experts),
+                **build_source_hints(state),
             )
         )
 

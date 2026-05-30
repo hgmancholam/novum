@@ -7,7 +7,7 @@ allows, re-draft with the contradicting evidence as context.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from pydantic import BaseModel, Field
@@ -18,6 +18,8 @@ from app.sources.registry import SourceRegistry, get_registry
 
 if TYPE_CHECKING:
     from app.agent.run_state import RunState
+
+from app.agent.source_hints import build_source_hints  # noqa: E402
 
 logger = structlog.get_logger(__name__)
 
@@ -126,13 +128,9 @@ async def verify_question(
 
     source_type = source_types[0]
     source = registry.get(source_type)
-    hints: dict[str, object] = {}
-    if state is not None:
-        hints["language"] = state.language
-        hints["question_type"] = (
-            state.question_type.value if state.question_type else None
-        )
-        hints["expected_experts"] = list(state.expected_experts)
+    hints: dict[str, Any] = (
+        build_source_hints(state) if state is not None else {}
+    )
     try:
         results: list[SourceResult] = await source.search(
             query=question, max_results=3, **hints

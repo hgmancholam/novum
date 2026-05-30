@@ -124,6 +124,23 @@ class OpenAlexSource(BaseSource):
         return start.isoformat()
 
     @staticmethod
+    def _days_from_temporal(temporal: Any) -> int | None:
+        """Map ``temporal_sensitivity`` hint onto a publication-recency window.
+
+        Looser than the Tavily mapping because academic publishing cycles
+        run longer than news cycles. ``static`` opts out entirely so we
+        don't drop foundational papers.
+        """
+        if not isinstance(temporal, str):
+            return None
+        return {
+            "static": None,
+            "slow_changing": 1825,  # 5 years
+            "volatile": 365,
+            "realtime": 90,
+        }.get(temporal)
+
+    @staticmethod
     def _reconstruct_abstract(inverted: dict[str, list[int]] | None) -> str:
         if not inverted:
             return ""
@@ -219,7 +236,10 @@ class OpenAlexSource(BaseSource):
             f"title_and_abstract.search:{sanitized_query}",
             _DEFAULT_QUALITY_FILTERS,
         ]
-        from_date = self._from_date_from_days(days)
+        effective_days = days
+        if effective_days is None:
+            effective_days = self._days_from_temporal(hints.get("temporal_sensitivity"))
+        from_date = self._from_date_from_days(effective_days)
         if from_date is not None:
             filters.append(f"from_publication_date:{from_date}")
         language = hints.get("language")
