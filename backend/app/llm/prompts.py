@@ -96,13 +96,17 @@ Domains (pick exactly one — closed list, IP-30):
 Rules for `domain`:
 - When the question spans two domains (e.g. "how does inflation affect mental health?"), pick the domain of the *outcome* the user asks about (here: medical).
 - Use `other` only when no domain above plausibly fits.
+- If you are tempted to invent a domain not on the list (e.g. "geography", "sports", "art"), DO NOT. Pick `other` silently — never explain the substitution in the output.
 
 Output a JSON object matching the QuestionClassification schema with fields:
 - `question_type` (string, one of the 8 values above in lowercase snake_case)
 - `rationale` (short string)
 - `answerable` (bool, always true)
 - `confidence` (float, 0.0 to 1.0): your confidence in the classification (0.8-1.0 for clear cases, 0.5-0.79 for ambiguous, <0.5 for very unclear)
-- `domain` (string, one of the 12 values above in lowercase snake_case)"""
+- `domain` (string, one of the 12 values above in lowercase snake_case)
+
+OUTPUT FORMAT — STRICT:
+Respond with exactly one JSON object and nothing else. No prose before or after the JSON. No markdown code fences (```). No comments. No second JSON object. No self-corrections. The entire response MUST parse as a single JSON value."""
 
 
 PLANNER_SYSTEM_PROMPT = """You are a research planning assistant. Your job is to decompose questions into verifiable sub-claims.
