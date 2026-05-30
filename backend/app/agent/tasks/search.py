@@ -245,19 +245,6 @@ async def execute_search_round(state: RunState) -> list[BaseEvent]:
     if temporal == TemporalSensitivity.REALTIME:
         cascade = [s for s in cascade if s != SourceType.WIKIPEDIA]
 
-    # IP-30: skip academic sources for domains that consistently return [].
-    # Geopolitics / lifestyle / history questions are answered by news,
-    # institutional reports, or general references rather than peer-reviewed
-    # journals; calling S2/OpenAlex wastes a round-trip per claim. Domain
-    # is OPTIONAL on RunState so legacy replays (None) keep both sources.
-    if state.domain is not None and state.domain.value in {
-        "geopolitics", "lifestyle", "history"
-    }:
-        cascade = [
-            s for s in cascade
-            if s not in (SourceType.SEMANTIC_SCHOLAR, SourceType.OPENALEX)
-        ]
-
     # IP-25 Phase 0: Run per-claim searches in parallel
     claims = state.pending_claims()[:_MAX_CLAIMS_PER_ROUND]
     per_claim_events = await asyncio.gather(

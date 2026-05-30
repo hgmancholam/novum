@@ -47,23 +47,6 @@ _EXPERT_TO_S2_FIELDS: dict[str, list[str]] = {
     "policymaker": ["Political Science", "Law", "Economics"],
 }
 
-# IP-30: primary mapping from QuestionDomain onto S2 ``fieldsOfStudy``.
-# Wins over ``expected_experts`` when both are present — the classifier emits
-# domain directly, experts are planner-derived and sometimes mis-routed.
-_DOMAIN_TO_S2_FIELDS: dict[str, list[str]] = {
-    "medical":              ["Medicine", "Biology"],
-    "science":              ["Physics", "Chemistry", "Biology", "Geology", "Environmental Science"],
-    "technology":           ["Computer Science", "Engineering"],
-    "software_engineering": ["Computer Science"],
-    "financial":            ["Economics", "Business"],
-    "business":             ["Business", "Economics"],
-    "legal":                ["Law", "Political Science"],
-    "geopolitics":          ["Political Science", "Sociology"],
-    "education":            ["Education", "Psychology"],
-    "history":              ["History"],
-    # lifestyle, other → no mapping (let S2 search across all fields).
-}
-
 # Map ``question_type`` onto S2 ``publicationTypes`` (closed enum on the
 # S2 side). For questions where syntheses matter more than primary
 # results, push the API to surface review-style papers first.
@@ -228,15 +211,7 @@ class SemanticScholarSource(BaseSource):
                 params["publicationTypes"] = ",".join(pubtypes)
 
         experts = hints.get("expected_experts")
-        domain = hints.get("domain")
-        domain_fields = (
-            _DOMAIN_TO_S2_FIELDS.get(domain.lower())
-            if isinstance(domain, str)
-            else None
-        )
-        if domain_fields:
-            params["fieldsOfStudy"] = ",".join(domain_fields)
-        elif isinstance(experts, list):
+        if isinstance(experts, list):
             fields_set: list[str] = []
             for expert in experts:
                 if not isinstance(expert, str):

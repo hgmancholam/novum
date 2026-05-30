@@ -50,24 +50,6 @@ _DEFAULT_QUALITY_FILTERS = (
 # seminal papers — they now lead naturally when relevance is comparable.
 _DEFAULT_SORT = "relevance_score:desc,cited_by_count:desc"
 
-# IP-30: QuestionDomain → OpenAlex level-0 concept ID. Concept IDs are
-# stable per OpenAlex docs (see https://api.openalex.org/concepts).
-# When the classifier domain matches, we append a ``concepts.id`` filter
-# to narrow OpenAlex to that scholarly area; unmapped domains (lifestyle,
-# other) leave OpenAlex searching across all concepts.
-_DOMAIN_TO_OPENALEX_CONCEPTS: dict[str, str] = {
-    "medical":              "C71924100",   # Medicine
-    "science":              "C121332964",  # Physics (closest level-0 anchor)
-    "technology":           "C41008148",   # Computer science
-    "software_engineering": "C41008148",
-    "financial":            "C162324750",  # Economics
-    "business":             "C144133560",  # Business
-    "legal":                "C17744445",   # Political science (Law is sub-level)
-    "geopolitics":          "C17744445",
-    "education":            "C145420912",  # Education
-    "history":              "C95457728",   # History
-}
-
 
 def _citation_bump(citation_count: int) -> float:
     """C6: log-scaled relevance bump from citation count.
@@ -268,13 +250,6 @@ class OpenAlexSource(BaseSource):
             and hints.get("complexity_hint") == "deep"
         ):
             filters.append("cited_by_count:>10")
-
-        # IP-30: narrow by topical domain when classifier emits a mappable one.
-        domain = hints.get("domain")
-        if isinstance(domain, str):
-            concept_id = _DOMAIN_TO_OPENALEX_CONCEPTS.get(domain.lower())
-            if concept_id:
-                filters.append(f"concepts.id:{concept_id}")
         language = hints.get("language")
         if isinstance(language, str) and language:
             filters.append(f"language:{language}")

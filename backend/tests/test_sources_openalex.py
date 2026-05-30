@@ -487,30 +487,3 @@ async def test_search_omits_citation_floor_outside_deep_state_of_art() -> None:
     )
     assert "cited_by_count:>10" not in captured["params"]["filter"]
 
-
-@pytest.mark.asyncio
-async def test_search_maps_domain_to_concepts_filter() -> None:
-    captured: dict[str, Any] = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        captured["params"] = dict(request.url.params)
-        return httpx.Response(200, json=_search_payload([]))
-
-    source = OpenAlexSource(transport=_mock_transport(handler))
-    await source.search("q", max_results=3, domain="medical")
-
-    assert "concepts.id:C71924100" in captured["params"]["filter"]
-
-
-@pytest.mark.asyncio
-async def test_search_omits_concepts_filter_for_unmapped_domain() -> None:
-    captured: dict[str, Any] = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        captured["params"] = dict(request.url.params)
-        return httpx.Response(200, json=_search_payload([]))
-
-    source = OpenAlexSource(transport=_mock_transport(handler))
-    await source.search("q", max_results=3, domain="lifestyle")
-
-    assert "concepts.id:" not in captured["params"]["filter"]

@@ -23,5 +23,4 @@ def build_source_hints(state: RunState) -> dict[str, Any]:
         "complexity_hint": (
             state.complexity_hint.value if state.complexity_hint else None
         ),
-        "domain": state.domain.value if state.domain else None,
     }
