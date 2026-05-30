@@ -158,3 +158,95 @@ class TestRenderEmbedsData:
         assert isinstance(data, dict)
         assert data["summary"] == "La capital de Japón es Tokio."
         assert "blocks" in data
+
+
+class TestKindBlocksSuppressProseFallback:
+    """When the synthesizer emits typed structure (answer_kind != None),
+    the prose narrative is a restatement of the same fields and must not
+    be re-appended as ParagraphBlocks (would duplicate the structured
+    payload in the UI)."""
+
+    def _ctx_with_payload(self, text: str, payload):
+        return RenderContext(
+            question="q",
+            answer_content=text,
+            sources=[],
+            confidence=0.9,
+            stop_reason="judge_confirmed",
+            synth_payload=payload,
+        )
+
+    def test_best_effort_does_not_duplicate_prose(self):
+        from app.domain.enums import AnswerKind
+        from app.llm.models import SynthesizedAnswer
+
+        payload = SynthesizedAnswer(
+            prose="ignored",
+            answer_kind=AnswerKind.BEST_EFFORT,
+            interpretation="The question asks whether AI will replace mid-level engineers.",
+            alternative_interpretations=[
+                "Headcount reduction interpretation.",
+                "Task-level replacement interpretation.",
+            ],
+        )
+        prose = (
+            "First narrative paragraph restating the interpretation.\n\n"
+            "Second paragraph with H1 hypothesis.\n\n"
+            "Third paragraph with H2 hypothesis.\n\n"
+            "In summary: role transformation more likely than replacement."
+        )
+        ctx = self._ctx_with_payload(prose, payload)
+        data = StructuredRenderer().build_data(ctx)
+
+        # Typed blocks must be present (interpretation + alternatives)
+        paras = [b for b in data.blocks if isinstance(b, ParagraphBlock)]
+        kps = [b for b in data.blocks if isinstance(b, KeyPointsBlock)]
+        assert any("Most likely interpretation" in p.text for p in paras)
+        assert any(kp.title == "Alternative interpretations" for kp in kps)
+
+        # Prose must NOT be re-emitted as additional paragraph blocks
+        assert not any("H1 hypothesis" in p.text for p in paras)
+        assert not any("In summary" in p.text for p in paras)
+
+    def test_kind_blocks_still_preserve_mermaid_and_markdown(self):
+        """Mermaid fences and markdown tables/headers must survive even
+        when kind_blocks are emitted — they are LLM-authored formatting,
+        not a textual restatement."""
+        from app.domain.enums import AnswerKind
+        from app.llm.models import SynthesizedAnswer
+
+        payload = SynthesizedAnswer(
+            prose="ignored",
+            answer_kind=AnswerKind.BEST_EFFORT,
+            interpretation="Some interpretation.",
+            alternative_interpretations=["Alt one."],
+        )
+        text_with_mermaid = (
+            "Diagrama:\n\n"
+            "```mermaid\nflowchart TD\n  A --> B\n```\n\n"
+            "Texto que ahora se descarta."
+        )
+        ctx = self._ctx_with_payload(text_with_mermaid, payload)
+        data = StructuredRenderer().build_data(ctx)
+        mer = [b for b in data.blocks if isinstance(b, MermaidBlock)]
+        assert len(mer) == 1
+
+        text_with_md_table = (
+            "Comparativa:\n\n"
+            "| Lang | Year |\n|------|------|\n| Python | 1991 |\n| Go | 2009 |\n"
+        )
+        ctx2 = self._ctx_with_payload(text_with_md_table, payload)
+        data2 = StructuredRenderer().build_data(ctx2)
+        mds = [b for b in data2.blocks if isinstance(b, MarkdownBlock)]
+        assert len(mds) == 1
+
+    def test_no_kind_payload_keeps_paragraph_fallback(self):
+        """Sanity: without answer_kind, behavior is unchanged."""
+        prose = (
+            "Primer párrafo de contexto general.\n\n"
+            "Segundo párrafo con detalles.\n\n"
+            "Tercer párrafo con conclusión."
+        )
+        data = _build(prose)  # no synth_payload
+        paras = [b for b in data.blocks if isinstance(b, ParagraphBlock)]
+        assert len(paras) >= 2

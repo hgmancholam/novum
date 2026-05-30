@@ -85,8 +85,10 @@ class StructuredRenderer:
         # regexing the prose. Falls back to the legacy pipeline below for the
         # remaining narrative.
         payload = getattr(context, "synth_payload", None)
+        kind_blocks: list[StructuredBlock] = []
         if payload is not None and payload.answer_kind is not None:
-            blocks.extend(self._render_kind_blocks(payload))
+            kind_blocks = self._render_kind_blocks(payload)
+            blocks.extend(kind_blocks)
 
         if not text:
             return StructuredAnswerData(summary=summary, blocks=blocks)
@@ -105,6 +107,14 @@ class StructuredRenderer:
         has_fence = "```" in residual
         if residual and (has_md_table or has_md_headers or has_fence):
             blocks.append(MarkdownBlock(text=residual))
+            return StructuredAnswerData(summary=summary, blocks=blocks)
+
+        # When the synthesizer already produced typed structure (kind_blocks),
+        # the prose narrative is by design a textual restatement of the same
+        # fields (interpretation, scenarios, candidates…). Appending it as
+        # paragraphs duplicates the structured payload — the user has the
+        # "Prose" tab for the full narrative. Skip the textual fallback.
+        if kind_blocks:
             return StructuredAnswerData(summary=summary, blocks=blocks)
 
         # 3. Try key/value extraction.
