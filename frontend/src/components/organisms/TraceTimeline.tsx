@@ -24,8 +24,8 @@ import { JumpToLatestPill } from "@/components/atoms/JumpToLatestPill";
 import { EventNode, type TraceEventInput } from "@/components/molecules/EventNode";
 import { cn } from "@/lib/cn";
 import { EXPANDED_BY_DEFAULT } from "@/lib/eventVisuals";
-import type { ComplexityHint, EventType, QuestionType } from "@/types/events";
-import { COMPLEXITY_LABELS, QUESTION_TYPE_LABELS } from "@/lib/eventLabels";
+import type { ComplexityHint, EventType, QuestionDomain, QuestionType } from "@/types/events";
+import { COMPLEXITY_LABELS, QUESTION_DOMAIN_LABELS, QUESTION_TYPE_LABELS } from "@/lib/eventLabels";
 
 export interface TraceTimelineEvent {
   /** Optional uuid from the event log. */
@@ -58,6 +58,7 @@ function summaryOf(event: TraceTimelineEvent): string | undefined {
   if (event.type === "QuestionClassified") {
     const qType = payload["detected_question_type"];
     const hint = payload["complexity_hint"];
+    const domainRaw = payload["domain"];
     const qLabel =
       typeof qType === "string" && qType in QUESTION_TYPE_LABELS
         ? QUESTION_TYPE_LABELS[qType as QuestionType]
@@ -66,9 +67,17 @@ function summaryOf(event: TraceTimelineEvent): string | undefined {
       typeof hint === "string" && hint in COMPLEXITY_LABELS
         ? COMPLEXITY_LABELS[hint as ComplexityHint]
         : undefined;
-    if (qLabel && cLabel) return `${cLabel} · ${qLabel} question`;
-    if (qLabel) return `${qLabel} question`;
-    if (cLabel) return cLabel;
+    const dLabel =
+      typeof domainRaw === "string" &&
+      domainRaw in QUESTION_DOMAIN_LABELS &&
+      domainRaw !== "other"
+        ? QUESTION_DOMAIN_LABELS[domainRaw as QuestionDomain]
+        : undefined;
+    const segs: string[] = [];
+    if (cLabel) segs.push(cLabel);
+    if (qLabel) segs.push(`${qLabel} question`);
+    if (dLabel) segs.push(dLabel);
+    if (segs.length > 0) return segs.join(" · ");
   }
 
   if (event.type === "PlanCreated" || event.type === "PlanRevised") {

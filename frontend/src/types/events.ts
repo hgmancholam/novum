@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-30T07:59:47.293740+00:00
+// Generated: 2026-05-30T08:19:33.104452+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -21,6 +21,20 @@ export type QuestionType =
   | "predictive_future"
   | "subjective_opinion"
   | "personal_private";
+
+export type QuestionDomain =
+  | "medical"
+  | "legal"
+  | "financial"
+  | "technology"
+  | "science"
+  | "geopolitics"
+  | "business"
+  | "history"
+  | "education"
+  | "lifestyle"
+  | "software_engineering"
+  | "other";
 
 export type OutputFormat =
   | "prose"

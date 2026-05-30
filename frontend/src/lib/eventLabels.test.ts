@@ -137,6 +137,26 @@ describe("eventLabels", () => {
       );
     });
 
+    it("appends domain to QuestionClassified narrative when present (IP-30)", () => {
+      const result = getEventNarrative("QuestionClassified", {
+        detected_question_type: "comparative",
+        complexity_hint: "standard",
+        domain: "medical",
+      });
+      expect(result).toBe(
+        "Classified as comparative question — Standard research · domain: medical"
+      );
+    });
+
+    it("omits domain segment when domain is 'other' (IP-30)", () => {
+      const result = getEventNarrative("QuestionClassified", {
+        detected_question_type: "factual",
+        complexity_hint: "standard",
+        domain: "other",
+      });
+      expect(result).not.toContain("domain:");
+    });
+
     // IP-26 slice 3c — meta-judge event narratives (BRD-26).
     it("for MetaStopVerdict surfaces decision and expected delta", () => {
       const result = getEventNarrative("MetaStopVerdict", {

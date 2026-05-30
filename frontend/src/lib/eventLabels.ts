@@ -13,7 +13,7 @@
  * back to the raw type. See ui-prototype.md §7 (microcopy).
  */
 
-import type { ComplexityHint, EventType, QuestionType } from "@/types/events";
+import type { ComplexityHint, EventType, QuestionDomain, QuestionType } from "@/types/events";
 
 export const COMPLEXITY_LABELS: Record<ComplexityHint, string> = {
   trivial: "Quick lookup",
@@ -30,6 +30,21 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   predictive_future: "predictive",
   subjective_opinion: "opinion",
   personal_private: "personal",
+};
+
+export const QUESTION_DOMAIN_LABELS: Record<QuestionDomain, string> = {
+  medical: "medical",
+  legal: "legal",
+  financial: "financial",
+  technology: "technology",
+  science: "science",
+  geopolitics: "geopolitics",
+  business: "business",
+  history: "history",
+  education: "education",
+  lifestyle: "lifestyle",
+  software_engineering: "software engineering",
+  other: "general",
 };
 
 export const EVENT_LABELS: Record<EventType, string> = {
@@ -149,6 +164,7 @@ export function getEventNarrative(
     case "QuestionClassified": {
       const qType = payload["detected_question_type"];
       const hint = payload["complexity_hint"];
+      const domainRaw = payload["domain"];
       const qLabel =
         typeof qType === "string" && qType in QUESTION_TYPE_LABELS
           ? QUESTION_TYPE_LABELS[qType as QuestionType]
@@ -157,15 +173,18 @@ export function getEventNarrative(
         typeof hint === "string" && hint in COMPLEXITY_LABELS
           ? COMPLEXITY_LABELS[hint as ComplexityHint]
           : undefined;
-      if (qLabel && cLabel) {
-        return `Classified as ${qLabel} question — ${cLabel}`;
-      }
-      if (qLabel) {
-        return `Classified as ${qLabel} question`;
-      }
-      if (cLabel) {
-        return `Complexity: ${cLabel}`;
-      }
+      const dLabel =
+        typeof domainRaw === "string" &&
+        domainRaw in QUESTION_DOMAIN_LABELS &&
+        domainRaw !== "other"
+          ? QUESTION_DOMAIN_LABELS[domainRaw as QuestionDomain]
+          : undefined;
+      const parts: string[] = [];
+      if (qLabel) parts.push(`Classified as ${qLabel} question`);
+      else if (cLabel) parts.push(`Complexity: ${cLabel}`);
+      if (qLabel && cLabel) parts[0] = `Classified as ${qLabel} question — ${cLabel}`;
+      if (dLabel) parts.push(`domain: ${dLabel}`);
+      if (parts.length > 0) return parts.join(" · ");
       return getEventActivity(type);
     }
     case "PlanCreated":

@@ -29,6 +29,7 @@ from app.domain.enums import (  # noqa: E402
     EvidencePolarity,
     Lane,
     OutputFormat,
+    QuestionDomain,
     QuestionType,
     SourceType,
     StopReason,
@@ -53,6 +54,7 @@ def _build_output() -> str:
     enums: list[tuple[str, list[str]]] = [
         ("StopReason", [v.value for v in StopReason]),
         ("QuestionType", [v.value for v in QuestionType]),
+        ("QuestionDomain", [v.value for v in QuestionDomain]),
         ("OutputFormat", [v.value for v in OutputFormat]),
         ("EvidencePolarity", [v.value for v in EvidencePolarity]),
         ("SourceType", [v.value for v in SourceType]),
