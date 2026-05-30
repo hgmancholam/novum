@@ -641,24 +641,9 @@ class AgentOrchestrator:
         structural_gate_ok = judge_event.structural_confidence >= 0.6
         coverage_gate_ok = judging_coverage >= 0.6
         agreement_gate_ok = judging_agreement >= 0.5
-        # High-confidence contradictions bypass: overwhelming convergent
-        # evidence (S>=0.85, agreement>=0.9, >=5 evidence items) overrides
-        # the contradictions flag, treating it as nuance rather than a real
-        # semantic conflict. The evidence_count floor prevents trivial
-        # single-source scenarios from satisfying agreement=1.0 vacuously.
-        high_confidence_contra_bypass = (
-            judge_event.structural_confidence >= 0.85
-            and judging_agreement >= 0.9
-            and len(self.state.evidence) >= 5
-        )
-        no_contradictions_for_override = (
-            (not judge_event.contradictions_detected) or high_confidence_contra_bypass
-        )
+        no_contradictions_for_override = not judge_event.contradictions_detected
         judge_event.coverage = judging_coverage
         judge_event.agreement = judging_agreement
-        judge_event.contra_bypassed = (
-            high_confidence_contra_bypass and bool(judge_event.contradictions_detected)
-        )
         judge_event.override_eligible = (
             (not judge_event.passed)
             and structural_gate_ok
@@ -676,6 +661,22 @@ class AgentOrchestrator:
             )
             if not ok
         ]
+        # IP-40 diagnostic snapshot (instrumentation-only). Surfaces internal
+        # state at judge-time so the postcoverage eval can pinpoint why
+        # `judging_coverage` is 0 on 3+ claim plans despite ample evidence.
+        # All optional, all via Pydantic extras — no schema migration.
+        evidence_per_claim: dict[str, int] = {}
+        for ev in self.state.evidence:
+            cid = ev.claim_id or "<none>"
+            evidence_per_claim[cid] = evidence_per_claim.get(cid, 0) + 1
+        judge_event.diag_sub_claims = [
+            {"id": c.id, "status": c.status} for c in self.state.sub_claims
+        ]
+        judge_event.diag_covered_claim_ids = list(self.state.covered_claims)
+        judge_event.diag_uncoverable_claim_ids = list(self.state.uncoverable_claims)
+        judge_event.diag_evidence_per_claim = evidence_per_claim
+        judge_event.diag_search_count = self.state.search_count
+        judge_event.diag_judge_attempts = self.state.judge_attempts
         await self.emit(judge_event)
         self.state.last_judge_confidence = judge_event.judge_confidence
         self.state.last_structural_confidence = judge_event.structural_confidence

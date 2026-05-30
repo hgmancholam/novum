@@ -74,12 +74,18 @@ def summarize(label: str, run_id: str, wallclock: float | None, events: list[dic
     coverage = agreement = None  # may come from JudgeRuled (IP-38) or ConfidenceCalculated
     override_eligible: bool | None = None
     override_blockers: list[str] | None = None
+    contra_bypassed: bool | None = None
     judge_passed: bool | None = None
     contradictions: list | None = None
     cost_usd = 0.0
     src_counter: Counter[str] = Counter()
     host_counter: Counter[str] = Counter()
     prose_excerpt = None
+    answer_full = ""
+    citation_count = 0
+    key_point_count = 0
+    question_text = ""
+    citation_urls: list[str] = []
     claim_count = 0
     for e in events:
         name = e["event"]
@@ -104,6 +110,8 @@ def summarize(label: str, run_id: str, wallclock: float | None, events: list[dic
                 override_eligible = d.get("override_eligible")
             if "override_blockers" in d:
                 override_blockers = d.get("override_blockers")
+            if "contra_bypassed" in d:
+                contra_bypassed = d.get("contra_bypassed")
         elif name == "ConfidenceCalculated":
             final_confidence = d.get("final_confidence", final_confidence)
             if coverage is None:
@@ -126,9 +134,14 @@ def summarize(label: str, run_id: str, wallclock: float | None, events: list[dic
             if host:
                 host_counter[host] += 1
         elif name == "DraftSynthesized":
-            if not prose_excerpt:
-                prose = (d.get("answer") or d.get("prose") or "")
+            prose = (d.get("prose") or d.get("answer") or "")
+            if prose:
+                answer_full = prose  # keep the latest (best-effort) draft
                 prose_excerpt = prose[:400]
+                citation_count = int(d.get("citation_count") or citation_count)
+                key_point_count = int(d.get("key_point_count") or key_point_count)
+        elif name == "QuestionAsked":
+            question_text = d.get("question") or question_text
         elif name == "CostIncurred":
             cost_usd += float(d.get("cost_usd", 0.0) or 0.0)
 
@@ -155,12 +168,19 @@ def summarize(label: str, run_id: str, wallclock: float | None, events: list[dic
         "agreement": agreement,
         "override_eligible": override_eligible,
         "override_blockers": override_blockers,
+        "contra_bypassed": contra_bypassed,
         "claim_count": claim_count,
         "evidence_total": sum(src_counter.values()),
         "host_counter": dict(host_counter),
         "unique_hosts": len(host_counter),
         "cost_usd": cost_usd,
         "prose_excerpt": prose_excerpt,
+        "answer_full": answer_full,
+        "answer_chars": len(answer_full),
+        "answer_words": len(answer_full.split()),
+        "citation_count": citation_count,
+        "key_point_count": key_point_count,
+        "question_text": question_text,
         "bl_strict_ok": bl_strict_ok,
         "bl_word_count": bl_word_count,
     }

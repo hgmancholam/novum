@@ -1,0 +1,92 @@
+id: IP-40
+title: "Coverage systemic investigation — why ClaimCovered fires only on 2-claim plans"
+date: 2026-05-30
+status: pre-registered
+agent: EvalEngineer + Coder
+
+# ============================================================================
+# CONTEXT (post IP-39 FAIL)
+# ============================================================================
+postcontra_observation:
+  q4_plan_size: 2
+  q4_claim_covered_events: 2          # c1, c2 ✓
+  q4_first_judge_coverage: 1.00       # ✓
+  q5_q6_q8_plan_size: 3
+  q5_q6_q8_claim_covered_events: 0    # ← BUG
+  q5_evidence_per_claim_c1: 12        # avg conf 0.85
+  q5_evidence_per_claim_c2: 12        # avg conf 0.79
+  q5_evidence_per_claim_c3: 12        # avg conf 0.67
+  q5_first_judge_coverage: 0.00       # ← reproducibly zero despite sufficient evidence
+  conclusion: |
+    analyze_evidence either is not running on 3+ claim plans, or its
+    pending_claims() / claim_evidence filter returns empty, or
+    state.evidence is empty at analyze time. Coverage=0 systematically
+    blocks the structural override (coverage_gate >= 0.6) for every
+    standard run with ≥3 sub_claims, which is the majority of the
+    golden set (Q5,Q6,Q8 plus Q7 deep).
+  blast_radius: |
+    judge_confirmed_rate is capped at ~3/8 simply because cov=0
+    blocks the structural override on every multi-claim standard run.
+    Fixing coverage is the highest-leverage change available.
+
+# ============================================================================
+# HYPOTHESIS (read-only diagnostic iteration first — NO behavioral change)
+# ============================================================================
+hypothesis: |
+  Adding per-claim state snapshot to JudgeRuled extras will reveal the
+  root cause WITHOUT making any behavioral change. Specifically:
+    - state.sub_claims[].id + .status  (are they still 'pending'?)
+    - state.covered_claims              (is it empty?)
+    - state.evidence count per claim_id (is it routed correctly?)
+    - state.search_count                (did analyze even run?)
+  After eval-poststate, the diagnostic will pinpoint one of:
+    (A) sub_claims marked covered but calculate_coverage returns 0 (bug in helper)
+    (B) sub_claims pending despite evidence (analyze not running or bug in matcher)
+    (C) state.evidence empty at judge time (state reset somewhere)
+    (D) claim_id mismatch between evidence and sub_claims (e.g. None vs 'c1')
+
+intervention_kind: instrumentation_only
+behavioral_change: false
+new_event_types: 0   # uses Pydantic extra="allow" on JudgeRuledEvent
+
+# ============================================================================
+# METRICS — frozen golden set (8 Qs)
+# ============================================================================
+primary_metric:
+  name: bug_localized
+  pass_condition: |
+    poststate compare run reveals the failing condition (A/B/C/D) for
+    ≥1 of {Q5, Q6, Q8}, enough to write a targeted IP-41 fix.
+
+secondary_floors:
+  judge_confirmed_floor: 2     # must not regress below postcontra
+  bl_strict_floor: 6
+  pytest_baseline: 1144
+  no_new_event_types: true     # uses extras only
+
+# ============================================================================
+# FALSIFICATION
+# ============================================================================
+falsification_rules:
+  - "If poststate snapshot is identical to postcontra (no new diagnostic fields surfaced), the instrumentation diff is broken — revert and retry."
+  - "If poststate shows sub_claims as 'covered' on 3-claim plans, calculate_coverage is wrong — file IP-41 there."
+  - "If poststate shows sub_claims as 'pending' despite evidence ≥2 with conf ≥0.4, analyze_evidence has a bug — file IP-41 there."
+  - "If pytest drops below 1144, revert instrumentation and retry with smaller surface."
+
+# ============================================================================
+# DECISIONS THIS IP DOES NOT MAKE
+# ============================================================================
+out_of_scope:
+  - "Fixing the contradictions detector"
+  - "Reverting IP-39 bypass logic" # done separately in same commit
+  - "Re-tuning judge confidence thresholds"
+  - "Adding new search cascades"
+
+# ============================================================================
+# LESSONS BAKED IN FROM IP-38, IP-39
+# ============================================================================
+lessons_applied:
+  - "Telemetry before tuning (P2) — confirm by direct event-log inspection before changing logic."
+  - "Avoid single-snapshot calibration — Q4 S=0.94 in postinst, 0.65 in postcontra (LLM non-determinism). Use peak or multi-run aggregation."
+  - "Self-documenting identifiers — no ip40_* prefixes (L-034)."
+  - "Memory bank conventions are the source of truth (not /memories/)."
