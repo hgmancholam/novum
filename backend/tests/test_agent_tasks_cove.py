@@ -89,7 +89,7 @@ async def test_verify_question_returns_no_contradiction_when_evidence_supports(
     class MockSource:
         source_type = "test"
 
-        async def search(self, query: str, max_results: int = 3):
+        async def search(self, query: str, max_results: int = 3, **kwargs):
             return [
                 SourceResult(
                     url="https://example.com/1",
@@ -134,7 +134,7 @@ async def test_verify_question_detects_contradiction(
     class MockSource:
         source_type = "test"
 
-        async def search(self, query: str, max_results: int = 3):
+        async def search(self, query: str, max_results: int = 3, **kwargs):
             return [
                 SourceResult(
                     url="https://example.com/1",
@@ -179,7 +179,7 @@ async def test_verify_question_handles_empty_search_results(
     class MockSource:
         source_type = "test"
 
-        async def search(self, query: str, max_results: int = 3):
+        async def search(self, query: str, max_results: int = 3, **kwargs):
             return []
 
     class MockRegistry:
@@ -230,7 +230,7 @@ async def test_verify_question_handles_search_failure(
     class MockSource:
         source_type = "test"
 
-        async def search(self, query: str, max_results: int = 3):
+        async def search(self, query: str, max_results: int = 3, **kwargs):
             raise RuntimeError("Search API down")
 
     class MockRegistry:

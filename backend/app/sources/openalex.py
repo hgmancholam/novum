@@ -37,6 +37,18 @@ _SELECT_FIELDS = (
     "id,doi,title,abstract_inverted_index,publication_year,publication_date,"
     "authorships,primary_location,cited_by_count,open_access,type"
 )
+# Quality floor applied to every search. Excludes retracted papers, paratext
+# (TOCs, errata, prefaces), works without abstracts (unverifiable), and
+# non-article types (datasets, dissertations, peer reviews). Restricts to
+# original articles and reviews — the two types that carry actionable
+# evidence for our judge.
+_DEFAULT_QUALITY_FILTERS = (
+    "is_retracted:false,is_paratext:false,has_abstract:true,type:article|review"
+)
+# Combined ranking: OpenAlex's own relevance first, ties broken by citation
+# count. Removes the need for the post-hoc `_citation_bump` to surface
+# seminal papers — they now lead naturally when relevance is comparable.
+_DEFAULT_SORT = "relevance_score:desc,cited_by_count:desc"
 
 
 def _citation_bump(citation_count: int) -> float:
@@ -192,20 +204,42 @@ class OpenAlexSource(BaseSource):
         max_results: int = 5,
         *,
         days: int | None = None,
+        **hints: Any,
     ) -> list[SourceResult]:
         per_page = max(1, min(max_results, 25))
-        params: dict[str, Any] = {
-            "search": query,
-            "per_page": per_page,
-            "select": _SELECT_FIELDS,
-        }
+        # Use ``title_and_abstract.search`` (a filter) instead of the
+        # top-level ``search=`` parameter: it ignores OpenAlex's noisy
+        # full-text index and matches only against title + abstract,
+        # which is what our short sub-claim queries actually target.
+        # Commas in queries would collide with the filter delimiter — we
+        # rely on the planner's query-hygiene rules (≤ 6 tokens, no
+        # boolean operators) to keep them out.
+        sanitized_query = query.replace(",", " ").strip() or query
+        filters: list[str] = [
+            f"title_and_abstract.search:{sanitized_query}",
+            _DEFAULT_QUALITY_FILTERS,
+        ]
         from_date = self._from_date_from_days(days)
         if from_date is not None:
-            params["filter"] = f"from_publication_date:{from_date}"
+            filters.append(f"from_publication_date:{from_date}")
+        language = hints.get("language")
+        if isinstance(language, str) and language:
+            filters.append(f"language:{language}")
+
+        params: dict[str, Any] = {
+            "filter": ",".join(filters),
+            "per_page": per_page,
+            "select": _SELECT_FIELDS,
+            "sort": _DEFAULT_SORT,
+        }
         params.update(self._polite_params())
 
         logger.debug(
-            "openalex_search_start", query=query, per_page=per_page, from_date=from_date
+            "openalex_search_start",
+            query=query,
+            per_page=per_page,
+            from_date=from_date,
+            language=language,
         )
         # One retry on 429 with a short backoff: OpenAlex's polite-pool
         # window is generous, so a single retry recovers most transient

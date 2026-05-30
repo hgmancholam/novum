@@ -7,12 +7,17 @@ allows, re-draft with the contradicting evidence as context.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import structlog
 from pydantic import BaseModel, Field
 
 from app.llm import LLMRole, llm
 from app.seams.source import SourceResult
 from app.sources.registry import SourceRegistry, get_registry
+
+if TYPE_CHECKING:
+    from app.agent.run_state import RunState
 
 logger = structlog.get_logger(__name__)
 
@@ -86,6 +91,7 @@ async def verify_question(
     question: str,
     draft: str,
     registry: SourceRegistry,
+    state: RunState | None = None,
 ) -> CoveVerdict:
     """Verify a question against fresh evidence.
 
@@ -93,6 +99,9 @@ async def verify_question(
         question: The verification question to check
         draft: The original draft answer
         registry: Source registry for searching evidence
+        state: Optional run state — when provided, forwards
+            ``language`` / ``question_type`` / ``expected_experts`` to the
+            search call so the source can tighten its filters.
 
     Returns:
         CoveVerdict with contradiction flag and evidence text
@@ -117,9 +126,16 @@ async def verify_question(
 
     source_type = source_types[0]
     source = registry.get(source_type)
+    hints: dict[str, object] = {}
+    if state is not None:
+        hints["language"] = state.language
+        hints["question_type"] = (
+            state.question_type.value if state.question_type else None
+        )
+        hints["expected_experts"] = list(state.expected_experts)
     try:
         results: list[SourceResult] = await source.search(
-            query=question, max_results=3
+            query=question, max_results=3, **hints
         )
     except Exception as exc:
         logger.warning(

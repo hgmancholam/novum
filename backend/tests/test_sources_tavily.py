@@ -158,3 +158,48 @@ def test_source_type_and_name_properties() -> None:
     source = _make_source()
     assert source.source_type is SourceType.TAVILY
     assert source.name == "Tavily Web Search"
+
+
+async def test_search_always_sends_default_exclude_domains() -> None:
+    from app.sources.tavily import _DEFAULT_EXCLUDE_DOMAINS
+
+    source = _make_source()
+    mock = AsyncMock(return_value=_fake_response([]))
+    source._client.search = mock  # type: ignore[method-assign]
+
+    await source.search("q", max_results=3)
+
+    excluded = mock.call_args.kwargs["exclude_domains"]
+    for domain in _DEFAULT_EXCLUDE_DOMAINS:
+        assert domain in excluded
+    assert "include_domains" not in mock.call_args.kwargs
+
+
+async def test_search_merges_extra_exclude_domains_without_duplicates() -> None:
+    from app.sources.tavily import _DEFAULT_EXCLUDE_DOMAINS
+
+    source = _make_source()
+    mock = AsyncMock(return_value=_fake_response([]))
+    source._client.search = mock  # type: ignore[method-assign]
+
+    # Pass one new domain plus one that's already in the defaults.
+    duplicate = _DEFAULT_EXCLUDE_DOMAINS[0]
+    await source.search(
+        "q",
+        max_results=3,
+        exclude_domains=["spam.example.com", duplicate],
+    )
+
+    excluded = mock.call_args.kwargs["exclude_domains"]
+    assert excluded.count(duplicate) == 1
+    assert "spam.example.com" in excluded
+
+
+async def test_search_passes_include_domains_when_hinted() -> None:
+    source = _make_source()
+    mock = AsyncMock(return_value=_fake_response([]))
+    source._client.search = mock  # type: ignore[method-assign]
+
+    await source.search("q", max_results=3, include_domains=["nature.com", "nih.gov"])
+
+    assert mock.call_args.kwargs["include_domains"] == ["nature.com", "nih.gov"]

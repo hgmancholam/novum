@@ -1,0 +1,40 @@
+[setup] registering user=evalafec4c
+
+[Q6/8] POST /api/runs :: Should a high-scale AI platform use event-driven architecture or synchronous microservices?
+        run_id=3eee596e-f827-4937-a4ac-e952f872d6cd
+        stopped after 235s :: stop_reason=stopped_by_budget
+        sleeping 60s before next run...
+
+[Q7/8] POST /api/runs :: What is the most promising approach for long-term memory in autonomous AI agents?
+        run_id=d7bd887d-1eb9-47cc-a7e6-5b2639598fb3
+        stopped after 118s :: stop_reason=stopped_by_budget
+        sleeping 60s before next run...
+
+[Q8/8] POST /api/runs :: Could AI systems realistically replace mid-level software engineers within the next 10 years?
+        run_id=ab2525a2-304b-44c2-8bfb-2ce3023bb89c
+        stopped after 83s :: stop_reason=stopped_by_budget
+
+=== SUMMARY ===
+[
+  {
+    "idx": 6,
+    "question": "Should a high-scale AI platform use event-driven architecture or synchronous microservices?",
+    "run_id": "3eee596e-f827-4937-a4ac-e952f872d6cd",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 235.4
+  },
+  {
+    "idx": 7,
+    "question": "What is the most promising approach for long-term memory in autonomous AI agents?",
+    "run_id": "d7bd887d-1eb9-47cc-a7e6-5b2639598fb3",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 118.3
+  },
+  {
+    "idx": 8,
+    "question": "Could AI systems realistically replace mid-level software engineers within the next 10 years?",
+    "run_id": "ab2525a2-304b-44c2-8bfb-2ce3023bb89c",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 83.1
+  }
+]

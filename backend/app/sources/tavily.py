@@ -17,6 +17,23 @@ from app.sources.pricing import tavily_cost
 
 logger = structlog.get_logger(__name__)
 
+# Domains that the AuthorityTier classifier marks LOW_SIGNAL (×0.70 on
+# coverage/diversity). Excluding them at the query level — instead of
+# down-weighting after the fact — frees up slots of ``max_results`` for
+# higher-tier content. Mirrors ``app.agent.sources_authority.tiers``.
+_DEFAULT_EXCLUDE_DOMAINS: tuple[str, ...] = (
+    "medium.com",
+    "quora.com",
+    "answers.com",
+    "geeksforgeeks.org",
+    "w3schools.com",
+    "tutorialspoint.com",
+    "javatpoint.com",
+    "blogspot.com",
+    "wordpress.com",
+    "substack.com",
+)
+
 
 class TavilySource(BaseSource):
     """Tavily web search implementation."""
@@ -40,6 +57,7 @@ class TavilySource(BaseSource):
         *,
         days: int | None = None,
         topic: str | None = None,
+        **hints: Any,
     ) -> list[SourceResult]:
         """Search the web using Tavily's advanced search depth.
 
@@ -47,13 +65,26 @@ class TavilySource(BaseSource):
         ``topic`` accepts ``"news"`` (paid tier) for temporal queries or
         ``"general"`` (default). Pass ``None`` to omit the parameter.
         Paid tier raises max_results ceiling to 20.
+
+        ``hints`` recognised:
+        - ``include_domains: list[str]`` — restrict results to these
+          hosts (e.g. authoritative tier).
+        - ``exclude_domains: list[str]`` — appended to the always-on
+          LOW_SIGNAL blocklist.
         """
+        include_domains = hints.get("include_domains") or []
+        extra_excludes = hints.get("exclude_domains") or []
+        exclude_domains = list(_DEFAULT_EXCLUDE_DOMAINS) + [
+            d for d in extra_excludes if d not in _DEFAULT_EXCLUDE_DOMAINS
+        ]
         logger.debug(
             "tavily_search_start",
             query=query,
             max_results=max_results,
             days=days,
             topic=topic,
+            include_domains=include_domains,
+            exclude_count=len(exclude_domains),
         )
         try:
             kwargs: dict[str, Any] = dict(
@@ -62,7 +93,10 @@ class TavilySource(BaseSource):
                 include_answer=False,
                 include_raw_content=True,
                 search_depth="advanced",
+                exclude_domains=exclude_domains,
             )
+            if include_domains:
+                kwargs["include_domains"] = list(include_domains)
             if days is not None:
                 kwargs["days"] = days
             if topic is not None:

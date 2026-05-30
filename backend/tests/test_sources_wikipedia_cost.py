@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+import httpx
 import pytest
 
 from app.domain.events import BaseEvent, CostIncurredEvent
@@ -12,17 +13,26 @@ from app.llm.context import current_emitter
 from app.sources.wikipedia import WikipediaSource
 
 
-class _FakePage:
-    def __init__(self, exists: bool = True) -> None:
-        self._exists = exists
-        self.fullurl = "https://en.wikipedia.org/wiki/Python"
-        self.title = "Python"
-        self.summary = "A snake / a language."
-        self.text = "Long article body."
-        self.links: dict[str, Any] = {}
-
-    def exists(self) -> bool:
-        return self._exists
+def _handler(request: httpx.Request) -> httpx.Response:
+    if request.url.params.get("list") == "search":
+        return httpx.Response(
+            200,
+            json={"query": {"search": [{"title": "Python", "snippet": "lang"}]}},
+        )
+    return httpx.Response(
+        200,
+        json={
+            "query": {
+                "pages": {
+                    "0": {
+                        "title": "Python",
+                        "extract": "Python is a language.",
+                        "fullurl": "https://en.wikipedia.org/wiki/Python",
+                    }
+                }
+            }
+        },
+    )
 
 
 @pytest.fixture
@@ -46,11 +56,8 @@ def _bind_emitter(emitter: Callable[[BaseEvent], Awaitable[None]]) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_search_emits_zero_cost_event(
-    monkeypatch: pytest.MonkeyPatch, captured: list[BaseEvent]
-) -> None:
-    src = WikipediaSource()
-    monkeypatch.setattr(src._wiki, "page", lambda _title: _FakePage())
+async def test_search_emits_zero_cost_event(captured: list[BaseEvent]) -> None:
+    src = WikipediaSource(transport=httpx.MockTransport(_handler))
 
     results = await src.search("Python", max_results=1)
     assert results
@@ -68,10 +75,9 @@ async def test_search_emits_zero_cost_event(
 
 @pytest.mark.asyncio
 async def test_multiple_searches_emit_independent_events(
-    monkeypatch: pytest.MonkeyPatch, captured: list[BaseEvent]
+    captured: list[BaseEvent],
 ) -> None:
-    src = WikipediaSource()
-    monkeypatch.setattr(src._wiki, "page", lambda _title: _FakePage())
+    src = WikipediaSource(transport=httpx.MockTransport(_handler))
 
     await src.search("Python", max_results=1)
     await src.search("Rust", max_results=1)

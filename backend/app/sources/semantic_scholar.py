@@ -35,6 +35,27 @@ _SEARCH_FIELDS = (
     "citationCount,influentialCitationCount,externalIds,openAccessPdf"
 )
 
+# Map ``expected_experts`` (emitted by the classifier, §1.4) onto
+# Semantic Scholar ``fieldsOfStudy`` values. Multi-value strings are
+# joined with comma in the query parameter. ``academic`` and
+# ``journalist`` are deliberately not mapped — too broad to narrow
+# usefully without losing recall.
+_EXPERT_TO_S2_FIELDS: dict[str, list[str]] = {
+    "medical_researcher": ["Medicine", "Biology"],
+    "practitioner_engineer": ["Engineering", "Computer Science"],
+    "industry_analyst": ["Economics", "Business"],
+    "policymaker": ["Political Science", "Law", "Economics"],
+}
+
+# Map ``question_type`` onto S2 ``publicationTypes`` (closed enum on the
+# S2 side). For questions where syntheses matter more than primary
+# results, push the API to surface review-style papers first.
+_QUESTION_TYPE_TO_S2_PUBTYPES: dict[str, list[str]] = {
+    "state_of_art": ["Review", "MetaAnalysis"],
+    "causal": ["Review", "JournalArticle"],
+    "comparative": ["Review", "JournalArticle"],
+}
+
 
 def _citation_bump(citation_count: int) -> float:
     """C6: log-scaled relevance bump from citation count.
@@ -152,6 +173,7 @@ class SemanticScholarSource(BaseSource):
         max_results: int = 5,
         *,
         days: int | None = None,
+        **hints: Any,
     ) -> list[SourceResult]:
         limit = max(1, min(max_results, 20))
         params: dict[str, Any] = {
@@ -163,8 +185,31 @@ class SemanticScholarSource(BaseSource):
         if year is not None:
             params["year"] = year
 
+        question_type = hints.get("question_type")
+        if isinstance(question_type, str):
+            pubtypes = _QUESTION_TYPE_TO_S2_PUBTYPES.get(question_type.lower())
+            if pubtypes:
+                params["publicationTypes"] = ",".join(pubtypes)
+
+        experts = hints.get("expected_experts")
+        if isinstance(experts, list):
+            fields_set: list[str] = []
+            for expert in experts:
+                if not isinstance(expert, str):
+                    continue
+                for field in _EXPERT_TO_S2_FIELDS.get(expert.lower(), []):
+                    if field not in fields_set:
+                        fields_set.append(field)
+            if fields_set:
+                params["fieldsOfStudy"] = ",".join(fields_set)
+
         logger.debug(
-            "semantic_scholar_search_start", query=query, limit=limit, year=year
+            "semantic_scholar_search_start",
+            query=query,
+            limit=limit,
+            year=year,
+            publication_types=params.get("publicationTypes"),
+            fields_of_study=params.get("fieldsOfStudy"),
         )
         # One retry on 429 with a short backoff: S2's per-IP window often
         # clears within ~1 s and a single retry recovers a meaningful

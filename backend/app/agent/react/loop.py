@@ -391,7 +391,11 @@ async def _execute_search(
 
     try:
         results: list[SourceResult] = await source.search(
-            action.query, max_results=_MAX_RESULTS_PER_SEARCH
+            action.query,
+            max_results=_MAX_RESULTS_PER_SEARCH,
+            language=state.language,
+            question_type=state.question_type.value if state.question_type else None,
+            expected_experts=list(state.expected_experts),
         )
 
         # Add top results as evidence

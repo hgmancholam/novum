@@ -73,6 +73,20 @@ def _stub_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(saturation_module, "embed", _fake_embed)
 
 
+@pytest.fixture(autouse=True)
+def _stub_wikipedia(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stop the (now functional) Wikipedia source from making real HTTP
+    calls in cancel-timing tests; keep its behaviour aligned with how it
+    used to fail under the legacy ``wikipediaapi`` title-lookup path.
+    """
+    from app.sources import wikipedia as wikipedia_module
+
+    async def _empty(*args: object, **kwargs: object) -> list[object]:
+        return []
+
+    monkeypatch.setattr(wikipedia_module.WikipediaSource, "search", _empty)
+
+
 @pytest.mark.asyncio
 async def test_cancel_during_trivial_path_before_searching(mock_llm: AsyncMock) -> None:
     """Cancel during trivial path (after PlanCreated, before SEARCHING) → user_cancelled."""

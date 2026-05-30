@@ -90,7 +90,15 @@ async def execute_fast_lane(
         source_types_list.append(source_type)
 
         source = registry.get(source_type)
-        search_tasks.append(source.search(query, max_results=_FAST_RESULTS_PER_SOURCE))
+        search_tasks.append(
+            source.search(
+                query,
+                max_results=_FAST_RESULTS_PER_SOURCE,
+                language=state.language,
+                question_type=state.question_type.value if state.question_type else None,
+                expected_experts=list(state.expected_experts),
+            )
+        )
 
     # Emit tool events
     for tool_event in tool_events:

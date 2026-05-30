@@ -34,7 +34,7 @@ from app.domain.meta_stop import (
 
 
 class _MockSource:
-    async def search(self, query: str, max_results: int = 3, days: Any = None) -> list[Any]:
+    async def search(self, query: str, max_results: int = 3, days: Any = None, **kwargs: Any) -> list[Any]:
         return []
 
 

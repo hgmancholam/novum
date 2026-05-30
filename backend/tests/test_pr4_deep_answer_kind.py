@@ -12,6 +12,7 @@ Verifies the two invariants the 29/05 Q7 run broke:
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -31,7 +32,7 @@ class _MockSource:
     def __init__(self, results: list[SourceResult]) -> None:
         self._results = results
 
-    async def search(self, query: str, max_results: int) -> list[SourceResult]:
+    async def search(self, query: str, max_results: int, **kwargs: Any) -> list[SourceResult]:
         return list(self._results[:max_results])
 
 

@@ -335,5 +335,5 @@ class MockSource:
     def __init__(self, search_fn):
         self._search_fn = search_fn
 
-    async def search(self, query, max_results=3, days=None):
+    async def search(self, query, max_results=3, days=None, **kwargs):
         return await self._search_fn(query, max_results=max_results)

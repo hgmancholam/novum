@@ -1,0 +1,106 @@
+[fetch] streaming events for post batch...
+  [Q1] db858055 ...
+  [Q2] ed35ecfb ...
+  [Q3] e1bf0f40 ...
+  [Q4] 360f374c ...
+  [Q5] 76abf1b2 ...
+  [Q6] 3eee596e ...
+  [Q7] d7bd887d ...
+  [Q8] ab2525a2 ...
+
+=== STOP REASON (baseline 2026-05-29 -> post 2026-05-30) ===
+  judge_confirmed            4 ->  3
+  stopped_by_budget          4 ->  5
+
+=== WALLCLOCK PER QUESTION (s) ===
+  Q     baseline       post      delta
+  Q1        11.6       17.0       +5.4
+  Q2       100.0      232.0     +132.0
+  Q3        34.0       39.0       +5.0
+  Q4        79.2       72.0       -7.2
+  Q5        95.7      334.0     +238.3
+  Q6        72.0      235.4     +163.4
+  Q7       356.6      118.3     -238.3
+  Q8       284.4       83.1     -201.3
+  tot     1033.5     1130.8      +97.3
+
+=== POST BATCH - FULL METRICS PER RUN ===
+  Q   route     stop                    conf rnd  ev rfm  llm   p_tok  c_tok        $
+  Q1  fast      judge_confirmed            -   0   3   0    6   4,656    309 $ 0.0300
+  Q2  standard  stopped_by_budget          -   0  11   0   29  28,497  8,028 $ 0.1943
+  Q3  standard  judge_confirmed            -   0   0   0    7   5,599  1,558 $ 0.0309
+  Q4  standard  judge_confirmed            -   0  12   0   11  11,814  3,777 $ 0.1477
+  Q5  standard  stopped_by_budget          -   0  18   0   33  35,244 12,624 $ 0.2770
+  Q6  standard  stopped_by_budget          -   0   6   0   26  23,452  9,088 $ 0.1876
+  Q7  deep      stopped_by_budget          -   0  17   0   35  19,801  3,354 $ 0.1525
+  Q8  standard  stopped_by_budget          -   0   0   0   19   9,475  3,102 $ 0.0698
+
+=== POST BATCH - TOTAL BY LLM TASK (8 runs combined) ===
+                    task  calls   %cls     p_tok   %ptk   avg_p   c_tok     cost$   %cst
+                 judging     32  19.3%    63,004  45.5%    1969  17,369 $ 0.4166  38.2%
+                drafting     12   7.2%    20,961  15.1%    1747  13,958 $ 0.2682  24.6%
+                  search     13   7.8%         0   0.0%       0       0 $ 0.0640   5.9%
+               searching     49  29.5%         0   0.0%       0       0 $ 0.0640   5.9%
+              critiquing      7   4.2%     7,335   5.3%    1048   2,495 $ 0.0594   5.5%
+             synthesizer      3   1.8%    10,259   7.4%    3420   1,755 $ 0.0571   5.2%
+                planning      5   3.0%     6,561   4.7%    1312   2,316 $ 0.0511   4.7%
+                 planner     17  10.2%     6,697   4.8%     394     858 $ 0.0330   3.0%
+               analyzing      7   4.2%     5,390   3.9%     770   1,074 $ 0.0323   3.0%
+              classifier     17  10.2%    14,336  10.3%     843   1,238 $ 0.0205   1.9%
+              meta_judge      2   1.2%     2,188   1.6%    1094     590 $ 0.0154   1.4%
+                   judge      2   1.2%     1,807   1.3%     904     187 $ 0.0082   0.8%
+                   TOTAL    166          138,538                $ 1.0899
+
+==============================================================================
+WHY ARE WE BURNING MORE TOKENS THAN BASELINE?
+==============================================================================
+
+NOTE: la DB fue purgada entre eval; no hay prompt_tokens del baseline.
+Solo se compara stop_reason + wallclock; el resto son numeros absolutos
+del post batch + razonamiento causal.
+
+Factor 1 - Mas runs terminan en stopped_by_budget:
+  baseline:  4 judge_confirmed / 4 stopped_by_budget
+  post:      3 judge_confirmed / 5 stopped_by_budget
+  -> cada run que YA NO termina en judge_confirmed agota el budget
+     (tipicamente 3-6x mas LLM calls que un judge_confirmed temprano).
+  -> NO es regresion de A1+A2: es Phase 1 (round-aware threshold,
+     stuck_planner, academic cascade) decidiendo que necesita mas evidencia.
+
+  Runs que perdieron judge_confirmed: ['Q5']
+  -> Estos runs hoy hacen budget completo en vez de aceptar la primera ronda.
+     Si su confianza final >= 0.7, la calidad se mantiene; solo cuesta mas.
+
+Factor 2 - Volumen por run (post batch, promedio):
+  avg LLM calls/run:        20.8
+  avg planning_rounds/run:  0.0
+  avg reformulations/run:   0.0
+  avg prompt_tokens/run:    17,317
+  cost total post batch:    $1.0899
+  -> Cada round extra dispara >=1 PLANNER + >=1 JUDGE + >=1 SYNTHESIZER call.
+
+Factor 3 - CLASSIFIER cache (A2):
+  CLASSIFIER calls registrados:  17
+  Esperado sin cache (1/run):    8
+  Tokens CLASSIFIER:             14,336 pt / $0.0205
+  -> El cache short-circuit emite el evento 'classifier_cache_hit' en logs
+     pero NO emite CostIncurred. Si el numero esta cerca de 8, no hubo
+     repeticiones (cada Q es unica). El valor de A2 se vera en demos donde
+     se repite la misma pregunta.
+
+Factor 4 - Anthropic prompt cache (A1):
+  CostIncurred NO desagrega cache_read_input_tokens vs cache_creation_input_tokens.
+  Litellm los reporta en usage.* pero el payload del evento solo guarda
+  prompt_tokens (suma total).
+  -> cost_usd YA refleja el descuento (cache_read se factura ~10%) pero el
+     conteo de tokens no distingue. Para validar A1 directamente:
+       ssh oracle 'journalctl -u novum.service -n 2000 | grep -i cache_read'
+  -> Commit pendiente: exponer cache_read / cache_creation en CostIncurredEvent.
+
+Resumen ejecutivo:
+  - Subida de tokens = mayormente Phase 1 (1 runs
+    adicionales agotando budget x ~3-6x calls/run).
+  - A1+A2 bajan costo POR CALL en Anthropic (visible en cost_usd, no en
+    prompt_tokens) pero no anulan el volumen extra de Phase 1.
+  - Proximos pasos: commit #2 (B2 regression harness) y commit #3 (B1 BM25+MMR)
+    para reducir contexto por call y compensar el volumen extra.

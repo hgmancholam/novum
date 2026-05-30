@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from typing import Any
 from uuid import uuid4
 
 from app.agent.run_state import EvidenceItem, RunState
@@ -40,6 +41,19 @@ _TAVILY_DAYS_BY_TEMPORAL: dict[TemporalSensitivity, int | None] = {
     TemporalSensitivity.VOLATILE: 180,
     TemporalSensitivity.REALTIME: 7,
 }
+
+
+def _state_hints(state: RunState) -> dict[str, Any]:
+    """Derive optional source hints from the run state.
+
+    Each Source impl picks the keys it understands and ignores the rest;
+    this keeps the call sites uniform across the cascade.
+    """
+    return {
+        "language": state.language,
+        "question_type": state.question_type.value if state.question_type else None,
+        "expected_experts": list(state.expected_experts),
+    }
 
 
 def _count_query_tokens(query: str) -> int:
@@ -97,15 +111,20 @@ async def _search_one_claim(
             )
         )
 
+        hints = _state_hints(state)
         try:
             source = registry.get(source_type)
             if source_type == SourceType.TAVILY and tool_days is not None:
                 results = await source.search(
-                    query, max_results=_RESULTS_PER_SEARCH, days=tool_days, topic="news"
+                    query,
+                    max_results=_RESULTS_PER_SEARCH,
+                    days=tool_days,
+                    topic="news",
+                    **hints,
                 )
             else:
                 results = await source.search(
-                    query, max_results=_RESULTS_PER_SEARCH
+                    query, max_results=_RESULTS_PER_SEARCH, **hints
                 )
         except SourceError as exc:
             events.append(
@@ -155,11 +174,15 @@ async def _search_one_claim(
             try:
                 if tool_days is not None:
                     results = await source.search(
-                        query, max_results=_RESULTS_PER_SEARCH, days=tool_days, topic="news"
+                        query,
+                        max_results=_RESULTS_PER_SEARCH,
+                        days=tool_days,
+                        topic="news",
+                        **hints,
                     )
                 else:
                     results = await source.search(
-                        query, max_results=_RESULTS_PER_SEARCH
+                        query, max_results=_RESULTS_PER_SEARCH, **hints
                     )
             except SourceError as exc:
                 events.append(

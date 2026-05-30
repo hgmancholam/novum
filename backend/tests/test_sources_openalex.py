@@ -65,7 +65,14 @@ async def test_search_parses_works_into_source_results() -> None:
     results = await source.search("transformer architecture", max_results=3)
 
     assert "/works" in captured["url"]
-    assert captured["params"]["search"] == "transformer architecture"
+    assert "search" not in captured["params"]
+    flt = captured["params"]["filter"]
+    assert "title_and_abstract.search:transformer architecture" in flt
+    assert "is_retracted:false" in flt
+    assert "is_paratext:false" in flt
+    assert "has_abstract:true" in flt
+    assert "type:article|review" in flt
+    assert captured["params"]["sort"] == "relevance_score:desc,cited_by_count:desc"
     assert captured["params"]["per_page"] == "3"
     assert "abstract_inverted_index" in captured["params"]["select"]
     assert len(results) == 1
@@ -91,9 +98,13 @@ async def test_search_maps_days_to_from_publication_date() -> None:
     await source.search("ai safety", max_results=5, days=30)
 
     flt = captured["params"].get("filter", "")
-    assert flt.startswith("from_publication_date:")
+    # Filter is now a comma-separated list — the from_publication_date
+    # token appears among the quality filters.
+    tokens = flt.split(",")
+    date_tokens = [t for t in tokens if t.startswith("from_publication_date:")]
+    assert len(date_tokens) == 1
     # ISO date YYYY-MM-DD
-    assert len(flt.split(":", 1)[1]) == 10
+    assert len(date_tokens[0].split(":", 1)[1]) == 10
 
 
 @pytest.mark.asyncio
@@ -107,7 +118,11 @@ async def test_search_omits_filter_when_days_is_none() -> None:
     source = OpenAlexSource(transport=_mock_transport(handler))
     await source.search("history of computation", max_results=2)
 
-    assert "filter" not in captured["params"]
+    # Even without ``days``, the filter is always present because the
+    # quality filters (is_retracted, is_paratext, etc.) are mandatory.
+    flt = captured["params"]["filter"]
+    assert "from_publication_date:" not in flt
+    assert "is_retracted:false" in flt
 
 
 @pytest.mark.asyncio
@@ -379,3 +394,48 @@ async def test_search_relevance_score_lifts_well_cited_work() -> None:
     uncited_results = await src_uncited.search("q", max_results=6)
     assert cited_results[5].relevance_score > uncited_results[5].relevance_score
     assert cited_results[5].relevance_score <= 1.0
+
+
+@pytest.mark.asyncio
+async def test_search_appends_language_filter_from_hint() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = OpenAlexSource(transport=_mock_transport(handler))
+    await source.search("inteligencia artificial", max_results=2, language="es")
+
+    flt = captured["params"]["filter"]
+    assert "language:es" in flt
+
+
+@pytest.mark.asyncio
+async def test_search_ignores_unsupported_language_hint() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = OpenAlexSource(transport=_mock_transport(handler))
+    await source.search("foo", max_results=2, language="")
+
+    flt = captured["params"]["filter"]
+    assert "language:" not in flt
+
+
+@pytest.mark.asyncio
+async def test_search_replaces_commas_in_query_to_avoid_filter_collision() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = OpenAlexSource(transport=_mock_transport(handler))
+    await source.search("foo, bar, baz", max_results=1)
+
+    flt = captured["params"]["filter"]
+    assert "title_and_abstract.search:foo  bar  baz" in flt

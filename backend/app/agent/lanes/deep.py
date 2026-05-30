@@ -156,7 +156,7 @@ async def execute_deep_lane(
         for question in questions:
             if not question.strip():
                 continue
-            verdict = await verify_question(question, draft_text, registry)
+            verdict = await verify_question(question, draft_text, registry, state)
             if verdict.contradicts:
                 await emit(
                     CoveContradictionDetectedEvent(

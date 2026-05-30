@@ -12,7 +12,7 @@ Extension contract:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -64,6 +64,7 @@ class Source(Protocol):
         max_results: int = 5,
         *,
         days: int | None = None,  # BRD-23 WP-1: Tavily-style recency filter (None=ignore).
+        **hints: Any,  # Source-specific hints (language, question_type, expected_experts, include_domains). Each impl picks what it understands.
     ) -> list[SourceResult]: ...
 
     async def fetch_full(

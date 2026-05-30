@@ -332,3 +332,57 @@ async def test_search_relevance_score_lifts_well_cited_paper() -> None:
     # Target is at index 5 in both lists.
     assert cited_results[5].relevance_score > uncited_results[5].relevance_score
     assert cited_results[5].relevance_score <= 1.0
+
+
+@pytest.mark.asyncio
+async def test_search_maps_question_type_to_publication_types() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = SemanticScholarSource(transport=_mock_transport(handler))
+    await source.search("q", max_results=3, question_type="state_of_art")
+
+    assert captured["params"]["publicationTypes"] == "Review,MetaAnalysis"
+
+
+@pytest.mark.asyncio
+async def test_search_maps_expected_experts_to_fields_of_study() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = SemanticScholarSource(transport=_mock_transport(handler))
+    await source.search(
+        "q",
+        max_results=3,
+        expected_experts=["medical_researcher"],
+    )
+
+    fields = captured["params"]["fieldsOfStudy"].split(",")
+    assert "Medicine" in fields
+    assert "Biology" in fields
+
+
+@pytest.mark.asyncio
+async def test_search_omits_hint_params_when_unknown() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = SemanticScholarSource(transport=_mock_transport(handler))
+    await source.search(
+        "q",
+        max_results=3,
+        question_type="not_a_real_type",
+        expected_experts=["nobody"],
+    )
+
+    assert "publicationTypes" not in captured["params"]
+    assert "fieldsOfStudy" not in captured["params"]

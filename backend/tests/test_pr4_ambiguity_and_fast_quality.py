@@ -10,6 +10,8 @@ Covers:
 
 from uuid import uuid4
 
+from typing import Any
+
 import pytest
 
 from app.agent.lanes.fast import execute_fast_lane
@@ -122,7 +124,7 @@ class _MockSource:
     def __init__(self, results: list[SourceResult]) -> None:
         self._results = results
 
-    async def search(self, query: str, max_results: int) -> list[SourceResult]:  # noqa: ARG002
+    async def search(self, query: str, max_results: int, **kwargs: Any) -> list[SourceResult]:  # noqa: ARG002
         return self._results[:max_results]
 
 
