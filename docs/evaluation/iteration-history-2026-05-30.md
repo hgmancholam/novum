@@ -23,7 +23,8 @@ fijas (`scripts/run_eval_2026_05_29.py`):
 | post-domain | (pre)   | IP-31             | Domain classifier mejorado; ruteo a fuentes académicas (SemanticScholar/OpenAlex) por dominio.    |
 | post-ux     | (pre)   | IP-32             | Mejoras de UX/prompts; estilo de respuesta más conciso.                                            |
 | post-q      | `609285e` | IP-33+34+35       | (33) `select_answer_kind` determinista; (34) BL ≤25 w + prohibición absolutos; (35) zero-evidence floor. |
-| post-j      | `f386365` | **IP-36**         | (a) `CLAIM_BUDGETS` STANDARD ≤3 claims (default `(3,5,2,1)`→`(2,3,2,1)`); (b) prompt del juez relaja "completeness" a "relativo a evidencia". |
+| post-j      | `f386365` | IP-36             | (a) `CLAIM_BUDGETS` STANDARD ≤3 claims (default `(3,5,2,1)`→`(2,3,2,1)`); (b) prompt del juez relaja "completeness" a "relativo a evidencia". |
+| post-ov     | `3b7c764` | **IP-37**         | Structural override en orchestrator: si juez rechaza por completeness pero S≥0.6, coverage≥0.6, agreement≥0.5 y sin contradictions_detected, flip `STOPPED_BY_BUDGET` → `JUDGE_CONFIRMED`. Honra O-09 cuando hay contradicciones reales. |
 
 ---
 
@@ -31,20 +32,21 @@ fijas (`scripts/run_eval_2026_05_29.py`):
 
 ### Stop reason
 
-| reason             | postux | postq | postj |
-|--------------------|:------:|:-----:|:-----:|
-| `judge_confirmed`   | 2/8    | 2/8   | **2/8** |
-| `stopped_by_budget` | 6/8    | 6/8   | **6/8** |
+| reason             | postux | postq | postj | postov |
+|--------------------|:------:|:-----:|:-----:|:------:|
+| `judge_confirmed`   | 2/8    | 2/8   | 2/8   | **3/8** |
+| `stopped_by_budget` | 6/8    | 6/8   | 6/8   | **5/8** |
 
-> **No se ha movido el ratio judge_confirmed en 3 iteraciones.** Solo Q1 (FACTUAL trivial, coverage=1.0) y Q3 (zero-evidence floor → BEST_EFFORT en synthesis) llegan a `judge_confirmed`. Las 6 STANDARD que cuestan ~60-120 s siempre mueren por presupuesto.
+> IP-37 mueve el ratio por primera vez: Q4 (S=0.97, ev=15) flipped vía structural override. Q5/Q7/Q8 tienen S≥0.6 pero no flipearon: el override también exige coverage≥0.6 y agreement≥0.5 — probablemente coverage queda corto en esas tres.
 
 ### Bottom-line strict (primera oración ≤ 25 palabras)
 
 | iter   | pass rate | notas                                                                                 |
 |--------|:---------:|---------------------------------------------------------------------------------------|
 | postux | 1/8       | absolutos ("safer default", "RAG dominant", oraciones de 35-46 w)                     |
-| postq  | **5/8**   | IP-34 elimina absolutos, condicionales requeridos, Q4 38w→19w, Q5 35w→22w, Q6 46w→25w |
+| postq  | 5/8       | IP-34 elimina absolutos, condicionales requeridos, Q4 38w→19w, Q5 35w→22w, Q6 46w→25w |
 | postj  | 4/8       | leve regresión: Q4 19w→**26w**, Q7 21w→**30w**; Q6 25w→**12w** (ganó)                  |
+| postov | **6/8**   | mejor histórico: Q1 29w→**25w**, Q7 30w→**24w**, Q8 25w→**20w**. Q2 y Q4 siguen >25w. |
 
 ### Per-question (postj IP-36)
 
