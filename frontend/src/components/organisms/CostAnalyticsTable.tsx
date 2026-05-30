@@ -126,6 +126,13 @@ export function CostAnalyticsTable({
                       <th
                         key={col.key}
                         scope="col"
+                        aria-sort={
+                          isActive
+                            ? sortDir === "asc"
+                              ? "ascending"
+                              : "descending"
+                            : "none"
+                        }
                         className={cn(
                           "px-2 py-2 text-xs font-medium uppercase text-(--text-secondary)",
                           col.align === "right" ? "text-right" : "text-left"
@@ -134,13 +141,6 @@ export function CostAnalyticsTable({
                         <button
                           type="button"
                           onClick={() => { toggleSort(col.key); }}
-                          aria-sort={
-                            isActive
-                              ? sortDir === "asc"
-                                ? "ascending"
-                                : "descending"
-                              : "none"
-                          }
                           className="inline-flex items-center gap-1 hover:text-(--text-primary)"
                         >
                           {col.label}
