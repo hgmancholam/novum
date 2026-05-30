@@ -23,24 +23,29 @@ _DIRECT_MIN_COVERAGE = 1.0
 _DIRECT_MIN_AGREEMENT = 0.6
 _WEIGHTED_AGREEMENT_CEILING = 0.6
 _BEST_EFFORT_COVERAGE_FLOOR = 0.5
+# IP-35: hard floor — when coverage is critically low we cannot honestly
+# render a SCENARIO/WEIGHTED/TRADEOFF template (no candidates, no drivers,
+# no criteria to populate). Force BEST_EFFORT even for the template
+# question types. ETHICAL_REDIRECT is exempt (no evidence needed).
+_ZERO_EVIDENCE_COVERAGE_FLOOR = 0.2
 
 
 def select_answer_kind(inputs: AnswerKindInputs) -> AnswerKind:
     """Return the ``AnswerKind`` for the given run state (deterministic).
 
-    Priority order (IP-33 — question-type templates win over partial
-    coverage; the synthesizer prompt hedges in the Bottom Line when
-    evidence is incomplete):
+    Priority order (IP-33/IP-35 — question-type templates win over partial
+    coverage, but a critically-low coverage floor (IP-35) forces
+    BEST_EFFORT to avoid hollow SCENARIO/WEIGHTED/TRADEOFF renders):
 
       1. ``personal_private``                          → ``ETHICAL_REDIRECT``
       2. ``ambiguity_flag``                            → ``BEST_EFFORT``
-         (keeps empty-criteria comparatives like "best X" routing right)
-      3. ``predictive_future``                         → ``SCENARIO``
-      4. ``comparative``                               → ``WEIGHTED``
-      5. ``subjective_opinion``                        → ``TRADEOFF``
-      6. ``state_of_art`` with cov ≥ 0.5               → ``WEIGHTED``
-         (state-of-art is inherently a comparison of leading approaches)
-      7. For the remaining ``factual`` / ``definitional`` / ``causal``:
+      3. coverage < 0.2 (IP-35 zero-evidence floor)    → ``BEST_EFFORT``
+         (skipped only for ``personal_private`` above)
+      4. ``predictive_future``                         → ``SCENARIO``
+      5. ``comparative``                               → ``WEIGHTED``
+      6. ``subjective_opinion``                        → ``TRADEOFF``
+      7. ``state_of_art`` with cov ≥ 0.5               → ``WEIGHTED``
+      8. For the remaining ``factual`` / ``definitional`` / ``causal``:
          a. cov < 0.5                                  → ``BEST_EFFORT``
          b. cov complete, agr < 0.6                    → ``WEIGHTED``
          c. cov complete, S ≥ 0.75, agr ≥ 0.6         → ``DIRECT``
@@ -50,6 +55,9 @@ def select_answer_kind(inputs: AnswerKindInputs) -> AnswerKind:
         return AnswerKind.ETHICAL_REDIRECT
 
     if inputs.ambiguity_flag:
+        return AnswerKind.BEST_EFFORT
+
+    if inputs.coverage < _ZERO_EVIDENCE_COVERAGE_FLOOR:
         return AnswerKind.BEST_EFFORT
 
     match inputs.question_type:

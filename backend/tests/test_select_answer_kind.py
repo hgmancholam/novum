@@ -102,6 +102,50 @@ def test_ambiguity_flag_overrides_to_best_effort() -> None:
     assert out is AnswerKind.BEST_EFFORT
 
 
+def test_ip35_zero_evidence_floor_forces_best_effort_for_subjective() -> None:
+    """IP-35: SUBJECTIVE_OPINION with cov<0.2 falls to BEST_EFFORT
+    instead of trying to render a TRADEOFF with no criteria evidence."""
+    out = select_answer_kind(
+        AnswerKindInputs(
+            question_type=QuestionType.SUBJECTIVE_OPINION,
+            structural_confidence=0.15,
+            coverage=0.0,
+            agreement=0.0,
+            ambiguity_flag=False,
+        )
+    )
+    assert out is AnswerKind.BEST_EFFORT
+
+
+def test_ip35_zero_evidence_floor_forces_best_effort_for_comparative() -> None:
+    """IP-35: COMPARATIVE with no evidence falls to BEST_EFFORT
+    instead of rendering an empty WEIGHTED candidates list."""
+    out = select_answer_kind(
+        AnswerKindInputs(
+            question_type=QuestionType.COMPARATIVE,
+            structural_confidence=0.1,
+            coverage=0.0,
+            agreement=0.0,
+            ambiguity_flag=False,
+        )
+    )
+    assert out is AnswerKind.BEST_EFFORT
+
+
+def test_ip35_zero_evidence_floor_does_not_block_personal_private() -> None:
+    """IP-35: PERSONAL_PRIVATE always returns ETHICAL_REDIRECT, even with no evidence."""
+    out = select_answer_kind(
+        AnswerKindInputs(
+            question_type=QuestionType.PERSONAL_PRIVATE,
+            structural_confidence=0.0,
+            coverage=0.0,
+            agreement=0.0,
+            ambiguity_flag=False,
+        )
+    )
+    assert out is AnswerKind.ETHICAL_REDIRECT
+
+
 def test_causal_below_direct_threshold_falls_through_to_best_effort() -> None:
     """S=0.7 < 0.75 DIRECT floor, agr=0.7 >= 0.6 WEIGHTED ceiling → BEST_EFFORT."""
     out = select_answer_kind(
