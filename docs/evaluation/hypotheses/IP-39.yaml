@@ -1,0 +1,105 @@
+id: IP-39
+title: "High-S contradictions bypass in structural override"
+registered_at: "2026-05-30T17:30:00Z"
+registered_before_code: true
+author: EvalEngineer
+prior_iteration: IP-38 (postinst)
+
+# -----------------------------------------------------------------
+# DIAGNOSIS (from IP-38 telemetry)
+# -----------------------------------------------------------------
+diagnosis: |
+  IP-38 instrumented JudgeRuled.override_blockers. In postinst (n=8):
+    - Q4 (S=0.94, cov=1.0, agr=1.0, ev=57, h=3)
+      -> override_blockers = ['contradictions']
+      -> SOLE blocker. Without it, Q4 -> JUDGE_CONFIRMED.
+    - Q6 (S=0.59) blocked by structural+coverage+contradictions
+    - Q8 (S=0.65) blocked by coverage only
+
+  The contradictions_detected flag is over-firing on high-S,
+  fully-cited evidence — most likely flagging nuance/qualification
+  pairs as conflicts. The structural override gate (lines 763-792 +
+  821-838 of orchestrator.py) treats any contradiction as a hard
+  veto, even when ALL other gates are at ceiling.
+
+# -----------------------------------------------------------------
+# CHANGE
+# -----------------------------------------------------------------
+change: |
+  In _handle_judging structural-override gate, introduce a
+  high-confidence bypass: if
+      S >= 0.85  AND  agreement >= 0.9
+  ignore contradictions_detected. Apply to BOTH override paths
+  (post-stopping-policy and judge_attempts safety net) AND to the
+  IP-38 telemetry override_eligible computation, so the diagnostic
+  reflects the new gate.
+
+  New extra on JudgeRuled (extra="allow", no schema migration):
+    - contra_bypassed: bool — true if the high-S bypass was triggered
+
+  Rationale: a run with S>=0.85 AND agreement>=0.9 has overwhelming
+  structural evidence converging across sources; any flagged
+  "contradiction" at that level is almost certainly nuance, not
+  semantic opposition. The bypass is conservative (it does NOT
+  relax coverage), so low-coverage runs (Q6, Q8) are NOT affected.
+
+# -----------------------------------------------------------------
+# PRE-REGISTERED METRICS
+# -----------------------------------------------------------------
+primary_metric:
+  name: q4_flip
+  target: "Q4 stop_reason: stopped_by_budget -> judge_confirmed"
+  measurement: scripts/compare_postcontra.py
+
+secondary_metrics:
+  judge_confirmed_floor:
+    baseline: 3/8  # postov + postinst
+    target: ">= 3/8 (no regression). >= 4/8 is success."
+  bl_strict_floor:
+    baseline: 7/8  # postinst (improved from 6/8)
+    target: ">= 6/8"
+  pytest:
+    baseline: 1144 passed
+    target: ">= 1144"
+  contra_bypassed_count:
+    target: "Exactly the runs we expect (Q4, possibly Q5). NOT Q3/Q6/Q8."
+    rationale: "If bypass triggers on weak runs, threshold too lax."
+  wallclock_avg:
+    baseline: 77s
+    target: "<= 130s"
+
+# -----------------------------------------------------------------
+# FALSIFICATION RULES (EvalEngineer P1)
+# -----------------------------------------------------------------
+falsification: |
+  This hypothesis is FALSIFIED if ANY:
+    1. Q4 still budget after change -> bypass logic broken.
+    2. judge_confirmed_floor regresses below 3/8.
+    3. bl_strict regresses below 6/8.
+    4. contra_bypassed fires on Q3 (S=0.15, cov=0.0) — would prove
+       bypass too lax.
+    5. pytest below 1144 — broke something.
+
+  If ANY condition triggers, the IP-39 change is reverted; the
+  bypass thresholds are tightened (e.g. S>=0.90, agr>=0.95) and a
+  new hypothesis is registered as IP-39b.
+
+# -----------------------------------------------------------------
+# SCOPE
+# -----------------------------------------------------------------
+scope:
+  files_changed:
+    - backend/app/agent/orchestrator.py
+  files_not_changed:
+    - contradiction detector itself (out of scope — separate hypothesis)
+    - coverage threshold (kept at 0.6 — Q8 stays budget by design)
+    - any prompt (P5 of EvalEngineer — anti-pattern #5)
+
+# -----------------------------------------------------------------
+# AUTHORITY
+# -----------------------------------------------------------------
+veto_conditions: |
+  EvalEngineer vetoes merge if:
+    - falsification condition triggers
+    - bypass behavior cannot be explained from telemetry
+    - any other run flips from judge_confirmed -> budget

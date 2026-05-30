@@ -629,42 +629,58 @@ class AgentOrchestrator:
     async def _handle_judging(self) -> None:
         # WP-5: Pass emit callback for JudgeProviderDegradedEvent
         judge_event = await evaluate_with_judge(self.state, emit_event=self.emit)
-        # IP-38: instrument BEFORE emit so override telemetry is queryable
-        # from events.payload JSONB (P2 — instrument before tune). Uses
-        # Pydantic extra="allow" on BaseEvent — zero schema migration.
-        _ip38_coverage = calculate_coverage(self.state)
-        _ip38_agreement = calculate_agreement(
+        # Compute override-gate inputs BEFORE emit so the JudgeRuled event
+        # carries the diagnostic telemetry (override_eligible, blockers,
+        # contra_bypassed). Stored via Pydantic extra="allow" on BaseEvent
+        # — no schema migration needed. Queryable from events.payload JSONB.
+        judging_coverage = calculate_coverage(self.state)
+        judging_agreement = calculate_agreement(
             self.state.evidence,
             expected_experts=self.state.expected_experts or None,
         )
-        _ip38_s_ok = judge_event.structural_confidence >= 0.6
-        _ip38_c_ok = _ip38_coverage >= 0.6
-        _ip38_a_ok = _ip38_agreement >= 0.5
-        _ip38_no_contra = not judge_event.contradictions_detected
-        judge_event.coverage = _ip38_coverage
-        judge_event.agreement = _ip38_agreement
+        structural_gate_ok = judge_event.structural_confidence >= 0.6
+        coverage_gate_ok = judging_coverage >= 0.6
+        agreement_gate_ok = judging_agreement >= 0.5
+        # High-confidence contradictions bypass: overwhelming convergent
+        # evidence (S>=0.85, agreement>=0.9, >=5 evidence items) overrides
+        # the contradictions flag, treating it as nuance rather than a real
+        # semantic conflict. The evidence_count floor prevents trivial
+        # single-source scenarios from satisfying agreement=1.0 vacuously.
+        high_confidence_contra_bypass = (
+            judge_event.structural_confidence >= 0.85
+            and judging_agreement >= 0.9
+            and len(self.state.evidence) >= 5
+        )
+        no_contradictions_for_override = (
+            (not judge_event.contradictions_detected) or high_confidence_contra_bypass
+        )
+        judge_event.coverage = judging_coverage
+        judge_event.agreement = judging_agreement
+        judge_event.contra_bypassed = (
+            high_confidence_contra_bypass and bool(judge_event.contradictions_detected)
+        )
         judge_event.override_eligible = (
             (not judge_event.passed)
-            and _ip38_s_ok
-            and _ip38_c_ok
-            and _ip38_a_ok
-            and _ip38_no_contra
+            and structural_gate_ok
+            and coverage_gate_ok
+            and agreement_gate_ok
+            and no_contradictions_for_override
         )
         judge_event.override_blockers = [
             name
             for name, ok in (
-                ("structural", _ip38_s_ok),
-                ("coverage", _ip38_c_ok),
-                ("agreement", _ip38_a_ok),
-                ("contradictions", _ip38_no_contra),
+                ("structural", structural_gate_ok),
+                ("coverage", coverage_gate_ok),
+                ("agreement", agreement_gate_ok),
+                ("contradictions", no_contradictions_for_override),
             )
             if not ok
         ]
         await self.emit(judge_event)
         self.state.last_judge_confidence = judge_event.judge_confidence
         self.state.last_structural_confidence = judge_event.structural_confidence
-        self.state.last_coverage = _ip38_coverage
-        self.state.last_agreement = _ip38_agreement
+        self.state.last_coverage = judging_coverage
+        self.state.last_agreement = judging_agreement
         self.state.judge_attempts += 1
 
         # IP-25 Phase B: Update confidence history for no-progress detection
@@ -773,7 +789,7 @@ class AgentOrchestrator:
             elif (
                 stop_reason is StopReason.STOPPED_BY_BUDGET
                 and not judge_event.passed
-                and not judge_event.contradictions_detected
+                and no_contradictions_for_override
                 and judge_event.structural_confidence >= 0.6
                 and (self.state.last_coverage or 0.0) >= 0.6
                 and (self.state.last_agreement or 0.0) >= 0.5
@@ -824,7 +840,7 @@ class AgentOrchestrator:
             # BEST_EFFORT, not exhaustion.
             stop_reason = StopReason.STOPPED_BY_BUDGET
             if (
-                not judge_event.contradictions_detected
+                no_contradictions_for_override
                 and judge_event.structural_confidence >= 0.6
                 and (self.state.last_coverage or 0.0) >= 0.6
                 and (self.state.last_agreement or 0.0) >= 0.5

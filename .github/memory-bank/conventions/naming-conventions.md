@@ -46,6 +46,40 @@
 | Pydantic Models | `PascalCase` | `UserCreate`, `RunResponse` |
 | Enums | `PascalCase` (class), `SCREAMING_SNAKE_CASE` (values) | `Status.PENDING` |
 
+#### Iteration / ticket tags in identifiers (FORBIDDEN)
+
+Identifiers MUST be self-documenting. **Never** embed iteration, ticket, work-package
+or requirement prefixes (`_ip37_`, `_ip38_`, `_ip39_`, `_pr6a_`, `_wp5_`, `_brd09_`,
+`_rf15_`, etc.) in variable, function, attribute, method or class names.
+
+| Bad (forbidden) | Good (required) |
+|---|---|
+| `_ip38_coverage` | `judging_coverage` |
+| `_ip39_contra_bypass` | `high_confidence_contra_bypass` |
+| `_ip38_no_contra` | `no_contradictions_for_override` |
+| `_pr6a_judge_override` | `override_passing_judge_under_budget` |
+| `_wp3_g8_early_stop` | `trivial_fact_early_stop` |
+
+**Where iteration tags ARE allowed:**
+
+1. **One** short leading comment above the block, naming the ticket once:
+   ```python
+   # IP-39: high-S contradictions bypass — see docs/evaluation/hypotheses/IP-39.yaml
+   high_confidence_contra_bypass = ...
+   ```
+2. Commit messages, PR descriptions, hypothesis/decision docs.
+3. Constants that encode a published external spec id (e.g. `RFC_5322_REGEX`).
+
+**Rationale:** identifiers outlive iterations. `_ip39_*` reads as noise to anyone who
+wasn't in the room when IP-39 was written; intent-revealing names read forever.
+Tickets belong in commit history and the hypothesis registry, not in code identifiers.
+
+**Reviewer rule:** any PR introducing a `_ip##_*`, `_pr##_*`, `_wp##_*`, `_brd##_*`
+or `_rf##_*` identifier is a score deduction (≤ 8/10). Request rename before approving.
+
+**When refactoring legacy ticket-prefixed names:** rename in one pass; preserve a single
+leading comment with the ticket reference; never split the rename across PRs.
+
 ### TypeScript (Frontend)
 
 | Type | Convention | Example |

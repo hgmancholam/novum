@@ -3,8 +3,8 @@
 > Repository of lessons learned during the Novum development.
 > All agents must consult this before starting tasks and update after completing them.
 
-**Last Updated:** 2026-05-29
-**Total Lessons:** 33
+**Last Updated:** 2026-05-30
+**Total Lessons:** 34
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,21 @@
 ---
 
 ## Recent Lessons
+
+## L-034: Identifiers MUST NOT embed iteration / ticket tags (2026-05-30, IP-39)
+**Context:** IP-38 and IP-39 introduced locals like `_ip38_coverage`, `_ip38_no_contra`, `_ip39_contra_bypass` inside `orchestrator._handle_judging`. The names told the reader nothing about intent and made the block read as iteration archaeology rather than a gating decision. The user explicitly rejected the pattern and demanded self-documenting names that survive past the iteration.
+**Lesson:** Identifiers outlive iterations. NEVER embed `_ip##_`, `_pr##_`, `_wp##_`, `_brd##_`, `_rf##_` prefixes in variable/function/attribute/method/class names. The ticket reference goes in ONE leading comment above the block; the code itself uses intent-revealing names.
+**Rename rule applied:**
+| Before | After |
+|---|---|
+| `_ip38_coverage` | `judging_coverage` |
+| `_ip38_no_contra` | `no_contradictions_for_override` |
+| `_ip39_contra_bypass` | `high_confidence_contra_bypass` |
+
+**Where iteration tags ARE allowed:** commit messages, PR descriptions, hypothesis docs (`docs/evaluation/hypotheses/IP-##.yaml`), and ONE short leading comment above the block.
+**Reviewer enforcement:** any PR introducing a ticket-prefixed identifier is a score deduction (≤ 8/10). Request rename before approval.
+**Reference:** `.github/memory-bank/conventions/naming-conventions.md` §Python > "Iteration / ticket tags in identifiers (FORBIDDEN)".
+**Applies to:** Coder, Reviewer, BSA (in code examples), EvalEngineer.
 
 ## L-033: Vitest + Testing Library auto-cleanup is unreliable — register `afterEach(cleanup)` explicitly (2026-05-29)
 **Context:** New test files for the Cost Analytics page rendered fine in isolation but failed every `getByRole`/`getByText` after the first test with "Found multiple elements". Five accumulated `<body>` subtrees confirmed cleanup never ran between tests, even though `vitest.config.ts` had `globals: true` and `@testing-library/react` should auto-register `afterEach(cleanup)` in that mode.
