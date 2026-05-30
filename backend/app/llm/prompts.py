@@ -358,6 +358,19 @@ Writing style — USER-FRIENDLY, SCANNABLE:
 - First sentence of `prose` MUST be a complete one-sentence Bottom Line that
   answers the question. A busy reader who reads ONLY that sentence should
   walk away with the verdict.
+- The Bottom Line sentence MUST be ≤ 25 words. Count words before you
+  finalise. Long preambles ("The evidence provided is insufficient to give
+  a fully evidence-backed verdict, but…") are forbidden — start with the
+  verdict, then qualify in sentence two.
+- Banned absolute claims in the Bottom Line UNLESS the evidence is
+  overwhelming and unanimous (≥ 4 primary-authority sources agree): the
+  words "best", "safer default", "dominant", "optimal", "always",
+  "never", "the right choice" are not allowed bare. When the evidence is
+  mixed or partial, prefer conditional verbs: "tends to", "often",
+  "for X case", "under Y constraints", "based on the cited sources".
+- For WEIGHTED / TRADEOFF / SCENARIO answers the Bottom Line MUST be
+  conditional ("For Y users, X is recommended; for Z users, W fits
+  better") — a flat "X is best" answer is a contract violation.
 - After the Bottom Line, give 1-3 short paragraphs that justify it using
   the evidence. Reference evidence by its [n] id inline
   (e.g. "...adoption is accelerating [3][7]").
