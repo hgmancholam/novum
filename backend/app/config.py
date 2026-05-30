@@ -150,6 +150,13 @@ class Settings(BaseSettings):
     # the legacy behaviour set this to False explicitly via env or monkeypatch.
     meta_judge_enabled: bool = True
     meta_judge_min_delta_s: float = 0.03
+    # Post-PR-7: required `expected_delta_s` grows with the round index so
+    # the meta-judge gets stricter as the run drags on. From round
+    # ``meta_judge_delta_growth_start`` onwards, the required delta becomes
+    # ``min(meta_judge_min_delta_s + (round - start) * growth, cap)``.
+    meta_judge_delta_growth_start: int = 3
+    meta_judge_delta_growth_per_round: float = 0.02
+    meta_judge_delta_cap: float = 0.15
 
     # PR-2 Mejora 2.5: minimum evidence count required before the new
     # `before_synthesizing` hook is allowed to fire mid-flow. Prevents the
@@ -165,6 +172,14 @@ class Settings(BaseSettings):
     meta_judge_after_react_enabled: bool = False
     meta_judge_react_warmup_steps: int = 2
     max_meta_judge_calls_per_run: int = 4
+
+    # Post-PR-7: stuck-planner detector. Fires when two consecutive
+    # reformulation generations return roughly the same top URLs
+    # (Jaccard overlap >= threshold). Forces a deadline draft before the
+    # numeric budget runs out on a planner that has stopped diversifying.
+    stuck_planner_enabled: bool = True
+    stuck_planner_min_overlap: float = 0.6
+    stuck_planner_min_urls_per_gen: int = 3
 
     # BRD-23 WP-1: stale-citation kind-ceiling penalty multiplier for AnswerKind.DIRECT
     # when temporal_sensitivity is volatile/realtime and >=50% citations are stale.

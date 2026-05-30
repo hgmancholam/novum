@@ -46,7 +46,7 @@ async def test_volatile_routes_tavily_first_then_wiki(mock_create: AsyncMock) ->
         complexity_hint=ComplexityHint.STANDARD,
         temporal_sensitivity=TemporalSensitivity.VOLATILE,
     )
-    assert event.preferred_sources == ["tavily", "wikipedia", "semantic_scholar", "openalex"]
+    assert event.preferred_sources == ["semantic_scholar", "openalex", "tavily", "wikipedia"]
 
 
 async def test_static_trivial_factual_keeps_wikipedia_only(mock_create: AsyncMock) -> None:

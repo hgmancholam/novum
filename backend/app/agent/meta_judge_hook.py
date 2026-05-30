@@ -40,6 +40,19 @@ MetaJudgeHook = Literal[
 ]
 
 
+def _required_delta_for_round(round_idx: int) -> float:
+    """Required ``expected_delta_s`` to keep going at round ``round_idx``.
+
+    Grows linearly from ``meta_judge_min_delta_s`` starting at round
+    ``meta_judge_delta_growth_start``, capped at ``meta_judge_delta_cap``.
+    """
+    base = settings.meta_judge_min_delta_s
+    start = settings.meta_judge_delta_growth_start
+    growth = settings.meta_judge_delta_growth_per_round
+    over = max(0, round_idx - start)
+    return min(base + over * growth, settings.meta_judge_delta_cap)
+
+
 @dataclass(frozen=True, slots=True)
 class _SyntheticJudgeSignal:
     """Duck-typed stand-in used when no judge ruling exists yet.
@@ -155,7 +168,8 @@ async def maybe_run_meta_judge(
             return "confirm"
         return "continue"  # caller's regular flow chooses the StopReason
 
-    if voc.expected_delta_s < settings.meta_judge_min_delta_s:
+    required_delta = _required_delta_for_round(state.search_count)
+    if voc.expected_delta_s < required_delta:
         # PR-2: same mapping rationale — marginal expected gain is treated
         # as "draft now" pre-synth, "keep going" post-judge.
         if hook == "before_synthesizing":

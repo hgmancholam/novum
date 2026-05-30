@@ -296,10 +296,18 @@ async def create_plan(
         and coerced_hint in _ACADEMIC_COMPLEXITY
         and temporal_sensitivity != TemporalSensitivity.REALTIME
     ):
-        base = list(preferred_sources) if preferred_sources else ["tavily", "wikipedia"]
-        for academic in ("semantic_scholar", "openalex"):
-            if academic not in base:
-                base.append(academic)
+        # Post-PR-7: academic sources FIRST (cascade is first-success-wins,
+        # so without this Tavily always wins and S2/OpenAlex never run).
+        # Web fallbacks still appended so coverage degrades gracefully if
+        # the academic backends return nothing for the topic.
+        base = ["semantic_scholar", "openalex"]
+        prior = list(preferred_sources) if preferred_sources else ["tavily", "wikipedia"]
+        for fallback in prior:
+            if fallback not in base:
+                base.append(fallback)
+        for fallback in ("tavily", "wikipedia"):
+            if fallback not in base:
+                base.append(fallback)
         preferred_sources = base
 
     return PlanCreatedEvent(

@@ -965,6 +965,18 @@ class AgentOrchestrator:
             )
             return await self._force_synthesis_or_stop("claim_coverage_plateau")
 
+        # 7. Post-PR-7: stuck-planner (two reformulation generations returning
+        # the same top URLs). Catches the case where the planner keeps
+        # reformulating but the backends keep returning the same evidence.
+        from app.stopping.signals.stuck_planner import check_stuck_planner
+
+        if check_stuck_planner(self.state):
+            logger.warning(
+                "global_budget_stuck_planner_detected",
+                run_id=str(self.state.run_id),
+            )
+            return await self._force_synthesis_or_stop("stuck_planner")
+
         return False
 
     # PR-11: minimum evidence items required before we attempt a deadline
@@ -980,6 +992,7 @@ class AgentOrchestrator:
             "query_reformulations",
             "no_progress_events",
             "claim_coverage_plateau",
+            "stuck_planner",
         ],
     ) -> bool:
         """PR-11: try one last-chance DRAFTING+JUDGING cycle before stopping.
@@ -1212,6 +1225,12 @@ class AgentOrchestrator:
                     f"No new claim coverage in the last 3 analyze rounds "
                     f"(covered: {len(self.state.covered_claims)}/"
                     f"{len(self.state.sub_claims)})"
+                )
+                budget_signal = "no_progress"
+            elif kind == "stuck_planner":
+                budget_summary = (
+                    "Planner reformulations stopped diversifying — last two "
+                    "rounds returned the same top URLs"
                 )
                 budget_signal = "no_progress"
             else:  # search_rounds
