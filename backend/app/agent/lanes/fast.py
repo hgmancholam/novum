@@ -15,7 +15,7 @@ import structlog
 
 from app.agent.run_state import EvidenceItem, RunState
 from app.domain.enums import ComplexityHint, EvidencePolarity, SourceType, StopReason, TemporalSensitivity
-from app.domain.events import BaseEvent, EvidenceAddedEvent, ToolCalledEvent
+from app.domain.events import BaseEvent, DraftSynthesizedEvent, EvidenceAddedEvent, ToolCalledEvent
 from app.llm import LLMRole, llm
 from app.llm.models import MiniJudgeVerdict, SynthesizedAnswer
 from app.llm.prompts import FAST_MINI_JUDGE_PROMPT, FAST_SYNTH_PROMPT, language_name
@@ -251,8 +251,6 @@ async def execute_fast_lane(
         state.last_structural_confidence = S_effective
 
         # PR-3 Mejora 3.2: emit DraftSynthesized for audit trail (RF-03).
-        from app.domain.events import DraftSynthesizedEvent
-
         await emit(
             DraftSynthesizedEvent(
                 prose=synth_result.prose,
@@ -261,6 +259,18 @@ async def execute_fast_lane(
                 key_point_count=len(synth_result.key_points),
                 source="fast",
             )
+        )
+
+        # Post-language fix: emit synthetic JudgeRuled so the FE TrustSummary
+        # renders confidence for FAST lane runs too (Q1 "capital of Japan"
+        # regression — fast lane never emitted JudgeRuled).
+        from app.agent.lanes.deep import _emit_synthetic_judge_ruled
+
+        await _emit_synthetic_judge_ruled(
+            state,
+            emit,
+            rationale=mini_judge_result.reason
+            or "The judge confirmed the answer with high confidence.",
         )
 
         logger.info(

@@ -31,12 +31,19 @@ export interface StructuralConfidenceFallback {
   kind: "structural";
 }
 
+export interface StopRationaleInfo {
+  triggeringSignal: string;
+  summary: string;
+}
+
 export interface TrustSummaryProps {
   run: Run;
   /** Confidence metrics from the JudgeRuled event (RF-12). */
   judgeConfidence?: JudgeConfidenceMetrics | null | undefined;
   /** Structural fallback from `stop_rationale` when judge did not confirm. */
   structuralFallback?: StructuralConfidenceFallback | null | undefined;
+  /** Natural-language explanation of what triggered the stop. */
+  stopRationale?: StopRationaleInfo | null | undefined;
   /** Total unique sources collected (from EvidenceAdded events). */
   sourceCount?: number | null | undefined;
   className?: string | undefined;
@@ -183,6 +190,42 @@ function toMs(value: string | Date): number {
   return value instanceof Date ? value.getTime() : new Date(value).getTime();
 }
 
+// Plain-language explanation of why the run stopped (RF-13). Backend signal
+// names are technical (e.g. "budget", "no_progress"); render them as a
+// short sentence the user can act on.
+function explainTriggeringSignal(info: StopRationaleInfo): string {
+  const signal = info.triggeringSignal;
+  const summary = info.summary;
+  let prefix: string;
+  switch (signal) {
+    case "budget":
+      prefix = "Stopped because the research budget for this question was reached";
+      break;
+    case "no_progress":
+      prefix =
+        "Stopped because the latest rounds were not adding new evidence or coverage";
+      break;
+    case "wall_clock":
+      prefix = "Stopped because the time limit for this question was reached";
+      break;
+    case "judge":
+      prefix = "Stopped because the judge confirmed the answer";
+      break;
+    case "meta_judge":
+      prefix = "Stopped because the meta-judge decided further research wouldn’t help";
+      break;
+    case "error":
+      prefix = "Stopped because an error interrupted the run";
+      break;
+    case "cancel":
+      prefix = "Stopped because the run was cancelled";
+      break;
+    default:
+      prefix = `Stopped (signal: ${signal})`;
+  }
+  return summary.length > 0 ? `${prefix}. ${summary}` : `${prefix}.`;
+}
+
 function ElapsedValue({ startedAt, stoppedAt }: ElapsedValueProps) {
   const isRunning = stoppedAt === null;
   const [now, setNow] = useState<number>(() => Date.now());
@@ -203,12 +246,17 @@ export function TrustSummary({
   run,
   judgeConfidence,
   structuralFallback,
+  stopRationale,
   sourceCount,
   className,
 }: TrustSummaryProps) {
   const reasonTitle =
     run.stopReason !== null ? stopReasonConfig[run.stopReason].title : "Running";
   const summaryLine = buildSummaryLine(run, judgeConfidence, structuralFallback);
+  const stopExplanation =
+    stopRationale !== null && stopRationale !== undefined
+      ? explainTriggeringSignal(stopRationale)
+      : null;
   const hasLiveMetrics =
     judgeConfidence !== null && judgeConfidence !== undefined;
   const hasStructuralFallback =
@@ -238,6 +286,14 @@ export function TrustSummary({
       >
         {summaryLine}
       </p>
+      {stopExplanation !== null ? (
+        <p
+          data-testid="trust-summary-stop-reason"
+          className="mb-3 text-xs text-(--text-muted)"
+        >
+          {stopExplanation}
+        </p>
+      ) : null}
       <dl>
         <Row label="Outcome" hint="One of 7 enum stop_reason values (RF-02)">
           {reasonTitle}

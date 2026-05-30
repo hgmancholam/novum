@@ -292,6 +292,37 @@ export function CenterPanelContainer() {
   }, [events, judgeConfidence]);
 
   /**
+   * Natural-language stop rationale from the latest Stopped event
+   * (`triggering_signal` + `summary`). Surfaced in TrustSummary so the user
+   * can tell apart "budget", "no_progress" and "wall_clock" inside the same
+   * `stopped_by_budget` enum value.
+   */
+  const stopRationale = useMemo<{
+    triggeringSignal: string;
+    summary: string;
+  } | null>(() => {
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      const e = events[i];
+      if (e === undefined || e.type !== "Stopped") {
+        continue;
+      }
+      const rationale = (e as Record<string, unknown>)["stop_rationale"] as
+        | Record<string, unknown>
+        | null
+        | undefined;
+      if (rationale === null || rationale === undefined) {
+        continue;
+      }
+      const signal = rationale["triggering_signal"];
+      const summary = rationale["summary"];
+      if (typeof signal === "string" && typeof summary === "string") {
+        return { triggeringSignal: signal, summary };
+      }
+    }
+    return null;
+  }, [events]);
+
+  /**
    * Deduplicated source list from EvidenceAdded events.
    * Each URL appears at most once; when duplicated the highest confidence wins.
    */
@@ -445,6 +476,7 @@ export function CenterPanelContainer() {
               sources={sources}
               judgeConfidence={judgeConfidence}
               structuralFallback={structuralFallback}
+              stopRationale={stopRationale}
               showPostResumeNotice={showPostResumeNotice}
               onResume={resume}
               isResuming={isResuming}

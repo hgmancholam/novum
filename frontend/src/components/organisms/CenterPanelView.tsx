@@ -31,7 +31,7 @@ import { SourcesCard, type SourceEntry } from "./SourcesCard";
 import { StopReasonCard } from "./StopReasonCard";
 import { StructuredAnswer } from "./StructuredAnswer";
 import { StructuredBlocks } from "./StructuredBlocks";
-import { TrustSummary, type JudgeConfidenceMetrics, type StructuralConfidenceFallback } from "./TrustSummary";
+import { TrustSummary, type JudgeConfidenceMetrics, type StructuralConfidenceFallback, type StopRationaleInfo } from "./TrustSummary";
 import { RunFeed } from "./RunFeed";
 
 export interface CenterPanelViewProps {
@@ -57,6 +57,8 @@ export interface CenterPanelViewProps {
   judgeConfidence?: JudgeConfidenceMetrics | null | undefined;
   /** Structural fallback surfaced when the judge never confirmed (PR-1 Mejora 2.2). */
   structuralFallback?: StructuralConfidenceFallback | null | undefined;
+  /** Natural-language explanation of what triggered the stop (RF-13). */
+  stopRationale?: StopRationaleInfo | null | undefined;
   /** IP-15 §9: hide feed when in post-resume limbo (until new agent work). */
   showPostResumeNotice?: boolean | undefined;
   /** Resume CTA forwarded to StopReasonCard for errored / user_cancelled runs. */
@@ -78,6 +80,7 @@ export function CenterPanelView({
   sources,
   judgeConfidence,
   structuralFallback,
+  stopRationale,
   showPostResumeNotice = false,
   onResume,
   isResuming = false,
@@ -88,12 +91,11 @@ export function CenterPanelView({
   // C3 fallback: when the judge cap fires, the orchestrator still drafts a
   // best-effort answer and stops with STOPPED_BY_BUDGET. We render it like a
   // normal answer but tagged with a warning badge so the user sees the
-  // difference vs a judge-confirmed run.
+  // difference vs a judge-confirmed run. Render for ANY stopped_by_budget
+  // run that has prose — the backend now emits scenario/weighted answers
+  // here too, not only best_effort (Q8 regression).
   const isBestEffortFallback =
-    isTerminal &&
-    run.stopReason === "stopped_by_budget" &&
-    answerKind === "best_effort" &&
-    hasProse;
+    isTerminal && run.stopReason === "stopped_by_budget" && hasProse;
   const hasAnswer =
     (isTerminal && run.stopReason === "judge_confirmed" && hasProse) ||
     isBestEffortFallback;
@@ -240,6 +242,7 @@ export function CenterPanelView({
               run={run}
               judgeConfidence={judgeConfidence}
               structuralFallback={structuralFallback}
+              stopRationale={stopRationale}
               sourceCount={sources?.length}
             />
             <StopReasonCard

@@ -258,7 +258,7 @@ async def execute_deep_lane(
             await _emit_synthetic_judge_ruled(
                 state,
                 emit,
-                rationale="meta-judge after_cove: stop_best_effort",
+                rationale="The judge decided the current draft is the best honest answer the evidence supports — additional research would not meaningfully change it.",
             )
             logger.info(
                 "deep_lane_meta_judge_best_effort_stop",
@@ -272,7 +272,7 @@ async def execute_deep_lane(
             await _emit_synthetic_judge_ruled(
                 state,
                 emit,
-                rationale="meta-judge after_cove: confirm",
+                rationale="The judge confirmed the answer after the coverage and verification pass.",
             )
             logger.info(
                 "deep_lane_meta_judge_confirmed",
@@ -309,7 +309,8 @@ async def execute_deep_lane(
             await _emit_synthetic_judge_ruled(
                 state,
                 emit,
-                rationale=judge_response.reason or "deep mini-judge approved",
+                rationale=judge_response.reason
+                or "The judge approved the draft after the deep verification loop.",
             )
             logger.info(
                 "deep_lane_judge_confirmed",
@@ -324,6 +325,14 @@ async def execute_deep_lane(
             state.final_answer = draft_text
             state.budget_exhausted_kind = "react_steps"
             _ensure_deep_structural_confidence(state)
+            state.last_judge_confidence = judge_response.j_score
+            await _emit_synthetic_judge_ruled(
+                state,
+                emit,
+                rationale=judge_response.reason
+                or "The judge could not fully confirm the answer before the research budget ran out. This is the best-effort draft.",
+                passed=False,
+            )
             logger.info(
                 "deep_lane_stopped_by_budget",
                 run_id=str(state.run_id),
@@ -357,7 +366,7 @@ async def execute_deep_lane(
         await _emit_synthetic_judge_ruled(
             state,
             emit,
-            rationale="deep ReAct loop returned JUDGE_CONFIRMED",
+            rationale="The ReAct loop completed and the judge confirmed the answer.",
         )
 
     return react_result
@@ -548,11 +557,13 @@ async def _emit_synthetic_judge_ruled(
     emit: Callable[[BaseEvent], Awaitable[None]],
     *,
     rationale: str,
+    passed: bool = True,
 ) -> None:
-    # DEEP lane has no full JudgeRuled emission path (mini-judge + meta-judge
+    # DEEP/FAST lanes have no full JudgeRuled emission path (mini-judge + meta-judge
     # return verdicts but never build the event). Without this synthetic event
-    # the FE TrustSummary cannot render final_confidence for judge_confirmed
-    # runs that took the DEEP path (RF-12).
+    # the FE TrustSummary cannot render final_confidence for judge_confirmed or
+    # stopped_by_budget runs (RF-12). Rationale is plain natural language so the
+    # UI can show it verbatim.
     judge_conf = state.last_judge_confidence or 0.0
     struct_conf = state.last_structural_confidence or 0.0
     final_conf = (
@@ -565,7 +576,7 @@ async def _emit_synthetic_judge_ruled(
             structural_confidence=struct_conf,
             final_confidence=final_conf,
             threshold=state.confidence_threshold,
-            passed=True,
+            passed=passed,
             rationale=rationale,
             answer_kind=state.selected_answer_kind,
         )

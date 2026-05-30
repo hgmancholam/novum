@@ -197,9 +197,12 @@ class Settings(BaseSettings):
     max_evidence_fast: int = 15
     max_evidence_standard: int = 60
     max_evidence_deep: int = 150
+    # Overridable via env (pydantic-settings maps field name → uppercase var,
+    # e.g. MAX_QUERY_REFORMULATIONS_STANDARD). Bumped after the 2026-05-29
+    # eval where Q2/Q6 hit the cap at 5 and stopped with stopped_by_budget.
     max_query_reformulations_fast: int = 1
-    max_query_reformulations_standard: int = 5
-    max_query_reformulations_deep: int = 10
+    max_query_reformulations_standard: int = 8
+    max_query_reformulations_deep: int = 15
     # Event-level plateau window: if the last N emitted events contain ZERO
     # progress markers (ClaimCovered, DraftSynthesized, JudgeRuled, PlanGapsDetected,
     # HypothesisEvaluated) the run is stuck and we stop with stopped_by_budget.

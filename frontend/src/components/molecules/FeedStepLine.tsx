@@ -61,10 +61,14 @@ export function FeedStepLine({
         }}
       />
 
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span
-          className="text-[11px] font-semibold uppercase tracking-wider"
-          style={{ color: accent }}
+          className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+          style={{
+            color: accent,
+            borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
+            background: `color-mix(in srgb, ${accent} 12%, transparent)`,
+          }}
         >
           {label}
         </span>
