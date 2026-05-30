@@ -105,6 +105,18 @@ async def execute_deep_lane(
         steps_executed=state.react_step_count,
     )
 
+    # IP-31: force one Wikipedia call per DEEP run for source heterogeneity
+    # (RF-04). The ReAct agent often never picks Wikipedia on its own.
+    # Skipped only for realtime topics where Wikipedia is filtered upstream.
+    try:
+        await _force_wikipedia_call(state, emit)
+    except Exception as exc:  # noqa: BLE001 - non-critical augmentation
+        logger.warning(
+            "deep_lane_forced_wikipedia_failed",
+            run_id=str(state.run_id),
+            error=str(exc),
+        )
+
     # Step 3: Handle loop result
     if react_result == "forced_synth" or react_result == StopReason.STOPPED_BY_BUDGET:
         # Need to synthesize with best effort
@@ -370,6 +382,110 @@ async def execute_deep_lane(
         )
 
     return react_result
+
+
+async def _force_wikipedia_call(
+    state: RunState,
+    emit: Callable[[BaseEvent], Awaitable[None]],
+) -> None:
+    """Force one Wikipedia call per DEEP run for source heterogeneity (RF-04).
+
+    The ReAct agent picks Tavily almost exclusively, so the DEEP lane
+    rarely accumulates Wikipedia evidence on its own. This helper issues a
+    single Wikipedia search on the normalised question, appends results to
+    ``state.evidence``, and emits the standard ToolCalled + EvidenceAdded
+    events so the trail is replay-deterministic.
+
+    Skipped silently when:
+    - Wikipedia plugin is not registered.
+    - ``state.temporal_sensitivity`` is REALTIME (stale for breaking news).
+    - The previous react_history already contains Wikipedia evidence.
+    """
+    from uuid import uuid4
+
+    from app.agent.run_state import EvidenceItem
+    from app.agent.source_hints import build_source_hints
+    from app.agent.sources_authority import match as match_authority_tier
+    from app.domain.enums import EvidencePolarity, SourceType, TemporalSensitivity
+    from app.domain.events import (
+        EvidenceAddedEvent,
+        SourceFailedEvent,
+        ToolCalledEvent,
+    )
+    from app.seams.source import SourceError
+    from app.sources.registry import get_registry
+
+    if state.temporal_sensitivity == TemporalSensitivity.REALTIME:
+        return
+
+    registry = get_registry()
+    if SourceType.WIKIPEDIA not in registry.types():
+        return
+
+    # Skip if a prior react step already produced Wikipedia evidence.
+    if any(getattr(e, "source_url", "").find("wikipedia.org") >= 0 for e in state.evidence):
+        return
+
+    hints = build_source_hints(state)
+    hints.pop("include_domains", None)  # Wikipedia ignores include_domains
+    claim_id = "deep_wikipedia"
+    query = state.question
+
+    await emit(
+        ToolCalledEvent(
+            source_type=SourceType.WIKIPEDIA,
+            query=query,
+            query_intent=f"DEEP heterogeneity ({claim_id})",
+            target_claim_id=claim_id,
+            query_length_tokens=len(query.split()),
+            tavily_days_filter=None,
+        )
+    )
+
+    try:
+        results = await registry.get(SourceType.WIKIPEDIA).search(
+            query, max_results=3, **hints
+        )
+    except SourceError as exc:
+        await emit(
+            SourceFailedEvent(
+                source_type=SourceType.WIKIPEDIA,
+                query=query,
+                error_message=exc.message,
+                recoverable=exc.recoverable,
+            )
+        )
+        return
+
+    for r in results:
+        ev_id = uuid4()
+        snippet = (r.snippet or "")[:1000]
+        confidence = r.relevance_score if r.relevance_score is not None else 0.5
+        tier = match_authority_tier(r.url)
+        item = EvidenceItem(
+            event_id=ev_id,
+            claim_id=claim_id,
+            source_url=r.url,
+            source_title=r.title,
+            text=snippet,
+            polarity=EvidencePolarity.SUPPORTS.value,
+            confidence=confidence,
+            authority_tier=tier,
+        )
+        state.add_evidence(item)
+        await emit(
+            EvidenceAddedEvent(
+                id=ev_id,
+                source_type=SourceType.WIKIPEDIA,
+                source_url=r.url,
+                source_title=r.title,
+                extracted_text=snippet,
+                polarity=EvidencePolarity.SUPPORTS,
+                target_claim_id=claim_id,
+                confidence=confidence,
+                authority_tier=tier,
+            )
+        )
 
 
 async def _synthesize_with_react_history(state: RunState) -> SynthesizedAnswer:

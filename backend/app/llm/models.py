@@ -58,8 +58,11 @@ class QuestionClassification(BaseModel):
     answerable: bool
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     # IP-30: closed-list topical domain (12 values, see QuestionDomain).
-    # Defaults to "other" so legacy LLM payloads that omit the field validate.
-    domain: str = "other"
+    # IP-31: optional — when the LLM omits the field, downstream skips
+    # both the static domain whitelist and the dynamic-allowlist LLM call,
+    # which is cheaper and avoids triggering an extra LLM round for
+    # payloads that never asked for one (mocked tests, legacy traces).
+    domain: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -95,6 +98,17 @@ class SubClaimOutput(BaseModel):
     id: str = Field(..., description="Unique identifier like 'c1', 'c2'")
     text: str = Field(..., description="The sub-claim statement")
     rationale: str = Field(..., description="Why this claim is needed")
+    # IP-31 (additive): 3-7 keyword string for distilled web search.
+    # The full ``text`` is still used for academic seams (Semantic Scholar,
+    # OpenAlex) and Wikipedia, where sentence-form queries match better.
+    search_keywords: str | None = Field(
+        default=None,
+        description=(
+            "3-7 keywords (space-separated) used as the Tavily query in place "
+            "of the full claim sentence. Improves matching against docs/blogs "
+            "instead of news headlines. Omit for trivial single-fact claims."
+        ),
+    )
 
 
 class PlanOutput(BaseModel):

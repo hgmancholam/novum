@@ -277,18 +277,22 @@ class AgentOrchestrator:
 
         # IP-30: map verdict.domain (str) onto the closed QuestionDomain enum.
         # Unknown values fall back to OTHER so a hallucinated label never breaks
-        # the run; default "other" is also returned when the LLM omits the field.
+        # the run. When the LLM omits the field entirely, ``state.domain`` stays
+        # ``None`` (IP-31): None means "classifier did not assign a domain" and
+        # suppresses the dynamic-allowlist LLM call below, while explicit
+        # ``"other"`` triggers it for long-tail topics.
         from app.domain.enums import QuestionDomain
-        raw_domain = (verdict.domain or "other").strip().lower()
-        try:
-            self.state.domain = QuestionDomain(raw_domain)
-        except ValueError:
-            logger.warning(
-                "classifier_unknown_domain",
-                raw_domain=raw_domain,
-                run_id=str(self.state.run_id),
-            )
-            self.state.domain = QuestionDomain.OTHER
+        raw_domain = (verdict.domain or "").strip().lower()
+        if raw_domain:
+            try:
+                self.state.domain = QuestionDomain(raw_domain)
+            except ValueError:
+                logger.warning(
+                    "classifier_unknown_domain",
+                    raw_domain=raw_domain,
+                    run_id=str(self.state.run_id),
+                )
+                self.state.domain = QuestionDomain.OTHER
 
         # Emit QuestionClassifiedEvent with BRD-22 + BRD-23 + IP-30 fields
         await self.emit(
@@ -358,6 +362,25 @@ class AgentOrchestrator:
         # BRD-22 Task 4.7: Store expected_experts and preferred_sources
         self.state.expected_experts = list(event.expected_experts or [])
         self.state.preferred_sources = list(event.preferred_sources or [])
+
+        # IP-31: when the classifier returned QuestionDomain.OTHER (no
+        # static curated whitelist exists), ask the classifier LLM to
+        # propose 3-8 authoritative domains so Tavily still gets an
+        # include_domains hint. Cached on RunState for the whole run.
+        # Skipped when ``state.domain`` is None (classification absent —
+        # typical in unit-test fixtures that mock a fixed LLM queue).
+        from app.domain.enums import QuestionDomain as _QD
+
+        if self.state.domain is _QD.OTHER and not self.state.dynamic_allowlist:
+            try:
+                from app.agent.dynamic_allowlist import propose_allowlist
+                self.state.dynamic_allowlist = await propose_allowlist(self.state.question)
+            except Exception as exc:  # noqa: BLE001 - non-critical
+                logger.warning(
+                    "dynamic_allowlist_failed",
+                    error=str(exc),
+                    run_id=str(self.state.run_id),
+                )
 
         # BRD-22 Task 4.7: Compute critique_passes_target from budget table
         from app.agent.tasks.plan import _claim_budget

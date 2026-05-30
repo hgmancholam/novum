@@ -91,6 +91,11 @@ class RunState(BaseModel):
     # IP-30: topical domain (closed enum) — drives source plugin specialisation.
     domain: QuestionDomain | None = None
 
+    # IP-31: dynamic Tavily allowlist for ``QuestionDomain.OTHER`` runs.
+    # Populated once by the planner via ``app.agent.dynamic_allowlist`` and
+    # reused for every sub-claim in this run. Empty list when not applicable.
+    dynamic_allowlist: list[str] = Field(default_factory=list)
+
     # IP-25 Phase A: selected research lane (telemetry only in Phase A)
     selected_lane: Lane | None = None
 

@@ -111,9 +111,10 @@ async def test_tavily_success_emits_tool_called_and_evidence(
 
     tool_called = [e for e in events if isinstance(e, ToolCalledEvent)]
     evidence = [e for e in events if isinstance(e, EvidenceAddedEvent)]
-    assert len(tool_called) == 1
-    assert tool_called[0].source_type == SourceType.TAVILY
+    # IP-31: Wikipedia is always invoked after Tavily for source heterogeneity.
+    assert [t.source_type for t in tool_called] == [SourceType.TAVILY, SourceType.WIKIPEDIA]
     assert len(evidence) == 3
+    assert all(e.source_type == SourceType.TAVILY for e in evidence)
     assert len(state.evidence) == 3
     assert all(ev.id == ei.event_id for ev, ei in zip(evidence, state.evidence, strict=True))
 
@@ -402,9 +403,9 @@ async def test_preferred_sources_override_cascade_order(
 
     events = await search_mod.execute_search_round(state)
     tool_called = [e.source_type for e in events if isinstance(e, ToolCalledEvent)]
-    # First call goes to the preferred source; cascade breaks on success.
-    assert tool_called == [SourceType.SEMANTIC_SCHOLAR]
-    assert s2.calls and not tavily.calls and not wiki.calls
+    # IP-31: Wikipedia is always invoked at the end for source heterogeneity.
+    assert tool_called == [SourceType.SEMANTIC_SCHOLAR, SourceType.WIKIPEDIA]
+    assert s2.calls and not tavily.calls and wiki.calls
 
 
 async def test_preferred_source_429_falls_back_to_default_cascade(
@@ -439,12 +440,19 @@ async def test_preferred_source_429_falls_back_to_default_cascade(
     tool_called = [e.source_type for e in events if isinstance(e, ToolCalledEvent)]
     failures = [e for e in events if isinstance(e, SourceFailedEvent)]
     evidence = [e for e in events if isinstance(e, EvidenceAddedEvent)]
-    # S2 → fail → Tavily succeeds; Wikipedia not reached.
-    assert tool_called == [SourceType.SEMANTIC_SCHOLAR, SourceType.TAVILY]
+    # S2 → fail → Tavily succeeds → Wikipedia always invoked (IP-31).
+    assert tool_called == [
+        SourceType.SEMANTIC_SCHOLAR,
+        SourceType.TAVILY,
+        SourceType.WIKIPEDIA,
+    ]
     assert len(failures) == 1
     assert failures[0].source_type == SourceType.SEMANTIC_SCHOLAR
-    assert len(evidence) == 1
-    assert evidence[0].source_type == SourceType.TAVILY
+    # Tavily contributes 1 result, Wikipedia 1 more (IP-31 heterogeneity).
+    assert [e.source_type for e in evidence] == [
+        SourceType.TAVILY,
+        SourceType.WIKIPEDIA,
+    ]
 
 
 async def test_empty_preferred_sources_uses_default_cascade(
@@ -463,7 +471,8 @@ async def test_empty_preferred_sources_uses_default_cascade(
 
     events = await search_mod.execute_search_round(state)
     tool_called = [e.source_type for e in events if isinstance(e, ToolCalledEvent)]
-    assert tool_called == [SourceType.TAVILY]
+    # IP-31: Wikipedia is always invoked at the end for source heterogeneity.
+    assert tool_called == [SourceType.TAVILY, SourceType.WIKIPEDIA]
 
 
 # =============================================================================
@@ -498,7 +507,8 @@ async def test_cascade_skips_academic_sources_for_geopolitics(
     events = await search_mod.execute_search_round(state)
     tool_called = [e.source_type for e in events if isinstance(e, ToolCalledEvent)]
     assert SourceType.SEMANTIC_SCHOLAR not in tool_called
-    assert tool_called == [SourceType.TAVILY]
+    # IP-31: Wikipedia is always invoked at the end for source heterogeneity.
+    assert tool_called == [SourceType.TAVILY, SourceType.WIKIPEDIA]
     assert not s2.calls
 
 
@@ -528,4 +538,5 @@ async def test_cascade_keeps_academic_sources_for_other_domain(
 
     events = await search_mod.execute_search_round(state)
     tool_called = [e.source_type for e in events if isinstance(e, ToolCalledEvent)]
-    assert tool_called == [SourceType.SEMANTIC_SCHOLAR]
+    # IP-31: Wikipedia is always invoked at the end for source heterogeneity.
+    assert tool_called == [SourceType.SEMANTIC_SCHOLAR, SourceType.WIKIPEDIA]

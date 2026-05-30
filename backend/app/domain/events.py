@@ -97,6 +97,9 @@ class SubClaim(BaseModel):
     id: str
     text: str
     status: Literal["pending", "covered", "uncoverable"] = "pending"
+    # IP-31 (additive): keyword-distilled query for Tavily web search. ``None``
+    # when the planner did not provide one or for replayed legacy events.
+    search_keywords: str | None = None
 
 
 class PlanCreatedEvent(BaseEvent):

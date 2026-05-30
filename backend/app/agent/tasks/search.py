@@ -73,21 +73,45 @@ async def _search_one_claim(
     QueryReformulated) in the order they were generated. The caller is
     responsible for applying state mutations.
 
-    IP-25 Phase 0: Implements low-relevance query reformulation. If ALL
+    IP-25 Phase 0: low-relevance Tavily query reformulation. If ALL
     Tavily results have relevance_score < 0.3, performs ONE reformulated
     retry with query = "{claim.text} {question[:40]}".
+
+    IP-31:
+    - For Tavily, query is the distilled ``claim.search_keywords`` when
+      available (3-7 keywords), else ``claim.text``. Sentence-form queries
+      bias Tavily toward news headlines; keywords match docs/blogs.
+    - When the ``include_domains`` whitelist hint yields **zero** Tavily
+      results, retry the same query **without** the whitelist. This makes
+      the strict Tavily filter behave as a "soft" allowlist.
+    - Wikipedia is removed from the standard cascade and always invoked
+      once per claim at the end (unless not available or filtered out by
+      the caller, e.g. realtime). Guarantees source heterogeneity (RF-04).
     """
     registry = get_registry()
     available = registry.types()
     events: list[BaseEvent] = []
-    query = claim.text
-    reformulated = False
 
-    for source_type in cascade:
+    # Split cascade: non-wiki sources go through the normal break-on-success
+    # cascade; Wikipedia is always invoked at the end.
+    non_wiki_cascade = [s for s in cascade if s != SourceType.WIKIPEDIA]
+    run_wikipedia_after = (
+        SourceType.WIKIPEDIA in cascade and SourceType.WIKIPEDIA in available
+    )
+
+    # --- Phase A: non-Wikipedia cascade with break-on-success ---
+    for source_type in non_wiki_cascade:
         if source_type not in available:
             continue
 
-        tool_days = days_filter if source_type == SourceType.TAVILY else None
+        is_tavily = source_type == SourceType.TAVILY
+        # IP-31: distilled keyword query for Tavily, full sentence elsewhere
+        query = (claim.search_keywords or claim.text) if is_tavily else claim.text
+        reformulated = False
+        tool_days = days_filter if is_tavily else None
+        hints = build_source_hints(state)
+        had_whitelist = bool(hints.get("include_domains"))
+
         events.append(
             ToolCalledEvent(
                 source_type=source_type,
@@ -99,15 +123,11 @@ async def _search_one_claim(
             )
         )
 
-        hints = build_source_hints(state)
         try:
             source = registry.get(source_type)
-            if source_type == SourceType.TAVILY and tool_days is not None:
+            if is_tavily and tool_days is not None:
                 results = await source.search(
-                    query,
-                    max_results=_RESULTS_PER_SEARCH,
-                    days=tool_days,
-                    **hints,
+                    query, max_results=_RESULTS_PER_SEARCH, days=tool_days, **hints
                 )
             else:
                 results = await source.search(
@@ -124,16 +144,31 @@ async def _search_one_claim(
             )
             continue
 
-        # IP-25 Phase 0: Check for low-relevance trigger on Tavily
+        # IP-31: Tavily strict-filter fallback — retry without include_domains
+        # when the whitelist produced zero results. Silent (no SourceFailed).
+        if is_tavily and not results and had_whitelist:
+            relaxed = {k: v for k, v in hints.items() if k != "include_domains"}
+            try:
+                if tool_days is not None:
+                    results = await source.search(
+                        query, max_results=_RESULTS_PER_SEARCH, days=tool_days, **relaxed
+                    )
+                else:
+                    results = await source.search(
+                        query, max_results=_RESULTS_PER_SEARCH, **relaxed
+                    )
+            except SourceError:
+                results = []
+
+        # IP-25 Phase 0: low-relevance reformulation (Tavily only)
         if (
-            source_type == SourceType.TAVILY
+            is_tavily
             and not reformulated
             and results
             and all(
                 (r.relevance_score or 0.0) < _MIN_RELEVANCE_THRESHOLD for r in results
             )
         ):
-            # Emit reformulation event and retry ONCE
             reformulated_query = f"{claim.text} {state.question[:40]}"
             events.append(
                 QueryReformulatedEvent(
@@ -146,7 +181,6 @@ async def _search_one_claim(
             query = reformulated_query
             reformulated = True
 
-            # Retry with reformulated query
             events.append(
                 ToolCalledEvent(
                     source_type=source_type,
@@ -161,10 +195,7 @@ async def _search_one_claim(
             try:
                 if tool_days is not None:
                     results = await source.search(
-                        query,
-                        max_results=_RESULTS_PER_SEARCH,
-                        days=tool_days,
-                        **hints,
+                        query, max_results=_RESULTS_PER_SEARCH, days=tool_days, **hints
                     )
                 else:
                     results = await source.search(
@@ -181,7 +212,6 @@ async def _search_one_claim(
                 )
                 continue
 
-        # Process results and create EvidenceAdded events
         for r in results:
             ev_id = uuid4()
             extracted = (r.snippet or "")[:1000]
@@ -203,10 +233,80 @@ async def _search_one_claim(
                 )
             )
         if results:
-            # Success: break cascade. Empty results (200 OK with data:[])
-            # falls through to the next source so academic-first questions
-            # don't dead-end on Semantic Scholar.
             break
+
+    # --- Phase B: Wikipedia always (per sub-claim) for source heterogeneity ---
+    if run_wikipedia_after:
+        wiki_hints = build_source_hints(state)
+        # Wikipedia ignores include_domains; pass without it to avoid noise.
+        wiki_hints.pop("include_domains", None)
+        wiki_query = claim.text
+        events.append(
+            ToolCalledEvent(
+                source_type=SourceType.WIKIPEDIA,
+                query=wiki_query,
+                query_intent=f"Verify {claim.id} (wikipedia): {claim.text[:80]}",
+                target_claim_id=claim.id,
+                query_length_tokens=_count_query_tokens(wiki_query),
+                tavily_days_filter=None,
+            )
+        )
+        wiki_source = registry.get(SourceType.WIKIPEDIA)
+        try:
+            wiki_results = await wiki_source.search(
+                wiki_query, max_results=_RESULTS_PER_SEARCH, **wiki_hints
+            )
+        except SourceError as exc:
+            events.append(
+                SourceFailedEvent(
+                    source_type=SourceType.WIKIPEDIA,
+                    query=wiki_query,
+                    error_message=exc.message,
+                    recoverable=exc.recoverable,
+                )
+            )
+            wiki_results = []
+
+        # IP-31: fallback to keyword query if sentence form returned nothing
+        if not wiki_results and claim.search_keywords and claim.search_keywords != claim.text:
+            wiki_query = claim.search_keywords
+            events.append(
+                ToolCalledEvent(
+                    source_type=SourceType.WIKIPEDIA,
+                    query=wiki_query,
+                    query_intent=f"Verify {claim.id} (wikipedia keywords)",
+                    target_claim_id=claim.id,
+                    query_length_tokens=_count_query_tokens(wiki_query),
+                    tavily_days_filter=None,
+                )
+            )
+            try:
+                wiki_results = await wiki_source.search(
+                    wiki_query, max_results=_RESULTS_PER_SEARCH, **wiki_hints
+                )
+            except SourceError:
+                wiki_results = []
+
+        for r in wiki_results:
+            ev_id = uuid4()
+            extracted = (r.snippet or "")[:1000]
+            confidence = r.relevance_score if r.relevance_score is not None else 0.5
+            published = _parse_published_date(getattr(r, "published_date", None))
+            authority_tier = match_authority_tier(r.url)
+            events.append(
+                EvidenceAddedEvent(
+                    id=ev_id,
+                    source_type=SourceType.WIKIPEDIA,
+                    source_url=r.url,
+                    source_title=r.title,
+                    extracted_text=extracted,
+                    polarity=EvidencePolarity.NEUTRAL,
+                    target_claim_id=claim.id,
+                    confidence=confidence,
+                    source_published_date=published,
+                    authority_tier=authority_tier,
+                )
+            )
 
     return events
 
@@ -244,6 +344,20 @@ async def execute_search_round(state: RunState) -> list[BaseEvent]:
     # BRD-23 WP-1: realtime topics skip Wikipedia entirely
     if temporal == TemporalSensitivity.REALTIME:
         cascade = [s for s in cascade if s != SourceType.WIKIPEDIA]
+
+    # IP-30: domains where academic sources consistently return empty
+    # results — drop them from the cascade so we don't waste a round-trip.
+    from app.domain.enums import QuestionDomain
+    _NON_ACADEMIC_DOMAINS = {
+        QuestionDomain.GEOPOLITICS,
+        QuestionDomain.LIFESTYLE,
+        QuestionDomain.BUSINESS,
+    }
+    if state.domain in _NON_ACADEMIC_DOMAINS:
+        cascade = [
+            s for s in cascade
+            if s not in (SourceType.SEMANTIC_SCHOLAR, SourceType.OPENALEX)
+        ]
 
     # IP-25 Phase 0: Run per-claim searches in parallel
     claims = state.pending_claims()[:_MAX_CLAIMS_PER_ROUND]

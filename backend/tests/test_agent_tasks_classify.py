@@ -63,10 +63,11 @@ async def test_passes_question_as_user_message(mock_create: AsyncMock) -> None:
 
 
 async def test_classification_default_domain_is_other(mock_create: AsyncMock) -> None:
-    """IP-30: classifier verdict defaults to ``domain='other'`` when LLM omits the field."""
+    """IP-31: when the LLM omits ``domain``, verdict carries ``None`` so the
+    orchestrator skips dynamic-allowlist proposal (no extra LLM call)."""
     mock_create.return_value = _classification("factual")
     _, verdict, _, _ = await classify.classify_question("q?")
-    assert verdict.domain == "other"
+    assert verdict.domain is None
 
 
 async def test_classification_preserves_emitted_domain(mock_create: AsyncMock) -> None:

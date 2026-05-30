@@ -248,7 +248,13 @@ async def create_plan(
     user_msg = (
         f"Decompose the following question into {lo}-{hi} verifiable sub-claims.\n"
         f"For a trivial single-fact question, prefer the lower bound "
-        f"({lo}); do not pad with adjacent or background claims.{sources_hint}\n\n"
+        f"({lo}); do not pad with adjacent or background claims.{sources_hint}\n"
+        f"For EACH sub-claim also emit ``search_keywords``: a 3-7 keyword "
+        f"phrase (space-separated, no punctuation) optimised for web search. "
+        f"Strip filler words; keep proper nouns, technical terms, and the "
+        f"core entities. Example: claim "
+        f"\"PostgreSQL offers ACID compliance and strong relational modeling\" "
+        f"-> keywords \"PostgreSQL ACID relational database\".\n\n"
         f"Question: {question}{prior_hints_block}\n"
     )
     result = await llm.call(
@@ -256,7 +262,15 @@ async def create_plan(
         messages=[{"role": "user", "content": user_msg}],
         response_model=PlanOutput,
     )
-    sub_claims = [SubClaim(id=sc.id, text=sc.text, status="pending") for sc in result.sub_claims]
+    sub_claims = [
+        SubClaim(
+            id=sc.id,
+            text=sc.text,
+            status="pending",
+            search_keywords=sc.search_keywords,
+        )
+        for sc in result.sub_claims
+    ]
 
     # BRD-22: expected_experts from LLM OR fallback
     expected_experts = (
