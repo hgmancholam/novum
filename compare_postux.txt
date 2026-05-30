@@ -1,0 +1,115 @@
+[fetch] postux (IP-32)...
+  [Q1] 6692c8b4 ...
+  [Q2] 55b06fa0 ...
+  [Q3] 1f2a72bb ...
+  [Q4] 481b7f30 ...
+  [Q5] 69d579cd ...
+  [Q6] ae77df76 ...
+  [Q7] 3e2643e1 ...
+  [Q8] 5c45a43d ...
+[fetch] postdomain (IP-31)...
+  [Q1] 2e55036d ...
+  [Q2] 46736c54 ...
+  [Q3] f1ddb63d ...
+  [Q4] 6d379ce5 ...
+  [Q5] 87afe243 ...
+  [Q6] f906ab84 ...
+  [Q7] 3feaf0b7 ...
+  [Q8] a2243165 ...
+[fetch] postA1A2...
+  [Q1] 79737678 ...
+  [Q2] ccbd12cc ...
+  [Q3] ae3a8648 ...
+  [Q4] 9c713a41 ...
+  [Q5] 85130b57 ...
+  [Q6] 749ceb67 ...
+  [Q7] c5b1ea1c ...
+  [Q8] d9b53537 ...
+
+=== STOP REASON (postA1A2 -> postdomain -> postux) ===
+  reason                      postA1A2   postdomain     postux
+  judge_confirmed                    4            2          2
+  stopped_by_budget                  4            6          6
+
+=== PER QUESTION (postux, IP-32) ===
+  Q1  fast      dom=other                judge_confirmed        S= 1.00 J=    - conf=    - ev=  6 hosts= 3 BL=y $=0.0230 t=17s
+  Q2  standard  dom=software_engineering stopped_by_budget      S= 0.58 J=    - conf=    - ev= 35 hosts= 4 BL=y $=0.2795 t=84s
+  Q3  standard  dom=software_engineering judge_confirmed        S= 0.15 J=    - conf=    - ev=  0 hosts= 0 BL=y $=0.0338 t=40s
+  Q4  standard  dom=medical              stopped_by_budget      S= 0.59 J=    - conf=    - ev= 48 hosts= 5 BL=. $=0.2396 t=95s
+  Q5  standard  dom=software_engineering stopped_by_budget      S=    - J=    - conf=    - ev= 25 hosts=10 BL=. $=0.1470 t=83s
+  Q6  standard  dom=software_engineering stopped_by_budget      S= 0.59 J=    - conf=    - ev= 44 hosts= 4 BL=. $=0.3524 t=111s
+  Q7  deep      dom=technology           stopped_by_budget      S= 0.62 J=    - conf=    - ev= 18 hosts= 4 BL=. $=0.1337 t=112s
+  Q8  standard  dom=software_engineering stopped_by_budget      S= 0.64 J=    - conf=    - ev= 48 hosts= 8 BL=y $=0.2988 t=118s
+
+=== AUTHORITY TIER BREAKDOWN (postux) ===
+  Q    primary  reputable  general   low  total
+  Q1         0          0        0     0      0
+  Q2         0          0        0     0      0
+  Q3         0          0        0     0      0
+  Q4         0          0        0     0      0
+  Q5         0          0        0     0      0
+  Q6         0          0        0     0      0
+  Q7         0          0        0     0      0
+  Q8         0          0        0     0      0
+
+=== AUTHORITY TIER BREAKDOWN (postdomain, for comparison) ===
+  Q    primary  reputable  general   low  total
+  Q1         0          0        0     0      0
+  Q2         0          0        0     0      0
+  Q3         0          0        0     0      0
+  Q4         0          0        0     0      0
+  Q5         0          0        0     0      0
+  Q6         0          0        0     0      0
+  Q7         0          0        0     0      0
+  Q8         0          0        0     0      0
+
+=== SOURCES PER QUESTION (postux) ===
+  Q1  (3 hosts): en.wikipedia.orgx4, britannica.comx1, clintonwhitehouse3.archives.govx1
+  Q2  (4 hosts): infoq.comx14, en.wikipedia.orgx11, semanticscholar.orgx6, cloud.google.comx4
+  Q3  (0 hosts): 
+  Q4  (5 hosts): pmc.ncbi.nlm.nih.govx23, en.wikipedia.orgx21, pubmed.ncbi.nlm.nih.govx2, hopkinsmedicine.orgx1, webmd.comx1
+  Q5  (10 hosts): en.wikipedia.orgx10, arxiv.orgx6, docker.comx2, oreilly.comx1, nvlpubs.nist.govx1, learn.microsoft.comx1, thoughtworks.comx1, pdfs.semanticscholar.orgx1, github.comx1, cloud.google.comx1
+  Q6  (4 hosts): infoq.comx22, en.wikipedia.orgx17, semanticscholar.orgx3, nist.govx2
+  Q7  (4 hosts): semanticscholar.orgx9, techcrunch.comx4, en.wikipedia.orgx3, wired.comx2
+  Q8  (8 hosts): en.wikipedia.orgx18, arxiv.orgx12, papers.ssrn.comx6, github.comx4, gist.github.comx2, wellarchitected.github.comx2, martinfowler.comx2, innovationatwork.ieee.orgx2
+
+=== SOURCES PER QUESTION (postdomain) ===
+  Q1  (3 hosts): en.wikipedia.orgx4, britannica.comx1, clintonwhitehouse3.archives.govx1
+  Q2  (3 hosts): news.ycombinator.comx18, en.wikipedia.orgx10, semanticscholar.orgx6
+  Q3  (0 hosts): 
+  Q4  (7 hosts): en.wikipedia.orgx20, pmc.ncbi.nlm.nih.govx14, nia.nih.govx4, newsroom.heart.orgx4, healthline.comx2, emro.who.intx2, medscape.comx1
+  Q5  (8 hosts): en.wikipedia.orgx10, arxiv.orgx7, dev.tox3, docker.comx1, martinfowler.comx1, github.comx1, oreilly.comx1, news.ycombinator.comx1
+  Q6  (3 hosts): news.ycombinator.comx24, en.wikipedia.orgx14, semanticscholar.orgx3
+  Q7  (5 hosts): semanticscholar.orgx12, en.wikipedia.orgx3, techcrunch.comx1, wired.comx1, thenewstack.iox1
+  Q8  (8 hosts): en.wikipedia.orgx28, news.ycombinator.comx8, dev.tox6, arxiv.orgx6, pdfs.semanticscholar.orgx4, github.comx2, infoq.comx2, economics.stackexchange.comx2
+
+=== CONFIDENCE PER QUESTION (postA1A2 -> postdomain -> postux) ===
+  Q     a1a2C    domC     uxC  a1a2H   domH    uxH
+  Q1        -       -       -      3      3      3
+  Q2        -       -       -      3      3      4
+  Q3        -       -       -      0      0      0
+  Q4        -       -       -      6      7      5
+  Q5        -       -       -     12      8     10
+  Q6        -       -       -     10      3      4
+  Q7        -       -       -      6      5      4
+  Q8        -       -       -     17      8      8
+
+=== BOTTOM LINE PROSE EXCERPTS (postux) ===
+  Q1  BL_ok=True :: The capital of Japan is Tokyo [4], which has served as the national capital throughout modern history, though Japan's capital was located in other places prior 
+  Q2  BL_ok=True :: The evidence provided is insufficient to give a fully evidence-backed verdict, but based on what is available, PostgreSQL is generally the safer default choice 
+  Q3  BL_ok=True :: The evidence is insufficient to determine a single 'best' programming language, because no such universal answer exists ΓÇö the right language depends entirely on
+  Q4  BL_ok=False :: For most healthy adults, intermittent fasting (IF) is a safe and effective dietary strategy that produces meaningful improvements in body weight, metabolic mark
+  Q5  BL_ok=False :: AI-generated code in enterprise systems carries four compounding long-term risks: security debt, skill atrophy, legal exposure, and correlated systemic failure 
+  Q6  BL_ok=False :: The evidence in this block is insufficient to give a fully evidence-backed verdict, but based on what is available ΓÇö particularly the microservices and distribu
+  Q7  BL_ok=False :: Retrieval-Augmented Generation (RAG) with vector databases is currently the dominant practical approach for long-term memory in autonomous AI agents, though the
+  Q8  BL_ok=True :: Full replacement of mid-level software engineers within 10 years is unlikely, but significant role compression and reduced headcount growth are already underway
+
+=== AUTHORITY SHARE (fraction of evidence) ===
+  tier                        postA1A2   postdomain     postux
+  PRIMARY_AUTHORITATIVE          0.000        0.000      0.000
+  REPUTABLE_SECONDARY            0.000        0.000      0.000
+  GENERAL                        0.000        0.000      0.000
+  LOW_SIGNAL                     0.000        0.000      0.000
+  total evidence                   119          229        224
+
+[done] wrote compare_postux.json
