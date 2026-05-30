@@ -250,3 +250,50 @@ class TestKindBlocksSuppressProseFallback:
         data = _build(prose)  # no synth_payload
         paras = [b for b in data.blocks if isinstance(b, ParagraphBlock)]
         assert len(paras) >= 2
+
+
+class TestSectionHeadingsExtraction:
+    """Citation-grounded DIRECT answers often structure prose as a sequence
+    of ``**Heading.**`` lead-ins. Detect them and emit a KeyValueBlock."""
+
+    def test_bold_section_leads_become_key_value_block(self):
+        text = (
+            "Intro paragraph summarising the topic.\n\n"
+            "**Security vulnerabilities accumulating as technical debt.** "
+            "AI-generated code frequently contains security flaws [16][17].\n\n"
+            "**Training-data quality propagating outdated patterns.** "
+            "Code generators inherit vulnerabilities from public corpora [18].\n\n"
+            "**Governance maturity gaps enabling unchecked adoption.** "
+            "Org preparedness is insufficient relative to adoption pace [4][10]."
+        )
+        data = _build(text)
+        kvs = [b for b in data.blocks if isinstance(b, KeyValueBlock)]
+        paras = [b for b in data.blocks if isinstance(b, ParagraphBlock)]
+        assert len(kvs) == 1
+        assert kvs[0].title == "Sections"
+        assert len(kvs[0].rows) == 3
+        keys = [r.key for r in kvs[0].rows]
+        assert "Security vulnerabilities accumulating as technical debt" in keys
+        # Intro paragraph survives as ParagraphBlock
+        assert any("Intro paragraph" in p.text for p in paras)
+
+    def test_single_bold_heading_does_not_trigger(self):
+        text = (
+            "**Only heading here.** Body text.\n\n"
+            "Another paragraph without a bold lead."
+        )
+        data = _build(text)
+        kvs = [b for b in data.blocks if isinstance(b, KeyValueBlock)]
+        assert kvs == []  # need ≥2 sections
+
+    def test_bold_with_colon_terminator_also_works(self):
+        text = (
+            "**First topic:** body of first topic.\n\n"
+            "**Second topic:** body of second topic.\n\n"
+            "**Third topic:** body of third topic."
+        )
+        data = _build(text)
+        kvs = [b for b in data.blocks if isinstance(b, KeyValueBlock)]
+        assert len(kvs) == 1
+        keys = [r.key for r in kvs[0].rows]
+        assert keys == ["First topic", "Second topic", "Third topic"]

@@ -222,6 +222,17 @@ class SemanticScholarSource(BaseSource):
             if fields_set:
                 params["fieldsOfStudy"] = ",".join(fields_set)
 
+        # Cite-count floor for state-of-the-art DEEP queries only: any
+        # other combo lacks the volume to absorb the cut without losing
+        # signal. Threshold 10 drops untracked preprints / forgotten
+        # working papers while keeping recent (2025+) papers reachable.
+        if (
+            isinstance(question_type, str)
+            and question_type.lower() == "state_of_art"
+            and hints.get("complexity_hint") == "deep"
+        ):
+            params["minCitationCount"] = 10
+
         logger.debug(
             "semantic_scholar_search_start",
             query=query,
@@ -229,6 +240,7 @@ class SemanticScholarSource(BaseSource):
             year=year,
             publication_types=params.get("publicationTypes"),
             fields_of_study=params.get("fieldsOfStudy"),
+            min_citation_count=params.get("minCitationCount"),
         )
         # One retry on 429 with a short backoff: S2's per-IP window often
         # clears within ~1 s and a single retry recovers a meaningful

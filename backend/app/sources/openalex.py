@@ -242,6 +242,14 @@ class OpenAlexSource(BaseSource):
         from_date = self._from_date_from_days(effective_days)
         if from_date is not None:
             filters.append(f"from_publication_date:{from_date}")
+
+        # Cite-count floor mirroring SemanticScholar (state_of_art + deep
+        # only — see semantic_scholar.py for rationale).
+        if (
+            hints.get("question_type") == "state_of_art"
+            and hints.get("complexity_hint") == "deep"
+        ):
+            filters.append("cited_by_count:>10")
         language = hints.get("language")
         if isinstance(language, str) and language:
             filters.append(f"language:{language}")

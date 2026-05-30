@@ -117,25 +117,35 @@ class StructuredRenderer:
         if kind_blocks:
             return StructuredAnswerData(summary=summary, blocks=blocks)
 
-        # 3. Try key/value extraction.
+        # 3. Detect **Heading.** section leads (citation-grounded answers
+        #    frequently structure their prose this way).
+        sec = self._extract_section_headings(residual)
+        if sec is not None:
+            kv_block, leftover = sec
+            for para in leftover:
+                blocks.append(ParagraphBlock(text=para))
+            blocks.append(kv_block)
+            return StructuredAnswerData(summary=summary, blocks=blocks)
+
+        # 4. Try key/value extraction.
         kv_block = self._extract_key_value(residual)
         if kv_block is not None:
             blocks.append(kv_block)
             return StructuredAnswerData(summary=summary, blocks=blocks)
 
-        # 4. Try numbered/process steps.
+        # 5. Try numbered/process steps.
         steps_block = self._extract_steps(residual)
         if steps_block is not None:
             blocks.append(steps_block)
             return StructuredAnswerData(summary=summary, blocks=blocks)
 
-        # 5. Bullet-style key points (lines starting with -, *, or •).
+        # 6. Bullet-style key points (lines starting with -, *, or •).
         points = self._extract_bullets(residual)
         if points is not None:
             blocks.append(points)
             return StructuredAnswerData(summary=summary, blocks=blocks)
 
-        # 6. Default: split into paragraphs.
+        # 7. Default: split into paragraphs.
         paragraphs = [p.strip() for p in residual.split("\n\n") if p.strip()]
         if len(paragraphs) <= 1:
             # Single sentence ≈ summary; emit one paragraph for legibility.
@@ -255,6 +265,35 @@ class StructuredRenderer:
             return None
         rows = [KeyValueRow(key=k.strip(), value=v.strip()) for k, v in pairs[:12]]
         return KeyValueBlock(title="Key facts", rows=rows)
+
+    @staticmethod
+    def _extract_section_headings(
+        text: str,
+    ) -> tuple[KeyValueBlock, list[str]] | None:
+        """Detect paragraphs that open with ``**Heading.**`` / ``**Heading:**``
+        as section lead-ins and emit them as a ``KeyValueBlock``.
+
+        Returns ``(kv_block, leftover_paragraphs)`` when ≥ 2 such sections are
+        found, otherwise ``None``. Leftover paragraphs (e.g. intro / outro
+        prose without a bold lead) are preserved by the caller as
+        ``ParagraphBlock``s.
+        """
+        heading_re = re.compile(r"^\*\*([^*\n]{2,120}?)\*\*\s+(.+)$", re.DOTALL)
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        rows: list[KeyValueRow] = []
+        leftover: list[str] = []
+        for para in paragraphs:
+            m = heading_re.match(para)
+            if m:
+                heading = m.group(1).strip().rstrip(".:").strip()
+                body = m.group(2).strip()
+                if heading and body:
+                    rows.append(KeyValueRow(key=heading, value=body))
+                    continue
+            leftover.append(para)
+        if len(rows) < 2:
+            return None
+        return KeyValueBlock(title="Sections", rows=rows[:12]), leftover
 
     @staticmethod
     def _extract_steps(text: str) -> StepsBlock | None:

@@ -439,3 +439,51 @@ async def test_search_replaces_commas_in_query_to_avoid_filter_collision() -> No
 
     flt = captured["params"]["filter"]
     assert "title_and_abstract.search:foo  bar  baz" in flt
+
+
+@pytest.mark.asyncio
+async def test_search_applies_citation_floor_for_deep_state_of_art() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = OpenAlexSource(transport=_mock_transport(handler))
+    await source.search(
+        "q",
+        max_results=3,
+        question_type="state_of_art",
+        complexity_hint="deep",
+    )
+
+    assert "cited_by_count:>10" in captured["params"]["filter"]
+
+
+@pytest.mark.asyncio
+async def test_search_omits_citation_floor_outside_deep_state_of_art() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = OpenAlexSource(transport=_mock_transport(handler))
+    # state_of_art alone (no deep) → no floor
+    await source.search(
+        "q",
+        max_results=3,
+        question_type="state_of_art",
+        complexity_hint="standard",
+    )
+    assert "cited_by_count:>10" not in captured["params"]["filter"]
+
+    # deep but causal → no floor
+    await source.search(
+        "q",
+        max_results=3,
+        question_type="causal",
+        complexity_hint="deep",
+    )
+    assert "cited_by_count:>10" not in captured["params"]["filter"]
+

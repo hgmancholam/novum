@@ -386,3 +386,50 @@ async def test_search_omits_hint_params_when_unknown() -> None:
 
     assert "publicationTypes" not in captured["params"]
     assert "fieldsOfStudy" not in captured["params"]
+
+
+@pytest.mark.asyncio
+async def test_search_applies_min_citation_count_for_deep_state_of_art() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = SemanticScholarSource(transport=_mock_transport(handler))
+    await source.search(
+        "q",
+        max_results=3,
+        question_type="state_of_art",
+        complexity_hint="deep",
+    )
+
+    assert captured["params"]["minCitationCount"] == "10"
+
+
+@pytest.mark.asyncio
+async def test_search_omits_min_citation_count_outside_deep_state_of_art() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = SemanticScholarSource(transport=_mock_transport(handler))
+    # state_of_art but only standard complexity → no floor
+    await source.search(
+        "q",
+        max_results=3,
+        question_type="state_of_art",
+        complexity_hint="standard",
+    )
+    assert "minCitationCount" not in captured["params"]
+
+    # deep but causal → no floor
+    await source.search(
+        "q",
+        max_results=3,
+        question_type="causal",
+        complexity_hint="deep",
+    )
+    assert "minCitationCount" not in captured["params"]
