@@ -109,14 +109,6 @@ class StructuredRenderer:
             blocks.append(MarkdownBlock(text=residual))
             return StructuredAnswerData(summary=summary, blocks=blocks)
 
-        # When the synthesizer already produced typed structure (kind_blocks),
-        # the prose narrative is by design a textual restatement of the same
-        # fields (interpretation, scenarios, candidates…). Appending it as
-        # paragraphs duplicates the structured payload — the user has the
-        # "Prose" tab for the full narrative. Skip the textual fallback.
-        if kind_blocks:
-            return StructuredAnswerData(summary=summary, blocks=blocks)
-
         # 3. Detect **Heading.** section leads (citation-grounded answers
         #    frequently structure their prose this way).
         sec = self._extract_section_headings(residual)
@@ -250,9 +242,17 @@ class StructuredRenderer:
         match = re.match(r"^([^.!?\n]{5,280}[.!?])", cleaned)
         if match:
             return match.group(1).strip()
-        # Fallback: first non-empty line clipped.
+        # No terminator within 280 chars: fall back to the first line,
+        # clipped to ≤ 200 chars on a word boundary so we never split a
+        # word mid-character (avoids "…the degree of disp").
         first_line = cleaned.splitlines()[0].strip()
-        return first_line[:200]
+        if len(first_line) <= 200:
+            return first_line
+        clipped = first_line[:200]
+        last_space = clipped.rfind(" ")
+        if last_space >= 100:  # keep at least half the budget
+            clipped = clipped[:last_space]
+        return clipped.rstrip(" ,;:—-") + "…"
 
     @staticmethod
     def _extract_key_value(text: str) -> KeyValueBlock | None:

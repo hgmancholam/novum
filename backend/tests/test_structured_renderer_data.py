@@ -160,11 +160,12 @@ class TestRenderEmbedsData:
         assert "blocks" in data
 
 
-class TestKindBlocksSuppressProseFallback:
+class TestKindBlocksCoexistWithProse:
     """When the synthesizer emits typed structure (answer_kind != None),
-    the prose narrative is a restatement of the same fields and must not
-    be re-appended as ParagraphBlocks (would duplicate the structured
-    payload in the UI)."""
+    the typed blocks must appear AND the substantive prose paragraphs
+    must still be rendered — the prose often carries citations, numbers
+    and hypotheses that the typed payload doesn't capture (run 4fe61e59
+    'AI replacing mid-level engineers within 10 years')."""
 
     def _ctx_with_payload(self, text: str, payload):
         return RenderContext(
@@ -176,7 +177,7 @@ class TestKindBlocksSuppressProseFallback:
             synth_payload=payload,
         )
 
-    def test_best_effort_does_not_duplicate_prose(self):
+    def test_best_effort_keeps_prose_paragraphs(self):
         from app.domain.enums import AnswerKind
         from app.llm.models import SynthesizedAnswer
 
@@ -190,28 +191,29 @@ class TestKindBlocksSuppressProseFallback:
             ],
         )
         prose = (
-            "First narrative paragraph restating the interpretation.\n\n"
-            "Second paragraph with H1 hypothesis.\n\n"
+            "First narrative paragraph with substantive context.\n\n"
+            "Second paragraph with H1 hypothesis and citations [4][10].\n\n"
             "Third paragraph with H2 hypothesis.\n\n"
             "In summary: role transformation more likely than replacement."
         )
         ctx = self._ctx_with_payload(prose, payload)
         data = StructuredRenderer().build_data(ctx)
 
-        # Typed blocks must be present (interpretation + alternatives)
         paras = [b for b in data.blocks if isinstance(b, ParagraphBlock)]
         kps = [b for b in data.blocks if isinstance(b, KeyPointsBlock)]
+
+        # Typed blocks present
         assert any("Most likely interpretation" in p.text for p in paras)
         assert any(kp.title == "Alternative interpretations" for kp in kps)
 
-        # Prose must NOT be re-emitted as additional paragraph blocks
-        assert not any("H1 hypothesis" in p.text for p in paras)
-        assert not any("In summary" in p.text for p in paras)
+        # Prose paragraphs preserved — they carry information the typed
+        # payload doesn't (hypothesis labels, citations, conclusions).
+        assert any("H1 hypothesis" in p.text for p in paras)
+        assert any("In summary" in p.text for p in paras)
 
     def test_kind_blocks_still_preserve_mermaid_and_markdown(self):
-        """Mermaid fences and markdown tables/headers must survive even
-        when kind_blocks are emitted — they are LLM-authored formatting,
-        not a textual restatement."""
+        """Mermaid fences and markdown tables/headers must survive
+        alongside kind_blocks."""
         from app.domain.enums import AnswerKind
         from app.llm.models import SynthesizedAnswer
 
@@ -224,7 +226,7 @@ class TestKindBlocksSuppressProseFallback:
         text_with_mermaid = (
             "Diagrama:\n\n"
             "```mermaid\nflowchart TD\n  A --> B\n```\n\n"
-            "Texto que ahora se descarta."
+            "Texto adicional que también se conserva."
         )
         ctx = self._ctx_with_payload(text_with_mermaid, payload)
         data = StructuredRenderer().build_data(ctx)
@@ -241,7 +243,7 @@ class TestKindBlocksSuppressProseFallback:
         assert len(mds) == 1
 
     def test_no_kind_payload_keeps_paragraph_fallback(self):
-        """Sanity: without answer_kind, behavior is unchanged."""
+        """Sanity: without answer_kind, paragraph fallback still works."""
         prose = (
             "Primer párrafo de contexto general.\n\n"
             "Segundo párrafo con detalles.\n\n"
@@ -250,6 +252,36 @@ class TestKindBlocksSuppressProseFallback:
         data = _build(prose)  # no synth_payload
         paras = [b for b in data.blocks if isinstance(b, ParagraphBlock)]
         assert len(paras) >= 2
+
+
+class TestSummaryWordBoundary:
+    """Long first sentences without a terminator inside 280 chars must be
+    clipped on a word boundary, not mid-character (run 4fe61e59 produced
+    '…with the degree of disp' — broken word)."""
+
+    def test_long_sentence_clips_on_word_boundary(self):
+        text = (
+            "The most defensible conclusion from the available evidence is "
+            "that AI will substantially reshape — but not wholesale replace — "
+            "mid-level software engineering roles within 10 years, with the "
+            "degree of displacement depending heavily on task type, "
+            "organizational adoption, and capability trajectories that span "
+            "multiple verticals and regulatory contexts worldwide."
+        )
+        data = _build(text)
+        # No mid-word break
+        assert not data.summary.endswith("disp")
+        assert not data.summary.endswith("displa")
+        # Ends with an ellipsis marker since the sentence was clipped
+        assert data.summary.endswith("…")
+        # Final character before the ellipsis is a letter, not whitespace
+        assert data.summary[-2].isalnum() or data.summary[-2] in "—"
+        # Length is bounded
+        assert len(data.summary) <= 201
+
+    def test_short_first_line_unchanged(self):
+        data = _build("Una línea sin punto\nOtra línea")
+        assert data.summary == "Una línea sin punto"
 
 
 class TestSectionHeadingsExtraction:
