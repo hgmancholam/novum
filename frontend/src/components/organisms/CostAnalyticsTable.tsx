@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/cn";
 import type { CostRow } from "@/types/costAnalytics";
 
-type SortKey = "occurred_at" | "provider" | "kind" | "model" | "tokens" | "cost_usd";
+type SortKey = "occurred_at" | "owner" | "provider" | "kind" | "model" | "tokens" | "cost_usd";
 type SortDir = "asc" | "desc";
 
 const COLUMNS: ReadonlyArray<{
@@ -27,6 +27,7 @@ const COLUMNS: ReadonlyArray<{
   align?: "right";
 }> = [
   { key: "occurred_at", label: "When" },
+  { key: "owner", label: "User" },
   { key: "provider", label: "Provider" },
   { key: "kind", label: "Kind" },
   { key: "model", label: "Model" },
@@ -48,6 +49,8 @@ function compare(a: CostRow, b: CostRow, key: SortKey): number {
   switch (key) {
     case "occurred_at":
       return a.occurred_at.localeCompare(b.occurred_at);
+    case "owner":
+      return a.owner.localeCompare(b.owner);
     case "provider":
       return a.provider.localeCompare(b.provider);
     case "kind":
@@ -174,6 +177,9 @@ export function CostAnalyticsTable({
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-(--text-secondary)">
+                      {r.owner}
                     </td>
                     <td className="px-2 py-2">
                       <span

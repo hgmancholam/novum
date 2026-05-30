@@ -26,6 +26,15 @@ export interface KindBreakdown {
   tokens: number;
 }
 
+export interface UserBreakdown {
+  owner: string;
+  cost_usd: number;
+  calls: number;
+  runs: number;
+  tokens: number;
+  pct_of_total: number;
+}
+
 export interface ModelBreakdown {
   provider: string;
   model: string;
@@ -44,6 +53,7 @@ export interface DailyPoint {
 
 export interface CostRow {
   run_id: string;
+  owner: string;
   question: string;
   /** ISO datetime. */
   occurred_at: string;
@@ -62,6 +72,7 @@ export interface CostAnalyticsResponse {
   totals: AnalyticsTotals;
   by_provider: ProviderBreakdown[];
   by_kind: KindBreakdown[];
+  by_user: UserBreakdown[];
   by_model: ModelBreakdown[];
   by_day: DailyPoint[];
   rows: CostRow[];
@@ -72,5 +83,6 @@ export interface CostAnalyticsFilters {
   dateTo?: string;
   providers?: string[];
   kinds?: string[];
+  owners?: string[];
   rowLimit?: number;
 }

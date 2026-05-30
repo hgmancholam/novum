@@ -46,6 +46,8 @@ export { KindBarChart } from "./KindBarChart";
 export type { KindBarChartProps } from "./KindBarChart";
 export { TopModelsChart } from "./TopModelsChart";
 export type { TopModelsChartProps } from "./TopModelsChart";
+export { UserBarChart } from "./UserBarChart";
+export type { UserBarChartProps } from "./UserBarChart";
 export { SearchStepCard } from "./SearchStepCard";
 export type { SearchStepCardProps, SearchSource } from "./SearchStepCard";
 export { PlanStepCard } from "./PlanStepCard";

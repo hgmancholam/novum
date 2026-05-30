@@ -1,10 +1,12 @@
 """Cross-run cost analytics endpoint.
 
-Aggregates `CostIncurred` events across **all** runs owned by the current
-user, with optional date / provider / kind filters. Powers the
-`/costs` dashboard page (cross-cutting, not per-run).
+Aggregates `CostIncurred` events across **all** runs (global, not
+owner-scoped), with optional date / provider / kind / owner filters.
+Powers the `/costs` dashboard page (cross-cutting, not per-run).
 
-Pure read endpoint — no mutations.
+Pure read endpoint — no mutations. Requires authentication but does not
+filter by current user; results are global so any logged-in user sees
+total platform usage. A `by_user` breakdown surfaces per-user costs.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.types import String
 
-from app.dependencies import CurrentUsername, DbSession
+from app.dependencies import CurrentUsername, DbSession  # noqa: F401  (auth gate)
 
 router = APIRouter(prefix="/api/costs", tags=["Costs"])
 
@@ -51,6 +53,15 @@ class KindBreakdown(BaseModel):
     tokens: int
 
 
+class UserBreakdown(BaseModel):
+    owner: str
+    cost_usd: float
+    calls: int
+    runs: int
+    tokens: int
+    pct_of_total: float
+
+
 class ModelBreakdown(BaseModel):
     provider: str
     model: str
@@ -68,6 +79,7 @@ class DailyPoint(BaseModel):
 
 class CostRow(BaseModel):
     run_id: str
+    owner: str
     question: str
     occurred_at: datetime
     provider: str
@@ -85,6 +97,7 @@ class CostAnalyticsResponse(BaseModel):
     totals: AnalyticsTotals
     by_provider: list[ProviderBreakdown]
     by_kind: list[KindBreakdown]
+    by_user: list[UserBreakdown]
     by_model: list[ModelBreakdown]
     by_day: list[DailyPoint]
     rows: list[CostRow]
@@ -98,17 +111,20 @@ class CostAnalyticsResponse(BaseModel):
 @router.get("/analytics", response_model=CostAnalyticsResponse)
 async def get_cost_analytics(
     db: DbSession,
-    username: CurrentUsername,
+    _username: CurrentUsername,
     date_from: Annotated[date | None, Query()] = None,
     date_to: Annotated[date | None, Query()] = None,
     provider: Annotated[list[str] | None, Query()] = None,
     kind: Annotated[list[str] | None, Query()] = None,
+    owner: Annotated[list[str] | None, Query()] = None,
     row_limit: Annotated[int, Query(ge=1, le=1000)] = 200,
 ) -> CostAnalyticsResponse:
-    """Aggregate cost events across the current user's runs."""
+    """Aggregate cost events across all runs (global, not owner-scoped)."""
     today = datetime.now(timezone.utc).date()
+    # Default end-of-range is tomorrow (UTC) so today's events are always
+    # visible regardless of the requester's local timezone.
     df = date_from if date_from is not None else today - timedelta(days=30)
-    dt = date_to if date_to is not None else today
+    dt = date_to if date_to is not None else today + timedelta(days=1)
 
     # Inclusive upper bound: convert dt → start of next day.
     range_start = datetime.combine(df, datetime.min.time(), tzinfo=timezone.utc)
@@ -118,24 +134,26 @@ async def get_cost_analytics(
 
     where_parts = [
         "events.payload->>'type' = 'CostIncurred'",
-        "runs.owner_username = :owner",
         "events.created_at >= :range_start",
         "events.created_at < :range_end",
     ]
     params: dict[str, object] = {
-        "owner": username,
         "range_start": range_start,
         "range_end": range_end,
     }
 
     provider_filter = [p for p in (provider or []) if p]
     kind_filter = [k for k in (kind or []) if k]
+    owner_filter = [o for o in (owner or []) if o]
     if provider_filter:
         where_parts.append("events.payload->>'provider' = ANY(:providers)")
         params["providers"] = provider_filter
     if kind_filter:
         where_parts.append("events.payload->>'kind' = ANY(:kinds)")
         params["kinds"] = kind_filter
+    if owner_filter:
+        where_parts.append("runs.owner_username = ANY(:owners)")
+        params["owners"] = owner_filter
 
     where_clause = " AND ".join(where_parts)
 
@@ -150,6 +168,8 @@ async def get_cost_analytics(
         bindparams.append(bindparam("providers", type_=ARRAY(String)))
     if kind_filter:
         bindparams.append(bindparam("kinds", type_=ARRAY(String)))
+    if owner_filter:
+        bindparams.append(bindparam("owners", type_=ARRAY(String)))
 
     def _stmt(sql: str):
         stmt = text(sql)
@@ -231,6 +251,37 @@ async def get_cost_analytics(
         for r in kind_rows
     ]
 
+    # --- By user -------------------------------------------------------------
+    user_sql = f"""
+        SELECT
+            runs.owner_username AS owner,
+            COALESCE(SUM((events.payload->>'cost_usd')::double precision), 0.0) AS cost_usd,
+            COUNT(*) AS calls,
+            COUNT(DISTINCT events.run_id) AS runs,
+            COALESCE(SUM(
+                (events.payload->>'prompt_tokens')::bigint
+              + (events.payload->>'completion_tokens')::bigint
+            ), 0) AS tokens
+        {base_from}
+        GROUP BY runs.owner_username
+        ORDER BY cost_usd DESC
+    """
+    user_rows = (await db.execute(_stmt(user_sql), params)).mappings().all()
+    by_user = [
+        UserBreakdown(
+            owner=str(r["owner"] or "unknown"),
+            cost_usd=float(r["cost_usd"]),
+            calls=int(r["calls"]),
+            runs=int(r["runs"]),
+            tokens=int(r["tokens"]),
+            pct_of_total=round(
+                (float(r["cost_usd"]) / total_cost * 100.0) if total_cost > 0 else 0.0,
+                2,
+            ),
+        )
+        for r in user_rows
+    ]
+
     # --- By model (top-N) ----------------------------------------------------
     model_sql = f"""
         SELECT
@@ -288,6 +339,7 @@ async def get_cost_analytics(
     rows_sql = f"""
         SELECT
             events.run_id::text       AS run_id,
+            runs.owner_username       AS owner,
             runs.question             AS question,
             events.created_at         AS occurred_at,
             events.payload->>'provider'  AS provider,
@@ -306,6 +358,7 @@ async def get_cost_analytics(
     rows = [
         CostRow(
             run_id=str(r["run_id"]),
+            owner=str(r["owner"] or "unknown"),
             question=str(r["question"]),
             occurred_at=r["occurred_at"],
             provider=str(r["provider"] or "unknown"),
@@ -325,6 +378,7 @@ async def get_cost_analytics(
         totals=totals,
         by_provider=by_provider,
         by_kind=by_kind,
+        by_user=by_user,
         by_model=by_model,
         by_day=by_day,
         rows=rows,

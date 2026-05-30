@@ -32,6 +32,7 @@ const EMPTY: CostAnalyticsResponse = {
   totals: { cost_usd: 0, prompt_tokens: 0, completion_tokens: 0, calls: 0, runs: 0 },
   by_provider: [],
   by_kind: [],
+  by_user: [],
   by_model: [],
   by_day: [],
   rows: [],

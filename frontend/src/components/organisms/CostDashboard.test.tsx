@@ -32,6 +32,10 @@ const SAMPLE: CostAnalyticsResponse = {
     { kind: "llm", cost_usd: 11.5, calls: 35, tokens: 7000 },
     { kind: "search", cost_usd: 0.84, calls: 7, tokens: 500 },
   ],
+  by_user: [
+    { owner: "alice", cost_usd: 10, calls: 30, runs: 4, tokens: 6000, pct_of_total: 81 },
+    { owner: "bob", cost_usd: 2.34, calls: 12, runs: 3, tokens: 1500, pct_of_total: 19 },
+  ],
   by_model: [
     { provider: "anthropic", model: "claude-sonnet", cost_usd: 10, calls: 30, tokens: 6000 },
   ],
@@ -61,6 +65,7 @@ describe("CostDashboard", () => {
     expect(screen.getByTestId("cost-line-chart")).toBeInTheDocument();
     expect(screen.getByTestId("cost-donut")).toBeInTheDocument();
     expect(screen.getByTestId("kind-bar-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("user-bar-chart")).toBeInTheDocument();
     expect(screen.getByTestId("top-models-chart")).toBeInTheDocument();
   });
 });

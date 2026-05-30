@@ -10,6 +10,7 @@ import {
   CostLineChart,
   KindBarChart,
   TopModelsChart,
+  UserBarChart,
 } from "@/components/molecules";
 import {
   formatInt,
@@ -70,6 +71,7 @@ export function CostDashboard({ data }: CostDashboardProps) {
         <CostLineChart data={data.by_day} />
         <CostDonut data={data.by_provider} />
         <KindBarChart data={data.by_kind} />
+        <UserBarChart data={data.by_user} />
         <TopModelsChart data={data.by_model} />
       </div>
     </div>

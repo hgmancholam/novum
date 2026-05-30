@@ -20,6 +20,7 @@ export interface AnalyticsFiltersProps {
   isRefreshing?: boolean;
   providers?: string[];
   kinds?: string[];
+  owners?: string[];
   className?: string;
 }
 
@@ -34,12 +35,14 @@ export function AnalyticsFilters({
   isRefreshing = false,
   providers,
   kinds,
+  owners,
   className,
 }: AnalyticsFiltersProps) {
   const fromId = useId();
   const toId = useId();
   const providerOptions = providers ?? DEFAULT_PROVIDERS;
   const kindOptions = kinds ?? DEFAULT_KINDS;
+  const ownerOptions = owners ?? [];
 
   const setField = useCallback(
     <K extends keyof CostAnalyticsFilters>(
@@ -58,7 +61,7 @@ export function AnalyticsFilters({
   );
 
   const toggleArrayValue = useCallback(
-    (key: "providers" | "kinds", value: string): void => {
+    (key: "providers" | "kinds" | "owners", value: string): void => {
       const current = filters[key] ?? [];
       const next = current.includes(value)
         ? current.filter((v) => v !== value)
@@ -72,7 +75,8 @@ export function AnalyticsFilters({
     Boolean(filters.dateFrom) ||
     Boolean(filters.dateTo) ||
     (filters.providers?.length ?? 0) > 0 ||
-    (filters.kinds?.length ?? 0) > 0;
+    (filters.kinds?.length ?? 0) > 0 ||
+    (filters.owners?.length ?? 0) > 0;
 
   return (
     <div
@@ -157,6 +161,33 @@ export function AnalyticsFilters({
           })}
         </div>
       </fieldset>
+
+      {ownerOptions.length > 0 ? (
+        <fieldset className="flex flex-col gap-1">
+          <legend className="text-xs text-(--text-secondary)">User</legend>
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Users">
+            {ownerOptions.map((o) => {
+              const active = filters.owners?.includes(o) ?? false;
+              return (
+                <button
+                  key={o}
+                  type="button"
+                  onClick={() => { toggleArrayValue("owners", o); }}
+                  aria-pressed={active}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-xs transition-colors",
+                    active
+                      ? "border-(--accent) bg-(--accent-soft) text-(--text-primary)"
+                      : "border-[var(--glass-border)] text-(--text-secondary) hover:text-(--text-primary)"
+                  )}
+                >
+                  {o}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      ) : null}
 
       <div className="ml-auto flex items-end gap-2">
         {hasActive && onReset !== undefined ? (

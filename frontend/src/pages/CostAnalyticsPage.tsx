@@ -67,7 +67,7 @@ export default function CostAnalyticsPage() {
             Cost analytics
           </h1>
           <p className="text-sm text-(--text-secondary)">
-            Aggregate spend across all your runs.
+            Aggregate spend across all runs (global view). Filter by user to drill down.
           </p>
         </header>
 
@@ -77,6 +77,7 @@ export default function CostAnalyticsPage() {
           onReset={onReset}
           onRefresh={onRefresh}
           isRefreshing={isRefetching}
+          owners={data?.by_user.map((u) => u.owner) ?? []}
           className="mb-6"
         />
 

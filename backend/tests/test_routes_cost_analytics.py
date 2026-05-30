@@ -35,6 +35,7 @@ async def test_authenticated_empty_returns_zero_totals(
     assert body["totals"]["runs"] == 0
     assert body["by_provider"] == []
     assert body["by_kind"] == []
+    assert body["by_user"] == []
     assert body["by_model"] == []
     assert body["by_day"] == []
     assert body["rows"] == []
@@ -57,6 +58,7 @@ async def test_filter_query_params_accepted(
             "date_to": "2026-12-31",
             "provider": ["anthropic", "tavily"],
             "kind": ["llm", "search"],
+            "owner": ["alice", "bob"],
             "row_limit": 50,
         },
         headers=auth_headers,

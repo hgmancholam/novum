@@ -22,6 +22,9 @@ function buildQuery(filters: CostAnalyticsFilters): string {
   for (const k of filters.kinds ?? []) {
     if (k) params.append("kind", k);
   }
+  for (const o of filters.owners ?? []) {
+    if (o) params.append("owner", o);
+  }
   if (filters.rowLimit) params.set("row_limit", String(filters.rowLimit));
   const qs = params.toString();
   return qs ? `?${qs}` : "";

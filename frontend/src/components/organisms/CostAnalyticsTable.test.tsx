@@ -8,6 +8,7 @@ import type { CostRow } from "@/types/costAnalytics";
 const SAMPLE: CostRow[] = [
   {
     run_id: "run-a",
+    owner: "alice",
     question: "Q1",
     occurred_at: "2026-05-01T10:00:00Z",
     provider: "anthropic",
@@ -20,6 +21,7 @@ const SAMPLE: CostRow[] = [
   },
   {
     run_id: "run-b",
+    owner: "bob",
     question: "Q2",
     occurred_at: "2026-05-02T10:00:00Z",
     provider: "openai",
