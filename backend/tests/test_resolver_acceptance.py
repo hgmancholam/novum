@@ -27,8 +27,10 @@ from app.domain.enums import AnswerKind, QuestionType
         (QuestionType.PREDICTIVE_FUTURE, 0.60, 0.7, 0.6, False, AnswerKind.SCENARIO),
         # Row 6: EDA vs microservices — comparative, agr<0.6
         (QuestionType.COMPARATIVE, 0.70, 1.0, 0.55, False, AnswerKind.WEIGHTED),
-        # Row 7: Long-term memory for AI agents — state_of_art, cov=0.6 → BEST_EFFORT
-        (QuestionType.STATE_OF_ART, 0.55, 0.6, 0.55, False, AnswerKind.BEST_EFFORT),
+        # Row 7: Long-term memory for AI agents — state_of_art with cov ≥ 0.5 → WEIGHTED
+        # (IP-33: state_of_art compares leading approaches, never DIRECT/BEST_EFFORT when
+        # coverage is at least partial; lets Q7 surface the vector/graph/hybrid tradeoff.)
+        (QuestionType.STATE_OF_ART, 0.55, 0.6, 0.55, False, AnswerKind.WEIGHTED),
         # Row 8: AI replacing engineers — predictive priority wins
         (QuestionType.PREDICTIVE_FUTURE, 0.50, 0.7, 0.4, False, AnswerKind.SCENARIO),
     ],

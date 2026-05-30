@@ -127,7 +127,9 @@ def test_causal_below_direct_threshold_falls_through_to_best_effort() -> None:
         # comparisons are inherently tradeoff framings, even when sources agree.
         (QuestionType.COMPARATIVE, AnswerKind.WEIGHTED),
         (QuestionType.DEFINITIONAL, AnswerKind.DIRECT),
-        (QuestionType.STATE_OF_ART, AnswerKind.DIRECT),
+        # IP-33: STATE_OF_ART always routes to WEIGHTED when coverage ≥ 0.5
+        # (compares leading approaches; surfaces the tradeoff to the reader).
+        (QuestionType.STATE_OF_ART, AnswerKind.WEIGHTED),
         (QuestionType.CAUSAL, AnswerKind.DIRECT),
     ],
 )

@@ -28,24 +28,28 @@ _BEST_EFFORT_COVERAGE_FLOOR = 0.5
 def select_answer_kind(inputs: AnswerKindInputs) -> AnswerKind:
     """Return the ``AnswerKind`` for the given run state (deterministic).
 
-    Priority order (binding §0.8 matrix):
-      1. ``personal_private``     → ``ETHICAL_REDIRECT`` (ethics guard)
-      2. ambiguity OR cov < 0.5   → ``BEST_EFFORT`` (uncertainty wins over
-                                      type-based templates so empty
-                                      comparatives ("best X") route correctly)
-      3. ``predictive_future``    → ``SCENARIO``
-      4. ``comparative``          → ``WEIGHTED`` (comparisons are inherently
-                                      tradeoffs; matches §0.8 rows 2 & 6)
-      5. ``subjective_opinion``   → ``TRADEOFF``
-      6. cov complete, agr < 0.6  → ``WEIGHTED``
-      7. cov complete, S ≥ 0.75,
-         agr ≥ 0.6                → ``DIRECT``
-      8. else                     → ``BEST_EFFORT``
+    Priority order (IP-33 — question-type templates win over partial
+    coverage; the synthesizer prompt hedges in the Bottom Line when
+    evidence is incomplete):
+
+      1. ``personal_private``                          → ``ETHICAL_REDIRECT``
+      2. ``ambiguity_flag``                            → ``BEST_EFFORT``
+         (keeps empty-criteria comparatives like "best X" routing right)
+      3. ``predictive_future``                         → ``SCENARIO``
+      4. ``comparative``                               → ``WEIGHTED``
+      5. ``subjective_opinion``                        → ``TRADEOFF``
+      6. ``state_of_art`` with cov ≥ 0.5               → ``WEIGHTED``
+         (state-of-art is inherently a comparison of leading approaches)
+      7. For the remaining ``factual`` / ``definitional`` / ``causal``:
+         a. cov < 0.5                                  → ``BEST_EFFORT``
+         b. cov complete, agr < 0.6                    → ``WEIGHTED``
+         c. cov complete, S ≥ 0.75, agr ≥ 0.6         → ``DIRECT``
+         d. else                                       → ``BEST_EFFORT``
     """
     if inputs.question_type == QuestionType.PERSONAL_PRIVATE:
         return AnswerKind.ETHICAL_REDIRECT
 
-    if inputs.ambiguity_flag or inputs.coverage < _BEST_EFFORT_COVERAGE_FLOOR:
+    if inputs.ambiguity_flag:
         return AnswerKind.BEST_EFFORT
 
     match inputs.question_type:
@@ -55,8 +59,13 @@ def select_answer_kind(inputs: AnswerKindInputs) -> AnswerKind:
             return AnswerKind.WEIGHTED
         case QuestionType.SUBJECTIVE_OPINION:
             return AnswerKind.TRADEOFF
+        case QuestionType.STATE_OF_ART if inputs.coverage >= _BEST_EFFORT_COVERAGE_FLOOR:
+            return AnswerKind.WEIGHTED
         case _:
             pass
+
+    if inputs.coverage < _BEST_EFFORT_COVERAGE_FLOOR:
+        return AnswerKind.BEST_EFFORT
 
     coverage_complete = inputs.coverage >= _DIRECT_MIN_COVERAGE
     if coverage_complete and inputs.agreement < _WEIGHTED_AGREEMENT_CEILING:
