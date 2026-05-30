@@ -36,11 +36,11 @@ export const KIND_COLORS: Record<string, string> = {
 };
 
 export function colorForProvider(provider: string): string {
-  return PROVIDER_COLORS[provider.toLowerCase()] ?? PROVIDER_COLORS["unknown"]!;
+  return PROVIDER_COLORS[provider.toLowerCase()] ?? PROVIDER_COLORS["unknown"] ?? "#64748b";
 }
 
 export function colorForKind(kind: string): string {
-  return KIND_COLORS[kind.toLowerCase()] ?? KIND_COLORS["unknown"]!;
+  return KIND_COLORS[kind.toLowerCase()] ?? KIND_COLORS["unknown"] ?? "#64748b";
 }
 
 export function formatUsd(value: number): string {

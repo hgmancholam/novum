@@ -4,11 +4,47 @@
 > Each decision follows the decision record template.
 
 **Last Updated:** 2026-05-29
-**Total Decisions:** 84
+**Total Decisions:** 85
 
 ---
 
 ## Recent Decisions
+
+## D-COSTS-ANALYTICS: Cross-run Cost Analytics page (2026-05-29)
+**Date:** 2026-05-29
+**Author:** Coder (autonomous follow-up to IP-29)
+**Status:** ✅ Implemented (backend endpoint + frontend page + tests green)
+
+### Context
+After IP-29 shipped per-run cost tracking, the user requested a global analytics surface to inspect costs across all questions — filters, dashboard with charts, and a data table. Single page, owner-scoped, derived from the same `events` log (RF-03).
+
+### Decisions
+**D1 — One owner-scoped REST endpoint, no new tables.** `GET /api/costs/analytics` aggregates `events.payload` (event type `CostIncurred`) JOINed with `runs.owner_username = current_user`. Raw SQL with `bindparam("providers", type_=ARRAY(String))` for filter arrays. No new tables or materialized views — the existing JSONB events plus a `(occurred_at)` index on the filtered slice cover V1 traffic.
+
+**D2 — recharts 3.8.1 for charts.** Picked over Chart.js / Visx / D3-direct because: (a) declarative React API matches the rest of the stack, (b) tree-shakeable per chart type, (c) responsive container handles resize without extra glue. Recharts cannot read CSS custom properties at runtime → resolved hex palette lives in `frontend/src/lib/costAnalyticsFormat.ts` (mirrors `PROVIDER_COLORS`/`KIND_COLORS`).
+
+**D3 — Standalone full-width page, not a panel inside AppShell.** Cost analytics is a workspace-level surface, not a per-run artifact. Lives at `/costs`, has its own minimal TopNav (Logo + ThemeToggle + "Back to Novum"). Entry point: a "Costs" button in the History panel header so users discover it from the normal navigation flow.
+
+**D4 — Atomic-design split + ESLint guard.** New atom `KpiCard`, six molecules (`AnalyticsFilters`, `ChartFrame`, `CostLineChart`, `CostDonut`, `KindBarChart`, `TopModelsChart`), two organisms (`CostDashboard`, `CostAnalyticsTable`), and one page (`CostAnalyticsPage`). `useCostAnalytics` hook is only imported from `pages/` (enforced by existing `import/no-restricted-paths`). No data hooks inside atoms/molecules/organisms.
+
+**D5 — Global `cleanup()` in vitest setup.** Auto-cleanup via Testing Library's hook was not running across the new test files (RTL did not detect the vitest globals path correctly under Node 24.4.1 + Vitest 2.1.9). Added an explicit `afterEach(cleanup)` to `src/test/setup.ts`. All 100 existing test files still pass — change is a strict superset of prior behavior.
+
+### Files
+- Backend: `backend/app/routes/cost_analytics.py`, `backend/tests/test_routes_cost_analytics.py`
+- Frontend types/api/hook: `frontend/src/types/costAnalytics.ts`, `frontend/src/lib/api/costAnalytics.ts`, `frontend/src/hooks/useCostAnalytics.ts`
+- Frontend palette/format: `frontend/src/lib/costAnalyticsFormat.ts`
+- Components: `frontend/src/components/atoms/KpiCard.tsx` + 6 molecules + 2 organisms
+- Page + route: `frontend/src/pages/CostAnalyticsPage.tsx`, `frontend/src/router.tsx` (`/costs`)
+- Nav entry: `frontend/src/pages/HistoryPanelContainer.tsx` (Costs button)
+- Test infra: `frontend/src/test/setup.ts` (added `afterEach(cleanup)`)
+
+### Validation
+- `npx tsc --noEmit` clean
+- New: 24/24 vitest tests pass (6 files)
+- Full FE suite: 100/100 test files pass
+- Backend: `test_routes_cost_analytics.py` 2 passed, 2 skipped (DB-dependent)
+
+---
 
 ## D-IP29: IP-29 Per-Run Cost & Token Tracking with Trace Panel (RF-20) (2026-05-29)
 **Date:** 2026-05-29

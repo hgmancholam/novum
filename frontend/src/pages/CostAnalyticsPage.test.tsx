@@ -15,7 +15,7 @@ vi.mock("recharts", async () => {
 
 const fetchAnalytics = vi.fn();
 vi.mock("@/lib/api/costAnalytics", () => ({
-  fetchCostAnalytics: (...args: unknown[]) => fetchAnalytics(...args),
+  fetchCostAnalytics: (...args: unknown[]): unknown => fetchAnalytics(...args),
 }));
 
 vi.mock("@/stores/userStore", () => ({

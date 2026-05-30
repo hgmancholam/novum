@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-29
-**Total Lessons:** 32
+**Total Lessons:** 33
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,18 @@
 ---
 
 ## Recent Lessons
+
+## L-033: Vitest + Testing Library auto-cleanup is unreliable — register `afterEach(cleanup)` explicitly (2026-05-29)
+**Context:** New test files for the Cost Analytics page rendered fine in isolation but failed every `getByRole`/`getByText` after the first test with "Found multiple elements". Five accumulated `<body>` subtrees confirmed cleanup never ran between tests, even though `vitest.config.ts` had `globals: true` and `@testing-library/react` should auto-register `afterEach(cleanup)` in that mode.
+**Lesson:** On Node 24.4.1 + Vitest 2.1.9 the auto-cleanup hook in `@testing-library/react` does not always fire. Don't rely on it — add an explicit `afterEach(() => { cleanup(); })` in `src/test/setup.ts`. It's idempotent and a strict superset of the auto behavior.
+**Fix snippet:**
+```ts
+// src/test/setup.ts
+import { expect, afterEach } from "vitest";
+import { cleanup } from "@testing-library/react";
+afterEach(() => { cleanup(); });
+```
+**Diagnostic tells:** "Found multiple elements" + a body dump showing N rendered roots (one per test in that file) is always a cleanup problem, never a query problem.
 
 ## L-032: Run outcome label has a single source of truth — `StatusBadge` in `RunHeader` (2026-05-29)
 **Context:** Run `03bd6725-9510-4477-b500-badc5a339232` (a budget-stopped best-effort run) was rendering contradictory copy: the header `StatusBadge` said "Stopped on budget" while the answer card surfaced a separate "Best-effort answer" badge + descriptive banner. Three places (header badge, answer-card badge, answer-card banner) all attempted to describe the same outcome and drifted.
