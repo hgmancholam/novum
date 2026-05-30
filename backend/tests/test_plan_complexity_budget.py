@@ -87,9 +87,9 @@ async def test_deep_state_of_art_two_critiques(mock_create: AsyncMock) -> None:
         complexity_hint=ComplexityHint.DEEP,
     )
     assert event.complexity_hint == ComplexityHint.DEEP
-    # critique_passes_target derived from budget (5-8, 3 sources, 2 critiques)
+    # IP-36: STATE_OF_ART+DEEP budget tightened to (3, 6, 3, 2).
     prompt = mock_create.call_args.kwargs["messages"][-1]["content"]
-    assert "5-8" in prompt or "deep" in prompt.lower()
+    assert "3-6" in prompt or "deep" in prompt.lower()
 
 
 async def test_trivial_state_of_art_coercion(mock_create: AsyncMock) -> None:

@@ -95,11 +95,11 @@ async def test_create_plan_scales_claim_budget_by_question_type(
 
     await plan.create_plan("State?", question_type=QuestionType.STATE_OF_ART)
     state_msg = mock_create.call_args.kwargs["messages"][-1]["content"]
-    assert "3-6" in state_msg
+    assert "2-4" in state_msg
 
 
 def test_claim_budget_defaults_to_middle_range_when_unknown() -> None:
-    assert plan._claim_budget(None, None) == (3, 5, 2, 1)
+    assert plan._claim_budget(None, None) == (2, 3, 2, 1)
 
 
 async def test_create_plan_routes_academic_sources_for_state_of_art(

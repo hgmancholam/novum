@@ -336,11 +336,20 @@ async def evaluate_with_judge(
     # C2: the run's confidence threshold is the single gate. The judge
     # applies it internally when deciding verdict=approve|reject. The
     # stopping signal no longer re-checks min(S,J) >= threshold.
+    # IP-36: relax "complete" wording — completeness should be judged
+    # relative to evidence collected, not against an idealised plan.
+    # Otherwise the judge rejects every partial-coverage standard-lane
+    # answer and the run dies on STOPPED_BY_BUDGET.
     threshold_rule = (
         f"\n\nConfidence threshold for this run: {threshold:.2f}.\n"
-        f"Return verdict=\"approve\" ONLY if your confidence is >= {threshold:.2f} "
-        f"AND the answer is factually sound, well-grounded and complete. "
-        f"If your confidence would be below {threshold:.2f}, you MUST return verdict=\"reject\"."
+        f"Return verdict=\"approve\" when your confidence is >= {threshold:.2f} "
+        f"AND the answer is factually sound and well-grounded in the cited "
+        f"evidence. Completeness is judged relative to the evidence actually "
+        f"collected: if the answer honestly states its scope and the cited "
+        f"evidence supports the claims made, approve even if the plan was "
+        f"only partially covered. Reserve verdict=\"reject\" for answers "
+        f"that contradict the evidence, fabricate citations, or omit a "
+        f"directly-cited finding that would flip the verdict."
     )
 
     user_msg = (

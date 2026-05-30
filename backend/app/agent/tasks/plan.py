@@ -27,26 +27,28 @@ CLAIM_BUDGETS: dict[tuple[QuestionType, ComplexityHint], tuple[int, int, int, in
     # Trivial budgets (BRD-22 §4.6)
     (QuestionType.FACTUAL, ComplexityHint.TRIVIAL): (1, 1, 1, 0),
     (QuestionType.DEFINITIONAL, ComplexityHint.TRIVIAL): (1, 1, 1, 0),
-    # Standard budgets (current defaults)
+    # Standard budgets (IP-36: tightened — old caps of 4-6 sub-claims kept
+    # runs busy past budget; converging on ≤3 claims raises judge_confirmed
+    # ratio without losing coverage signal).
     (QuestionType.FACTUAL, ComplexityHint.STANDARD): (1, 2, 2, 1),
     (QuestionType.DEFINITIONAL, ComplexityHint.STANDARD): (1, 2, 2, 1),
-    (QuestionType.COMPARATIVE, ComplexityHint.STANDARD): (2, 4, 2, 1),
-    (QuestionType.CAUSAL, ComplexityHint.STANDARD): (2, 4, 2, 1),
-    (QuestionType.STATE_OF_ART, ComplexityHint.STANDARD): (3, 6, 2, 1),
-    (QuestionType.PREDICTIVE_FUTURE, ComplexityHint.STANDARD): (3, 5, 2, 1),
-    (QuestionType.SUBJECTIVE_OPINION, ComplexityHint.STANDARD): (3, 5, 2, 1),
-    (QuestionType.PERSONAL_PRIVATE, ComplexityHint.STANDARD): (3, 5, 2, 1),
-    # Deep budgets (extra critique pass)
+    (QuestionType.COMPARATIVE, ComplexityHint.STANDARD): (2, 3, 2, 1),
+    (QuestionType.CAUSAL, ComplexityHint.STANDARD): (2, 3, 2, 1),
+    (QuestionType.STATE_OF_ART, ComplexityHint.STANDARD): (2, 4, 2, 1),
+    (QuestionType.PREDICTIVE_FUTURE, ComplexityHint.STANDARD): (2, 3, 2, 1),
+    (QuestionType.SUBJECTIVE_OPINION, ComplexityHint.STANDARD): (2, 3, 2, 1),
+    (QuestionType.PERSONAL_PRIVATE, ComplexityHint.STANDARD): (2, 3, 2, 1),
+    # Deep budgets (extra critique pass; IP-36 trimmed upper bounds too).
     (QuestionType.FACTUAL, ComplexityHint.DEEP): (2, 3, 3, 2),
     (QuestionType.DEFINITIONAL, ComplexityHint.DEEP): (2, 3, 3, 2),
-    (QuestionType.COMPARATIVE, ComplexityHint.DEEP): (3, 6, 3, 2),
-    (QuestionType.CAUSAL, ComplexityHint.DEEP): (3, 6, 3, 2),
-    (QuestionType.STATE_OF_ART, ComplexityHint.DEEP): (5, 8, 3, 2),
-    (QuestionType.PREDICTIVE_FUTURE, ComplexityHint.DEEP): (4, 7, 3, 2),
-    (QuestionType.SUBJECTIVE_OPINION, ComplexityHint.DEEP): (4, 7, 3, 2),
-    (QuestionType.PERSONAL_PRIVATE, ComplexityHint.DEEP): (4, 7, 3, 2),
+    (QuestionType.COMPARATIVE, ComplexityHint.DEEP): (3, 5, 3, 2),
+    (QuestionType.CAUSAL, ComplexityHint.DEEP): (3, 5, 3, 2),
+    (QuestionType.STATE_OF_ART, ComplexityHint.DEEP): (3, 6, 3, 2),
+    (QuestionType.PREDICTIVE_FUTURE, ComplexityHint.DEEP): (3, 5, 3, 2),
+    (QuestionType.SUBJECTIVE_OPINION, ComplexityHint.DEEP): (3, 5, 3, 2),
+    (QuestionType.PERSONAL_PRIVATE, ComplexityHint.DEEP): (3, 5, 3, 2),
 }
-_DEFAULT_BUDGET: tuple[int, int, int, int] = (3, 5, 2, 1)
+_DEFAULT_BUDGET: tuple[int, int, int, int] = (2, 3, 2, 1)
 
 
 def _coerce_complexity(
