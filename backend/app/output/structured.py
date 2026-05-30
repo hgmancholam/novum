@@ -80,6 +80,16 @@ class StructuredRenderer:
         summary = self._extract_summary(text)
         blocks: list[StructuredBlock] = []
 
+        # IP-32 UX: lead with a one-line Bottom Line block so every answer
+        # has a scannable headline before any narrative or typed payload.
+        if summary:
+            blocks.append(
+                KeyPointsBlock(
+                    title="Bottom line",
+                    items=[summary],
+                )
+            )
+
         # PR-2 Mejora 1.3 — render kind-specific payload first so the FE shows
         # typed structure (weighted/scenario/tradeoff/best_effort) instead of
         # regexing the prose. Falls back to the legacy pipeline below for the
@@ -373,17 +383,52 @@ class StructuredRenderer:
     # ------------------------------------------------------------------
 
     def _render_sources(self, sources: list[dict]) -> str:
-        """Render sources as a markdown table."""
+        """Render sources grouped by authority tier (IP-32 UX).
+
+        Primary > Reputable > General > Low-signal. Within each group,
+        order is preserved from the input. Empty groups are omitted.
+        """
         if not sources:
             return ""
 
-        result = "\n\n---\n\n### 📚 Sources\n\n"
-        result += "| # | Source |\n|---|--------|\n"
-        for i, source in enumerate(sources, 1):
-            title = source.get("title", "Untitled")
-            url = source.get("url", "")
-            cell = f"[{title}]({url})" if url else title
-            result += f"| {i} | {cell} |\n"
+        from app.agent.sources_authority import match as match_tier
+        from app.domain.enums import AuthorityTier
+
+        groups: dict[AuthorityTier, list[dict]] = {
+            AuthorityTier.PRIMARY_AUTHORITATIVE: [],
+            AuthorityTier.REPUTABLE_SECONDARY: [],
+            AuthorityTier.GENERAL: [],
+            AuthorityTier.LOW_SIGNAL: [],
+        }
+        for s in sources:
+            tier = match_tier(s.get("url", "")) if s.get("url") else AuthorityTier.GENERAL
+            groups.setdefault(tier, []).append(s)
+
+        labels = {
+            AuthorityTier.PRIMARY_AUTHORITATIVE: "Primary / authoritative",
+            AuthorityTier.REPUTABLE_SECONDARY: "Reputable secondary",
+            AuthorityTier.GENERAL: "General",
+            AuthorityTier.LOW_SIGNAL: "Forum / low-signal",
+        }
+
+        result = "\n\n---\n\n### \U0001f4da Sources\n"
+        idx = 1
+        for tier in (
+            AuthorityTier.PRIMARY_AUTHORITATIVE,
+            AuthorityTier.REPUTABLE_SECONDARY,
+            AuthorityTier.GENERAL,
+            AuthorityTier.LOW_SIGNAL,
+        ):
+            items = groups.get(tier, [])
+            if not items:
+                continue
+            result += f"\n**{labels[tier]}**\n\n| # | Source |\n|---|--------|\n"
+            for s in items:
+                title = s.get("title", "Untitled")
+                url = s.get("url", "")
+                cell = f"[{title}]({url})" if url else title
+                result += f"| {idx} | {cell} |\n"
+                idx += 1
 
         return result
 

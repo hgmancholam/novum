@@ -58,6 +58,14 @@ _TIER_RULES: list[tuple[str, AuthorityTier]] = [
     (r"\.blogspot\.com$", AuthorityTier.LOW_SIGNAL),
     (r"\.wordpress\.com$", AuthorityTier.LOW_SIGNAL),
     (r"\.substack\.com$", AuthorityTier.LOW_SIGNAL),
+    # Aggregator forums / community blogs — useful as discussion signal
+    # but should NOT be treated as authoritative evidence (IP-32).
+    (r"^news\.ycombinator\.com$", AuthorityTier.LOW_SIGNAL),
+    (r"^dev\.to$", AuthorityTier.LOW_SIGNAL),
+    (r"^hashnode\.com$", AuthorityTier.LOW_SIGNAL),
+    (r"(^|\.)stackoverflow\.com$", AuthorityTier.LOW_SIGNAL),
+    (r"(^|\.)stackexchange\.com$", AuthorityTier.LOW_SIGNAL),
+    # Reddit intentionally kept in GENERAL (BRD §15.3 Q3).
     # Cheap/spam-prone TLDs. Generic — do not gate on country.
     (r"(^|\.)biz$", AuthorityTier.LOW_SIGNAL),
     (r"(^|\.)info$", AuthorityTier.LOW_SIGNAL),

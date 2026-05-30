@@ -52,8 +52,13 @@ class TestSinglePhrase:
     def test_short_sentence_emits_only_summary(self):
         data = _build("La capital de Japón es Tokio.")
         assert data.summary == "La capital de Japón es Tokio."
-        # Single short sentence ⇒ no extra paragraph block
-        assert data.blocks == []
+        # IP-32 UX: a Bottom Line headline block is always prepended when
+        # there is a non-empty summary. No additional kind-specific blocks.
+        non_bottom = [
+            b for b in data.blocks
+            if not (isinstance(b, KeyPointsBlock) and b.title == "Bottom line")
+        ]
+        assert non_bottom == []
 
 
 class TestKeyValueDetection:
@@ -97,7 +102,10 @@ class TestBulletsDetection:
             "- Tercer hecho clave\n"
         )
         data = _build(text)
-        kp = [b for b in data.blocks if isinstance(b, KeyPointsBlock)]
+        kp = [
+            b for b in data.blocks
+            if isinstance(b, KeyPointsBlock) and b.title != "Bottom line"
+        ]
         assert len(kp) == 1
         assert len(kp[0].items) == 3
 

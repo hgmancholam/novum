@@ -67,7 +67,11 @@ def test_scenario_payload_emits_keypoints_per_branch() -> None:
         ],
     )
     data = StructuredRenderer().build_data(_ctx(payload))
-    kp_blocks = [b for b in data.blocks if b.type == "keyPoints"]
+    kp_blocks = [
+        b
+        for b in data.blocks
+        if b.type == "keyPoints" and b.title != "Bottom line"
+    ]
     assert len(kp_blocks) == 2
     assert kp_blocks[0].title == "Bull (high)"
     assert "Driver: funding" in kp_blocks[0].items
@@ -96,9 +100,13 @@ def test_best_effort_payload_emits_interpretation_paragraph_first() -> None:
         alternative_interpretations=["maybe Y", "maybe Z"],
     )
     data = StructuredRenderer().build_data(_ctx(payload))
-    # First block is the interpretation paragraph
-    assert data.blocks[0].type == "paragraph"
-    assert "Most likely interpretation" in data.blocks[0].text
+    # IP-32 UX: a Bottom Line keyPoints block is prepended when prose is
+    # non-empty. The interpretation paragraph is the first kind-specific
+    # block (i.e. blocks[1]).
+    assert data.blocks[0].type == "keyPoints"
+    assert data.blocks[0].title == "Bottom line"
+    assert data.blocks[1].type == "paragraph"
+    assert "Most likely interpretation" in data.blocks[1].text
     assert any(
         b.type == "keyPoints" and "maybe Y" in b.items for b in data.blocks
     )
@@ -115,4 +123,9 @@ def test_no_payload_keeps_legacy_pipeline() -> None:
             synth_payload=None,
         )
     )
-    assert all(b.type in {"paragraph", "markdown"} for b in data.blocks)
+    # IP-32 UX: the first block is the Bottom Line headline.
+    assert data.blocks[0].type == "keyPoints"
+    assert data.blocks[0].title == "Bottom line"
+    assert all(
+        b.type in {"paragraph", "markdown", "keyPoints"} for b in data.blocks
+    )
