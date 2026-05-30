@@ -1,0 +1,117 @@
+[fetch] postj (IP-36)...
+  [Q1] d344e581 ...
+  [Q2] a51231ec ...
+  [Q3] 4433b3e9 ...
+  [Q4] 24c11419 ...
+  [Q5] 3c16e18e ...
+  [Q6] 7dd1bdd7 ...
+  [Q7] b784ef85 ...
+  [Q8] f32fae3e ...
+[fetch] postq (IP-33+34+35)...
+  [Q1] ccfd325a ...
+  [Q2] 4a95338e ...
+  [Q3] 0133d42a ...
+  [Q4] 2a43e90a ...
+  [Q5] 8d7bae73 ...
+  [Q6] 7f4debec ...
+  [Q7] 96a7ac7d ...
+  [Q8] cf9cb27d ...
+[fetch] postux (IP-32)...
+  [Q1] 6692c8b4 ...
+  [Q2] 55b06fa0 ...
+  [Q3] 1f2a72bb ...
+  [Q4] 481b7f30 ...
+  [Q5] 69d579cd ...
+  [Q6] ae77df76 ...
+  [Q7] 3e2643e1 ...
+  [Q8] 5c45a43d ...
+
+=== STOP REASON (postux -> postq -> postj) ===
+  reason                        postux    postq    postj
+  judge_confirmed                    2        2        2
+  stopped_by_budget                  6        6        6
+
+=== PER QUESTION (postj, IP-36) ===
+  Q1  fast      dom=other                judge_confirmed        kind=-             claims= 0 S= 1.00 J=    - ev=  6 hosts= 3 BL25=.(29w) $=0.0229 t=17s
+  Q2  standard  dom=software_engineering stopped_by_budget      kind=best_effort   claims= 3 S= 0.58 J=    - ev= 26 hosts= 3 BL25=.(37w) $=0.2624 t=67s
+  Q3  standard  dom=software_engineering judge_confirmed        kind=best_effort   claims= 0 S= 0.15 J=    - ev=  0 hosts= 0 BL25=y(19w) $=0.0342 t=39s
+  Q4  standard  dom=medical              stopped_by_budget      kind=best_effort   claims= 2 S= 0.98 J=    - ev= 40 hosts= 4 BL25=.(26w) $=0.3768 t=327s
+  Q5  standard  dom=software_engineering stopped_by_budget      kind=best_effort   claims= 3 S= 0.64 J=    - ev= 45 hosts= 7 BL25=y(23w) $=0.2012 t=106s
+  Q6  standard  dom=software_engineering stopped_by_budget      kind=best_effort   claims= 3 S= 0.55 J=    - ev= 24 hosts= 2 BL25=y(12w) $=0.2566 t=67s
+  Q7  deep      dom=technology           stopped_by_budget      kind=best_effort   claims= 0 S= 0.62 J=    - ev= 19 hosts= 4 BL25=.(30w) $=0.1397 t=113s
+  Q8  standard  dom=technology           stopped_by_budget      kind=best_effort   claims= 3 S= 0.62 J=    - ev= 36 hosts= 4 BL25=y(25w) $=0.1858 t=89s
+
+=== PER QUESTION (postq, prev baseline) ===
+  Q1  fast      judge_confirmed        kind=-             claims= 0 S= 1.00 J=    - ev=  6 hosts= 3 BL25=.(29w)
+  Q2  standard  stopped_by_budget      kind=best_effort   claims= 3 S= 0.62 J=    - ev= 24 hosts= 4 BL25=.(42w)
+  Q3  standard  judge_confirmed        kind=best_effort   claims= 0 S= 0.15 J=    - ev=  0 hosts= 0 BL25=y(18w)
+  Q4  standard  stopped_by_budget      kind=best_effort   claims= 5 S= 0.65 J=    - ev= 50 hosts= 6 BL25=y(19w)
+  Q5  standard  stopped_by_budget      kind=best_effort   claims= 5 S= 0.64 J=    - ev= 54 hosts= 8 BL25=y(22w)
+  Q6  standard  stopped_by_budget      kind=best_effort   claims= 4 S= 0.55 J=    - ev= 36 hosts= 3 BL25=y(25w)
+  Q7  deep      stopped_by_budget      kind=best_effort   claims= 0 S= 0.62 J=    - ev= 19 hosts= 4 BL25=y(21w)
+  Q8  standard  stopped_by_budget      kind=best_effort   claims= 5 S= 0.64 J=    - ev= 42 hosts= 9 BL25=.(29w)
+
+=== ANSWER KIND COMPARISON (postq -> postj) ===
+  Q   postq kind      postj kind       delta
+  Q1  -               -              
+  Q2  best_effort     best_effort    
+  Q3  best_effort     best_effort    
+  Q4  best_effort     best_effort    
+  Q5  best_effort     best_effort    
+  Q6  best_effort     best_effort    
+  Q7  best_effort     best_effort    
+  Q8  best_effort     best_effort    
+
+=== AUTHORITY TIER BREAKDOWN (postj) ===
+  Q    primary  reputable  general   low  total
+  Q1         0          0        0     0      0
+  Q2         0          0        0     0      0
+  Q3         0          0        0     0      0
+  Q4         0          0        0     0      0
+  Q5         0          0        0     0      0
+  Q6         0          0        0     0      0
+  Q7         0          0        0     0      0
+  Q8         0          0        0     0      0
+
+=== SOURCES PER QUESTION (postj) ===
+  Q1  (3 hosts): en.wikipedia.orgx4, britannica.comx1, clintonwhitehouse3.archives.govx1
+  Q2  (3 hosts): infoq.comx14, en.wikipedia.orgx8, cloud.google.comx4
+  Q3  (0 hosts): 
+  Q4  (4 hosts): en.wikipedia.orgx19, pmc.ncbi.nlm.nih.govx17, webmd.comx2, pubmed.ncbi.nlm.nih.govx2
+  Q5  (7 hosts): en.wikipedia.orgx21, learn.microsoft.comx6, arxiv.orgx6, semanticscholar.orgx6, cloud.google.comx2, spectrum.ieee.orgx2, thoughtworks.comx2
+  Q6  (2 hosts): infoq.comx18, en.wikipedia.orgx6
+  Q7  (4 hosts): semanticscholar.orgx10, techcrunch.comx4, en.wikipedia.orgx3, wired.comx2
+  Q8  (4 hosts): en.wikipedia.orgx18, arxiv.orgx14, thenewstack.iox2, techcrunch.comx2
+
+=== BOTTOM LINE STRICT CHECK (<=25 words) ΓÇö postj ===
+  Q1  BL25_ok=False (29w) :: The capital of Japan is Tokyo [4], which has served as the national capital throughout modern history, though Japan's capital was located in other places in earlier periods [4].
+  Q2  BL25_ok=False (37w) :: The evidence is insufficient to give a fully evidence-backed verdict, but based on available context, PostgreSQL tends to suit small SaaS applications with structured, relational d
+  Q3  BL25_ok=True (19w) :: No single programming language is universally best ΓÇö the right choice depends on your use case, team, and constraints.
+  Q4  BL25_ok=False (26w) :: Intermittent fasting (IF) tends to benefit metabolic healthΓÇöespecially for overweight or prediabetic adultsΓÇöbut carries real side-effect risks that make it a poor fit for some grou
+  Q5  BL25_ok=True (23w) :: AI-generated code poses four compounding long-term risks to enterprise systems: technical debt accumulation, security vulnerability propagation, IP liability, and correlated indust
+  Q6  BL25_ok=True (12w) :: The evidence block does not contain direct, authoritative content on event-driven vs.
+  Q7  BL25_ok=False (30w) :: Based on available evidence, hybrid and hierarchical memory architectures ΓÇö combining retrieval, structured knowledge, and continual learning ΓÇö tend to be most promising for long-t
+  Q8  BL25_ok=True (25w) :: AI will most likely transform mid-level software engineering roles rather than replace them wholesale within 10 years, though the scope of change is genuinely uncertain.
+
+=== BOTTOM LINE EXCERPTS (postq, prev baseline) ===
+  Q1  (29w) :: The capital of Japan is Tokyo [4][5], which has served as the national capital throughout modern history, though Japan's capital was located in other cities in earlier periods [4].
+  Q2  (42w) :: The evidence is insufficient to give a fully data-backed verdict, but based on the foundational characteristics of each database, PostgreSQL tends to suit small SaaS applications w
+  Q3  (18w) :: No single programming language is universally 'best' ΓÇö the right choice depends on your goal, domain, and constraints.
+  Q4  (19w) :: For most healthy adults, intermittent fasting tends to be beneficial, particularly for weight, insulin sensitivity, and cardiovascular risk markers.
+  Q5  (22w) :: AI-generated code poses compounding long-term risks across security, technical debt, organisational knowledge, and compliance that enterprises are already measuring in production b
+  Q6  (25w) :: The evidence provided is insufficient to give a fully evidence-backed verdict on this architectural question, as none of the retrieved sources directly address event-driven vs.
+  Q7  (21w) :: Hybrid memory architecturesΓÇöcombining episodic, semantic, and procedural storesΓÇötend to be the most promising approach for long-term memory in autonomous AI agents.
+  Q8  (29w) :: Full replacement of mid-level software engineers within 10 years is unlikely; augmentation and role-reshaping are the more probable outcomes, though some displacement is already oc
+
+=== AUTHORITY SHARE (fraction of evidence) ===
+  tier                          postux    postq    postj
+  PRIMARY_AUTHORITATIVE          0.000    0.000    0.000
+  REPUTABLE_SECONDARY            0.000    0.000    0.000
+  GENERAL                        0.000    0.000    0.000
+  LOW_SIGNAL                     0.000    0.000    0.000
+  total evidence                   224      231      196
+
+=== BL strict (<=25w) PASS RATE ===  postux=1/8  postq=5/8  postj=4/8
+=== judge_confirmed RATE ===  postux=2/8  postq=2/8  postj=2/8
+
+[done] wrote compare_postj.json
