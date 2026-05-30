@@ -25,9 +25,9 @@ import {
   FEED_REASONING_TRACE,
 } from "@/lib/microcopy";
 import { useIdleReassurance } from "@/lib/idleMessages";
-import { getEventActivity, getEventLabel, getEventNarrative, COMPLEXITY_LABELS, QUESTION_TYPE_LABELS } from "@/lib/eventLabels";
+import { getEventActivity, getEventLabel, getEventNarrative, COMPLEXITY_LABELS, QUESTION_DOMAIN_LABELS, QUESTION_TYPE_LABELS } from "@/lib/eventLabels";
 import { getEventVisual, TONE_COLOR } from "@/lib/eventVisuals";
-import type { ComplexityHint, EventType, QuestionType } from "@/types/events";
+import type { ComplexityHint, EventType, QuestionDomain, QuestionType } from "@/types/events";
 import { cn } from "@/lib/cn";
 
 export interface RunFeedProps {
@@ -208,6 +208,7 @@ function mapStepToView(step: FeedStepData): StepView {
       if (type === "QuestionClassified") {
         const qTypeRaw = payload.detected_question_type as string | undefined;
         const hintRaw = payload.complexity_hint as string | undefined;
+        const domainRaw = payload.domain as string | undefined;
         const qLabel =
           qTypeRaw && qTypeRaw in QUESTION_TYPE_LABELS
             ? QUESTION_TYPE_LABELS[qTypeRaw as QuestionType]
@@ -216,12 +217,19 @@ function mapStepToView(step: FeedStepData): StepView {
           hintRaw && hintRaw in COMPLEXITY_LABELS
             ? COMPLEXITY_LABELS[hintRaw as ComplexityHint]
             : undefined;
+        const dLabel =
+          domainRaw &&
+          domainRaw in QUESTION_DOMAIN_LABELS &&
+          domainRaw !== "other"
+            ? QUESTION_DOMAIN_LABELS[domainRaw as QuestionDomain]
+            : undefined;
         const label = cLabel ? `Question type · ${cLabel}` : "Question type";
-        const detail = qLabel
-          ? `Classified as a ${qLabel} question${cLabel ? ` (${cLabel.toLowerCase()}).` : "."}`
+        const base = qLabel
+          ? `Classified as a ${qLabel} question${cLabel ? ` (${cLabel.toLowerCase()})` : ""}`
           : cLabel
-            ? `Complexity: ${cLabel}.`
-            : "Figured out what kind of question this is.";
+            ? `Complexity: ${cLabel}`
+            : "Figured out what kind of question this is";
+        const detail = dLabel ? `${base} — domain: ${dLabel}.` : `${base}.`;
         return { label, detail, accent: "var(--accent)" };
       }
       const tone = getEventVisual(type).tone;
