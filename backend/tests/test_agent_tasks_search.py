@@ -194,6 +194,35 @@ async def test_unavailable_source_is_skipped(monkeypatch: pytest.MonkeyPatch) ->
     assert tool_called[0].source_type == SourceType.WIKIPEDIA
 
 
+async def test_empty_results_does_not_break_cascade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A source returning [] (200 OK no matches) must fall through to next.
+
+    Regression: academic-first questions where Semantic Scholar returns
+    data:[] for full-claim queries dead-ended the cascade and emitted
+    zero evidence. Cascade must only break on non-empty results.
+    """
+    tavily = _FakeSource(SourceType.TAVILY, results=[])  # 200 OK, no matches
+    wiki = _FakeSource(SourceType.WIKIPEDIA, results=[_result("w1")])
+    monkeypatch.setattr(
+        registry_mod,
+        "_registry",
+        _FakeRegistry({SourceType.TAVILY: tavily, SourceType.WIKIPEDIA: wiki}),
+    )
+    state = _state()
+    events = await search_mod.execute_search_round(state)
+
+    tool_called = [e for e in events if isinstance(e, ToolCalledEvent)]
+    evidence = [e for e in events if isinstance(e, EvidenceAddedEvent)]
+    assert [t.source_type for t in tool_called] == [
+        SourceType.TAVILY,
+        SourceType.WIKIPEDIA,
+    ]
+    assert len(evidence) == 1
+    assert evidence[0].source_type == SourceType.WIKIPEDIA
+
+
 # =============================================================================
 # IP-25 Phase 0: Parallel execution and query reformulation
 # =============================================================================

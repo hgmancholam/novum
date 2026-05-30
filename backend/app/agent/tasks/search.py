@@ -16,6 +16,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.agent.run_state import EvidenceItem, RunState
+from app.agent.source_hints import build_source_hints
 from app.agent.sources_authority import match as match_authority_tier
 from app.domain.enums import EvidencePolarity, SourceType, TemporalSensitivity
 from app.domain.events import (
@@ -41,19 +42,6 @@ _TAVILY_DAYS_BY_TEMPORAL: dict[TemporalSensitivity, int | None] = {
     TemporalSensitivity.VOLATILE: 180,
     TemporalSensitivity.REALTIME: 7,
 }
-
-
-def _state_hints(state: RunState) -> dict[str, Any]:
-    """Derive optional source hints from the run state.
-
-    Each Source impl picks the keys it understands and ignores the rest;
-    this keeps the call sites uniform across the cascade.
-    """
-    return {
-        "language": state.language,
-        "question_type": state.question_type.value if state.question_type else None,
-        "expected_experts": list(state.expected_experts),
-    }
 
 
 def _count_query_tokens(query: str) -> int:
@@ -111,7 +99,7 @@ async def _search_one_claim(
             )
         )
 
-        hints = _state_hints(state)
+        hints = build_source_hints(state)
         try:
             source = registry.get(source_type)
             if source_type == SourceType.TAVILY and tool_days is not None:
@@ -119,7 +107,6 @@ async def _search_one_claim(
                     query,
                     max_results=_RESULTS_PER_SEARCH,
                     days=tool_days,
-                    topic="news",
                     **hints,
                 )
             else:
@@ -177,7 +164,6 @@ async def _search_one_claim(
                         query,
                         max_results=_RESULTS_PER_SEARCH,
                         days=tool_days,
-                        topic="news",
                         **hints,
                     )
                 else:
@@ -216,8 +202,11 @@ async def _search_one_claim(
                     authority_tier=authority_tier,
                 )
             )
-        # Success: break cascade
-        break
+        if results:
+            # Success: break cascade. Empty results (200 OK with data:[])
+            # falls through to the next source so academic-first questions
+            # don't dead-end on Semantic Scholar.
+            break
 
     return events
 
