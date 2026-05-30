@@ -1,0 +1,715 @@
+{
+  "postq": [
+    {
+      "label": "Q1",
+      "run_id": "ccfd325a",
+      "wallclock_s": 17.0,
+      "route": "fast",
+      "domain": "other",
+      "stop_reason": "judge_confirmed",
+      "answer_kind": null,
+      "S": 1.0,
+      "J": null,
+      "conf": null,
+      "evidence_total": 6,
+      "host_counter": {
+        "en.wikipedia.org": 4,
+        "britannica.com": 1,
+        "clintonwhitehouse3.archives.gov": 1
+      },
+      "unique_hosts": 3,
+      "tier_counter": {
+        "unknown": 6
+      },
+      "cost_usd": 0.023045,
+      "prose_excerpt": "The capital of Japan is Tokyo [4][5], which has served as the national capital throughout modern history, though Japan's capital was located in other cities in earlier periods [4].",
+      "bl_strict_ok": false,
+      "bl_word_count": 29
+    },
+    {
+      "label": "Q2",
+      "run_id": "4a95338e",
+      "wallclock_s": 61.0,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.6165,
+      "J": null,
+      "conf": null,
+      "evidence_total": 24,
+      "host_counter": {
+        "infoq.com": 10,
+        "en.wikipedia.org": 6,
+        "mongodb.com": 6,
+        "cloud.google.com": 2
+      },
+      "unique_hosts": 4,
+      "tier_counter": {
+        "general": 18,
+        "reputable_secondary": 6
+      },
+      "cost_usd": 0.22631000000000007,
+      "prose_excerpt": "The evidence is insufficient to give a fully data-backed verdict, but based on the foundational characteristics of each database, PostgreSQL tends to suit small SaaS applications with structured, relational data, while MongoDB tends to suit those with flexible or rapidly evolving schemas.\n\nPostgreSQL is a free, open-source relational database management system (RDBMS) that enforces ACID properties",
+      "bl_strict_ok": false,
+      "bl_word_count": 42
+    },
+    {
+      "label": "Q3",
+      "run_id": "0133d42a",
+      "wallclock_s": 44.0,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "judge_confirmed",
+      "answer_kind": "best_effort",
+      "S": 0.15000000000000002,
+      "J": null,
+      "conf": null,
+      "evidence_total": 0,
+      "host_counter": {},
+      "unique_hosts": 0,
+      "tier_counter": {},
+      "cost_usd": 0.0372957,
+      "prose_excerpt": "No single programming language is universally 'best' \u2014 the right choice depends on your goal, domain, and constraints. The evidence block provided contains no data, so the following is based on the limits of what can be responsibly stated under that constraint.\n\nFor a beginner seeking broad applicability, Python is frequently cited as accessible and versatile. For systems or performance-critical w",
+      "bl_strict_ok": true,
+      "bl_word_count": 18
+    },
+    {
+      "label": "Q4",
+      "run_id": "2a43e90a",
+      "wallclock_s": 95.0,
+      "route": "standard",
+      "domain": "medical",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.65,
+      "J": null,
+      "conf": null,
+      "evidence_total": 50,
+      "host_counter": {
+        "pmc.ncbi.nlm.nih.gov": 22,
+        "nia.nih.gov": 2,
+        "en.wikipedia.org": 20,
+        "healthline.com": 2,
+        "pubmed.ncbi.nlm.nih.gov": 2,
+        "emro.who.int": 2
+      },
+      "unique_hosts": 6,
+      "tier_counter": {
+        "primary_authoritative": 28,
+        "reputable_secondary": 20,
+        "general": 2
+      },
+      "cost_usd": 0.26155210000000007,
+      "prose_excerpt": "For most healthy adults, intermittent fasting tends to be beneficial, particularly for weight, insulin sensitivity, and cardiovascular risk markers. Multiple peer-reviewed reviews and meta-analyses support meaningful improvements in body composition, blood pressure, fasting glucose, and lipid profiles [1][3][8]. The key mechanism appears to be 'metabolic switching' \u2014 the body shifting from glucose",
+      "bl_strict_ok": true,
+      "bl_word_count": 19
+    },
+    {
+      "label": "Q5",
+      "run_id": "8d7bae73",
+      "wallclock_s": 123.0,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.64,
+      "J": null,
+      "conf": null,
+      "evidence_total": 54,
+      "host_counter": {
+        "thoughtworks.com": 4,
+        "infoq.com": 2,
+        "en.wikipedia.org": 24,
+        "arxiv.org": 12,
+        "nvlpubs.nist.gov": 2,
+        "oreilly.com": 2,
+        "cloud.google.com": 2,
+        "github.com": 6
+      },
+      "unique_hosts": 8,
+      "tier_counter": {
+        "general": 16,
+        "reputable_secondary": 24,
+        "primary_authoritative": 14
+      },
+      "cost_usd": 0.2708171000000001,
+      "prose_excerpt": "AI-generated code poses compounding long-term risks across security, technical debt, organisational knowledge, and compliance that enterprises are already measuring in production breaches.\n\nOn the security front, the numbers are striking: 25% of AI-generated code samples from a 534-sample study contained confirmed vulnerabilities, and 1 in 5 enterprise breaches in 2026 were attributable to AI-gene",
+      "bl_strict_ok": true,
+      "bl_word_count": 22
+    },
+    {
+      "label": "Q6",
+      "run_id": "7f4debec",
+      "wallclock_s": 89.0,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.545,
+      "J": null,
+      "conf": null,
+      "evidence_total": 36,
+      "host_counter": {
+        "infoq.com": 24,
+        "en.wikipedia.org": 9,
+        "semanticscholar.org": 3
+      },
+      "unique_hosts": 3,
+      "tier_counter": {
+        "general": 24,
+        "reputable_secondary": 9,
+        "primary_authoritative": 3
+      },
+      "cost_usd": 0.3431441000000001,
+      "prose_excerpt": "The evidence provided is insufficient to give a fully evidence-backed verdict on this architectural question, as none of the retrieved sources directly address event-driven vs. synchronous microservices design for AI platforms. Based on general software engineering principles present in the evidence context \u2014 particularly around running AI reliably at scale [2][10] \u2014 a conditional answer can be of",
+      "bl_strict_ok": true,
+      "bl_word_count": 25
+    },
+    {
+      "label": "Q7",
+      "run_id": "96a7ac7d",
+      "wallclock_s": 117.0,
+      "route": "deep",
+      "domain": "technology",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.6165,
+      "J": null,
+      "conf": null,
+      "evidence_total": 19,
+      "host_counter": {
+        "techcrunch.com": 4,
+        "wired.com": 2,
+        "semanticscholar.org": 10,
+        "en.wikipedia.org": 3
+      },
+      "unique_hosts": 4,
+      "tier_counter": {
+        "unknown": 16,
+        "reputable_secondary": 3
+      },
+      "cost_usd": 0.13211900000000001,
+      "prose_excerpt": "Hybrid memory architectures\u2014combining episodic, semantic, and procedural stores\u2014tend to be the most promising approach for long-term memory in autonomous AI agents. Evidence from recent surveys describes memory as foundational to agent reasoning, adaptability, and contextual fidelity, with the field moving toward systems that mirror human memory's multi-type structure [7][12]. RAG-driven (Retrieva",
+      "bl_strict_ok": true,
+      "bl_word_count": 21
+    },
+    {
+      "label": "Q8",
+      "run_id": "cf9cb27d",
+      "wallclock_s": 100.0,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.6388888888888888,
+      "J": null,
+      "conf": null,
+      "evidence_total": 42,
+      "host_counter": {
+        "arxiv.org": 12,
+        "github.com": 4,
+        "en.wikipedia.org": 12,
+        "oreilly.com": 2,
+        "spectrum.ieee.org": 2,
+        "dl.acm.org": 4,
+        "bcg.com": 2,
+        "mitsloan.mit.edu": 2,
+        "linkedin.com": 2
+      },
+      "unique_hosts": 9,
+      "tier_counter": {
+        "primary_authoritative": 14,
+        "general": 16,
+        "reputable_secondary": 12
+      },
+      "cost_usd": 0.2909790000000001,
+      "prose_excerpt": "Full replacement of mid-level software engineers within 10 years is unlikely; augmentation and role-reshaping are the more probable outcomes, though some displacement is already occurring at the entry/early-mid level. BCG's microeconomic modeling finds AI will reshape far more jobs than it replaces, especially in high-augmentation roles [15], and MIT Sloan research similarly concludes AI is more l",
+      "bl_strict_ok": false,
+      "bl_word_count": 29
+    }
+  ],
+  "postux": [
+    {
+      "label": "Q1",
+      "run_id": "6692c8b4",
+      "wallclock_s": null,
+      "route": "fast",
+      "domain": "other",
+      "stop_reason": "judge_confirmed",
+      "answer_kind": null,
+      "S": 1.0,
+      "J": null,
+      "conf": null,
+      "evidence_total": 6,
+      "host_counter": {
+        "en.wikipedia.org": 4,
+        "britannica.com": 1,
+        "clintonwhitehouse3.archives.gov": 1
+      },
+      "unique_hosts": 3,
+      "tier_counter": {
+        "unknown": 6
+      },
+      "cost_usd": 0.022964000000000002,
+      "prose_excerpt": "The capital of Japan is Tokyo [4], which has served as the national capital throughout modern history, though Japan's capital was located in other places prior to Tokyo [4].",
+      "bl_strict_ok": false,
+      "bl_word_count": 29
+    },
+    {
+      "label": "Q2",
+      "run_id": "55b06fa0",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.5806666666666667,
+      "J": null,
+      "conf": null,
+      "evidence_total": 35,
+      "host_counter": {
+        "infoq.com": 14,
+        "en.wikipedia.org": 11,
+        "cloud.google.com": 4,
+        "semanticscholar.org": 6
+      },
+      "unique_hosts": 4,
+      "tier_counter": {
+        "general": 18,
+        "reputable_secondary": 11,
+        "primary_authoritative": 6
+      },
+      "cost_usd": 0.27949000000000007,
+      "prose_excerpt": "The evidence provided is insufficient to give a fully evidence-backed verdict, but based on what is available, PostgreSQL is generally the safer default choice for a small SaaS application. PostgreSQL is a free, open-source relational database management system (RDBMS) that fully supports ACID properties \u2014 Atomicity, Consistency, Isolation, and Durability \u2014 meaning your data stays reliable and cor",
+      "bl_strict_ok": false,
+      "bl_word_count": 29
+    },
+    {
+      "label": "Q3",
+      "run_id": "1f2a72bb",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "judge_confirmed",
+      "answer_kind": "best_effort",
+      "S": 0.15000000000000002,
+      "J": null,
+      "conf": null,
+      "evidence_total": 0,
+      "host_counter": {},
+      "unique_hosts": 0,
+      "tier_counter": {},
+      "cost_usd": 0.0337857,
+      "prose_excerpt": "The evidence is insufficient to determine a single 'best' programming language, because no such universal answer exists \u2014 the right language depends entirely on the task, team, and context. Different languages excel in different domains: systems programming favors languages like C or Rust for performance and control, data science and machine learning workflows are dominated by Python, web front-en",
+      "bl_strict_ok": false,
+      "bl_word_count": 29
+    },
+    {
+      "label": "Q4",
+      "run_id": "481b7f30",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "medical",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.5946666666666667,
+      "J": null,
+      "conf": null,
+      "evidence_total": 48,
+      "host_counter": {
+        "pmc.ncbi.nlm.nih.gov": 23,
+        "en.wikipedia.org": 21,
+        "pubmed.ncbi.nlm.nih.gov": 2,
+        "hopkinsmedicine.org": 1,
+        "webmd.com": 1
+      },
+      "unique_hosts": 5,
+      "tier_counter": {
+        "primary_authoritative": 25,
+        "reputable_secondary": 21,
+        "general": 2
+      },
+      "cost_usd": 0.23963310000000004,
+      "prose_excerpt": "For most healthy adults, intermittent fasting (IF) is a safe and effective dietary strategy that produces meaningful improvements in body weight, metabolic markers, and cardiovascular risk factors \u2014 though its advantages over simple calorie restriction (CR) are modest. Multiple systematic reviews and meta-analyses confirm that IF reduces body weight, BMI, triglycerides (TG), and fasting blood gluc",
+      "bl_strict_ok": false,
+      "bl_word_count": 38
+    },
+    {
+      "label": "Q5",
+      "run_id": "69d579cd",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": null,
+      "J": null,
+      "conf": null,
+      "evidence_total": 25,
+      "host_counter": {
+        "docker.com": 2,
+        "oreilly.com": 1,
+        "nvlpubs.nist.gov": 1,
+        "en.wikipedia.org": 10,
+        "arxiv.org": 6,
+        "learn.microsoft.com": 1,
+        "thoughtworks.com": 1,
+        "pdfs.semanticscholar.org": 1,
+        "github.com": 1,
+        "cloud.google.com": 1
+      },
+      "unique_hosts": 10,
+      "tier_counter": {
+        "general": 7,
+        "primary_authoritative": 8,
+        "reputable_secondary": 10
+      },
+      "cost_usd": 0.1470294,
+      "prose_excerpt": "AI-generated code in enterprise systems carries four compounding long-term risks: security debt, skill atrophy, legal exposure, and correlated systemic failure \u2014 all of which grow more severe the longer AI-authored code accumulates without rigorous governance.\n\nThe most quantified risk is security and quality debt. A December 2025 CodeRabbit study of 470 real-world pull requests found that AI-gene",
+      "bl_strict_ok": false,
+      "bl_word_count": 35
+    },
+    {
+      "label": "Q6",
+      "run_id": "ae77df76",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.5876666666666667,
+      "J": null,
+      "conf": null,
+      "evidence_total": 44,
+      "host_counter": {
+        "infoq.com": 22,
+        "en.wikipedia.org": 17,
+        "nist.gov": 2,
+        "semanticscholar.org": 3
+      },
+      "unique_hosts": 4,
+      "tier_counter": {
+        "general": 22,
+        "reputable_secondary": 17,
+        "primary_authoritative": 5
+      },
+      "cost_usd": 0.3523814000000001,
+      "prose_excerpt": "The evidence in this block is insufficient to give a fully evidence-backed verdict, but based on what is available \u2014 particularly the microservices and distributed computing articles \u2014 event-driven architecture is generally the stronger default for high-scale AI platforms, with synchronous microservices reserved for latency-critical paths.\n\nMicroservices architecture organizes applications into lo",
+      "bl_strict_ok": false,
+      "bl_word_count": 46
+    },
+    {
+      "label": "Q7",
+      "run_id": "3e2643e1",
+      "wallclock_s": null,
+      "route": "deep",
+      "domain": "technology",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.6165,
+      "J": null,
+      "conf": null,
+      "evidence_total": 18,
+      "host_counter": {
+        "wired.com": 2,
+        "techcrunch.com": 4,
+        "semanticscholar.org": 9,
+        "en.wikipedia.org": 3
+      },
+      "unique_hosts": 4,
+      "tier_counter": {
+        "unknown": 15,
+        "reputable_secondary": 3
+      },
+      "cost_usd": 0.133703,
+      "prose_excerpt": "Retrieval-Augmented Generation (RAG) with vector databases is currently the dominant practical approach for long-term memory in autonomous AI agents, though the evidence points toward hybrid hierarchical architectures as the likely long-term winner. Academic reviews confirm that vector databases are the most widely deployed mechanism for storing and retrieving episodic and factual memory in Large ",
+      "bl_strict_ok": false,
+      "bl_word_count": 32
+    },
+    {
+      "label": "Q8",
+      "run_id": "5c45a43d",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.63625,
+      "J": null,
+      "conf": null,
+      "evidence_total": 48,
+      "host_counter": {
+        "arxiv.org": 12,
+        "en.wikipedia.org": 18,
+        "gist.github.com": 2,
+        "github.com": 4,
+        "wellarchitected.github.com": 2,
+        "papers.ssrn.com": 6,
+        "martinfowler.com": 2,
+        "innovationatwork.ieee.org": 2
+      },
+      "unique_hosts": 8,
+      "tier_counter": {
+        "primary_authoritative": 12,
+        "reputable_secondary": 18,
+        "general": 18
+      },
+      "cost_usd": 0.2987580000000001,
+      "prose_excerpt": "Full replacement of mid-level software engineers within 10 years is unlikely, but significant role compression and reduced headcount growth are already underway. The most defensible outlook is that AI will automate a growing slice of mid-level coding tasks while pushing the remaining human work toward design, oversight, and judgment\u2014not eliminating engineers wholesale.\n\nCurrent AI coding agents st",
+      "bl_strict_ok": true,
+      "bl_word_count": 22
+    }
+  ],
+  "postdomain": [
+    {
+      "label": "Q1",
+      "run_id": "2e55036d",
+      "wallclock_s": null,
+      "route": "fast",
+      "domain": "other",
+      "stop_reason": "judge_confirmed",
+      "answer_kind": null,
+      "S": 1.0,
+      "J": null,
+      "conf": null,
+      "evidence_total": 6,
+      "host_counter": {
+        "en.wikipedia.org": 4,
+        "britannica.com": 1,
+        "clintonwhitehouse3.archives.gov": 1
+      },
+      "unique_hosts": 3,
+      "tier_counter": {
+        "unknown": 6
+      },
+      "cost_usd": 0.022649000000000002,
+      "prose_excerpt": "The capital of Japan is Tokyo [4], which has served as the national capital throughout modern history, though Japan's capital was located in other places prior to Tokyo [4].",
+      "bl_strict_ok": false,
+      "bl_word_count": 29
+    },
+    {
+      "label": "Q2",
+      "run_id": "46736c54",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.545,
+      "J": null,
+      "conf": null,
+      "evidence_total": 34,
+      "host_counter": {
+        "news.ycombinator.com": 18,
+        "en.wikipedia.org": 10,
+        "semanticscholar.org": 6
+      },
+      "unique_hosts": 3,
+      "tier_counter": {
+        "general": 18,
+        "reputable_secondary": 10,
+        "primary_authoritative": 6
+      },
+      "cost_usd": 0.2786110000000001,
+      "prose_excerpt": "Based on the available evidence, PostgreSQL is generally the stronger default choice for a small SaaS application, primarily due to its robust ACID guarantees and mature feature set. PostgreSQL features full transactions with atomicity, consistency, isolation, and durability (ACID) properties, materialized views, triggers, foreign keys, and stored procedures [4], all of which are highly valuable f",
+      "bl_strict_ok": false,
+      "bl_word_count": 28
+    },
+    {
+      "label": "Q3",
+      "run_id": "f1ddb63d",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "judge_confirmed",
+      "answer_kind": "best_effort",
+      "S": 0.15000000000000002,
+      "J": null,
+      "conf": null,
+      "evidence_total": 0,
+      "host_counter": {},
+      "unique_hosts": 0,
+      "tier_counter": {},
+      "cost_usd": 0.0322707,
+      "prose_excerpt": "There is no single 'best' programming language \u2014 the evidence block provided contains no data, and even with evidence, the answer depends heavily on context, use case, and personal or team factors. Different languages are optimized for different domains: systems programming, web development, data science, mobile apps, and scripting each have their own leading contenders. Without knowing the specif",
+      "bl_strict_ok": false,
+      "bl_word_count": 32
+    },
+    {
+      "label": "Q4",
+      "run_id": "6d379ce5",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "medical",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.6483333333333333,
+      "J": null,
+      "conf": null,
+      "evidence_total": 47,
+      "host_counter": {
+        "pmc.ncbi.nlm.nih.gov": 14,
+        "nia.nih.gov": 4,
+        "en.wikipedia.org": 20,
+        "newsroom.heart.org": 4,
+        "healthline.com": 2,
+        "emro.who.int": 2,
+        "medscape.com": 1
+      },
+      "unique_hosts": 7,
+      "tier_counter": {
+        "primary_authoritative": 20,
+        "reputable_secondary": 20,
+        "general": 7
+      },
+      "cost_usd": 0.25196910000000006,
+      "prose_excerpt": "For most healthy adults, intermittent fasting appears to offer meaningful metabolic benefits, though the evidence has important caveats and some recently identified risks. Hundreds of animal studies and scores of human clinical trials show that IF can improve conditions such as obesity, type 2 diabetes, cardiovascular risk factors, and neurological disorders [8]. The key mechanism is thought to be",
+      "bl_strict_ok": true,
+      "bl_word_count": 23
+    },
+    {
+      "label": "Q5",
+      "run_id": "87afe243",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": null,
+      "J": null,
+      "conf": null,
+      "evidence_total": 25,
+      "host_counter": {
+        "docker.com": 1,
+        "martinfowler.com": 1,
+        "github.com": 1,
+        "en.wikipedia.org": 10,
+        "arxiv.org": 7,
+        "oreilly.com": 1,
+        "news.ycombinator.com": 1,
+        "dev.to": 3
+      },
+      "unique_hosts": 8,
+      "tier_counter": {
+        "general": 8,
+        "reputable_secondary": 10,
+        "primary_authoritative": 7
+      },
+      "cost_usd": 0.1501014,
+      "prose_excerpt": "The evidence points to four compounding long-term risk categories for enterprise systems that adopt AI-generated code at scale.\n\n**Security vulnerabilities and accumulating technical debt** are the most empirically documented risks. AI-generated code introduces 2.74\u00d7 more security vulnerabilities than human-written code [1], and roughly 25\u201345% of AI-generated code contains confirmed vulnerabilitie",
+      "bl_strict_ok": true,
+      "bl_word_count": 18
+    },
+    {
+      "label": "Q6",
+      "run_id": "f906ab84",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.545,
+      "J": null,
+      "conf": null,
+      "evidence_total": 41,
+      "host_counter": {
+        "news.ycombinator.com": 24,
+        "en.wikipedia.org": 14,
+        "semanticscholar.org": 3
+      },
+      "unique_hosts": 3,
+      "tier_counter": {
+        "general": 24,
+        "reputable_secondary": 14,
+        "primary_authoritative": 3
+      },
+      "cost_usd": 0.34993910000000017,
+      "prose_excerpt": "Based on the available evidence, neither architecture is universally superior\u2014the choice depends on workload characteristics\u2014but high-scale AI platforms tend to favor event-driven patterns for throughput-heavy, asynchronous workloads, while retaining synchronous calls for latency-critical paths.\n\nDistributed systems face three core challenges: maintaining concurrency, overcoming the lack of a glob",
+      "bl_strict_ok": false,
+      "bl_word_count": 34
+    },
+    {
+      "label": "Q7",
+      "run_id": "3feaf0b7",
+      "wallclock_s": null,
+      "route": "deep",
+      "domain": "technology",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.634,
+      "J": null,
+      "conf": null,
+      "evidence_total": 18,
+      "host_counter": {
+        "techcrunch.com": 1,
+        "wired.com": 1,
+        "thenewstack.io": 1,
+        "semanticscholar.org": 12,
+        "en.wikipedia.org": 3
+      },
+      "unique_hosts": 5,
+      "tier_counter": {
+        "unknown": 15,
+        "reputable_secondary": 3
+      },
+      "cost_usd": 0.132994,
+      "prose_excerpt": "The evidence suggests that no single approach has definitively won, but a convergence toward hybrid external-memory architectures\u2014combining retrieval-augmented storage with structured knowledge representations\u2014currently appears most promising for practical deployment. Memory has emerged as a 'core capability' of foundation model-based agents, yet the field remains fragmented in motivations, implem",
+      "bl_strict_ok": false,
+      "bl_word_count": 29
+    },
+    {
+      "label": "Q8",
+      "run_id": "a2243165",
+      "wallclock_s": null,
+      "route": "standard",
+      "domain": "software_engineering",
+      "stop_reason": "stopped_by_budget",
+      "answer_kind": "best_effort",
+      "S": 0.64,
+      "J": null,
+      "conf": null,
+      "evidence_total": 58,
+      "host_counter": {
+        "dev.to": 6,
+        "en.wikipedia.org": 28,
+        "news.ycombinator.com": 8,
+        "github.com": 2,
+        "infoq.com": 2,
+        "arxiv.org": 6,
+        "economics.stackexchange.com": 2,
+        "pdfs.semanticscholar.org": 4
+      },
+      "unique_hosts": 8,
+      "tier_counter": {
+        "general": 20,
+        "reputable_secondary": 28,
+        "primary_authoritative": 10
+      },
+      "cost_usd": 0.2807460000000001,
+      "prose_excerpt": "The evidence strongly favors a middle path: AI will substantially transform\u2014and likely shrink headcount demand for\u2014mid-level software engineers, but is unlikely to fully replace them within 10 years. The most defensible reading is H1/H2: roles will be restructured and fewer engineers will be needed for equivalent output, but outright elimination faces real limits.\n\nAI coding benchmarks show rapid ",
+      "bl_strict_ok": false,
+      "bl_word_count": 28
+    }
+  ],
+  "authority_share": {
+    "postdomain": {
+      "PRIMARY_AUTHORITATIVE": 0.0,
+      "REPUTABLE_SECONDARY": 0.0,
+      "GENERAL": 0.0,
+      "LOW_SIGNAL": 0.0
+    },
+    "postux": {
+      "PRIMARY_AUTHORITATIVE": 0.0,
+      "REPUTABLE_SECONDARY": 0.0,
+      "GENERAL": 0.0,
+      "LOW_SIGNAL": 0.0
+    },
+    "postq": {
+      "PRIMARY_AUTHORITATIVE": 0.0,
+      "REPUTABLE_SECONDARY": 0.0,
+      "GENERAL": 0.0,
+      "LOW_SIGNAL": 0.0
+    }
+  }
+}
