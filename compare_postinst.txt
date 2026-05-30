@@ -1,0 +1,65 @@
+[parsed] 8 run_ids from eval_postinst.txt
+[fetch] postinst (IP-38 instrumented)...
+  [Q1] ac156e91 ...
+  [Q2] 68daa970 ...
+  [Q3] b613ac05 ...
+  [Q4] 586b0ef2 ...
+  [Q5] 0401d6a5 ...
+  [Q6] d6ab8ceb ...
+  [Q7] 48ea4cb9 ...
+  [Q8] fd5a84a8 ...
+[fetch] postov (IP-37 baseline)...
+  [Q1] a2500f9d ...
+  [Q2] d7c478c2 ...
+  [Q3] 141e8b79 ...
+  [Q4] 9705a37c ...
+  [Q5] c00de3bb ...
+  [Q6] 2d026f6f ...
+  [Q7] 36c42cd4 ...
+  [Q8] 640013a3 ...
+
+=== IP-38 PRIMARY METRIC ΓÇö telemetry completeness ===
+  Q1  XX  route=fast      cov=None agr=None override_eligible=None blockers=None
+  Q2  XX  route=standard  cov=None agr=None override_eligible=None blockers=None
+  Q3  OK  route=standard  cov=0.0 agr=0.0 override_eligible=False blockers=['structural', 'coverage', 'agreement']
+  Q4  OK  route=standard  cov=1.0 agr=1.0 override_eligible=False blockers=['contradictions']
+  Q5  OK  route=standard  cov=0.0 agr=1.0 override_eligible=False blockers=['coverage', 'contradictions']
+  Q6  OK  route=standard  cov=0.0 agr=1.0 override_eligible=False blockers=['structural', 'coverage', 'contradictions']
+  Q7  XX  route=deep      cov=None agr=None override_eligible=None blockers=None
+  Q8  OK  route=standard  cov=0.0 agr=1.0 override_eligible=False blockers=['coverage']
+
+  telemetry_complete = 5/8  (target: 8/8 or close)
+
+=== STOP REASON FLOOR CHECK (postov baseline) ===
+  reason                      postov   postinst
+  judge_confirmed                  3          3
+  stopped_by_budget                5          5
+
+  judge_confirmed floor: postov=3 postinst=3  PASS
+  BL strict floor: postov=6/8 postinst=7/8  PASS
+
+=== IP-39 PREP ΓÇö what blocks each non-confirmed run? ===
+  Q4  S=0.9376666666666666 cov=1.0 agr=1.0 blockers=['contradictions']
+  Q6  S=0.5876666666666667 cov=0.0 agr=1.0 blockers=['structural', 'coverage', 'contradictions']
+  Q8  S=0.65 cov=0.0 agr=1.0 blockers=['coverage']
+
+  blocker frequency: {'contradictions': 2, 'structural': 1, 'coverage': 2}
+  -> use this to pick the IP-39 threshold to relax (e.g. 'coverage' dominates -> bump 0.6 -> 0.5)
+
+=== PER QUESTION (postinst, IP-38) ===
+  Q1  fast      judge_confirmed        S= 1.00 cov=    - agr=    - override=? ev=  6 h= 3 BL25=y(21w) t=22s
+  Q2  standard  stopped_by_budget      S=    - cov=    - agr=    - override=? ev= 11 h= 3 BL25=.(27w) t=45s
+  Q3  standard  judge_confirmed        S= 0.15 cov= 0.00 agr= 0.00 override=. ev=  0 h= 0 BL25=y(21w) t=39s
+  Q4  standard  stopped_by_budget      S= 0.94 cov= 1.00 agr= 1.00 override=. ev= 57 h= 3 BL25=y(19w) t=145s
+  Q5  standard  judge_confirmed        S= 0.64 cov= 0.00 agr= 1.00 override=. ev= 14 h= 8 BL25=y(19w) t=116s
+  Q6  standard  stopped_by_budget      S= 0.59 cov= 0.00 agr= 1.00 override=. ev= 20 h= 3 BL25=y(16w) t=106s
+  Q7  deep      stopped_by_budget      S= 0.62 cov=    - agr=    - override=? ev= 14 h= 4 BL25=y(19w) t=61s
+  Q8  standard  stopped_by_budget      S= 0.65 cov= 0.00 agr= 1.00 override=. ev= 36 h= 5 BL25=y(25w) t=83s
+
+=== IP-38 VERDICT ===
+  telemetry_complete 5/8 FAIL
+  judge_confirmed   floor  PASS
+  BL_strict         floor  PASS
+  >>> VERDICT: FAIL
+
+[done] wrote compare_postinst.json
