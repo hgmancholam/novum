@@ -629,14 +629,42 @@ class AgentOrchestrator:
     async def _handle_judging(self) -> None:
         # WP-5: Pass emit callback for JudgeProviderDegradedEvent
         judge_event = await evaluate_with_judge(self.state, emit_event=self.emit)
-        await self.emit(judge_event)
-        self.state.last_judge_confidence = judge_event.judge_confidence
-        self.state.last_structural_confidence = judge_event.structural_confidence
-        self.state.last_coverage = calculate_coverage(self.state)
-        self.state.last_agreement = calculate_agreement(
+        # IP-38: instrument BEFORE emit so override telemetry is queryable
+        # from events.payload JSONB (P2 — instrument before tune). Uses
+        # Pydantic extra="allow" on BaseEvent — zero schema migration.
+        _ip38_coverage = calculate_coverage(self.state)
+        _ip38_agreement = calculate_agreement(
             self.state.evidence,
             expected_experts=self.state.expected_experts or None,
         )
+        _ip38_s_ok = judge_event.structural_confidence >= 0.6
+        _ip38_c_ok = _ip38_coverage >= 0.6
+        _ip38_a_ok = _ip38_agreement >= 0.5
+        _ip38_no_contra = not judge_event.contradictions_detected
+        judge_event.coverage = _ip38_coverage
+        judge_event.agreement = _ip38_agreement
+        judge_event.override_eligible = (
+            (not judge_event.passed)
+            and _ip38_s_ok
+            and _ip38_c_ok
+            and _ip38_a_ok
+            and _ip38_no_contra
+        )
+        judge_event.override_blockers = [
+            name
+            for name, ok in (
+                ("structural", _ip38_s_ok),
+                ("coverage", _ip38_c_ok),
+                ("agreement", _ip38_a_ok),
+                ("contradictions", _ip38_no_contra),
+            )
+            if not ok
+        ]
+        await self.emit(judge_event)
+        self.state.last_judge_confidence = judge_event.judge_confidence
+        self.state.last_structural_confidence = judge_event.structural_confidence
+        self.state.last_coverage = _ip38_coverage
+        self.state.last_agreement = _ip38_agreement
         self.state.judge_attempts += 1
 
         # IP-25 Phase B: Update confidence history for no-progress detection

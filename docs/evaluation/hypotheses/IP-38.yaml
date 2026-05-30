@@ -1,0 +1,29 @@
+hypothesis:
+  id: IP-38
+  claim: >
+    Adding coverage/agreement/override_eligible/override_blockers as extras on
+    JudgeRuledEvent (via Pydantic `extra="allow"`, no schema migration) will let
+    the next compare_*.py report exactly which gate of the IP-37 structural
+    override fires or blocks per question, with ZERO behavioral change to the
+    runtime. This iteration is a pure observability diff (P2 — instrument
+    before tune).
+  primary_metric: telemetry_completeness_at_judging_phase
+  primary_metric_baseline: "0/8 runs expose coverage+agreement+override gates in events"
+  primary_metric_target:   "8/8 runs expose coverage+agreement+override gates in events"
+  secondary_metrics:
+    - { name: judge_confirmed_count,     baseline: 3/8, floor: 3/8 }     # must NOT regress
+    - { name: BL_strict_pass_rate,        baseline: 6/8, floor: 6/8 }    # must NOT regress
+    - { name: pytest_pass_count,          baseline: 1144, floor: 1144 }   # must NOT regress
+    - { name: avg_wallclock_s,            baseline: ~100, ceiling: 130 }
+  falsification: >
+    If post-eval shows any judge_confirmed regression (3/8 → <3/8), or BL
+    strict regression (6/8 → <6/8), or pytest regressions, IP-38 is rejected
+    and reverted. If new fields fail to appear in events (queryable via SQL),
+    instrumentation is incomplete — re-implement before declaring PASS.
+  expires_after: "1 eval cycle (~5 min eval)"
+  notes: >
+    This is a precursor (IP-XX-instr per EvalEngineer P2). The thresholds for
+    the structural override (S>=0.6, coverage>=0.6, agreement>=0.5) are NOT
+    changed. The next iteration (IP-39) will USE this telemetry to decide
+    whether to lower coverage or agreement based on actual per-question gate
+    blockers — not on guesses.

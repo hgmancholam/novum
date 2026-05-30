@@ -128,6 +128,8 @@ model_routing:
     Coder:    { S: balanced, M: balanced, L: balanced }
     # Review: cheap for trivial changes, deep for cross-cutting refactors
     Reviewer: { S: fast,     M: balanced, L: balanced }
+    # Eval gate: balanced+ — statistical reasoning + failure taxonomy
+    EvalEngineer: { S: skipped, M: balanced, L: balanced }
 
 # =============================================================================
 # AGENTS
@@ -220,6 +222,38 @@ agents:
       - docs/implementation-phase/audits/
     memory_protocol: mandatory
 
+  eval_engineer:
+    name: "EvalEngineer"
+    role: "Behavioral / runtime evaluation specialist (F3.5 EVAL-GATE)"
+    responsibilities:
+      - Validate hypothesis pre-registration before any behavior-changing diff
+      - Verify telemetry exists for every metric named in the hypothesis (P2)
+      - Run eval against frozen golden set, compute 4-axis composite scorecard
+      - Tag failing runs with the canonical failure taxonomy
+      - VETO merges to main when behavioral regression is detected
+    trigger_paths:
+      - "backend/app/agent/**"
+      - "backend/app/llm/**"
+      - "backend/app/stopping/**"
+      - "backend/app/confidence/**"
+      - "backend/app/source_plugins/**"
+    skills_required:
+      - eval-instrumentation
+    veto_authority: true                # blocks F4 → F5 on behavioral regression
+    scoring:
+      composite_axes: [convergence, honesty, brevity_with_substance, efficiency]
+      golden_set: "docs/q-for-testing.md"
+      stats: "bootstrap_ci_90 + sign_test (n=8 forces non-parametric)"
+      two_cycle_confirmation: true       # single eval never locks a change
+    outputs:
+      - docs/evaluation/iteration-history-*.md
+      - docs/evaluation/failure-taxonomy.md
+      - docs/evaluation/hypotheses/IP-*.yaml
+      - scripts/compare_*.py
+      - eval_*.txt
+      - compare_*.{txt,json}
+    memory_protocol: mandatory
+
 # =============================================================================
 # SKILLS
 # =============================================================================
@@ -298,6 +332,12 @@ skills:
     name: "Implementation Plan Audit"
     description: "Blind-path detection and RF coverage audit of Implementation Plans"
     location: ".github/prompts/skills/audit-implementation-plan/"
+
+  # Evaluation Skills (used by EvalEngineer)
+  eval-instrumentation:
+    name: "Eval Instrumentation"
+    description: "Minimal-cost telemetry via Pydantic extra='allow' so behavioral changes become observable before being tuned (P2 — instrument before tune)"
+    location: ".github/prompts/skills/eval-instrumentation/"
 
   # Memory Protocol
   memory-protocol:
@@ -516,7 +556,56 @@ phases:
       - id: "F3.S4"
         action: "update_memory_bank"
         description: "Record implementation decisions and created files"
-    next: "F4"
+    next: "F3.5"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # F3.5: EVAL-GATE — EvalEngineer (only when diff touches behavioral paths)
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: "F3.5"
+    name: "EVAL-GATE"
+    description: >
+      Behavioral / runtime gate. Runs ONLY when the diff touches one of the
+      EvalEngineer trigger_paths (backend/app/agent|llm|stopping|confidence|
+      source_plugins). Otherwise it's a no-op pass-through to F4.
+      Validates hypothesis pre-registration, runs golden-set eval, computes
+      4-axis scorecard, applies failure taxonomy, and VETOES merges on
+      behavioral regression.
+    agent: "eval_engineer"
+    conditional: true
+    skip_when: "diff does not touch backend/app/{agent,llm,stopping,confidence,source_plugins}/**"
+    steps:
+      - id: "F3.5.S1"
+        action: "read_hypothesis_block"
+        description: "Locate docs/evaluation/hypotheses/IP-XX.yaml. If missing → BLOCK and demand pre-registration from Coder/Orchestrator."
+      - id: "F3.5.S2"
+        action: "verify_telemetry"
+        description: "Confirm every metric in the hypothesis is observable in events or compare scripts. If not → BLOCK and demand IP-XX-instr precursor diff."
+      - id: "F3.5.S3"
+        action: "run_eval"
+        description: "Execute eval against frozen golden set (docs/q-for-testing.md). Persist eval_<tag>.txt."
+      - id: "F3.5.S4"
+        action: "build_scorecard"
+        description: "Compute 4-axis composite (convergence, honesty, brevity-with-substance, efficiency) + bootstrap 90% CI + per-question table. Persist compare_<tag>.{txt,json}."
+      - id: "F3.5.S5"
+        action: "failure_taxonomy_pass"
+        description: "Tag every non-judge_confirmed run with canonical category. Update docs/evaluation/failure-taxonomy.md trend tracker."
+      - id: "F3.5.S6"
+        action: "verdict"
+        description: "PASS / FAIL / INCONCLUSIVE per hypothesis falsification rule. Append iteration-history row."
+      - id: "F3.5.S7"
+        action: "recommend_next"
+        description: "If PASS → F4. If FAIL → revert + retry (max 2). If INCONCLUSIVE → instrument/expand golden set (max 1)."
+    next_conditions:
+      - condition: "verdict == 'PASS'"
+        next: "F4"
+      - condition: "verdict == 'FAIL' AND eval_iter < 2"
+        next: "F3"
+        increment: "eval_iter"
+      - condition: "verdict == 'INCONCLUSIVE' AND eval_inconclusive_iter < 1"
+        next: "F3.5"
+        increment: "eval_inconclusive_iter"
+      - condition: "(verdict == 'FAIL' AND eval_iter >= 2) OR (verdict == 'INCONCLUSIVE' AND eval_inconclusive_iter >= 1)"
+        next: "F6"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # F4: REVIEW — Reviewer Agent
