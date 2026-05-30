@@ -203,3 +203,50 @@ async def test_search_passes_include_domains_when_hinted() -> None:
     await source.search("q", max_results=3, include_domains=["nature.com", "nih.gov"])
 
     assert mock.call_args.kwargs["include_domains"] == ["nature.com", "nih.gov"]
+
+
+async def test_search_applies_domain_allowlist_when_no_include_domains() -> None:
+    source = _make_source()
+    mock = AsyncMock(return_value=_fake_response([]))
+    source._client.search = mock  # type: ignore[method-assign]
+
+    await source.search("q", max_results=3, domain="medical")
+
+    allowed = mock.call_args.kwargs["include_domains"]
+    assert "nih.gov" in allowed
+    assert "who.int" in allowed
+
+
+async def test_search_skips_domain_allowlist_on_deep_complexity() -> None:
+    source = _make_source()
+    mock = AsyncMock(return_value=_fake_response([]))
+    source._client.search = mock  # type: ignore[method-assign]
+
+    await source.search("q", max_results=3, domain="medical", complexity_hint="deep")
+
+    assert "include_domains" not in mock.call_args.kwargs
+
+
+async def test_search_explicit_include_domains_wins_over_domain_allowlist() -> None:
+    source = _make_source()
+    mock = AsyncMock(return_value=_fake_response([]))
+    source._client.search = mock  # type: ignore[method-assign]
+
+    await source.search(
+        "q",
+        max_results=3,
+        domain="medical",
+        include_domains=["example.org"],
+    )
+
+    assert mock.call_args.kwargs["include_domains"] == ["example.org"]
+
+
+async def test_search_skips_allowlist_for_unmapped_domain() -> None:
+    source = _make_source()
+    mock = AsyncMock(return_value=_fake_response([]))
+    source._client.search = mock  # type: ignore[method-assign]
+
+    await source.search("q", max_results=3, domain="lifestyle")
+
+    assert "include_domains" not in mock.call_args.kwargs

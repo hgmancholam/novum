@@ -60,3 +60,22 @@ async def test_passes_question_as_user_message(mock_create: AsyncMock) -> None:
     kwargs: dict[str, Any] = mock_create.call_args.kwargs
     messages = kwargs["messages"]
     assert any(m["role"] == "user" and m["content"] == "What is X?" for m in messages)
+
+
+async def test_classification_default_domain_is_other(mock_create: AsyncMock) -> None:
+    """IP-30: classifier verdict defaults to ``domain='other'`` when LLM omits the field."""
+    mock_create.return_value = _classification("factual")
+    _, verdict, _, _ = await classify.classify_question("q?")
+    assert verdict.domain == "other"
+
+
+async def test_classification_preserves_emitted_domain(mock_create: AsyncMock) -> None:
+    """IP-30: classifier verdict surfaces the LLM-emitted ``domain`` verbatim."""
+    mock_create.return_value = QuestionClassification(
+        question_type="factual",
+        rationale="x",
+        answerable=True,
+        domain="medical",
+    )
+    _, verdict, _, _ = await classify.classify_question("Q?")
+    assert verdict.domain == "medical"

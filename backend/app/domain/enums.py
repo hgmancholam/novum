@@ -204,6 +204,30 @@ class TemporalSensitivity(StrEnum):
     REALTIME = "realtime"
 
 
+class QuestionDomain(StrEnum):
+    """Topical domain emitted by the classifier (IP-30).
+
+    Closed taxonomy that drives source-plugin specialisation
+    (``fieldsOfStudy`` on academic sources, curated ``include_domains``
+    allowlists on Tavily) and cascade skipping of academic sources for
+    domains where they consistently return empty results. Default is
+    ``OTHER`` so pre-IP-30 event payloads replay cleanly.
+    """
+
+    MEDICAL = "medical"
+    LEGAL = "legal"
+    FINANCIAL = "financial"
+    TECHNOLOGY = "technology"
+    SCIENCE = "science"
+    GEOPOLITICS = "geopolitics"
+    BUSINESS = "business"
+    HISTORY = "history"
+    EDUCATION = "education"
+    LIFESTYLE = "lifestyle"
+    SOFTWARE_ENGINEERING = "software_engineering"
+    OTHER = "other"
+
+
 class AuthorityTier(StrEnum):
     """Authority-tier bucket per BRD-23 §4.4 / §4.7 (WP-3).
 

@@ -466,3 +466,66 @@ async def test_empty_preferred_sources_uses_default_cascade(
     assert tool_called == [SourceType.TAVILY]
 
 
+# =============================================================================
+# IP-30: domain-aware cascade skipping for non-academic domains
+# =============================================================================
+
+
+async def test_cascade_skips_academic_sources_for_geopolitics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Geopolitics questions skip S2/OpenAlex even when planner preferred them."""
+    from app.domain.enums import QuestionDomain
+
+    s2 = _FakeSource(SourceType.SEMANTIC_SCHOLAR, results=[_result("s2-1")])
+    tavily = _FakeSource(SourceType.TAVILY, results=[_result("t-1")])
+    wiki = _FakeSource(SourceType.WIKIPEDIA, results=[_result("w-1")])
+    monkeypatch.setattr(
+        registry_mod,
+        "_registry",
+        _FakeRegistry(
+            {
+                SourceType.SEMANTIC_SCHOLAR: s2,
+                SourceType.TAVILY: tavily,
+                SourceType.WIKIPEDIA: wiki,
+            }
+        ),
+    )
+    state = _state()
+    state.preferred_sources = ["semantic_scholar"]
+    state.domain = QuestionDomain.GEOPOLITICS
+
+    events = await search_mod.execute_search_round(state)
+    tool_called = [e.source_type for e in events if isinstance(e, ToolCalledEvent)]
+    assert SourceType.SEMANTIC_SCHOLAR not in tool_called
+    assert tool_called == [SourceType.TAVILY]
+    assert not s2.calls
+
+
+async def test_cascade_keeps_academic_sources_for_other_domain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Domains outside the skip-set keep S2/OpenAlex available."""
+    from app.domain.enums import QuestionDomain
+
+    s2 = _FakeSource(SourceType.SEMANTIC_SCHOLAR, results=[_result("s2-1")])
+    tavily = _FakeSource(SourceType.TAVILY, results=[_result("t-1")])
+    wiki = _FakeSource(SourceType.WIKIPEDIA, results=[_result("w-1")])
+    monkeypatch.setattr(
+        registry_mod,
+        "_registry",
+        _FakeRegistry(
+            {
+                SourceType.SEMANTIC_SCHOLAR: s2,
+                SourceType.TAVILY: tavily,
+                SourceType.WIKIPEDIA: wiki,
+            }
+        ),
+    )
+    state = _state()
+    state.preferred_sources = ["semantic_scholar"]
+    state.domain = QuestionDomain.MEDICAL
+
+    events = await search_mod.execute_search_round(state)
+    tool_called = [e.source_type for e in events if isinstance(e, ToolCalledEvent)]
+    assert tool_called == [SourceType.SEMANTIC_SCHOLAR]

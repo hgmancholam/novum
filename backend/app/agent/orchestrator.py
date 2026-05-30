@@ -275,7 +275,22 @@ class AgentOrchestrator:
         temporal = derive_temporal_sensitivity(self.state.question, mapped)
         self.state.temporal_sensitivity = temporal
 
-        # Emit QuestionClassifiedEvent with BRD-22 + BRD-23 fields
+        # IP-30: map verdict.domain (str) onto the closed QuestionDomain enum.
+        # Unknown values fall back to OTHER so a hallucinated label never breaks
+        # the run; default "other" is also returned when the LLM omits the field.
+        from app.domain.enums import QuestionDomain
+        raw_domain = (verdict.domain or "other").strip().lower()
+        try:
+            self.state.domain = QuestionDomain(raw_domain)
+        except ValueError:
+            logger.warning(
+                "classifier_unknown_domain",
+                raw_domain=raw_domain,
+                run_id=str(self.state.run_id),
+            )
+            self.state.domain = QuestionDomain.OTHER
+
+        # Emit QuestionClassifiedEvent with BRD-22 + BRD-23 + IP-30 fields
         await self.emit(
             QuestionClassifiedEvent(
                 question_type=mapped,
@@ -283,6 +298,7 @@ class AgentOrchestrator:
                 complexity_hint=complexity_hint,
                 heuristic_signals=heuristic_signals,
                 temporal_sensitivity=temporal,
+                domain=self.state.domain,
             )
         )
 

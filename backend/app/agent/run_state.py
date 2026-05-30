@@ -19,6 +19,7 @@ from app.domain.enums import (
     ComplexityHint,
     EventType,
     Lane,
+    QuestionDomain,
     QuestionType,
     StopReason,
     TemporalSensitivity,
@@ -86,6 +87,9 @@ class RunState(BaseModel):
     # BRD-23 WP-1: temporal sensitivity + last Tavily days-filter (folded from events).
     temporal_sensitivity: TemporalSensitivity | None = None
     tavily_days_filter: int | None = None
+
+    # IP-30: topical domain (closed enum) — drives source plugin specialisation.
+    domain: QuestionDomain | None = None
 
     # IP-25 Phase A: selected research lane (telemetry only in Phase A)
     selected_lane: Lane | None = None

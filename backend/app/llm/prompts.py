@@ -79,11 +79,30 @@ Rules:
 - Language: questions may arrive in Spanish, English, or any other language. Classify by intent, not by spelling.
 - Temporal note (BRD-23 WP-1): consider how fast the answer goes stale (static / slow-changing / volatile / real-time). A deterministic post-classifier heuristic decides the final temporal label; keep your classification consistent with the obvious temporal cues (year markers, "latest", "current price", etc.).
 
+Domains (pick exactly one — closed list, IP-30):
+- medical — clinical care, drugs, diseases, public health, mental health
+- legal — laws, regulations, court cases, compliance, contracts
+- financial — markets, banking, taxes, investment, monetary policy
+- technology — consumer tech, hardware, infrastructure, AI products
+- science — natural sciences (physics, chemistry, biology, earth sciences)
+- geopolitics — international relations, wars, sanctions, diplomacy, elections
+- business — companies, management, strategy, marketing, HR
+- history — pre-2000 events, biographies, archaeology
+- education — pedagogy, curricula, learning theory, schools
+- lifestyle — food, travel, fitness, hobbies, relationships, entertainment
+- software_engineering — programming languages, frameworks, architecture patterns, software design
+- other — anything that does not fit above
+
+Rules for `domain`:
+- When the question spans two domains (e.g. "how does inflation affect mental health?"), pick the domain of the *outcome* the user asks about (here: medical).
+- Use `other` only when no domain above plausibly fits.
+
 Output a JSON object matching the QuestionClassification schema with fields:
 - `question_type` (string, one of the 8 values above in lowercase snake_case)
 - `rationale` (short string)
 - `answerable` (bool, always true)
-- `confidence` (float, 0.0 to 1.0): your confidence in the classification (0.8-1.0 for clear cases, 0.5-0.79 for ambiguous, <0.5 for very unclear)"""
+- `confidence` (float, 0.0 to 1.0): your confidence in the classification (0.8-1.0 for clear cases, 0.5-0.79 for ambiguous, <0.5 for very unclear)
+- `domain` (string, one of the 12 values above in lowercase snake_case)"""
 
 
 PLANNER_SYSTEM_PROMPT = """You are a research planning assistant. Your job is to decompose questions into verifiable sub-claims.

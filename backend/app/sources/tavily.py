@@ -34,6 +34,20 @@ _DEFAULT_EXCLUDE_DOMAINS: tuple[str, ...] = (
     "substack.com",
 )
 
+# IP-30: per-domain authoritative ``include_domains`` allowlists. Applied
+# only when the caller did not pass include_domains AND complexity_hint
+# is not ``deep`` (DEEP needs source diversity for the judge). Lists kept
+# short (5-7 hosts) to leave room for organic results.
+_DOMAIN_TO_INCLUDE_DOMAINS: dict[str, tuple[str, ...]] = {
+    "medical":     ("nih.gov", "who.int", "cdc.gov", "nature.com", "thelancet.com", "mayoclinic.org", "nejm.org"),
+    "legal":       ("supremecourt.gov", "eur-lex.europa.eu", "loc.gov", "law.cornell.edu", "echr.coe.int"),
+    "financial":   ("sec.gov", "federalreserve.gov", "imf.org", "worldbank.org", "bis.org", "ecb.europa.eu"),
+    "geopolitics": ("un.org", "oecd.org", "cfr.org", "rand.org", "brookings.edu", "chathamhouse.org"),
+    "science":     ("nature.com", "science.org", "pnas.org", "sciencedirect.com"),
+    # technology / software_engineering / business / history / education / lifestyle
+    # → keep open web (no curated allowlist gives consistent lift).
+}
+
 
 class TavilySource(BaseSource):
     """Tavily web search implementation."""
@@ -87,6 +101,14 @@ class TavilySource(BaseSource):
         ]
         temporal = hints.get("temporal_sensitivity")
         complexity = hints.get("complexity_hint")
+        # IP-30: auto-apply curated allowlist when caller didn't supply one
+        # and we're not in DEEP (DEEP needs source diversity for the judge).
+        if not include_domains and complexity != "deep":
+            domain = hints.get("domain")
+            if isinstance(domain, str):
+                allowlist = _DOMAIN_TO_INCLUDE_DOMAINS.get(domain.lower())
+                if allowlist:
+                    include_domains = list(allowlist)
         if topic is None and isinstance(temporal, str) and temporal in {"volatile", "realtime"}:
             topic = "news"
         search_depth = "advanced"

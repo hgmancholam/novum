@@ -433,3 +433,56 @@ async def test_search_omits_min_citation_count_outside_deep_state_of_art() -> No
         complexity_hint="deep",
     )
     assert "minCitationCount" not in captured["params"]
+
+
+@pytest.mark.asyncio
+async def test_search_maps_domain_to_fields_of_study() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = SemanticScholarSource(transport=_mock_transport(handler))
+    await source.search("q", max_results=3, domain="medical")
+
+    assert captured["params"]["fieldsOfStudy"] == "Medicine,Biology"
+
+
+@pytest.mark.asyncio
+async def test_search_prefers_domain_over_expected_experts() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = SemanticScholarSource(transport=_mock_transport(handler))
+    await source.search(
+        "q",
+        max_results=3,
+        domain="medical",
+        expected_experts=["practitioner_engineer"],
+    )
+
+    # Domain (Medicine,Biology) wins; engineer mapping is ignored.
+    assert captured["params"]["fieldsOfStudy"] == "Medicine,Biology"
+
+
+@pytest.mark.asyncio
+async def test_search_falls_back_to_experts_when_domain_is_other() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json=_search_payload([]))
+
+    source = SemanticScholarSource(transport=_mock_transport(handler))
+    await source.search(
+        "q",
+        max_results=3,
+        domain="other",
+        expected_experts=["industry_analyst"],
+    )
+
+    assert captured["params"]["fieldsOfStudy"] == "Economics,Business"

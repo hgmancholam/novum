@@ -1,6 +1,6 @@
 // Auto-generated from Pydantic models — DO NOT EDIT
 // Source: scripts/export_types.py (BRD-02)
-// Generated: 2026-05-29T22:41:00.158927+00:00
+// Generated: 2026-05-30T07:59:47.293740+00:00
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -4374,6 +4374,17 @@ export const EventSchema = {
             }
           ],
           "default": null
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuestionDomain"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -4382,6 +4393,25 @@ export const EventSchema = {
       ],
       "title": "QuestionClassifiedEvent",
       "type": "object"
+    },
+    "QuestionDomain": {
+      "description": "Topical domain emitted by the classifier (IP-30).\n\nClosed taxonomy that drives source-plugin specialisation\n(``fieldsOfStudy`` on academic sources, curated ``include_domains``\nallowlists on Tavily) and cascade skipping of academic sources for\ndomains where they consistently return empty results. Default is\n``OTHER`` so pre-IP-30 event payloads replay cleanly.",
+      "enum": [
+        "medical",
+        "legal",
+        "financial",
+        "technology",
+        "science",
+        "geopolitics",
+        "business",
+        "history",
+        "education",
+        "lifestyle",
+        "software_engineering",
+        "other"
+      ],
+      "title": "QuestionDomain",
+      "type": "string"
     },
     "QuestionNormalizedEvent": {
       "additionalProperties": true,

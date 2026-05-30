@@ -57,6 +57,9 @@ class QuestionClassification(BaseModel):
     rationale: str
     answerable: bool
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    # IP-30: closed-list topical domain (12 values, see QuestionDomain).
+    # Defaults to "other" so legacy LLM payloads that omit the field validate.
+    domain: str = "other"
 
     @model_validator(mode="before")
     @classmethod

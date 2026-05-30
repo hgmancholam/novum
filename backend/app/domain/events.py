@@ -18,6 +18,7 @@ from app.domain.enums import (
     EventType,
     EvidencePolarity,
     Lane,
+    QuestionDomain,
     QuestionType,
     SourceType,
     StopReason,
@@ -86,6 +87,7 @@ class QuestionClassifiedEvent(BaseEvent):
     complexity_hint: ComplexityHint | None = None
     heuristic_signals: dict[str, Any] | None = None
     temporal_sensitivity: TemporalSensitivity | None = None  # BRD-23 WP-1
+    domain: QuestionDomain | None = None  # IP-30 (additive per RF-03)
 
 class SubClaim(BaseModel):
     """A sub-claim in the research plan."""
