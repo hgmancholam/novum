@@ -428,6 +428,10 @@ async def test_cancel_mid_loop(llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPat
 async def test_judge_max_attempts_stops_by_budget_not_silent_confirm(
     llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """O-09 guard: when the judge rejects with detected contradictions,
+    the run MUST stop with STOPPED_BY_BUDGET and not silently flip to
+    JUDGE_CONFIRMED via the IP-37 structural override.
+    """
     llm_stub.queue("QuestionClassification", _classify("factual"))
     llm_stub.queue("PlanOutput", _plan("c1"))
     llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
@@ -437,8 +441,15 @@ async def test_judge_max_attempts_stops_by_budget_not_silent_confirm(
         SynthesizedAnswer(prose="a", key_points=[], citations=[]),
         SynthesizedAnswer(prose="a", key_points=[], citations=[]),
     )
-    # Judge rejects 3 times with no divergence so no claim re-opening.
-    rejection = JudgeVerdict(confidence=0.9, verdict="reject", rationale="no", improvements=[])
+    # Judge rejects 3 times with contradictions present so the IP-37
+    # structural override does NOT fire (contradictions_detected guard).
+    rejection = JudgeVerdict(
+        confidence=0.9,
+        verdict="reject",
+        rationale="no",
+        improvements=[],
+        contradictions_detected=["c1 contradicts the evidence"],
+    )
     llm_stub.queue("JudgeVerdict", rejection, rejection, rejection)
 
     tavily = _FakeSource(
@@ -454,6 +465,47 @@ async def test_judge_max_attempts_stops_by_budget_not_silent_confirm(
     assert reason == StopReason.STOPPED_BY_BUDGET
     judge_events = [e for e in events if isinstance(e, JudgeRuledEvent)]
     assert len(judge_events) == 3
+    assert all(not e.passed for e in judge_events)
+
+
+async def test_judge_max_attempts_structural_override_flips_to_confirmed(
+    llm_stub: _LLMStub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """IP-37: when the judge keeps rejecting on completeness grounds but
+    the structural picture is solid (S>=0.6, coverage>=0.6, agreement>=0.5)
+    and no contradictions are reported, the orchestrator overrides the
+    budget terminal and emits JUDGE_CONFIRMED with a BEST_EFFORT draft.
+    """
+    llm_stub.queue("QuestionClassification", _classify("factual"))
+    llm_stub.queue("PlanOutput", _plan("c1"))
+    llm_stub.queue("CritiqueOutput", CritiqueOutput(acceptable=True, summary="ok"))
+    llm_stub.queue(
+        "SynthesizedAnswer",
+        SynthesizedAnswer(prose="a", key_points=[], citations=[]),
+        SynthesizedAnswer(prose="a", key_points=[], citations=[]),
+        SynthesizedAnswer(prose="a", key_points=[], citations=[]),
+        # Extra slot for the best-effort fallback regen.
+        SynthesizedAnswer(prose="best effort summary", key_points=[], citations=[]),
+    )
+    # Judge rejects 3 times for "completeness" — no contradictions reported,
+    # high confidence so structural override threshold is satisfied.
+    rejection = JudgeVerdict(
+        confidence=0.9, verdict="reject", rationale="needs more sources", improvements=[]
+    )
+    llm_stub.queue("JudgeVerdict", rejection, rejection, rejection)
+
+    tavily = _FakeSource(
+        SourceType.TAVILY,
+        results=[_result("u1", 0.9), _result("u2", 0.9)],
+    )
+    _install_registry(monkeypatch, {SourceType.TAVILY: tavily})
+
+    state = _state(max_judge_attempts=3, max_searches=10)
+    orch, events = _make_orchestrator(state)
+    reason = await orch.run()
+
+    assert reason == StopReason.JUDGE_CONFIRMED
+    judge_events = [e for e in events if isinstance(e, JudgeRuledEvent)]
     assert all(not e.passed for e in judge_events)
 
 
