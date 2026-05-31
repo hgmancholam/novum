@@ -1037,3 +1037,12 @@ for good in ["gov.uk", "cabinet.gov.uk", "dwp.gov.uk"]:
 ```
 
 **Applies to:** any TLD/suffix matcher in `backend/app/sources/authority.py` and any future seam that relies on host-suffix matching.
+
+---
+
+### L-037 — Mandatory per-kind anchors raise judge bar even when scoping is correct
+**Context:** IP-43 (post-IP-42 revert). Scoped research-narrative anchors per AnswerKind (avoided IP-42 SHARED block conflict with SCENARIO).
+**Symptom:** Anchors landed 5/5 on non-SCENARIO non-DIRECT (good), 0/2 on SCENARIO (good — surgical scoping worked). But judge_confirmed dropped 4/8→3/8: Q4 (TRADEOFF) regressed jc→budget (82s→89s). Wallclock_avg 71.2s OK.
+**Root cause:** Required anchors ("What could flip this:" + "Alternatives considered:") force longer prose; longer prose forces more synthesis attempts; more attempts consume step budget before judge can confirm.
+**Lesson:** Even surgical per-kind anchors that don't conflict with other prompts can REGRESS the judge_confirmed rate by raising the bar synthesis must clear within budget. Either widen step budget per kind, downgrade anchors from REQUIRED to STRONGLY-ENCOURAGED, or inject anchors post-synthesis via a deterministic renderer that runs after the judge approves the core draft.
+**Action:** REVERTED to 6c50f8d (ab9ebaf prompts). Falsification rule worked as designed.

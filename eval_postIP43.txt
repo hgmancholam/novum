@@ -1,0 +1,110 @@
+[setup] registering user=eval4ccad9
+
+[Q1/8] POST /api/runs :: What is the capital of Japan?
+        run_id=8e40804a-eac7-4d8e-86c2-cb0623369733
+        stopped after 17s :: stop_reason=judge_confirmed
+        sleeping 30s...
+
+[Q2/8] POST /api/runs :: Is PostgreSQL or MongoDB better for a small SaaS application?
+        run_id=6fcca629-61b9-4e69-bd48-77686147cf6a
+        stopped after 43s :: stop_reason=stopped_by_budget
+        sleeping 30s...
+
+[Q3/8] POST /api/runs :: What is the best programming language?
+        run_id=786c44fb-a091-438f-a765-c97554af9c1b
+        stopped after 45s :: stop_reason=judge_confirmed
+        sleeping 30s...
+
+[Q4/8] POST /api/runs :: Is intermittent fasting healthy?
+        run_id=554babaf-602a-4b6e-b91d-8988b79e14ab
+        stopped after 89s :: stop_reason=stopped_by_budget
+        sleeping 30s...
+
+[Q5/8] POST /api/runs :: What are the long-term risks of AI-generated code in enterprise systems?
+        run_id=2f73585c-24f5-4046-b411-54b94249c6a2
+        stopped after 110s :: stop_reason=stopped_by_budget
+        sleeping 30s...
+
+[Q6/8] POST /api/runs :: Should a high-scale AI platform use event-driven architecture or synchronous microservices?
+        run_id=ae9561dd-7cc6-41a6-a40d-6ad75a176b42
+        stopped after 56s :: stop_reason=stopped_by_budget
+        sleeping 30s...
+
+[Q7/8] POST /api/runs :: What is the most promising approach for long-term memory in autonomous AI agents?
+        run_id=f2175b69-3271-43ff-9b95-1fdad439ecb0
+        stopped after 116s :: stop_reason=stopped_by_budget
+        sleeping 30s...
+
+[Q8/8] POST /api/runs :: Could AI systems realistically replace mid-level software engineers within the next 10 years?
+        run_id=db0b3c20-4d41-40b3-ae65-d549c8c80ca2
+        stopped after 88s :: stop_reason=judge_confirmed
+
+=== SUMMARY ===
+[
+  {
+    "idx": 1,
+    "question": "What is the capital of Japan?",
+    "run_id": "8e40804a-eac7-4d8e-86c2-cb0623369733",
+    "stop_reason": "judge_confirmed",
+    "wallclock_s": 17.4
+  },
+  {
+    "idx": 2,
+    "question": "Is PostgreSQL or MongoDB better for a small SaaS application?",
+    "run_id": "6fcca629-61b9-4e69-bd48-77686147cf6a",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 44.1
+  },
+  {
+    "idx": 3,
+    "question": "What is the best programming language?",
+    "run_id": "786c44fb-a091-438f-a765-c97554af9c1b",
+    "stop_reason": "judge_confirmed",
+    "wallclock_s": 45.2
+  },
+  {
+    "idx": 4,
+    "question": "Is intermittent fasting healthy?",
+    "run_id": "554babaf-602a-4b6e-b91d-8988b79e14ab",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 89.9
+  },
+  {
+    "idx": 5,
+    "question": "What are the long-term risks of AI-generated code in enterprise systems?",
+    "run_id": "2f73585c-24f5-4046-b411-54b94249c6a2",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 110.9
+  },
+  {
+    "idx": 6,
+    "question": "Should a high-scale AI platform use event-driven architecture or synchronous microservices?",
+    "run_id": "ae9561dd-7cc6-41a6-a40d-6ad75a176b42",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 56.4
+  },
+  {
+    "idx": 7,
+    "question": "What is the most promising approach for long-term memory in autonomous AI agents?",
+    "run_id": "f2175b69-3271-43ff-9b95-1fdad439ecb0",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 116.9
+  },
+  {
+    "idx": 8,
+    "question": "Could AI systems realistically replace mid-level software engineers within the next 10 years?",
+    "run_id": "db0b3c20-4d41-40b3-ae65-d549c8c80ca2",
+    "stop_reason": "judge_confirmed",
+    "wallclock_s": 88.9
+  }
+]
+
+=== POST list for comparator ===
+    ("Q1", "8e40804a-eac7-4d8e-86c2-cb0623369733", 17.4),
+    ("Q2", "6fcca629-61b9-4e69-bd48-77686147cf6a", 44.1),
+    ("Q3", "786c44fb-a091-438f-a765-c97554af9c1b", 45.2),
+    ("Q4", "554babaf-602a-4b6e-b91d-8988b79e14ab", 89.9),
+    ("Q5", "2f73585c-24f5-4046-b411-54b94249c6a2", 110.9),
+    ("Q6", "ae9561dd-7cc6-41a6-a40d-6ad75a176b42", 56.4),
+    ("Q7", "f2175b69-3271-43ff-9b95-1fdad439ecb0", 116.9),
+    ("Q8", "db0b3c20-4d41-40b3-ae65-d549c8c80ca2", 88.9),

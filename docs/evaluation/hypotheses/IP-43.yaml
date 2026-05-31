@@ -123,3 +123,31 @@ design_notes: |
 risks:
   - "WEIGHTED/TRADEOFF anchor metric may be lower than IP-42 because we removed the 'Alternatives considered:' lead phrase (it was redundant with candidates/criteria); the test should look for either anchor."
   - "Run-to-run LLM variance can produce false PASS or false FAIL on a single 8-Q eval. Mitigation: if Q8 regresses but trio anchors land, re-run eval ONCE before declaring FAIL."
+
+# === VERDICT (appended after eval) ===
+verdict: FAIL
+action_taken: REVERT
+reverted_to: 6c50f8d
+eval_file: eval_postIP43.txt
+post_results:
+  judge_confirmed: 3/8   # Q1, Q3, Q8 — BELOW floor (postIP41=4/8)
+  wallclock_avg_s: 71.2  # PASS (<= 90)
+  q8_stop_reason: judge_confirmed  # PASS (SCENARIO held — scoping worked)
+  anchor_adoption_non_scenario_non_direct:
+    Q2_best_effort: alt+flip   # ✓✓
+    Q3_best_effort: alt+flip   # ✓✓
+    Q4_tradeoff:    flip       # ✓ (alt anchor not required for TRADEOFF)
+    Q6_weighted:    flip       # ✓ (alt anchor not required for WEIGHTED)
+    Q7_best_effort: alt+flip   # ✓✓
+    # 5/5 expected anchors landed
+  scenario_alt_anchor:
+    Q5: false   # ✓ scoping correct (SHARED conflict from IP-42 avoided)
+    Q8: false   # ✓
+failure_mode:
+  - "Anchors landed exactly as designed (5/5 non-SCENARIO, 0/2 SCENARIO — surgical scoping worked)."
+  - "But heavier prose budget (alt+flip required text) made BEST_EFFORT/TRADEOFF runs spend more tool_calls before synthesis can be judge_confirmed."
+  - "Q4 (TRADEOFF) regressed jc→budget: 82s→89s wallclock, judge no longer confirms within budget."
+  - "Net: 4/8→3/8 judge_confirmed. Pre-registered floor (>=4/8) breached → REVERT."
+lessons:
+  - L-037: "Per-kind required anchors raise the BAR the judge must clear; even without SHARED conflicts, mandatory prose elements can push runs past their step budget."
+  - "Future research-mode iterations must either (a) widen step budget per kind, or (b) make anchors strongly-encouraged (not REQUIRED), or (c) inject anchors post-synthesis via deterministic renderer."
