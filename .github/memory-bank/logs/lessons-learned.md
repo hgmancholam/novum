@@ -4,7 +4,7 @@
 > All agents must consult this before starting tasks and update after completing them.
 
 **Last Updated:** 2026-05-31
-**Total Lessons:** 35
+**Total Lessons:** 36
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,12 @@
 ---
 
 ## Recent Lessons
+
+## L-036: Synthesizer prompt changes are NOT behavior-neutral — always run the eval, not just pytest (2026-05-31, IP-42)
+**Context:** IP-42 extended `_SHARED_SYSTEM_BLOCK` in `app/llm/prompts.py` with a "Research-narrative requirement" (alternatives walk-through, counter-evidence anchor, gaps/uncertainties floors). pytest stayed at the 1144-passed baseline and the change was deployed. Eval showed judge_confirmed regressed 4/8 → 3/8 because Q8 (SCENARIO) flipped from `judge_confirmed` to `stopped_by_budget`, with tool_calls jumping 14 → 25 (hit cap). Two failure modes: (1) the SCENARIO kind block explicitly says "Do NOT use prose to frame the predictive nature", which conflicts with the new SHARED requirement — the model ignored SHARED, no anchors appeared, but synthesis got slower; (2) the new "populate gaps ≥ 2, remaining_uncertainties ≥ 1" floors lengthened drafts and indirectly increased downstream tool_calls. By the pre-registered falsification rule `judge_confirmed < 4/8 → REVERT`, IP-42 was reverted in full.
+**Lesson:** Pytest cannot catch behavioral regressions from prompt changes — there is no LLM in the unit test loop. The 8-question golden eval (`scripts/run_eval_2026_05_30b.py`) IS the prompt-change regression test. ANY edit to a file in `app/llm/prompts.py` (or any of the role-specific synth/judge/planner prompts) requires running the eval before declaring PASS, regardless of how "prompt-only" the change looks. Document the pre/post `judge_confirmed`, `wallclock_avg`, and `stop_reason` distribution in the IP yaml.
+**Bonus lesson:** When extending SHARED prompt blocks, scope explicitly per-AnswerKind — conflicting instructions across SHARED vs `_KIND_BLOCKS` produce silent no-ops, not errors. SCENARIO's existing branches/drivers/assumptions structure already serves the research-narrative goal; don't double up.
+**Reference:** `docs/evaluation/hypotheses/IP-42.yaml` (FAIL verdict + root-cause hypothesis).
 
 ## L-035: Forced-synthesis transitions must run analyze_evidence first (2026-05-31, IP-41)
 **Context:** Eval runs that hit `_force_synthesis_or_stop("tool_calls")` were transitioning SEARCHING → DRAFTING directly (states.py L43 explicitly allows this for the PR-11 emergency bypass). `analyze_evidence` was never called for those runs, so `sub_claims` stayed `pending`, `coverage` stayed `0.0`, and the structural override gate blocked `judge_confirmed`. Q5/Q6/Q8 in the 8-Q eval suite all showed this exact pattern in `JudgeRuled.diag_*` extras.

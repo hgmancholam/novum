@@ -117,3 +117,81 @@ risks:
   - "Longer prose could push past max_tokens_per_kind and truncate. Mitigation: kind ceilings are 2500/3500/4500 — still ample for 3 short paragraphs."
   - "Judge may downgrade for 'verbosity'. Mitigation: judge prompt was not changed; existing rubric values completeness + coherence."
   - "Spanish runs may not hit the English anchor strings. Mitigation: SQL check tolerates both ES and EN anchors; if adoption is EN-only the verdict notes it and IP-43 localizes the prompt."
+
+
+# ============================================================================
+# VERDICT (post-eval -- 2026-05-31)
+# ============================================================================
+verdict: FAIL
+verdict_date: 2026-05-31
+action_taken: REVERT (git checkout ab9ebaf -- backend/app/llm/prompts.py)
+
+post_eval_run_ids:
+  Q1: c5d95925-b937-4fd3-aab8-7d748651251f   # 11.8s judge_confirmed (DIRECT/fast, no change)
+  Q2: 1d6f1b21-06e1-4a22-80df-203d2fddb0c7   # 45.1s stopped_by_budget (best_effort)
+  Q3: cec9c328-b180-4afd-98f5-0591f606a191   # 50.8s judge_confirmed (best_effort)
+  Q4: 59353d83-0c03-4480-a465-95d76ff65407   # 82.2s judge_confirmed (tradeoff)
+  Q5: 2c42946c-2ae9-4b7a-ad16-389802c5eb19   # 106.7s stopped_by_budget (scenario)
+  Q6: 7e80713f-5538-4abf-8671-10ccf2d17136   # 111.1s stopped_by_budget (weighted)
+  Q7: d084aa73-225b-487b-abca-073faeb7e6b0   # 129.3s stopped_by_budget (best_effort, deep_react)
+  Q8: 9a5a5f45-739f-4388-9cad-453611ffcaa8   # 122.6s stopped_by_budget (scenario, REGRESSED from judge_confirmed)
+
+primary_metric_result: |
+  research_narrative_adoption MOSTLY ACHIEVED but FLOOR BREACHED.
+
+  Anchor presence on non-DIRECT runs (Q2..Q8, n=7):
+    alternatives_anchor      : 5/7 (Q2, Q3, Q4, Q6, Q7)   PASS  (threshold 3/5)
+    flip_anchor              : 5/7 (same set)             PASS  (threshold 3/5)
+    SCENARIO kind (Q5, Q8)   : 0/2  -- both ignored anchors
+    prose_len rich runs      : 1100-2500 (up from ~500-800 in postIP41)
+
+floors_check:
+  judge_confirmed: 3/8 FAIL  (was 4/8 in postIP41, floor 4 -- net -1, Q8 flipped back)
+  bl_strict:      8/8 PASS  (all 8 produced answers)
+  wallclock_avg:  82.5s PASS (<=130s; was 73.1s in postIP41 -- net +9s)
+  pytest:         1144 passed (verified pre-deploy, same as postIP41)
+  no_new_event_types: PASS
+  no_ip__identifiers: PASS
+
+regressions_observed:
+  Q8 (scenario, the IP-41 win): 
+    stop_reason   : judge_confirmed -> stopped_by_budget
+    tool_calls    : 14 -> 25 (hit cap)
+    struct_conf   : 0.985 -> 0.876
+    coverage      : 0.992 -> 0.658
+    covered_claims: [c1,c2,c3] -> [c1,c3]
+    blockers      : [] -> [contradictions]
+
+falsification_rule_triggered: |
+  Rule: "if judge_confirmed_rate < 4/8 then REVERT, IP-42 = FAIL"
+  3/8 < 4/8 -> REVERT executed.
+
+root_cause_hypothesis: |
+  Two failure modes likely:
+  1. SCENARIO kind block (Q5/Q8) explicitly says
+     "Do NOT use prose to 'frame' the predictive nature" -- this conflicts
+     with the new SHARED requirement to add "Alternatives considered:" and
+     "What could flip this:" paragraphs. Model resolved the conflict by
+     ignoring SHARED -- net no-op on prose, but token budget for synth
+     went up and re-drafts may have triggered extra ToolCalled events
+     elsewhere in the run (Q8 went 14->25 tool calls).
+  2. The "be propositive, not evasive" + "must populate gaps>=2,
+     remaining_uncertainties>=1" requirement may have caused longer
+     synthesis cycles upstream that delayed the judge gate.
+
+what_actually_worked:
+  - "BEST_EFFORT (Q2, Q3, Q7) consistently adopted Alternatives + flip anchors -- the strengthened BEST_EFFORT kind block worked."
+  - "WEIGHTED (Q6) and TRADEOFF (Q4) adopted both anchors."
+  - "User-facing prose quality clearly improved on 5/7 non-DIRECT runs (qualitative inspection of Q3 best_effort and Q6 weighted)."
+
+what_to_carry_into_IP-43:
+  - "Apply the research-narrative requirement ONLY to BEST_EFFORT, WEIGHTED, TRADEOFF -- explicitly NOT to SCENARIO (SCENARIO has its own structure via branches/drivers/assumptions which already serve the purpose)."
+  - "Resolve the SCENARIO conflict before extending SHARED: either delete the 'Do NOT frame' line or scope the SHARED requirement to the four kinds that benefit."
+  - "Add a regression guard: any IP that touches synthesizer prompts MUST run the eval pre-merge; do not assume prompt-only changes are behavior-neutral."
+
+lesson_learned_seed: |
+  L-036 candidate: "Prompt-only changes are NOT behavior-neutral. Changing
+  the SHARED synthesizer block changed tool_calls on Q8 (14->25) even
+  though no FSM/orchestrator code moved. Always run the 8-Q eval after
+  any synthesizer prompt edit; never declare 'pytest green = safe' for
+  prompt changes."

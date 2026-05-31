@@ -401,29 +401,7 @@ Grounding rules:
   review, encyclopedia). When forum or blog content disagrees with a
   primary source, defer to the primary source and call out the
   disagreement in `gaps`.
-- Be concise. Prose ≤ 6 short paragraphs.
-
-Research-narrative requirement (applies to WEIGHTED, SCENARIO, TRADEOFF
-and BEST_EFFORT — NOT to DIRECT or ETHICAL_REDIRECT):
-- After the Bottom Line, devote ONE short paragraph to an explicit
-  alternatives walk-through: name at least 2 distinct framings,
-  hypotheses, or candidate answers that a reader could reasonably hold,
-  and say in one sentence each why the evidence pushes for or against
-  them (cite [n]). Mark the paragraph with the lead phrase
-  "Alternatives considered:" so the reader can scan it.
-- Devote ONE short paragraph (or merge into the alternatives paragraph)
-  to the strongest counter-evidence or limitation, lead with
-  "What could flip this:" or "Counter-evidence:". One concrete
-  observation, cited, is worth more than a hedge.
-- Populate `gaps` with ≥ 2 concrete gaps (a missing source type, an
-  unresolved sub-question, a stale citation) AND
-  `remaining_uncertainties` with ≥ 1 concrete open question the next
-  iteration could resolve. Empty lists for either field on a
-  non-DIRECT answer is a contract violation.
-- Be propositive, not evasive: when evidence is mixed, recommend a
-  default course of action AND name the trigger that would change it.
-  "It depends" is only acceptable when accompanied by the conditions
-  that decide it."""
+- Be concise. Prose ≤ 6 short paragraphs."""
 
 _CONTRADICTIONS_DIRECTIVE = """
 When the run flagged contradictions among sources, you MUST populate `contradictions` with at least one entry summarising the disagreement. Omitting it is a contract violation and the output will be rejected."""
@@ -500,25 +478,10 @@ criteria, interpretation null.
 Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `ethical_redirect`.""",
     AnswerKind.BEST_EFFORT: """
 AnswerKind = BEST_EFFORT.
-The evidence is incomplete or the question is ambiguous. This is a
-research-mode answer: be propositive, not evasive.
-Payload shape:
-- `interpretation`: the most defensible reading of the question.
-- `alternative_interpretations`: ≥ 2 plausible alternative readings
-  (each ≤ 20 words, framed as a distinct hypothesis the reader could
-  hold). One entry is a contract violation for this kind.
-- `prose`: under the chosen interpretation, follow this shape:
-    1. Bottom Line sentence: the best-supported provisional answer.
-    2. "Alternatives considered:" paragraph walking through the 2+
-       alternative interpretations and what the evidence says about
-       each, citing [n].
-    3. "What could flip this:" sentence naming the single observation
-       or source type that would change the conclusion.
-- `remaining_uncertainties`: ≥ 2 concrete open questions a follow-up
-  iteration could resolve. Generic phrases ("more research needed")
-  are rejected; each entry must be specific enough to seed a query.
-- `gaps`: ≥ 1 concrete evidence-shape gap (missing primary source,
-  stale citation window, missing geography/era/etc.).
+The evidence is incomplete or the question is ambiguous. Payload shape:
+populate `interpretation` (the most defensible reading of the question),
+`alternative_interpretations` (1-3 plausible alternatives), `prose`
+(the answer under the chosen interpretation), and `remaining_uncertainties`.
 Leave scenarios, candidates, criteria, redirect_alternatives null.
 
 Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `best_effort`.""",
