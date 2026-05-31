@@ -1,0 +1,119 @@
+id: IP-42
+title: "Research-narrative synthesizer prompt — alternatives, counter-evidence, concrete uncertainties"
+date: 2026-05-31
+status: pre-registered
+agent: EvalEngineer + Coder
+user_directive: |
+  "EN UNA PROXIMA ITERACION BUSCA QUE LA RESPUESTA QUE LEE EL USUARIO SEA
+  MAS PROPOSITIVA, QUE DE ALTERNATIVAS, QUE EVALUE DIFERENTES ESCENARIOS,
+  QUE EVALUE HIPOTESIS. UN REAL TRABAJO DE INVESTIGACION!"
+
+# ============================================================================
+# DIAGNOSIS (qualitative — driven by user feedback, not a metric regression)
+# ============================================================================
+diagnosis_method: |
+  Read of postIP41 prose on Q5 (recommendation question) and Q7
+  (predictive question). Findings:
+    - Bottom Line is present (post-WP-2) but the body is short and rarely
+      walks through the alternative framings explicitly. The reader cannot
+      tell which hypotheses were considered and rejected.
+    - `gaps` and `remaining_uncertainties` arrive empty or with one generic
+      entry on BEST_EFFORT runs, despite the run accumulating > 10
+      evidence items with diverse stances.
+    - "It depends" answers do not name the trigger that would change the
+      recommendation, leaving the user without a next action.
+
+# ============================================================================
+# HYPOTHESIS (prompt-only change, no FSM / no new event types)
+# ============================================================================
+hypothesis: |
+  Adding a "Research-narrative requirement" to the shared synthesizer
+  block — enforced on WEIGHTED / SCENARIO / TRADEOFF / BEST_EFFORT (NOT on
+  DIRECT or ETHICAL_REDIRECT) — will produce answers that:
+    (a) Walk through ≥ 2 alternative framings/hypotheses with a labelled
+        "Alternatives considered:" paragraph.
+    (b) Identify the strongest counter-evidence with a labelled
+        "What could flip this:" or "Counter-evidence:" passage.
+    (c) Populate `gaps` (≥ 2 concrete items) and `remaining_uncertainties`
+        (≥ 1 concrete item) consistently.
+  Additionally the BEST_EFFORT kind block is strengthened to require
+  `alternative_interpretations` ≥ 2 and "Alternatives considered:" + "What
+  could flip this:" prose anchors.
+
+intervention_kind: prompt_only
+behavioral_change: false       # FSM/event semantics unchanged
+new_event_types: 0
+loc_delta: ~35 lines (prompts.py only)
+files_touched:
+  - backend/app/llm/prompts.py
+
+# ============================================================================
+# METRICS — frozen golden set (same 8 Qs as IP-40/41)
+# ============================================================================
+primary_metric:
+  name: research_narrative_adoption
+  measured_via: SQL on prod events table (DraftSynthesized.payload)
+  pass_condition: |
+    Across the non-DIRECT subset of the 8-Q eval (expected: Q2, Q5, Q6,
+    Q7, Q8 — roughly 5 runs):
+      anchor_present  ("Alternatives considered" OR "Alternativas
+                       consideradas" appears in prose)  >= 3/5
+      flip_anchor     ("What could flip" OR "Qué podría cambiar"
+                       OR "Counter-evidence" in prose)  >= 3/5
+      gaps_populated  (len(gaps) >= 2)                  >= 4/5
+      uncert_present  (len(remaining_uncertainties) >= 1) >= 4/5
+      best_effort_alts (when kind=best_effort,
+                        len(alternative_interpretations) >= 2) >= 2/3 of BE runs
+
+secondary_floors:
+  judge_confirmed_floor: 4         # postIP41 baseline — MUST NOT drop
+  bl_strict_floor: 6               # currently 8/8
+  wallclock_avg_ceiling_s: 130     # postIP41 avg was 73s
+  pytest_baseline: 1144 passed (matches postIP41)
+  # New defensive floor: the longer prose must not blow token budgets
+  max_tokens_per_kind_unchanged: true
+
+# ============================================================================
+# FALSIFICATION RULES
+# ============================================================================
+falsification_rules:
+  - if: judge_confirmed_rate < 4/8
+    then: REVERT prompt change, IP-42 = FAIL
+  - if: wallclock_avg > 130s
+    then: REVERT, IP-42 = FAIL (likely token-budget thrashing)
+  - if: pytest passes < 1144
+    then: REVERT, IP-42 = FAIL
+  - if: anchor_present < 3/5 AND gaps_populated < 4/5
+    then: prompt did not land; tune wording, do not deploy as PASS
+  - if: any DIRECT-kind answer (Q1 capital-of-Japan) gains the
+        "Alternatives considered:" anchor
+    then: scoping bug — kind block leakage; fix before declaring PASS
+
+# ============================================================================
+# OBSERVATIONS — for verdict section, post-eval
+# ============================================================================
+observations_template:
+  per_run:
+    - run_id
+    - answer_kind
+    - has_alternatives_anchor
+    - has_flip_anchor
+    - len_gaps
+    - len_remaining_uncertainties
+    - len_alternative_interpretations  # BEST_EFFORT only
+    - stop_reason
+    - structural_confidence
+    - judge_confirmed
+  aggregate:
+    - judge_confirmed_count_post
+    - bl_strict_post
+    - wallclock_avg_post
+    - regressions_vs_postIP41
+
+# ============================================================================
+# RESIDUAL RISKS
+# ============================================================================
+risks:
+  - "Longer prose could push past max_tokens_per_kind and truncate. Mitigation: kind ceilings are 2500/3500/4500 — still ample for 3 short paragraphs."
+  - "Judge may downgrade for 'verbosity'. Mitigation: judge prompt was not changed; existing rubric values completeness + coherence."
+  - "Spanish runs may not hit the English anchor strings. Mitigation: SQL check tolerates both ES and EN anchors; if adoption is EN-only the verdict notes it and IP-43 localizes the prompt."
