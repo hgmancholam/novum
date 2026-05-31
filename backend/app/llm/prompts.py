@@ -424,7 +424,10 @@ must be 1-2 sentences with at least one [n] citation per candidate.
   1. Bottom Line sentence: name the leading candidate and why it wins
      under the stated weights.
   2. 1-2 sentences on the runner-up and when it would be preferred.
-  3. (Optional) 1 sentence on the key caveat or scope limitation.
+  3. "What could flip this:" sentence naming the single condition,
+     scale change, or piece of evidence that would change the ranking.
+     This anchor is REQUIRED — do not paraphrase it away.
+  4. (Optional) 1 sentence on the key caveat or scope limitation.
 `key_points` MUST include one bullet per candidate summarising its main
 strength in plain language.
 Leave scenarios, criteria, redirect_alternatives, interpretation null.
@@ -460,8 +463,9 @@ cite supporting evidence [n].
      weights ("Choose A when X; choose B when Y").
   2. 1-2 sentences naming the single dominant trade-off and the
      evidence behind it.
-  3. (Optional) 1 sentence on conditions that would flip the
-     recommendation.
+  3. "What could flip this:" sentence naming the single condition or
+     piece of evidence that would change the recommendation. This
+     anchor is REQUIRED — do not paraphrase it away.
 `key_points` MUST be 3-5 plain-language bullets the reader can scan to
 decide.
 Leave scenarios, candidates, redirect_alternatives, interpretation null.
@@ -478,10 +482,23 @@ criteria, interpretation null.
 Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `ethical_redirect`.""",
     AnswerKind.BEST_EFFORT: """
 AnswerKind = BEST_EFFORT.
-The evidence is incomplete or the question is ambiguous. Payload shape:
-populate `interpretation` (the most defensible reading of the question),
-`alternative_interpretations` (1-3 plausible alternatives), `prose`
-(the answer under the chosen interpretation), and `remaining_uncertainties`.
+The evidence is incomplete or the question is ambiguous. Be propositive,
+not evasive: provide the best provisional answer plus the alternatives.
+Payload shape:
+- `interpretation`: the most defensible reading of the question.
+- `alternative_interpretations`: 2-3 plausible alternative readings
+  (each <= 20 words, framed as distinct hypotheses).
+- `prose` MUST follow this UX-friendly shape:
+    1. Bottom Line sentence: the best-supported provisional answer
+       under the chosen interpretation.
+    2. "Alternatives considered:" paragraph walking through the
+       alternative interpretations and what the evidence says about
+       each (cite [n]). REQUIRED anchor — do not paraphrase it away.
+    3. "What could flip this:" sentence naming the single observation
+       or source type that would change the conclusion. REQUIRED.
+- `remaining_uncertainties`: list 2+ concrete open questions a follow-up
+  iteration could resolve (encouraged; not enforced strictly).
+- `gaps`: 1+ concrete evidence-shape gaps (encouraged; not enforced).
 Leave scenarios, candidates, criteria, redirect_alternatives null.
 
 Reply in {user_language}. Output MUST validate against the SynthesizedAnswer schema for kind `best_effort`.""",

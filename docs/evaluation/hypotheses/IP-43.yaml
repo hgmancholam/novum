@@ -1,0 +1,125 @@
+id: IP-43
+title: "Research-narrative — scoped to BEST_EFFORT/WEIGHTED/TRADEOFF kind blocks (IP-42 surgical retry)"
+date: 2026-05-31
+status: pre-registered
+agent: EvalEngineer + Coder
+prior_iteration: IP-42 (FAIL — see verdict)
+
+# ============================================================================
+# DIAGNOSIS (from IP-42 verdict)
+# ============================================================================
+diagnosis_method: |
+  IP-42 added the research-narrative requirement to the SHARED block and
+  strengthened BEST_EFFORT. Result on the 8-Q eval:
+    - Adoption worked on BEST_EFFORT/WEIGHTED/TRADEOFF (5/7 non-DIRECT).
+    - SCENARIO ignored the requirement (kind block has a conflicting
+      "Do NOT frame" instruction).
+    - Q8 SCENARIO regressed: judge_confirmed -> stopped_by_budget,
+      tool_calls 14 -> 25, coverage 0.99 -> 0.66.
+    - judge_confirmed floor 4/8 was breached (3/8), forcing REVERT.
+  Lesson L-036: prompt-only changes are not behavior-neutral and the
+  eval IS the regression test.
+
+# ============================================================================
+# HYPOTHESIS (surgical, per-kind)
+# ============================================================================
+hypothesis: |
+  Moving the research-narrative requirement OUT of the SHARED block and
+  INTO three kind-specific blocks (BEST_EFFORT, WEIGHTED, TRADEOFF) will:
+    (a) Reproduce the IP-42 qualitative win on those three kinds
+        (anchors present in >= 3/5 non-DIRECT-non-SCENARIO runs).
+    (b) Leave SCENARIO untouched, so Q5/Q8 behavior reverts to postIP41.
+    (c) Leave DIRECT (Q1) and ETHICAL_REDIRECT untouched.
+    (d) Hold judge_confirmed at >= 4/8 (no regression vs postIP41).
+
+  Additionally we SOFTEN the IP-42 strict floors:
+    - "gaps >= 2" and "remaining_uncertainties >= 1" become
+      "encouraged" rather than "contract violation". This avoids
+      triggering re-drafts that consumed tool_call budget on Q8 in IP-42.
+    - "alternative_interpretations >= 2" stays as a hard requirement
+      ONLY for BEST_EFFORT (its kind already requires the field).
+
+intervention_kind: prompt_only_scoped
+behavioral_change: false
+new_event_types: 0
+loc_delta: ~50 lines (prompts.py only — kind blocks for BE/WEIGHTED/TRADEOFF)
+files_touched:
+  - backend/app/llm/prompts.py
+
+# ============================================================================
+# METRICS — frozen golden set (same 8 Qs)
+# ============================================================================
+primary_metric:
+  name: scoped_research_narrative_adoption_without_regression
+  measured_via: SQL on prod events (DraftSynthesized.payload + JudgeRuled.payload)
+  pass_condition: |
+    Anchor adoption (NON-DIRECT, NON-SCENARIO subset — expected Q2, Q3,
+    Q4, Q6, Q7 ~ 5 runs):
+      alternatives_anchor present                >= 3/5
+      flip_anchor present                        >= 3/5
+    SCENARIO subset (Q5, Q8) — explicit non-regression:
+      Q8 stop_reason MUST be judge_confirmed (matches postIP41)
+      Q5 coverage MUST be >= 0.5 (was 0.99 in postIP41)
+    Aggregate:
+      judge_confirmed >= 4/8 (MATCH postIP41 floor, no regression allowed)
+      wallclock_avg <= 90s   (postIP41 was 73.1s; allow 23% headroom)
+
+secondary_floors:
+  pytest_baseline: 1144 passed (matches postIP41)
+  no_new_event_types: required
+  no_ip__identifiers: required
+  bl_strict_floor: 6
+
+# ============================================================================
+# FALSIFICATION RULES (stricter than IP-42 to prevent repeat mistakes)
+# ============================================================================
+falsification_rules:
+  - if: judge_confirmed_rate < 4/8
+    then: REVERT, IP-43 = FAIL
+  - if: Q8 stop_reason != 'judge_confirmed'
+    then: REVERT, IP-43 = FAIL (SCENARIO must NOT regress; it was the IP-41 win)
+  - if: wallclock_avg > 90s
+    then: REVERT, IP-43 = FAIL
+  - if: pytest passes < 1144
+    then: REVERT, IP-43 = FAIL
+  - if: anchor adoption < 3/5 on non-DIRECT non-SCENARIO
+    then: prompt did not land — tune, do not deploy as PASS
+  - if: any SCENARIO run shows "Alternatives considered:" anchor
+    then: scoping bug — SCENARIO kind block leaked; fix before declaring PASS
+
+# ============================================================================
+# DESIGN NOTES
+# ============================================================================
+design_notes: |
+  KIND-LOCAL injections (NOT SHARED):
+
+  BEST_EFFORT kind block adds:
+    - alternative_interpretations >= 2 (kept hard — already part of kind contract)
+    - prose shape with "Alternatives considered:" + "What could flip this:"
+      lead phrases (HARD)
+    - remaining_uncertainties: encouraged 2+, not enforced
+    - gaps: encouraged 1+, not enforced
+
+  WEIGHTED kind block adds:
+    - After existing "Bottom Line / runner-up / caveat" shape, append
+      "What could flip this:" sentence naming the trigger that would
+      change the ranking (HARD).
+    - "Alternatives considered:" is already implicit in candidates;
+      do NOT add anchor (would be redundant).
+
+  TRADEOFF kind block adds:
+    - After existing "Choose A when X / Choose B when Y" shape, append
+      "What could flip this:" sentence (HARD).
+    - "Alternatives considered:" implicit in criteria — no anchor.
+
+  SCENARIO kind block: UNTOUCHED. The branches/drivers/assumptions
+  structure already provides hypothesis-by-hypothesis evaluation.
+
+  DIRECT and ETHICAL_REDIRECT: UNTOUCHED.
+
+# ============================================================================
+# RISKS
+# ============================================================================
+risks:
+  - "WEIGHTED/TRADEOFF anchor metric may be lower than IP-42 because we removed the 'Alternatives considered:' lead phrase (it was redundant with candidates/criteria); the test should look for either anchor."
+  - "Run-to-run LLM variance can produce false PASS or false FAIL on a single 8-Q eval. Mitigation: if Q8 regresses but trio anchors land, re-run eval ONCE before declaring FAIL."
