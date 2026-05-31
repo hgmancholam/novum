@@ -3,8 +3,8 @@
 > Repository of lessons learned during the Novum development.
 > All agents must consult this before starting tasks and update after completing them.
 
-**Last Updated:** 2026-05-30
-**Total Lessons:** 34
+**Last Updated:** 2026-05-31
+**Total Lessons:** 35
 
 > **Reaffirmed 2026-05-26:** L-002 (mandatory unit tests, backend + frontend) is an active, non-negotiable rule. See D-006 in `decisions-history.md`.
 > **Reaffirmed 2026-05-26:** L-008 (mandatory API_URL prefix) is an active, non-negotiable rule for ALL frontend API calls.
@@ -13,6 +13,12 @@
 ---
 
 ## Recent Lessons
+
+## L-035: Forced-synthesis transitions must run analyze_evidence first (2026-05-31, IP-41)
+**Context:** Eval runs that hit `_force_synthesis_or_stop("tool_calls")` were transitioning SEARCHING → DRAFTING directly (states.py L43 explicitly allows this for the PR-11 emergency bypass). `analyze_evidence` was never called for those runs, so `sub_claims` stayed `pending`, `coverage` stayed `0.0`, and the structural override gate blocked `judge_confirmed`. Q5/Q6/Q8 in the 8-Q eval suite all showed this exact pattern in `JudgeRuled.diag_*` extras.
+**Lesson:** Whenever the orchestrator force-transitions out of SEARCHING into DRAFTING (budget cap, no-progress trigger, planner stuck), it MUST first invoke `analyze_evidence` and emit its `ClaimCovered` / `ClaimUncoverable` events. Otherwise every budget-truncated run loses access to the structural override even when evidence is plentiful. The fix (IP-41) is ~6 lines in `_force_synthesis_or_stop`; verified via SQL on prod that coverage rose 0.0→{0.63,0.99,0.99} on Q5/Q6/Q8 with Q8 flipping to `judge_confirmed`.
+**Diagnostic tells:** `JudgeRuled.coverage == 0.0` AND `len(EvidenceAdded) > coverage_min_evidence` AND `Stopped.stop_rationale.summary` starts with "Reached tool-call limit" — root cause is always "analyze_evidence skipped on the deadline path".
+**Reference:** `docs/evaluation/hypotheses/IP-41.yaml` (post-eval verdict section).
 
 ## L-034: Identifiers MUST NOT embed iteration / ticket tags (2026-05-30, IP-39)
 **Context:** IP-38 and IP-39 introduced locals like `_ip38_coverage`, `_ip38_no_contra`, `_ip39_contra_bypass` inside `orchestrator._handle_judging`. The names told the reader nothing about intent and made the block read as iteration archaeology rather than a gating decision. The user explicitly rejected the pattern and demanded self-documenting names that survive past the iteration.

@@ -90,3 +90,50 @@ lessons_applied:
   - "IP-40 instrumentation paid off — root cause located in <5 SQL queries on prod DB instead of multiple eval cycles."
   - "Going to the DB directly (psycopg / MCP) is 100x faster than scraping SSE endpoints with hung connections."
   - "Telemetry-before-tuning (P2) — confirmed by direct event-log inspection what code-reading alone did not reveal."
+
+# ============================================================================
+# VERDICT (post-eval — 2026-05-31)
+# ============================================================================
+verdict: PASS
+verdict_date: 2026-05-31
+post_eval_run_ids:
+  Q1: 98d12a95-8849-463f-a132-efbed41f3c7c   # 11.7s judge_confirmed (no change)
+  Q2: 0763813b-3634-4aed-9bf5-f448ccd88835   # 62.1s stopped_by_budget
+  Q3: cbeb4074-9b8e-4ecd-8993-68f1a43cd99d   # 39.7s judge_confirmed (no change)
+  Q4: 6a0b6696-39f2-4487-a55f-21a69f79776f   # 100.6s judge_confirmed (was 179.2s -> 44% faster)
+  Q5: ceedf729-cdc5-4572-be60-811786562f0c   # 112.2s stopped_by_budget, coverage 0->0.99
+  Q6: abf16113-a92e-4545-afe4-d9cbcd1c6d65   # 62.0s stopped_by_budget, coverage 0->0.63
+  Q7: 599cc522-bdd5-4232-81e1-50fd653fd78f   # 106.4s stopped_by_budget
+  Q8: 6e2604a1-36b6-4133-95b0-1e3442c5cfaf   # 89.9s judge_confirmed (flipped from stopped_by_budget; cov 0->0.99)
+
+primary_metric_result: |
+  All 3/3 (Q5,Q6,Q8) satisfy diag_covered_claim_ids != [] AND coverage > 0
+  AND override_blockers no longer contains 'coverage'.
+  Hypothesis CONFIRMED.
+
+  Pre/post coverage on the 3-claim budget-forced trio:
+    Q5: cov 0.000->0.992  struct 0.638->0.987  covered []->[c1,c2,c3]  blockers [coverage,contras]->[contras]
+    Q6: cov 0.000->0.633  struct 0.634->0.802  covered []->[c1,c3]    blockers [coverage,contras]->[]
+    Q8: cov 0.000->0.992  struct 0.588->0.985  covered []->[c1,c2,c3]  blockers [structural,coverage]->[]
+       (Q8 additionally flipped to judge_confirmed.)
+
+floors_check:
+  judge_confirmed: 4/8 PASS (>=3, was 3/8 in postIP40 -- net +1, Q8 flipped)
+  bl_strict:      8/8 PASS (>=6, all 8 produced answers)
+  wallclock_avg:  73.1s PASS (<=130s; was 82.1s in postIP40 -- net -9s)
+  pytest:         1144 passed (verified pre-deploy)
+  no_new_event_types: PASS (no new EventType added)
+  no_ip__identifiers: PASS (no _ip41_ in code)
+
+regressions: |
+  None on Q1/Q3/Q4/Q7 -- JudgeRuled.{struct_conf,coverage,blockers} identical pre/post.
+  Q2 still budget; not part of target trio.
+
+side_effects_observed:
+  - "Q4 wallclock improved 179s -> 100s likely because Q4's normal cycle benefited from the same path."
+  - "Q7 unchanged (also budget-forced but a 2-step ReAct route, different path)."
+
+residual_blockers_for_future_iterations:
+  - "Q5: still blocked by 'contradictions' even at cov=0.99 -- same family as Q4. Owns IP-43+."
+  - "Q6: cov=0.63 (c2 still pending). Could push higher with retrieval-quality work."
+  - "Q2/Q7: budget still terminal -- synthesis-mode work (IP-42) may help via better prose anchoring."
