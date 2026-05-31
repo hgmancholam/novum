@@ -26,15 +26,26 @@ BASELINE = [
     ("Q8", "stopped_by_budget", 284.4),
 ]
 
+PREV_POST = [
+    ("Q1", "f0cb7788", "judge_confirmed",    17.2),
+    ("Q2", "0408cf61", "stopped_by_budget",  73.2),
+    ("Q3", "dd6ad2f8", "judge_confirmed",    44.1),
+    ("Q4", "945d9465", "judge_confirmed",    73.1),
+    ("Q5", "0fe6cce6", "stopped_by_budget", 100.9),
+    ("Q6", "8202aafb", "stopped_by_budget", 184.7),
+    ("Q7", "ed70d32c", "stopped_by_budget", 145.5),
+    ("Q8", "4fe61e59", "stopped_by_budget", 172.6),
+]
+
 POST = [
-    ("Q1", "db858055-8357-4b52-b48c-039a2a355ed6", 17.0),
-    ("Q2", "ed35ecfb-7106-4fbc-b562-7604e9ea0c5e", 232.0),
-    ("Q3", "e1bf0f40-f0f8-4bf9-9bd1-dd56e83aab48", 39.0),
-    ("Q4", "360f374c-9ecd-4160-b487-87e3c9657016", 72.0),
-    ("Q5", "76abf1b2-629a-408a-b07b-8a119db22f82", 334.0),
-    ("Q6", "3eee596e-f827-4937-a4ac-e952f872d6cd", 235.4),
-    ("Q7", "d7bd887d-1eb9-47cc-a7e6-5b2639598fb3", 118.3),
-    ("Q8", "ab2525a2-304b-44c2-8bfb-2ce3023bb89c", 83.1),
+    ("Q1", "79737678-270a-426b-9981-807bc7098386",  11.8),
+    ("Q2", "ccbd12cc-5570-4e26-99ec-e1fe64a3910a",  48.4),
+    ("Q3", "ae3a8648-079d-441c-bab3-372b54d6f997",  32.7),
+    ("Q4", "9c713a41-6920-4dc3-a463-b844c0f1ab56",  79.2),
+    ("Q5", "85130b57-1cb1-4b0f-a761-807066660a91", 128.1),
+    ("Q6", "749ceb67-81dd-4c40-b9c8-43a78f81e530", 102.0),
+    ("Q7", "c5b1ea1c-39e2-4128-9d61-d477b877f252", 111.0),
+    ("Q8", "d9b53537-0944-42ca-aeee-15d8e5585553", 121.1),
 ]
 
 
@@ -153,15 +164,25 @@ def main() -> int:
         print(f"  {k:25} {base_counter.get(k, 0):>2} -> {post_counter.get(k, 0):>2}")
 
     print("\n=== WALLCLOCK PER QUESTION (s) ===")
-    print(f"  {'Q':3} {'baseline':>10} {'post':>10} {'delta':>10}")
-    for (b_label, _, b_wc), p in zip(BASELINE, rows):
+    print(f"  {'Q':3} {'baseline':>10} {'run3':>10} {'run4':>10} {'d_base':>10} {'d_run3':>10}")
+    for (b_label, _, b_wc), (_, _, _, p1_wc), p in zip(BASELINE, PREV_POST, rows):
         if "error" in p:
             continue
-        delta = p["wallclock_s"] - b_wc
-        print(f"  {b_label:3} {b_wc:>10.1f} {p['wallclock_s']:>10.1f} {delta:>+10.1f}")
+        d_base = p["wallclock_s"] - b_wc
+        d_p1 = p["wallclock_s"] - p1_wc
+        print(f"  {b_label:3} {b_wc:>10.1f} {p1_wc:>10.1f} {p['wallclock_s']:>10.1f} "
+              f"{d_base:>+10.1f} {d_p1:>+10.1f}")
     base_total = sum(b[2] for b in BASELINE)
+    p1_total = sum(p[3] for p in PREV_POST)
     post_total = sum(p["wallclock_s"] for p in rows if "error" not in p)
-    print(f"  {'tot':3} {base_total:>10.1f} {post_total:>10.1f} {post_total-base_total:>+10.1f}")
+    print(f"  {'tot':3} {base_total:>10.1f} {p1_total:>10.1f} {post_total:>10.1f} "
+          f"{post_total-base_total:>+10.1f} {post_total-p1_total:>+10.1f}")
+
+    print("\n=== STOP REASON (3-way) ===")
+    p1_counter = Counter(p[2] for p in PREV_POST)
+    print(f"  {'reason':25} {'baseline':>10} {'run3':>10} {'run4':>10}")
+    for k in sorted(set(base_counter) | set(post_counter) | set(p1_counter)):
+        print(f"  {k:25} {base_counter.get(k, 0):>10} {p1_counter.get(k, 0):>10} {post_counter.get(k, 0):>10}")
 
     print("\n=== POST BATCH - FULL METRICS PER RUN ===")
     print(

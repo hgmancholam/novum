@@ -1170,6 +1170,16 @@ class AgentOrchestrator:
             evidence_count=len(self.state.evidence),
             from_state=self.state.current_state.value,
         )
+        # IP-41: run analyze_evidence before the deadline draft so any claim
+        # with sufficient evidence gets marked covered. Without this the
+        # structural-override gate locks coverage=0 on every budget-forced
+        # run (Q5/Q6/Q8 in postIP40 eval — 6 ev/claim, conf>=0.7, all pending
+        # because SEARCHING->DRAFTING skipped ANALYZING). Emits the same
+        # ClaimCovered/ClaimUncoverable/ContradictionDetected events the
+        # normal analyzing handler would.
+        analyze_events = await analyze_evidence(self.state)
+        for ev in analyze_events:
+            await self.emit(ev)
         self.state.transition_to(AgentState.DRAFTING)
         return False
 

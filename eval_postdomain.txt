@@ -1,0 +1,100 @@
+[setup] registering user=eval19eee8
+
+[Q1/8] POST /api/runs :: What is the capital of Japan?
+        run_id=2e55036d-18d6-421f-93ed-7efce26c5216
+        stopped after 22s :: stop_reason=judge_confirmed
+        sleeping 60s before next run...
+
+[Q2/8] POST /api/runs :: Is PostgreSQL or MongoDB better for a small SaaS application?
+        run_id=46736c54-8252-40ec-b0ed-6cd4da85bcf5
+        stopped after 78s :: stop_reason=stopped_by_budget
+        sleeping 60s before next run...
+
+[Q3/8] POST /api/runs :: What is the best programming language?
+        run_id=f1ddb63d-954b-478f-932a-a91724b3fb1a
+        stopped after 39s :: stop_reason=judge_confirmed
+        sleeping 60s before next run...
+
+[Q4/8] POST /api/runs :: Is intermittent fasting healthy?
+        run_id=6d379ce5-62ff-40df-8fce-45a840625279
+        stopped after 106s :: stop_reason=stopped_by_budget
+        sleeping 60s before next run...
+
+[Q5/8] POST /api/runs :: What are the long-term risks of AI-generated code in enterprise systems?
+        run_id=87afe243-171f-45ae-8cea-9b8271e9f5ea
+        stopped after 61s :: stop_reason=stopped_by_budget
+        sleeping 60s before next run...
+
+[Q6/8] POST /api/runs :: Should a high-scale AI platform use event-driven architecture or synchronous microservices?
+        run_id=f906ab84-bb7c-4cdb-b9af-3e48afdfe52b
+        stopped after 106s :: stop_reason=stopped_by_budget
+        sleeping 60s before next run...
+
+[Q7/8] POST /api/runs :: What is the most promising approach for long-term memory in autonomous AI agents?
+        run_id=3feaf0b7-a9f2-4736-9e5b-aea8ebda4eb0
+        stopped after 162s :: stop_reason=stopped_by_budget
+        sleeping 60s before next run...
+
+[Q8/8] POST /api/runs :: Could AI systems realistically replace mid-level software engineers within the next 10 years?
+        run_id=a2243165-9c20-463a-b8ed-e805c635ddb9
+        stopped after 117s :: stop_reason=stopped_by_budget
+
+=== SUMMARY ===
+[
+  {
+    "idx": 1,
+    "question": "What is the capital of Japan?",
+    "run_id": "2e55036d-18d6-421f-93ed-7efce26c5216",
+    "stop_reason": "judge_confirmed",
+    "wallclock_s": 22.8
+  },
+  {
+    "idx": 2,
+    "question": "Is PostgreSQL or MongoDB better for a small SaaS application?",
+    "run_id": "46736c54-8252-40ec-b0ed-6cd4da85bcf5",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 79.0
+  },
+  {
+    "idx": 3,
+    "question": "What is the best programming language?",
+    "run_id": "f1ddb63d-954b-478f-932a-a91724b3fb1a",
+    "stop_reason": "judge_confirmed",
+    "wallclock_s": 39.6
+  },
+  {
+    "idx": 4,
+    "question": "Is intermittent fasting healthy?",
+    "run_id": "6d379ce5-62ff-40df-8fce-45a840625279",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 106.7
+  },
+  {
+    "idx": 5,
+    "question": "What are the long-term risks of AI-generated code in enterprise systems?",
+    "run_id": "87afe243-171f-45ae-8cea-9b8271e9f5ea",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 72.1
+  },
+  {
+    "idx": 6,
+    "question": "Should a high-scale AI platform use event-driven architecture or synchronous microservices?",
+    "run_id": "f906ab84-bb7c-4cdb-b9af-3e48afdfe52b",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 106.7
+  },
+  {
+    "idx": 7,
+    "question": "What is the most promising approach for long-term memory in autonomous AI agents?",
+    "run_id": "3feaf0b7-a9f2-4736-9e5b-aea8ebda4eb0",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 162.4
+  },
+  {
+    "idx": 8,
+    "question": "Could AI systems realistically replace mid-level software engineers within the next 10 years?",
+    "run_id": "a2243165-9c20-463a-b8ed-e805c635ddb9",
+    "stop_reason": "stopped_by_budget",
+    "wallclock_s": 117.7
+  }
+]

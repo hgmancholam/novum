@@ -38,10 +38,19 @@ POSTINST: list[tuple] = []
 
 
 def fetch_events(run_id: str) -> list[dict]:
+    """Fetch all events for a completed run via SSE.
+
+    SSE stream stays open with heartbeats — we break on Stopped (terminal
+    event) OR on socket idle timeout. Connection is force-closed via
+    `resp.close()` so the server-side generator is cancelled promptly.
+    """
     url = f"{API}/api/runs/{run_id}/events"
     req = urllib.request.Request(url, headers={"Accept": "text/event-stream"})
     events: list[dict] = []
-    with urllib.request.urlopen(req, timeout=180) as resp:
+    # 25s per-read timeout: heartbeats arrive every 15s, so 25s of true silence
+    # means the server is hung — bail.
+    resp = urllib.request.urlopen(req, timeout=25)
+    try:
         event_name = None
         data_buf: list[str] = []
         for raw in resp:
@@ -65,6 +74,14 @@ def fetch_events(run_id: str) -> list[dict]:
                 event_name = line[len("event:"):].strip()
             elif line.startswith("data:"):
                 data_buf.append(line[len("data:"):].lstrip())
+            # safety: cap at 5000 events / run
+            if len(events) > 5000:
+                break
+    finally:
+        try:
+            resp.close()
+        except Exception:
+            pass
     return events
 
 

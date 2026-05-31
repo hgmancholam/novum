@@ -1,0 +1,92 @@
+id: IP-41
+title: "Run analyze_evidence before deadline-draft to unlock coverage on budget-forced runs"
+date: 2026-05-30
+status: pre-registered
+agent: EvalEngineer + Coder
+
+# ============================================================================
+# ROOT CAUSE (definitively localized via IP-40 + SQL on prod DB)
+# ============================================================================
+diagnosis_method: |
+  IP-40 instrumentation (diag_sub_claims, diag_evidence_per_claim) embedded
+  in JudgeRuled extras. Queried directly via MCP postgres on prod DB.
+  Evidence:
+    Q5 (postIP40 dc506a90): sub_claims=[c1,c2,c3] all 'pending',
+                            evidence_per_claim={c1:6,c2:6,c3:6} (>= threshold 2,
+                            conf >= 0.4), coverage=0, search_count=1.
+    Q6 same pattern (c1:6,c2:4,c3:6, all pending).
+    Q8 same pattern.
+    Q4 (3-claim plan) DID cover everything because it hit no budget cap
+       and ran a normal SEARCHING→ANALYZING→DRAFTING cycle (search_count=2).
+  Smoking gun: Stopped event stop_rationale.summary on Q5/Q6/Q8 reads
+    "Reached tool-call limit (28-34/25 calls)" — so the global budget
+    guard fired `_force_synthesis_or_stop("tool_calls")`, which transitions
+    SEARCHING → DRAFTING directly (states.py line 43), skipping ANALYZING.
+    analyze_evidence never runs → claims stay pending → coverage=0 →
+    structural override gate blocks judge_confirmed override.
+
+# ============================================================================
+# HYPOTHESIS (single targeted fix)
+# ============================================================================
+hypothesis: |
+  Running analyze_evidence inside _force_synthesis_or_stop, immediately
+  before transitioning to DRAFTING, will mark claims with sufficient
+  evidence as covered. This unlocks the structural-override gate
+  (coverage >= 0.6) on multi-claim plans that hit the global tool-call cap.
+  Expected: Q5, Q6, Q8 should newly satisfy override_eligible=True; some
+  will additionally flip to judge_confirmed; judge_confirmed rate should
+  rise from 3/8 (postIP40 — Q1 fast + Q3 zero-ev + Q4 had cov=1) to >=4/8.
+
+intervention_kind: behavioral_change
+behavioral_change: true
+new_event_types: 0          # uses existing ClaimCovered / ClaimUncoverable / ContradictionDetected
+loc_delta: ~6 lines
+
+# ============================================================================
+# METRICS — frozen golden set (8 Qs)
+# ============================================================================
+primary_metric:
+  name: coverage_unlocked_on_budget_forced_runs
+  pass_condition: |
+    For Q5, Q6, Q8 (the 3-claim budget-forced trio) at least 2/3 must show:
+      diag_covered_claim_ids != []
+      AND coverage > 0
+      AND override_blockers no longer contains 'coverage'
+    Additionally judge_confirmed_rate must be >= 3/8 (no regression vs postIP40).
+
+secondary_floors:
+  judge_confirmed_floor: 3        # postIP40 had Q1+Q3 confirmed (2/8 in IP-40 metrics, but +Q4 if its cov=1 path flips → 3/8 expected)
+  bl_strict_floor: 6
+  pytest_baseline: 1144 passed, 6 pre-existing failures
+  wallclock_avg_ceiling: 130s
+  no_new_event_types: true
+  contradictions_floor: |
+    Q4 already shows contras=1, S=0.97, cov=1, agr=1; override blocked
+    by 'contradictions'. IP-41 does NOT bypass contradictions; that is a
+    separate decision deferred to a later IP after the synthesis-quality
+    work the user requested.
+
+# ============================================================================
+# FALSIFICATION
+# ============================================================================
+falsification_rules:
+  - "If poststate Q5/Q6/Q8 still show coverage=0 in JudgeRuled.diag_covered, the patch is misplaced — investigate why analyze_evidence runs but does not mark covered."
+  - "If wallclock_avg rises > 130s the patch added IO; investigate."
+  - "If judge_confirmed drops below 3/8 the patch caused a regression elsewhere; revert."
+  - "If pytest drops below baseline, revert."
+
+# ============================================================================
+# OUT OF SCOPE
+# ============================================================================
+out_of_scope:
+  - "Bypassing contradictions in override (Q4 still blocked)."
+  - "Modifying max_tool_calls_per_run (budget cap is independent concern)."
+  - "Improving synthesis prose (this is the IP-42 'research mode' work)."
+
+# ============================================================================
+# LESSONS APPLIED
+# ============================================================================
+lessons_applied:
+  - "IP-40 instrumentation paid off — root cause located in <5 SQL queries on prod DB instead of multiple eval cycles."
+  - "Going to the DB directly (psycopg / MCP) is 100x faster than scraping SSE endpoints with hung connections."
+  - "Telemetry-before-tuning (P2) — confirmed by direct event-log inspection what code-reading alone did not reveal."

@@ -1,0 +1,66 @@
+[fetch] new (postdomain)...
+  [Q1] 2e55036d ...
+  [Q2] 46736c54 ...
+  [Q3] f1ddb63d ...
+  [Q4] 6d379ce5 ...
+  [Q5] 87afe243 ...
+  [Q6] f906ab84 ...
+  [Q7] 3feaf0b7 ...
+  [Q8] a2243165 ...
+[fetch] prev (postA1A2)...
+  [Q1] 79737678 ...
+  [Q2] ccbd12cc ...
+  [Q3] ae3a8648 ...
+  [Q4] 9c713a41 ...
+  [Q5] 85130b57 ...
+  [Q6] 749ceb67 ...
+  [Q7] c5b1ea1c ...
+  [Q8] d9b53537 ...
+
+=== STOP REASON (baseline ΓåÆ prev (postA1A2) ΓåÆ new (postdomain)) ===
+  reason                      baseline   postA1A2   postdomain
+  judge_confirmed                    4          4            2
+  stopped_by_budget                  4          4            6
+
+=== PER QUESTION (new run) ===
+  Q1  fast      dom=other            judge_confirmed        S= 1.00 J=    - conf=    - ev=  6 hosts= 3 $=0.0226 t=23s
+  Q2  standard  dom=software_engineering stopped_by_budget      S= 0.55 J=    - conf=    - ev= 34 hosts= 3 $=0.2786 t=79s
+  Q3  standard  dom=software_engineering judge_confirmed        S= 0.15 J=    - conf=    - ev=  0 hosts= 0 $=0.0323 t=40s
+  Q4  standard  dom=medical          stopped_by_budget      S= 0.65 J=    - conf=    - ev= 47 hosts= 7 $=0.2520 t=107s
+  Q5  standard  dom=software_engineering stopped_by_budget      S=    - J=    - conf=    - ev= 25 hosts= 8 $=0.1501 t=72s
+  Q6  standard  dom=software_engineering stopped_by_budget      S= 0.55 J=    - conf=    - ev= 41 hosts= 3 $=0.3499 t=107s
+  Q7  deep      dom=technology       stopped_by_budget      S= 0.63 J=    - conf=    - ev= 18 hosts= 5 $=0.1330 t=162s
+  Q8  standard  dom=software_engineering stopped_by_budget      S= 0.64 J=    - conf=    - ev= 58 hosts= 8 $=0.2807 t=118s
+
+=== CONFIDENCE PER QUESTION (prev ΓåÆ new) ===
+  Q     prevConf    newConf  prevHosts   newHosts
+  Q1           -          -          3          3
+  Q2           -          -          3          3
+  Q3           -          -          0          0
+  Q4           -          -          6          7
+  Q5           -          -         12          8
+  Q6           -          -         10          3
+  Q7           -          -          6          5
+  Q8           -          -         17          8
+
+=== SOURCES PER QUESTION (new) ===
+  Q1  (3 hosts): en.wikipedia.org├ù4, britannica.com├ù1, clintonwhitehouse3.archives.gov├ù1
+  Q2  (3 hosts): news.ycombinator.com├ù18, en.wikipedia.org├ù10, semanticscholar.org├ù6
+  Q3  (0 hosts): 
+  Q4  (7 hosts): en.wikipedia.org├ù20, pmc.ncbi.nlm.nih.gov├ù14, nia.nih.gov├ù4, newsroom.heart.org├ù4, healthline.com├ù2, emro.who.int├ù2, medscape.com├ù1
+  Q5  (8 hosts): en.wikipedia.org├ù10, arxiv.org├ù7, dev.to├ù3, docker.com├ù1, martinfowler.com├ù1, github.com├ù1, oreilly.com├ù1, news.ycombinator.com├ù1
+  Q6  (3 hosts): news.ycombinator.com├ù24, en.wikipedia.org├ù14, semanticscholar.org├ù3
+  Q7  (5 hosts): semanticscholar.org├ù12, en.wikipedia.org├ù3, techcrunch.com├ù1, wired.com├ù1, thenewstack.io├ù1
+  Q8  (8 hosts): en.wikipedia.org├ù28, news.ycombinator.com├ù8, dev.to├ù6, arxiv.org├ù6, pdfs.semanticscholar.org├ù4, github.com├ù2, infoq.com├ù2, economics.stackexchange.com├ù2
+
+=== SOURCES PER QUESTION (prev / postA1A2) ===
+  Q1  (3 hosts): en.wikipedia.org├ù4, britannica.com├ù1, blog.turkishairlines.com├ù1
+  Q2  (3 hosts): forbes.com├ù5, markets.ft.com├ù3, cnbc.com├ù1
+  Q3  (0 hosts): 
+  Q4  (6 hosts): pmc.ncbi.nlm.nih.gov├ù7, nutritionsource.hsph.harvard.edu├ù1, uhcancercenter.org├ù1, medicalnewstoday.com├ù1, emilyprogram.com├ù1, boltpharmacy.co.uk├ù1
+  Q5  (12 hosts): arxiv.org├ù4, abbacustechnologies.com├ù4, finance.yahoo.com├ù2, sqmagazine.co.uk├ù2, zencoder.ai├ù2, doi.org├ù2, codestringers.com├ù2, blog.secureflag.com├ù2, daredata.ai├ù2, a10networks.com├ù2
+  Q6  (10 hosts): cio.com├ù4, hospitalitynet.org├ù4, techcrunch.com├ù4, semanticscholar.org├ù3, manufacturing.net├ù2, lightreading.com├ù2, gizmodo.com├ù2, rcrwireless.com├ù2, csoonline.com├ù2, forbes.com├ù2
+  Q7  (6 hosts): lightreading.com├ù3, venturebeat.com├ù2, darkreading.com├ù1, letsdatascience.com├ù1, marktechpost.com├ù1, techcrunch.com├ù1
+  Q8  (17 hosts): linkedin.com├ù5, arxiv.org├ù3, news.ycombinator.com├ù2, pace.edu├ù2, forbes.com├ù2, sundeepteki.org├ù2, firstlinesoftware.com├ù2, oneforce.com├ù2, refontelearning.com├ù2, simular.ai├ù1
+
+[done] wrote compare_postdomain.json

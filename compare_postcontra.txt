@@ -1,0 +1,143 @@
+[parsed] 8 run_ids from eval_postcontra.txt
+[fetch] postcontra (IP-39)...
+  [Q1] 5b0c35c6 ...
+  [Q2] 67fecf12 ...
+  [Q3] 34888004 ...
+  [Q4] 0a046c57 ...
+  [Q5] 24987fd3 ...
+  [Q6] b3f8761a ...
+  [Q7] 2ef1e2cd ...
+  [Q8] 208a7c9b ...
+[fetch] postinst (IP-38 baseline)...
+  [Q1] ac156e91 ...
+  [Q2] 68daa970 ...
+  [Q3] b613ac05 ...
+  [Q4] 586b0ef2 ...
+  [Q5] 0401d6a5 ...
+  [Q6] d6ab8ceb ...
+  [Q7] 48ea4cb9 ...
+  [Q8] fd5a84a8 ...
+
+=== IP-39 PRIMARY METRIC ΓÇö Q4 flip ===
+  Q4 postinst: stopped_by_budget
+  Q4 postcontra: stopped_by_budget  FAIL
+  Q4 contra_bypassed flag: False
+
+=== STOP REASON FLOOR (postinst baseline) ===
+  reason                      postinst   postcontra
+  judge_confirmed                    3            2
+  stopped_by_budget                  5            6
+
+  judge_confirmed: postinst=3 postcontra=2  FAIL
+  BL strict: postinst=6/8 postcontra=8/8  PASS (floor=6)
+  wallclock_avg: 87s  PASS (ceiling=130s)
+
+=== CONTRA-BYPASS DISCIPLINE ===
+  (no bypass fired ΓÇö Q4 should have triggered it)
+
+=== PER QUESTION (postcontra, IP-39) ===
+  Q1  fast      judge_confirmed        S= 1.00 cov=    - agr=    - bypass=. ev=  6 h= 3 BL25=y(21w) t=17s
+  Q2  standard  stopped_by_budget      S= 0.58 cov= 0.00 agr= 1.00 bypass=. ev= 24 h= 3 BL25=y(20w) t=66s
+  Q3  standard  judge_confirmed        S= 0.15 cov= 0.00 agr= 0.00 bypass=. ev=  0 h= 0 BL25=y(19w) t=45s
+  Q4  standard  stopped_by_budget      S= 0.65 cov= 0.00 agr= 1.00 bypass=. ev= 57 h= 5 BL25=y(19w) t=130s
+  Q5  standard  stopped_by_budget      S= 0.63 cov= 0.00 agr= 1.00 bypass=. ev= 47 h= 9 BL25=y(20w) t=118s
+  Q6  standard  stopped_by_budget      S= 0.55 cov= 0.00 agr= 1.00 bypass=. ev= 18 h= 2 BL25=y(22w) t=105s
+  Q7  deep      stopped_by_budget      S= 0.62 cov=    - agr=    - bypass=. ev= 21 h= 4 BL25=y(24w) t=112s
+  Q8  standard  stopped_by_budget      S= 0.62 cov= 0.00 agr= 1.00 bypass=. ev= 39 h= 5 BL25=y(19w) t=101s
+
+=== PER-Q DIFF (postinst -> postcontra) ===
+
+  [Q1] What is the capital of Japan?
+     stop      : judge_confirmed        -> judge_confirmed
+     S/J/conf  : 1.0/0.9/None  ->  1.0/0.9/None
+     ev/hosts  : 6/3  ->  6/3
+     answer_w  : 21 -> 21 (+0%)  cites: 2 -> 2
+     host_jaccard: 100%   (oldΓê⌐new=3)
+
+  [Q2] Is PostgreSQL or MongoDB better for a small SaaS application?
+     stop      : stopped_by_budget      -> stopped_by_budget
+     S/J/conf  : None/None/None  ->  0.5806666666666667/0.72/None
+     ev/hosts  : 11/3  ->  24/3
+     answer_w  : 187 -> 178 (-5%)  cites: 2 -> 2
+     host_jaccard: 100%   (oldΓê⌐new=3)
+
+  [Q3] What is the best programming language?
+     stop      : judge_confirmed        -> judge_confirmed
+     S/J/conf  : 0.15000000000000002/0.85/None  ->  0.15000000000000002/0.85/None
+     ev/hosts  : 0/0  ->  0/0
+     answer_w  : 77 -> 112 (+45%)  cites: 0 -> 0
+     host_jaccard: 0%   (oldΓê⌐new=0)
+
+  [Q4] Is intermittent fasting healthy?
+     stop      : stopped_by_budget      -> stopped_by_budget
+     S/J/conf  : 0.9376666666666666/0.62/None  ->  0.646/0.62/None
+     ev/hosts  : 57/3  ->  57/5
+     answer_w  : 89 -> 208 (+134%)  cites: 8 -> 10
+     host_jaccard: 60%   (oldΓê⌐new=3)
+
+  [Q5] What are the long-term risks of AI-generated code in enterprise systems?
+     stop      : judge_confirmed        -> stopped_by_budget
+     S/J/conf  : 0.63625/0.62/None  ->  0.6325/0.62/None
+     ev/hosts  : 14/8  ->  47/9
+     answer_w  : 295 -> 277 (-6%)  cites: 8 -> 8
+     host_jaccard: 31%   (oldΓê⌐new=4)
+
+  [Q6] Should a high-scale AI platform use event-driven architecture or synchronous microservices
+     stop      : stopped_by_budget      -> stopped_by_budget
+     S/J/conf  : 0.5876666666666667/0.72/None  ->  0.5475/0.82/None
+     ev/hosts  : 20/3  ->  18/2
+     answer_w  : 173 -> 147 (-15%)  cites: 2 -> 6
+     host_jaccard: 67%   (oldΓê⌐new=2)
+
+  [Q7] What is the most promising approach for long-term memory in autonomous AI agents?
+     stop      : stopped_by_budget      -> stopped_by_budget
+     S/J/conf  : 0.6165/0.3/None  ->  0.6165/0.3/None
+     ev/hosts  : 14/4  ->  21/4
+     answer_w  : 169 -> 195 (+15%)  cites: 2 -> 8
+     host_jaccard: 100%   (oldΓê⌐new=4)
+
+  [Q8] Could AI systems realistically replace mid-level software engineers within the next 10 yea
+     stop      : stopped_by_budget      -> stopped_by_budget
+     S/J/conf  : 0.65/0.78/None  ->  0.62325/0.72/None
+     ev/hosts  : 36/5  ->  39/5
+     answer_w  : 243 -> 240 (-1%)  cites: 7 -> 8
+     host_jaccard: 25%   (oldΓê⌐new=2)
+
+  quality_regressions: ['Q8:host-shift(25%)']  WARN
+
+=== FULL ANSWERS (postcontra, 500ch) ===
+
+  [Q1] Q: What is the capital of Japan?
+     A: The capital of Japan is Tokyo [4], which is also the world's most populous city with over 37 million people [6].
+
+  [Q2] Q: Is PostgreSQL or MongoDB better for a small SaaS application?
+     A: The evidence provided is insufficient to give a fully evidence-backed verdict between PostgreSQL and MongoDB for a small SaaS app. The evidence block contains only one relevant source: a Wikipedia article describing PostgreSQL as a free, open-source relational database management system (RDBMS) with full ACID (Atomicity, Consistency, Isolation, Durability) compliance, support for transactions, foreign keys, stored procedures, materialized views, and broad OS support [4]. No comparable evidence a...
+
+  [Q3] Q: What is the best programming language?
+     A: No single programming language is universally best ΓÇö the right choice depends on your use case, team, and constraints. The evidence provided is insufficient to rank languages objectively, but well-established industry knowledge shows that different languages dominate different domains: Python tends to lead in data science and machine learning, JavaScript dominates web front-end development, Rust and C++ are preferred for systems programming where performance is critical, and Swift or Kotlin fit ...
+
+  [Q4] Q: Is intermittent fasting healthy?
+     A: For most healthy adults, intermittent fasting tends to offer meaningful metabolic benefits, but carries real risks for certain groups. Multiple peer-reviewed reviews find that IF improves insulin sensitivity, lowers blood pressure, and reduces body weight ΓÇö particularly in people who are overweight or at risk for type 2 diabetes (T2DM) [1][2][3]. One randomized controlled trial even showed insulin-sensitivity benefits independent of weight loss in men with prediabetes [3].  However, IF is not ri...
+
+  [Q5] Q: What are the long-term risks of AI-generated code in enterprise systems?
+     A: AI-generated code poses four compounding long-term risks to enterprise systems: security debt, knowledge erosion, compliance exposure, and correlated systemic failures.  The security risk is already measurable. Roughly 25% of AI-generated code contains confirmed vulnerabilities, with codebases showing a 107% year-on-year increase in mean vulnerability count [1]. In Java specifically, failure rates exceed 70%, with common patterns including SQL injection, broken authentication, and hardcoded cred...
+
+  [Q6] Q: Should a high-scale AI platform use event-driven architecture or synchronous microservices?
+     A: The evidence provided is insufficient to give a direct, evidence-backed verdict between event-driven architecture and synchronous microservices for a high-scale AI platform. None of the retrieved sources directly address this architectural comparison; they cover topics such as AI coding assistants, cloud migration tooling, open-source sustainability, and NIST cybersecurity guidelines [1][2][3][4][6][9]. No primary or secondary source in the evidence block discusses EDA vs. synchronous microservi...
+
+  [Q7] Q: What is the most promising approach for long-term memory in autonomous AI agents?
+     A: No single approach dominates yet; hybrid architectures combining RAG-based retrieval with hierarchical memory layers are currently the most studied and practically deployed path forward. Memory is now recognized as a foundational component for autonomous Large Language Model (LLM) agents, enabling continuous adaptation and sophisticated reasoning [6]. Surveys on LLM agent fundamentals identify perception, reasoning, and memory as the three core pillars ΓÇö and external, retrievable memory stores a...
+
+  [Q8] Q: Could AI systems realistically replace mid-level software engineers within the next 10 years?
+     A: Full replacement of mid-level software engineers within 10 years is unlikely; augmentation and role-shifting is the more evidence-supported outcome. AI coding agents are rapidly improving ΓÇö autonomous systems like OpenHands, Devin, and IDE assistants like GitHub Copilot now handle multi-file editing, bug-fixing pipelines, and test generation [1][2][3] ΓÇö but significant gaps remain in end-to-end project ownership, understanding organizational context, and navigating legacy systems [7].  Research ...
+
+=== IP-39 VERDICT ===
+  Q4_flip            FAIL
+  judge_confirmed    FAIL
+  BL_strict          PASS
+  wallclock_avg      PASS
+  bypass_discipline  PASS 
+  quality (advisory) WARN ΓÇö Q8:host-shift(25%)
+  >>> VERDICT: FAIL   (quality is advisory, does not gate)
+
+[done] wrote compare_postcontra.json
