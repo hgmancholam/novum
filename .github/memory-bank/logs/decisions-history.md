@@ -2290,3 +2290,39 @@ equires_contradictions = state.has_event(EventType.CONTRADICTION_DETECTED), pass
 - Full orchestrator integration test exercising the JUDGING → ANALYZING deep-fetch loop end-to-end.
 - Golden JSONL trace fixture under `tests/fixtures/runs/` exercising a full deep-fetch round.
 - Fix UsernameModal `data-variant` drift (Phase 3 + 4 both report it).
+
+---
+
+## D-IP-41-43: Research-mode synthesis — three iterations (PASS, FAIL, FAIL) (2026-05-31)
+**Date:** 2026-05-31
+**Author:** Coder (autonomous, 3-iteration mandate)
+**Status:** ✅ IP-41 kept in prod | ❌ IP-42 reverted | ❌ IP-43 reverted
+
+### Context
+User requested 3 autonomous iterations validated against the full 8-question eval and falsification rules. Goal of iters 2-3: make user-facing answers more *propositive* (alternatives, hypotheses, real research feel) per explicit user request.
+
+### Decisions
+**D1 (IP-41) — Forced-synthesis runs `analyze_evidence` before DRAFTING.** Patch in `backend/app/agent/orchestrator.py::_force_synthesis_or_stop`. Result: judge_confirmed 3/8 → **4/8**, wallclock_avg 82.1s → **73.1s**, coverage unlocked on budget-forced runs (Q5/Q6/Q8). Verdict PASS, kept (commit `ab9ebaf` + verdict `5cde450`). Lesson L-035.
+
+**D2 (IP-42) — Global research-narrative SHARED block in synthesizer prompt.** Anchors "Alternatives considered:" + "What could flip this:" required across all kinds. Result: judge_confirmed 4/8 → 3/8. SHARED block conflicted with SCENARIO's "Do NOT frame as alternatives" instruction → Q8 SCENARIO regressed jc→budget, tool_calls 14→25, coverage 0.99→0.66. **Pre-registered floor breach → REVERT** (commit `6c50f8d`). Lesson L-036: prompt-only changes are NOT behavior-neutral; pytest cannot catch LLM regressions, only the 8-Q eval can.
+
+**D3 (IP-43) — Surgical per-kind anchors (BEST_EFFORT/WEIGHTED/TRADEOFF only, SCENARIO/DIRECT untouched).** Scoping bug from IP-42 fixed: anchors landed 5/5 on non-SCENARIO non-DIRECT, 0/2 on SCENARIO (perfect). BUT judge_confirmed still 4/8 → 3/8: Q4 TRADEOFF regressed jc→budget (82s→89s) because mandatory anchor text raised the bar synthesis must clear within step budget. **Pre-registered floor breach → REVERT** (commit `b93e5be`). Lesson L-037: mandatory per-kind anchors raise the judge bar even without SHARED conflicts; future research-mode work must either widen step budget per kind, downgrade anchors to encouraged, or inject anchors post-synthesis via a deterministic renderer.
+
+### Net result of session
+- **+1 judge_confirmed** (3/8 → 4/8), **−9s wallclock_avg** (82.1s → 73.1s) — all from IP-41.
+- 3 documented falsifications constrain future research-mode design.
+- Production stable on IP-41 baseline (prompts at `6c50f8d`, orchestrator with IP-41 patch).
+
+### Files
+- `backend/app/agent/orchestrator.py` (IP-41, live)
+- `backend/app/llm/prompts.py` (reverted to `6c50f8d` baseline)
+- `docs/evaluation/hypotheses/IP-41.yaml` (PASS), `IP-42.yaml` (FAIL+REVERT), `IP-43.yaml` (FAIL+REVERT)
+- `.github/memory-bank/logs/lessons-learned.md` (+L-035, +L-036, +L-037)
+- Eval traces: `eval_postIP41.txt`, `eval_postIP42.txt`, `eval_postIP43.txt`
+
+### Commits
+- `5cde450` — IP-41 PASS verdict + L-035
+- `8894b44` — IP-42 implementation (REVERTED)
+- `6c50f8d` — IP-42 revert + FAIL verdict + L-036
+- `f2bdab7` — IP-43 implementation (REVERTED)
+- `b93e5be` — IP-43 revert + FAIL verdict + L-037
