@@ -195,7 +195,7 @@ Asociado al server `novum-prod`. Filtra antes de que el paquete llegue a la VM.
 | 1 | TCP | 22 | `181.51.0.0/16` | SSH solo desde mi ISP |
 | 2 | TCP | 80 | `0.0.0.0/0, ::/0` | HTTP (redirect a HTTPS por Caddy) |
 | 3 | TCP | 443 | `0.0.0.0/0, ::/0` | HTTPS público |
-| 4 | TCP | 5432 | `0.0.0.0/0, ::/0` | Postgres público (admin con pgAdmin, TLS forzado) |
+| 4 | TCP | 5432 | `181.51.0.0/16, 88.198.91.119/32` | Postgres restringido a mi ISP + self (TLS + scram-sha-256) |
 | 5 | ICMP | — | `0.0.0.0/0, ::/0` | Ping (debug) |
 
 #### Outbound rules
@@ -217,7 +217,7 @@ sudo ufw status verbose
 | 22 | TCP | `181.51.0.0/16` | SSH |
 | 80 | TCP | Any | HTTP |
 | 443 | TCP | Any | HTTPS |
-| 5432 | TCP | Any | Postgres (TLS forzado a nivel de pg_hba) |
+| 5432 | TCP | `181.51.0.0/16`, `88.198.91.119/32` | Postgres restringido a mi ISP + self (TLS forzado a nivel de pg_hba) |
 
 Comandos típicos:
 ```bash
