@@ -7,6 +7,7 @@
  * Standalone page (no AppShell). Uses the global background gradient defined in index.css.
  */
 
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
 import {
@@ -29,8 +30,27 @@ import {
 } from "lucide-react";
 import { BackgroundOrbs, Logo } from "@/components/atoms";
 import { ThemeToggle } from "@/components/molecules";
-import { useTheme } from "@/hooks/useTheme";
 import { fadeUp, stagger } from "@/lib/motion";
+
+// Reads data-theme from <html> and re-renders whenever it changes.
+// Necessary because useTheme() uses per-instance useState; a MutationObserver
+// on the DOM attribute is the only reliable cross-component sync mechanism.
+function useDocumentTheme(): "light" | "dark" {
+  const [isLight, setIsLight] = useState<boolean>(
+    () => document.documentElement.dataset.theme === "light",
+  );
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsLight(document.documentElement.dataset.theme === "light");
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, []);
+  return isLight ? "light" : "dark";
+}
 
 // ---------------------------------------------------------------------------
 // Page
@@ -313,7 +333,7 @@ function PipelineDiagram() {
 }
 
 function DiagramSVG() {
-  const { theme } = useTheme();
+  const theme = useDocumentTheme();
   const isLight = theme === "light";
   // Coordinates chosen to fit a 1200x520 viewBox cleanly.
   // Layout:

@@ -2,8 +2,8 @@
 
 > Central context document for all agents. Read this FIRST before any task.
 
-**Last Updated:** 2026-05-26
-**Updated By:** System Initialization
+**Last Updated:** 2026-06-08
+**Updated By:** Documentation sync (memory-bank ↔ code, post WP-3 "always answer" refactor)
 **Project Phase:** Design / Planning
 
 ---
@@ -15,14 +15,14 @@ Novum is a **self-directing research agent** that:
 - Gathers evidence to answer user questions
 - Resolves contradictions between sources
 - Decides when it has sufficient evidence
-- Can honestly report "cannot answer" as a valid outcome
+- Always produces an answer — shaped to match the evidence it found (`AnswerKind`), rather than refusing outright
 
 ### Core Principles
 1. **Event log is the source of truth** — All state derives from the append-only `events` table
-2. **Stop reasons are enums, not free text** — Guarantees, not failures
+2. **Stop reasons are enums, not free text** — Guarantees, not failures (4 values as of the WP-3 "always answer" refactor)
 3. **Single-server scope** — No distributed systems in V1
 4. **Read determinism** — Same input always produces same output
-5. **Honest stops are successes** — "Cannot answer" is a valid outcome
+5. **Every question gets an answer** — Ambiguous, sparse, or contradictory cases route into `judge_confirmed` with an appropriate `AnswerKind` (`best_effort`, `weighted`, `scenario`, `tradeoff`, `ethical_redirect`) instead of a separate "honest stop" terminal (supersedes the original "honest stops are successes" framing — see WP-3 amendment 2026-05-27)
 
 ---
 
@@ -42,6 +42,7 @@ Novum is a **self-directing research agent** that:
 | Date | Change | Agent |
 |------|--------|-------|
 | 2026-05-26 | Initial agentic architecture setup | System |
+| 2026-06-08 | Synced condensed memory-bank summaries with code reality (StopReason 7→4, AnswerKind, LLM provider → Anthropic Claude, RF-06 8 types) | Orchestrator |
 
 ---
 
@@ -51,9 +52,9 @@ Novum is a **self-directing research agent** that:
 - **Language:** Python 3.12
 - **Framework:** FastAPI + Pydantic v2
 - **Database:** PostgreSQL 16 + SQLAlchemy 2.0 async + asyncpg
-- **LLM:** litellm + instructor (GitHub Models provider)
-- **Search:** Tavily (web), Wikipedia API
-- **Stopping policy:** A (claim coverage) + D (agreement) + B (judge) + E (honest) + F (budget)
+- **LLM:** Anthropic Claude (`anthropic/claude-haiku-4-5`, `anthropic/claude-sonnet-4-6`) via `app/llm/client.py::llm.call`, routed by `LLMRole`
+- **Search:** Tavily (web), Wikipedia API, Semantic Scholar, OpenAlex
+- **Stopping policy:** A (claim coverage) + D (agreement) + B (judge) + C (no-progress) + F (budget); the `honest` layer (E) is now a deprecated stub (`HonestStopSignal` always returns `DEFER` — see WP-3 amendment)
 
 ### Frontend
 - **Framework:** React 19 + Vite
@@ -73,7 +74,7 @@ Novum is a **self-directing research agent** that:
 - **Single worker** uvicorn (no distributed locks)
 - **No Redis, Docker, LangGraph in V1**
 - **Event-sourced architecture**
-- **7 stop_reason enum values, never free text**
+- **4 stop_reason enum values, never free text** (collapsed from 7 in the WP-3 "always answer" refactor — see commit `6ec6f39`)
 
 ---
 
@@ -86,7 +87,7 @@ Novum is a **self-directing research agent** that:
 | RF-03 | Re-examinable runs | Event log as source of truth; fork from decision points |
 | RF-04 | Graceful handling of messy reality | Ambiguity → honest stop; contradiction → resolution attempt; source failure → cascading fallback |
 | RF-05 | Cross-session persistence | Lightweight identity (username only), public runs, fork semantics |
-| RF-06 | Question type classification | 5 supported (factual, comparative, definitional, SotA, causal); 3 rejected |
+| RF-06 | Question type classification | 8 supported types (factual, comparative, definitional, SotA, causal, predictive_future, subjective_opinion, personal_private) — none rejected; the latter three route through dedicated `AnswerKind` templates (`scenario`, `tradeoff`, `ethical_redirect`) instead of short-circuiting (WP-3 amendment 2026-05-27) |
 | RF-07 | User-provided context | Optional guidance, not evidence; never cited |
 | RF-08 | Live streaming + cancellation | SSE transport, resume from `Last-Event-ID` |
 | RF-09 | Run discovery | Direct URL + recent runs list |
@@ -112,7 +113,7 @@ Full details: `docs/understanding-phase/requirement-understanding.md`
 ### Three Not-Seams (Fixed in V1)
 1. **Planner** — Custom FSM, not pluggable
 2. **Storage** — PostgreSQL, not pluggable
-3. **LLM Provider** — GitHub Models, not pluggable
+3. **LLM Provider** — Anthropic Claude, not pluggable
 
 ### Data Flow
 ```

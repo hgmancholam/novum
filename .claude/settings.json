@@ -1,4 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(awk 'NR==95,NR==175' backend/app/domain/enums.py)",
+      "Bash(npx tsc *)",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__evaluate_script"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {

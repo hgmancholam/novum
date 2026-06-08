@@ -2397,3 +2397,60 @@ User requested 3 autonomous iterations validated against the full 8-question eva
 - `6c50f8d` — IP-42 revert + FAIL verdict + L-036
 - `f2bdab7` — IP-43 implementation (REVERTED)
 - `b93e5be` — IP-43 revert + FAIL verdict + L-037
+
+---
+
+## D-DOCSYNC-2026-06-08: Memory-bank condensed summaries synced with WP-3 "always answer" refactor (2026-06-08)
+**Date:** 2026-06-08
+**Author:** Orchestrator (user request — gap review + sync plan, both approved)
+**Status:** ✅ Done — Auditor F2 sub-loop APPROVED (9.2/10 ≥ 8 threshold, profile M, 1 iteration)
+
+### Context
+User asked to review the source code against documentation/memory-bank for gaps, then approved a 3-file sync plan. Root cause: the WP-3 "always answer" refactor (commit `6ec6f39`, 2026-05-27 — see D-WP-3) collapsed `StopReason` 7→4 values, removed the `honest_*` enum members, and introduced `AnswerKind` (6 values). The authoritative `requirement-understanding.md` was updated correctly at the time, but the condensed `@`-included memory-bank summaries and `CLAUDE.md` drifted: they still described 7 stop reasons, "honest stop" terminals, "GitHub Models" as the LLM provider, "litellm + instructor", ~39 event types, and RF-06 as "5 supported / 3 rejected" question types.
+
+### Decisions
+**D1 — `architecture-summary.md` rewritten in place:** §1 principle #2/#7 updated (4 terminal states, "every question gets an answer" replacing "honest stops are successes"); Stop Reasons table reduced to 4 rows + explanatory blockquote citing `6ec6f39`; new `AnswerKind` (6 values), `Lane` (3 values), `AuthorityTier` (4 values) tables added; Event Types table regrouped into 8 categories totaling 45; §6 LLM Integration rewritten for Anthropic Claude (`claude-haiku-4-5` / `claude-sonnet-4-6`, `LLMRole`, `app/llm/client.py::llm.call`).
+
+**D2 — `project-context.md` corrected in place:** Mission/Core-Principles reworded around `AnswerKind` routing instead of "honest stop"; LLM stack line → Anthropic Claude + `LLMRole`; stopping-policy line → A+D+B+C+F (E now a deprecated stub); "7 stop_reason" constraint → 4; RF-06 row → 8 supported types with routing note; "LLM Provider — GitHub Models" not-seam → Anthropic Claude; Recent Changes table appended.
+
+**D3 — `CLAUDE.md` §4 architectural rules corrected in place:** Rule #3 → 4 terminal states + correct enum list + `AnswerKind` routing note; rule #4 → "45 event types" (was "~39").
+
+**D4 — Auditor F2 sub-loop activated (profile M: min_score=8, max_iter=1):** Verified all enum claims (StopReason=4, AnswerKind=6, QuestionType=8, AuthorityTier=4, Lane=3, EventType=45-per-docstring) against `backend/app/domain/enums.py`, LLM provider claims against `backend/app/config.py` (`_enforce_v1_anthropic_only` validator) and `backend/app/llm/roles.py`, and cross-checked against `decisions-history.md::D-WP-3`. Score **9.2/10 — APPROVED**, zero required changes. One informational note (not a deduction, out of scope): `enums.py:93` docstring itself says "(45)" but `EventType` has 44 members — a pre-existing code-side docstring drift the synced docs faithfully transcribed; flagged for a future Coder task.
+
+### Files
+- `.github/memory-bank/shared/architecture-summary.md` (rewritten in place — Stop Reasons, AnswerKind, Lane, AuthorityTier, Event Types, LLM Integration)
+- `.github/memory-bank/shared/project-context.md` (corrected in place — Mission, Core Principles, Tech Stack, RF-06, Not-Seams, Recent Changes)
+- `CLAUDE.md` (§4 rules #3 and #4 corrected in place)
+
+### Cross-reference
+- Originating refactor: `D-WP-3` (commit `6ec6f39`, StopReason 7→4)
+- Ground truth: `backend/app/domain/enums.py`, `docs/understanding-phase/requirement-understanding.md`
+
+---
+
+## D-DOCSYNC-KBI-2026-06-08: knowledge-base-index.md synced with WP-3 refactor (gap left by D-DOCSYNC-2026-06-08) (2026-06-08)
+**Date:** 2026-06-08
+**Author:** Orchestrator (`/update-docs` run — Update Protocol Steps 1-4)
+**Status:** ✅ Done
+
+### Context
+`D-DOCSYNC-2026-06-08` synced `architecture-summary.md`, `project-context.md`, and `CLAUDE.md` with the WP-3 "always answer" refactor, but did not touch `.github/memory-bank/indices/knowledge-base-index.md` (still dated 2026-05-29). That index still listed the old 7-value `StopReason` enum (with `honest_*` members), an "~17 event types" table, an "Agent Configurations" table missing `Auditor`/`EvalEngineer`, and a "Skills" table missing 5 skills (`audit-brd`, `audit-user-story`, `audit-implementation-plan`, `eval-instrumentation`, `update-docs`) — all of which contradicted the now-corrected condensed summaries (Step 4 validation rule: "no doc section contradicts another doc on the same fact").
+
+### Decisions
+**D1 — Event Types table expanded 17 → 45**, regrouped by functional area (Question & Planning, Search & Evidence, Detection, Lane/ReAct/CoVe, Judge & Confidence, Synthesis, Error & Recovery, Terminal & Cost), cross-referencing `architecture-summary.md` §3 and `backend/app/domain/enums.py::EventType` as ground truth.
+
+**D2 — Stop Reasons table reduced 7 → 4**, removing `honest_unanswerable`/`honest_contradiction`/`honest_ambiguous` rows and adding an explanatory blockquote citing commit `6ec6f39` and the `AnswerKind` routing replacement (mirrors `architecture-summary.md`).
+
+**D3 — Agent Configurations table** gained `Auditor` (`.github/agents/auditor.agent.md`) and `EvalEngineer` (`.github/agents/eval-engineer.agent.md`) rows — both exist in the repo and are referenced throughout `CLAUDE.md` §7.1 but were absent from this index.
+
+**D4 — Skills table** gained 5 missing rows verified against `ls .github/prompts/skills/`: `audit-brd`, `audit-user-story`, `audit-implementation-plan`, `eval-instrumentation`, `update-docs`.
+
+**D5 — Header** `Last Updated` bumped 2026-05-29 → 2026-06-08.
+
+### Files
+- `.github/memory-bank/indices/knowledge-base-index.md` (corrected in place — Event Types, Stop Reasons, Agent Configurations, Skills tables + header date)
+
+### Cross-reference
+- Companion sync: `D-DOCSYNC-2026-06-08` (architecture-summary.md / project-context.md / CLAUDE.md)
+- Originating refactor: `D-WP-3` (commit `6ec6f39`, StopReason 7→4)
+- Ground truth: `backend/app/domain/enums.py`, `.github/agents/*.agent.md`, `.github/prompts/skills/*/`

@@ -3,7 +3,7 @@
 > Central index of all knowledge artifacts in the Novum project.
 > Updated automatically by agents after each task.
 
-**Last Updated:** 2026-05-29
+**Last Updated:** 2026-06-08
 **Updated By:** Coder Agent (post IP-28 theme toggle, local)
 
 ---
@@ -232,23 +232,47 @@
 
 ---
 
-## Event Types (~17 — RF-03, RF-04, RF-11, RF-14, RF-15)
+## Event Types (45 — RF-03, RF-04, RF-11, RF-14, RF-15, IP-25, IP-26, BRD-26, BRD-29)
+
+> Full enumeration: `backend/app/domain/enums.py::EventType`. Representative groups (see `architecture-summary.md` §3 for the complete grouped table):
 
 | Event | Purpose | Forkable |
 |-------|---------|----------|
 | `QuestionAsked` | Initial question | No |
+| `QuestionNormalized` | Grammar/typo normalization | No |
+| `QuestionClassified` | Type + complexity hint (BRD-22) | No |
 | `PlanCreated` | Sub-claim decomposition | Yes |
 | `PlanCritiqued` | Plan quality check | No |
 | `PlanRevised` | Plan update | No |
+| `HypothesesGenerated` | Abductive hypotheses (IP-25 Phase D) | No |
 | `ToolCalled` | Search invocation | No |
 | `EvidenceAdded` | Evidence with polarity | No |
 | `ClaimCovered` | Sub-claim satisfied | No |
 | `ClaimUncoverable` | Sub-claim failed | No |
 | `SourceFailed` | Tool failure | No |
+| `DeepFetchPerformed` | Full-content fetch escalation (BRD-23 WP-2) | No |
+| `QueryReformulated` | Low-relevance query rewrite (IP-25 Phase 0) | No |
 | `AmbiguityDetected` | Question ambiguity | Yes |
 | `ContradictionDetected` | Source conflict | Yes |
+| `ContradictionResolved` | Contradiction resolved with new evidence | No |
+| `UserContextChallenged` | User context vs. evidence conflict (RF-07) | No |
+| `EchoChamberDetected` | Temporal source-clustering penalty (IP-25 Phase 0) | No |
+| `RouteSelected` | Lane routing decision (IP-25 Phase A) | No |
+| `PlanGapsDetected` | Dynamic re-decomposition (IP-25 Phase B) | No |
+| `NoProgressDetected` | Confidence plateau (IP-25 Phase B) | No |
+| `LaneEscalated` | Lane escalation (IP-25 Phase C) | No |
+| `AgentThought` / `AgentAction` / `AgentObservation` | ReAct loop steps (IP-25 Phase E) | No |
+| `HypothesisEvaluated` | Hypothesis verdict update | No |
+| `HistorySummarized` | ReAct history compaction | No |
+| `VerificationQuestionsGenerated` / `CoveContradictionDetected` | Chain-of-Verification (IP-25 Phase F) | No |
+| `PriorRunHintReplayed` | Instant-answer cache replay (BRD-22) | No |
+| `DraftSynthesized` | Final draft emitted by synthesizer | No |
+| `MetaStopVerdict` | Value-of-Continuation verdict (BRD-26) | No |
+| `AdversarialObjectionsGenerated` / `DirectedSubclaimsFromObjections` | Adversarial completeness pass (BRD-26) | No |
 | `JudgeRuled` | Judge evaluation | Yes |
 | `ConfidenceMismatch` | S/J divergence flag | No |
+| `SaturationDetected` | Novelty-based saturation signal | No |
+| `JudgeProviderDegraded` | Judge fallback to alternate provider | No |
 | `AgentErrored` | LLM failure | No |
 | `ResumedAfterError` | Recovery event | No |
 | `ResumedAfterCancel` | Recovery event | No |
@@ -257,17 +281,16 @@
 
 ---
 
-## Stop Reasons (RF-02 — 7 enum values)
+## Stop Reasons (RF-02 — 4 enum values, collapsed from 7 in the WP-3 "always answer" refactor, commit `6ec6f39`)
 
 | Value | Terminal Type | Description |
 |-------|---------------|-------------|
-| `judge_confirmed` | Success | Answer approved by judge |
-| `honest_unanswerable` | Honest | Insufficient evidence |
-| `honest_contradiction` | Honest | Irreconcilable conflict |
-| `honest_ambiguous` | Honest | Question ambiguity |
+| `judge_confirmed` | Success | Answer approved by judge — carries an `AnswerKind` (`direct`, `weighted`, `scenario`, `tradeoff`, `ethical_redirect`, `best_effort`) |
 | `stopped_by_budget` | Safety | Budget exhausted |
 | `user_cancelled` | User | Manual cancellation |
 | `errored` | Error | Unrecoverable failure |
+
+> The three `honest_*` values (`honest_unanswerable`, `honest_contradiction`, `honest_ambiguous`) were removed in WP-3. Ambiguous/sparse/contradictory cases now route through `select_answer_kind` into `judge_confirmed` with an appropriate `AnswerKind` instead of a separate honest-stop terminal. See `architecture-summary.md` §3 for the full `AnswerKind` table.
 
 ---
 
@@ -290,6 +313,8 @@
 | BSA | Requirements analysis | `.github/agents/bsa.agent.md` |
 | Coder | Implementation | `.github/agents/coder.agent.md` |
 | Reviewer | Code review | `.github/agents/reviewer.agent.md` |
+| Auditor | Document/plan audit (blind-path detection) | `.github/agents/auditor.agent.md` |
+| EvalEngineer | Behavioral eval gate (F3.5) | `.github/agents/eval-engineer.agent.md` |
 
 ---
 
@@ -301,9 +326,14 @@
 | UX Frontend | UI/UX best practices | `.github/prompts/skills/ux-frontend/` |
 | Database | PostgreSQL operations | `.github/prompts/skills/database/` |
 | Implementation Plan | Planning tasks | `.github/prompts/skills/implementation-plan/` |
+| Audit BRD | BRD audit checklist | `.github/prompts/skills/audit-brd/` |
+| Audit User Story | User Story audit checklist | `.github/prompts/skills/audit-user-story/` |
+| Audit Implementation Plan | Plan audit checklist | `.github/prompts/skills/audit-implementation-plan/` |
 | Unit Test Backend | Python testing | `.github/prompts/skills/unit-test-backend/` |
 | Unit Test Frontend | React testing | `.github/prompts/skills/unit-test-frontend/` |
+| Eval Instrumentation | Behavioral eval telemetry | `.github/prompts/skills/eval-instrumentation/` |
 | Memory Protocol | Knowledge management | `.github/prompts/skills/memory-protocol/` |
+| Update Documentation | Doc staleness sweep (this skill) | `.github/prompts/skills/update-docs/` |
 
 ---
 

@@ -54,8 +54,8 @@ Docker, Redis, vector DB, LangGraph/LangChain/LlamaIndex, Celery/RQ, WebSockets,
 
 1. **Three plugin seams:** `Source`, `StoppingSignal`, `OutputRenderer`. New extensions go behind these protocols (`backend/app/seams/`).
 2. **Three not-seams (V1):** the planner, the storage layer, and the LLM provider are **deliberately not pluggable**. Do not introduce abstractions for them.
-3. **`stop_reason` is an enum, never free text.** All 7 terminal states map to enum values (RF-02): `judge_confirmed`, `honest_unanswerable`, `honest_contradiction`, `honest_ambiguous`, `stopped_by_budget`, `user_cancelled`, `errored`.
-4. **Events are append-only.** Resume and fork append; they never mutate or delete. ~39 event types.
+3. **`stop_reason` is an enum, never free text.** All 4 terminal states map to enum values (RF-02, collapsed from 7 in the WP-3 "always answer" refactor, commit `6ec6f39`): `judge_confirmed`, `stopped_by_budget`, `user_cancelled`, `errored`. Ambiguous/sparse/contradictory cases no longer short-circuit to a separate "honest stop" — they route through `AnswerKind` selection (`direct`, `weighted`, `scenario`, `tradeoff`, `ethical_redirect`, `best_effort`) inside `judge_confirmed`.
+4. **Events are append-only.** Resume and fork append; they never mutate or delete. 45 event types.
 5. **Schema evolution = `extra="allow"` + optional keys only.** Adding keys never breaks. Renaming or removing requires an explicit migration.
 6. **UI surfaces every trust guarantee.** Hide nothing from RF §6-quater (RF-13).
 7. **Type contract FE↔BE:** Pydantic → JSON Schema → `frontend/src/types/events.ts` via `scripts/export_types.py`. Never hand-edit the generated types.
@@ -267,4 +267,4 @@ models:  <resolved tier per agent>
 
 ## 10. Reply Language
 
-**Reply to the user in Spanish by default** (the project owner writes Spanish). All code, comments, docstrings, and log messages stay in English. UI microcopy is always English.
+**Reply to the user in the same language he ased for**. All code, comments, docstrings, and log messages stay in English. UI microcopy is always English.
