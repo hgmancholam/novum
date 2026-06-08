@@ -1,7 +1,7 @@
 # Copilot Instructions — Novum
 
 > Self-directing research agent that gathers evidence, resolves contradictions, and decides when it knows enough.
-> Current repo state: **design / planning phase** (no code yet). All decisions live as Markdown under `docs/understanding-phase/` and `docs/technical-phase/`.
+> Current repo state: **active implementation** (backend + frontend exist). All decisions live as Markdown under `docs/`.
 
 ---
 
@@ -45,7 +45,23 @@ When the user asks you to change a decision, update the originating doc — do n
 
 ---
 
-## 2. Stack at a glance
+## 2. Symbol index
+
+`.github/memory-bank/indices/codemap.md` is a generated index of every exported symbol in the codebase (classes, functions, constants) mapped to their file path. Read it when you need to locate a module, understand what a package exposes, or avoid duplicating something that already exists.
+
+Regenerate after significant refactors:
+```bash
+python scripts/gen_codemap.py
+```
+
+For a full single-file snapshot of the codebase (useful in Copilot Chat or Claude Chat for deep context), run:
+```bash
+repomix   # outputs repomix-output.xml — attach as context
+```
+
+---
+
+## 3. Stack at a glance
 
 ### Backend (`backend/`)
 - **Python 3.12** + **FastAPI** + **Pydantic v2** + **uvicorn --workers 1** (single worker preserves in-process advisory lock).
@@ -70,7 +86,7 @@ Docker, Redis, Postgres, vector DB, LangGraph/LangChain/LlamaIndex, Celery/RQ, W
 
 ---
 
-## 3. Architectural rules (do not violate without asking)
+## 4. Architectural rules (do not violate without asking)
 
 1. **Three plugin seams:** `Source`, `StoppingSignal`, `OutputRenderer`. New extensions go behind these protocols (see `backend/app/seams/`).
 2. **Three not-seams (V1):** the planner, the storage layer, and the LLM provider are **deliberately not pluggable**. Do not introduce abstractions for them.
@@ -83,7 +99,7 @@ Docker, Redis, Postgres, vector DB, LangGraph/LangChain/LlamaIndex, Celery/RQ, W
 
 ---
 
-## 4. Code conventions
+## 5. Code conventions
 
 ### Language policy (mandatory)
 All code artifacts in **English**: identifiers, comments, docstrings, log messages, exception messages, hardcoded fallback strings, LLM system prompts, migration descriptions. Runtime chat replies follow the user's language (Spanish by default) via an explicit prompt instruction.
@@ -108,7 +124,7 @@ All code artifacts in **English**: identifiers, comments, docstrings, log messag
 
 ---
 
-## 5. Environment
+## 6. Environment
 
 Required:
 ```env
@@ -126,17 +142,17 @@ Never commit secrets. `api_key_copilot.txt` and any `.env*` files must stay giti
 
 ---
 
-## 6. Working style for this repo
+## 7. Working style for this repo
 
 - **Trace every change to an RF.** If you cannot cite an RF or a doc section, ask before implementing.
 - **Prefer editing existing docs over creating new ones.** This repo is design-first; scattered Markdown is a smell.
 - **Pending decisions** (tech-stack §4) are open: ask the user before locking them in code.
-- **Reply to the user in Spanish by default** (the project owner writes Spanish). Code stays English.
+- **All output in English.** Code, comments, docstrings, log messages, UI microcopy, and assistant replies are all English. Only LLM-generated research answers follow the end-user's language.
 - **No over-engineering.** Target a 4–6 h pair-session build. If a feature costs > ~100 LOC and is not in an RF, push back.
 
 ---
 
-## 7. Agentic Development Architecture
+## 8. Agentic Development Architecture
 
 This project uses an orchestrated agentic workflow for development. All agents must follow the defined protocols.
 

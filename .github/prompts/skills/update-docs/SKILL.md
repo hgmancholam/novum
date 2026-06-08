@@ -95,22 +95,31 @@ A doc is stale when one or more of the following is true:
 
 ### Step 3 — Update in priority order
 
-**Priority 1 — Memory bank (always, no exceptions)**
+**Priority 1 — Generated indices (always, no exceptions)**
+- If any `.py`, `.ts`, or `.tsx` file was created or modified during the task, run:
+  ```bash
+  python scripts/gen_codemap.py
+  ```
+  This regenerates `.github/memory-bank/indices/codemap.md` (the symbol index used by
+  Claude Code and Copilot). Skip only if the task touched exclusively non-code files
+  (docs, config, migrations).
+
+**Priority 2 — Memory bank (always, no exceptions)**
 - Append a new `## D-{N}` entry to `decisions-history.md` (D-{N} = next consecutive ID)
 - Append `## L-{N}` entry to `lessons-learned.md` ONLY if a non-obvious pattern emerged
 - Add new artifact rows to `knowledge-base-index.md` for each file created
 - Update `project-context.md` §2 "Recent Changes" table (add row; keep last 5)
 
-**Priority 2 — Implementation-phase status updates**
+**Priority 3 — Implementation-phase status updates**
 - Update `Status:` field in affected BRDs / user stories / plans to `Implemented` | `Approved`
 - Tick off completed items in user story `Definition of Done` checklists
 
-**Priority 3 — Technical facts**
+**Priority 4 — Technical facts**
 - Update `docs/technical-phase/` docs (architecture, tech stack, AI services, infrastructure)
 - Update `docs/understanding-phase/` docs (requirements, stopping policy, confidence, UI spec)
 - Keep all RF cross-references (RF-01…RF-16) accurate — never invent or remove RF IDs
 
-**Priority 4 — Agent/workflow meta-docs**
+**Priority 5 — Agent/workflow meta-docs**
 - Update agent `.md` files if their step flow, skills used, or outputs changed
 - Update `workflow.yaml` skills section if a skill was added/removed
 - Update `CLAUDE.md` §7.2 skills table and §7.5 entry points when stale
@@ -129,6 +138,7 @@ A doc is stale when one or more of the following is true:
 
 Before declaring done, verify all boxes below:
 
+- [ ] `codemap.md` regenerated if any `.py` / `.ts` / `.tsx` files were touched
 - [ ] `decisions-history.md` has a new `## D-{N}` entry dated today
 - [ ] `project-context.md` §2 "Recent Changes" table includes this task
 - [ ] All new artifacts appear in `knowledge-base-index.md`
@@ -158,6 +168,7 @@ Emit this block when the skill completes:
 ```yaml
 update_docs_result:
   task: "<what was completed>"
+  codemap_regenerated: true | false   # true if any .py/.ts/.tsx files were modified
   memory_bank_updated:
     decisions_history: true | false
     lessons_learned:   true | false   # true only if a new lesson was added

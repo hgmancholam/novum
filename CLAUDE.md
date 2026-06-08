@@ -41,6 +41,10 @@ When asked to change a decision, update the originating doc — do not silently 
 
 @.github/memory-bank/shared/architecture-summary.md
 
+### Symbol Index (auto-generated)
+
+@.github/memory-bank/indices/codemap.md
+
 ### Explicitly NOT in V1
 Docker, Redis, vector DB, LangGraph/LangChain/LlamaIndex, Celery/RQ, WebSockets, Sentry/Datadog/Prometheus, Nginx (Caddy instead), cookies (use `localStorage`), Storybook, i18n, multiple LLM providers. Do not suggest them unless explicitly asked.
 

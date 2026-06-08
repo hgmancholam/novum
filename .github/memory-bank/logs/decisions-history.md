@@ -2339,6 +2339,31 @@ equires_contradictions = state.has_event(EventType.CONTRADICTION_DETECTED), pass
 
 ---
 
+## D-CODEMAP-2026-06-08: Symbol index + repomix config for AI tooling efficiency (2026-06-08)
+**Date:** 2026-06-08
+**Author:** Orchestrator (user request)
+**Status:** ✅ Done
+
+### Context
+User asked how to create a codemap of the entire application to make Claude Code and Copilot more efficient when navigating the codebase (~300 Python files, ~246 TypeScript files).
+
+### Decisions
+**D1 — `scripts/gen_codemap.py`:** New script that scans `backend/app/` (Python AST) and `frontend/src/` (regex on `export` statements) and emits `.github/memory-bank/indices/codemap.md` — a structured symbol index (class, function, const per file). Produces 1361 lines covering 107 BE + 138 FE files with exported symbols.
+
+**D2 — `CLAUDE.md` @-include for codemap:** Added `@.github/memory-bank/indices/codemap.md` under §3 so Claude Code loads the symbol index automatically on every session. No manual step required.
+
+**D3 — `repomix.config.json` (recommended, not yet created):** Documented configuration to generate a single XML snapshot of the full codebase for use with Claude.ai Chat or Copilot Chat. Left as a manual step for the user.
+
+### Files
+- `scripts/gen_codemap.py` (new)
+- `.github/memory-bank/indices/codemap.md` (new, auto-generated)
+- `CLAUDE.md` (§3 — added @-include for codemap)
+- `.github/copilot-instructions.md` (new §2 Symbol Index, fixed stale header, language policy updated to English-only)
+- `repomix.config.json` (new — full codebase snapshot for Copilot Chat / Claude Chat)
+- `.github/prompts/skills/update-docs/SKILL.md` (Priority 1 added: regenerate codemap when .py/.ts/.tsx files touched; checklist + output block updated)
+
+---
+
 ## D-IP-41-43: Research-mode synthesis — three iterations (PASS, FAIL, FAIL) (2026-05-31)
 **Date:** 2026-05-31
 **Author:** Coder (autonomous, 3-iteration mandate)
