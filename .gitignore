@@ -274,3 +274,15 @@ frontend/tsconfig.tsbuildinfo
 /docs/evaluation/deliverable-2/version1
 /docs/evaluation/deliverable-2/version2
 /docs/evaluation/deliverable-2/version3
+
+# ===========================================
+# Claude Code
+# ===========================================
+
+# Local-only settings (never commit)
+.claude/settings.local.json
+# Session-state scratch files written by hooks at runtime
+.claude/session.*
+# .claude/commands/ and .claude/hooks/ are intentionally committed
+# .mcp.json is intentionally committed — uses ${ENV_VAR} references, no hardcoded secrets
+/.mcp.json

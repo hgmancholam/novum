@@ -110,8 +110,8 @@ flowchart TD
 | **F4.S3** | REVIEW | `assign_score` | Calculate weighted score (1-10) |
 | **F4.S4** | REVIEW | `generate_review_report` | Create detailed review report |
 | **F4.S5** | REVIEW | `update_memory_bank` | Record review decisions |
-| **F5.S1** | COMPLETE | `finalize_documentation` | Update all relevant documentation |
-| **F5.S2** | COMPLETE | `update_memory_bank` | Final decisions history update |
+| **F5.S1** | COMPLETE | `run_skill_update_docs` | Run update-docs skill: update stale docs (application, agent/workflow, memory bank) |
+| **F5.S2** | COMPLETE | `sync_to_github` | Push updated docs via GitHub MCP (if available) |
 | **F5.S3** | COMPLETE | `notify_completion` | Notify user of success |
 | **F6.S1** | ESCALATE | `create_escalation_report` | Document iteration attempts and blockers |
 | **F6.S2** | ESCALATE | `notify_manual_review` | Alert user for manual intervention |
@@ -206,8 +206,8 @@ flowchart TD
     end
 
     subgraph F5["F5: COMPLETE ✅"]
-        H["F5.S1: Finalize Documentation"]
-        I["F5.S2-S3: Update & Notify"]
+        H["F5.S1: Run update-docs skill"]
+        I["F5.S2-S3: Sync & Notify"]
     end
 
     subgraph F6["F6: ESCALATE ⚠️"]
@@ -419,6 +419,11 @@ mindmap
       Update After Task
       Templates
       Indices
+    Update Documentation
+      Application Docs
+      Agent/Workflow Docs
+      Memory Bank
+      GitHub Sync
 ```
 
 ---

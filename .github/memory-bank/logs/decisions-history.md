@@ -3,12 +3,58 @@
 > Chronological log of all decisions made during the Novum development.
 > Each decision follows the decision record template.
 
-**Last Updated:** 2026-05-29
-**Total Decisions:** 85
+**Last Updated:** 2026-06-08
+**Total Decisions:** 87
 
 ---
 
 ## Recent Decisions
+
+## D-086: Claude Code hooks — lint gate, eval gate, memory enforcer (2026-06-08)
+**Date:** 2026-06-08
+**Author:** Orchestrator (session continuation)
+**Status:** ✅ Implemented
+
+### Context
+Added three PostToolUse/Stop hooks to `.claude/settings.json` to enforce project conventions automatically during Claude Code sessions.
+
+### Decisions
+**D1 — Three hooks, one settings file.** `lint_gate.py` (PostToolUse Write|Edit): runs ruff on Python files, exits 2 to reactivate Claude on errors. `eval_gate_detector.py` (PostToolUse Write|Edit): warns once per session when a F3.5 trigger path is touched. `memory_enforcer.py` (Stop): verifies `decisions-history.md` was updated if any writes happened, exits 2 to prompt update.
+
+**D2 — Session state files in `.claude/session.*`.** Hooks share state via `.claude/session.timestamp`, `.claude/session.has_writes`, `.claude/session.eval_warned`. All cleaned up by `memory_enforcer` at Stop. Pattern added to `.gitignore`.
+
+### Files
+- `.claude/settings.json`
+- `.claude/hooks/lint_gate.py`
+- `.claude/hooks/eval_gate_detector.py`
+- `.claude/hooks/memory_enforcer.py`
+- `.gitignore` (added Claude Code section)
+
+---
+
+## D-087: update-docs skill — documentation update protocol (2026-06-08)
+**Date:** 2026-06-08
+**Author:** Orchestrator (session continuation)
+**Status:** ✅ Implemented
+
+### Context
+Added a new `update-docs` skill to systematically update stale documentation after any task completes. Dual-compatible: works as a GitHub Copilot skill (SKILL.md) and as a Claude Code slash command (`/update-docs`). Wired into workflow as F5.S1.
+
+### Decisions
+**D1 — Two documentation categories with priority ordering.** Category A = application docs (`docs/`); Category B = agent/workflow docs (`.github/`). Memory bank always updated first (Priority 1), then implementation-phase artifacts (Priority 2), then technical facts (Priority 3), then agent/workflow meta-docs (Priority 4).
+
+**D2 — F5 updated to use the skill.** F5.S1 changed from vague `finalize_documentation` to `run_skill_update_docs` with `skill: update-docs`. F5.S2 changed to explicit `sync_to_github` (memory bank update is now covered by the skill itself).
+
+**D3 — In-place-only + append-only invariants.** Skill enforces the same in-place revision rule as the Auditor/Orchestrator: no `-v2` copies, no renaming trace IDs, logs are append-only. `.github/copilot-instructions.md` is explicitly frozen — never touched by the skill.
+
+### Files
+- `.github/prompts/skills/update-docs/SKILL.md` (NEW)
+- `.claude/commands/update-docs.md` (NEW)
+- `.github/workflow.yaml` (skills section + F5 steps)
+- `.github/workflow.md` (steps table + F5 diagram + skills mindmap)
+- `CLAUDE.md` (§7.2 skills table + §7.5 entry points)
+
+---
 
 ## D-COSTS-ANALYTICS: Cross-run Cost Analytics page (2026-05-29)
 **Date:** 2026-05-29

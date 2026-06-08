@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/lint_gate.py"
+          },
+          {
+            "type": "command",
+            "command": "python .claude/hooks/eval_gate_detector.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/memory_enforcer.py"
+          }
+        ]
+      }
+    ]
+  }
+}

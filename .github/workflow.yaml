@@ -349,6 +349,30 @@ skills:
       - read_before_task
       - update_after_task
 
+  # Documentation Update Skill
+  update-docs:
+    name: "Update Documentation"
+    description: >
+      Identify and update stale documentation after a task completes.
+      Covers application docs (docs/), agent/workflow docs (.github/agents/,
+      .github/prompts/skills/, workflow.yaml, CLAUDE.md), and the memory bank.
+    location: ".github/prompts/skills/update-docs/"
+    trigger:
+      automatic: "F5.S1 (called by Orchestrator at COMPLETE phase)"
+      on_demand: "/update-docs <task description>"
+    scope:
+      - "docs/"
+      - ".github/agents/"
+      - ".github/prompts/skills/"
+      - ".github/memory-bank/"
+      - "CLAUDE.md"
+      - ".github/workflow.yaml"
+      - ".github/workflow.md"
+    constraints:
+      - "Never modify .github/copilot-instructions.md"
+      - "In-place edits only — no *-v2 or *-revised copies"
+      - "Append-only for decisions-history, lessons-learned, eval history"
+
 # =============================================================================
 # WORKFLOW PHASES (F0-F6)
 # =============================================================================
@@ -646,11 +670,14 @@ phases:
     description: "Implementation approved"
     steps:
       - id: "F5.S1"
-        action: "finalize_documentation"
-        description: "Update all relevant documentation"
+        action: "run_skill_update_docs"
+        skill: "update-docs"
+        description: >
+          Run the update-docs skill: identify stale docs, update application docs,
+          agent/workflow docs, and memory bank. Emit update_docs_result block.
       - id: "F5.S2"
-        action: "update_memory_bank"
-        description: "Final update to decisions history"
+        action: "sync_to_github"
+        description: "Push updated docs via GitHub MCP (skill: github-mcp) if available"
       - id: "F5.S3"
         action: "notify_completion"
         description: "Notify user of successful completion"
