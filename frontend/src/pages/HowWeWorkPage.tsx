@@ -7,6 +7,8 @@
  * Standalone page (no AppShell). Uses the global background gradient defined in index.css.
  */
 
+
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
