@@ -49,7 +49,9 @@ function useDocumentTheme(): "light" | "dark" {
       attributes: true,
       attributeFilter: ["data-theme"],
     });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, []);
   return isLight ? "light" : "dark";
 }
