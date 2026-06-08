@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { BackgroundOrbs, Logo } from "@/components/atoms";
 import { ThemeToggle } from "@/components/molecules";
+import { useTheme } from "@/hooks/useTheme";
 import { fadeUp, stagger } from "@/lib/motion";
 
 // ---------------------------------------------------------------------------
@@ -312,6 +313,8 @@ function PipelineDiagram() {
 }
 
 function DiagramSVG() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   // Coordinates chosen to fit a 1200x520 viewBox cleanly.
   // Layout:
   //   x=80    Question
@@ -386,7 +389,7 @@ function DiagramSVG() {
       </g>
 
       {/* Nodes */}
-      <DiagramNode x={80} y={230} w={100} h={60} label="Question" sublabel="User" />
+      <DiagramNode x={80} y={230} w={100} h={60} label="Question" sublabel="User" isLight={isLight} />
       <DiagramNode
         x={300}
         y={220}
@@ -395,6 +398,7 @@ function DiagramSVG() {
         label="Self-Ask"
         sublabel="Router"
         accent="#6366f1"
+        isLight={isLight}
         glow
       />
 
@@ -406,6 +410,7 @@ function DiagramSVG() {
         label="Fast"
         sublabel="Direct + mini-judge"
         accent="#22d3ee"
+        isLight={isLight}
       />
       <DiagramNode
         x={600}
@@ -415,6 +420,7 @@ function DiagramSVG() {
         label="Standard"
         sublabel="Decompose + re-decomp"
         accent="#6366f1"
+        isLight={isLight}
       />
       <DiagramNode
         x={600}
@@ -424,6 +430,7 @@ function DiagramSVG() {
         label="Deep"
         sublabel="Abductive + ReAct"
         accent="#a855f7"
+        isLight={isLight}
       />
 
       {/* Escalation label */}
@@ -447,6 +454,7 @@ function DiagramSVG() {
         label="CoVe"
         sublabel="Verify draft"
         accent="#fbbf24"
+        isLight={isLight}
         glow
       />
 
@@ -458,6 +466,7 @@ function DiagramSVG() {
         label="Output"
         sublabel="Verified"
         accent="#10b981"
+        isLight={isLight}
       />
     </svg>
   );
@@ -495,6 +504,7 @@ interface DiagramNodeProps {
   sublabel: string;
   accent?: string;
   glow?: boolean;
+  isLight: boolean;
 }
 
 function DiagramNode({
@@ -506,7 +516,11 @@ function DiagramNode({
   sublabel,
   accent = "#cbd5e1",
   glow = false,
+  isLight,
 }: DiagramNodeProps) {
+  const fill = isLight ? "rgba(255, 255, 255, 0.9)" : "rgba(17, 24, 39, 0.85)";
+  const labelFill = isLight ? "#0f172a" : "#f8fafc";
+  const sublabelFill = isLight ? "#475569" : "#94a3b8";
   return (
     <motion.g
       initial={{ opacity: 0, y: 8 }}
@@ -532,7 +546,7 @@ function DiagramNode({
         width={w}
         height={h}
         rx={14}
-        fill="rgba(17, 24, 39, 0.85)"
+        fill={fill}
         stroke={accent}
         strokeOpacity={0.55}
         strokeWidth={1.25}
@@ -544,7 +558,7 @@ function DiagramNode({
         fontFamily="Inter, system-ui, sans-serif"
         fontSize="14"
         fontWeight={600}
-        fill="#f8fafc"
+        fill={labelFill}
       >
         {label}
       </text>
@@ -554,7 +568,7 @@ function DiagramNode({
         textAnchor="middle"
         fontFamily="Inter, system-ui, sans-serif"
         fontSize="11"
-        fill="#94a3b8"
+        fill={sublabelFill}
       >
         {sublabel}
       </text>
@@ -747,7 +761,7 @@ function EffectivenessBar({ value, highlight }: { value: number; highlight: bool
               : "rgba(203, 213, 225, 0.55)",
           }}
           initial={{ width: 0 }}
-          whileInView={{ width: `${value}%` }}
+          whileInView={{ width: `${String(value)}%` }}
           viewport={{ once: true, amount: 0.5 }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         />
@@ -819,7 +833,7 @@ function CostSavings() {
                     className="h-full rounded-full"
                     style={{ background: d.color, boxShadow: `0 0 12px ${d.color}66` }}
                     initial={{ width: 0 }}
-                    whileInView={{ width: `${d.value}%` }}
+                    whileInView={{ width: `${String(d.value)}%` }}
                     viewport={{ once: true, amount: 0.5 }}
                     transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
                   />
